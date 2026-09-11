@@ -194,8 +194,8 @@ function renderActiveDeviceList() {
 
 function configureLightFilters(devices) {
   const rooms = [...new Set(devices.map((device) => device.room).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'it'))
-  $('#light-room').innerHTML = '<option value="">Stanza</option>' + rooms.map((room) => `<option value="${esc(room)}">${esc(room)}</option>`).join('')
-  $('#light-room').value = lightFilterRoom
+  $('#light-room-menu').innerHTML = rooms.map((room) => `<button data-light-room="${esc(room)}" class="${room === lightFilterRoom ? 'active' : ''}">${esc(room)}</button>`).join('')
+  $('#light-room-toggle').textContent = lightFilterRoom || 'Stanza'
 }
 
 function deviceCardStyle(device) {
@@ -454,7 +454,21 @@ $('#rooms').addEventListener('click', (event) => {
   openDevices(button.dataset.room, currentDevices.filter((device) => device.room.toLocaleLowerCase('it') === button.dataset.room.toLocaleLowerCase('it')))
 })
 $('#detail-back').addEventListener('click', showHome)
-$('#light-room').addEventListener('change', (event) => { lightFilterRoom = event.target.value; $('#light-room-label').textContent = lightFilterRoom || 'Stanza'; renderActiveDeviceList() })
+$('#light-room-toggle').addEventListener('click', (event) => {
+  const open = $('#light-room-menu').hidden
+  $('#light-room-menu').hidden = !open
+  event.currentTarget.setAttribute('aria-expanded', String(open))
+})
+$('#light-room-menu').addEventListener('click', (event) => {
+  const button = event.target.closest('[data-light-room]')
+  if (!button) return
+  lightFilterRoom = button.dataset.lightRoom
+  $('#light-room-toggle').textContent = lightFilterRoom
+  $('#light-room-toggle').setAttribute('aria-expanded', 'false')
+  $('#light-room-menu').hidden = true
+  configureLightFilters(currentDevices.filter((device) => device.kind === 'light'))
+  renderActiveDeviceList()
+})
 $('#light-on-filter').addEventListener('click', (event) => {
   lightFilterActive = !lightFilterActive
   event.currentTarget.setAttribute('aria-pressed', String(lightFilterActive))
@@ -464,11 +478,18 @@ $('#light-on-filter').addEventListener('click', (event) => {
 $('#light-all-filter').addEventListener('click', () => {
   lightFilterRoom = ''
   lightFilterActive = false
-  $('#light-room').value = ''
-  $('#light-room-label').textContent = 'Stanza'
+  $('#light-room-toggle').textContent = 'Stanza'
+  $('#light-room-toggle').setAttribute('aria-expanded', 'false')
+  $('#light-room-menu').hidden = true
   $('#light-on-filter').classList.remove('active')
   $('#light-on-filter').setAttribute('aria-pressed', 'false')
   renderActiveDeviceList()
+})
+document.addEventListener('click', (event) => {
+  if (!event.target.closest('.room-filter')) {
+    $('#light-room-menu').hidden = true
+    $('#light-room-toggle').setAttribute('aria-expanded', 'false')
+  }
 })
 $('#scenario-refresh').addEventListener('click', loadScenarios)
 $('#scenario-list').addEventListener('click', (event) => {

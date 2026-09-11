@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.4.1 — 2026-09-11
+
+- Sostituito il menu stanza nativo con un selettore personalizzato in stile e-Face, responsive e touch-friendly.
+
 ## 1.4.0 — 2026-09-11
 
 - Rimossi i conteggi dall'intestazione delle pagine dispositivo.
