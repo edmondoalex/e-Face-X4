@@ -104,6 +104,9 @@ document.querySelectorAll('.rail button').forEach((button) => button.addEventLis
   document.querySelector('main').classList.remove('app-view')
   requestAnimationFrame(() => document.querySelector('main').classList.add('app-view'))
   if (button.dataset.view === 'media') $('#media').scrollIntoView({ behavior: 'smooth', block: 'center' })
+  if (button.dataset.view === 'rooms') $('.room-panel').scrollIntoView({ behavior: 'smooth', block: 'center' })
+  if (button.dataset.view === 'security') openDevices('Sicurezza', currentDevices.filter((device) => device.kind === 'lock'))
+  if (button.dataset.view === 'more') openDevices('Tutti i dispositivi', currentDevices)
 }))
 $('#widgets').addEventListener('click', (event) => {
   const button = event.target.closest('[data-kind]')
@@ -118,6 +121,7 @@ $('#rooms').addEventListener('click', (event) => {
   openDevices(button.dataset.room, currentDevices.filter((device) => device.room.toLocaleLowerCase('it') === button.dataset.room.toLocaleLowerCase('it')))
 })
 $('#dialog-close').addEventListener('click', () => $('#device-dialog').close())
+$('#show-all-devices').addEventListener('click', () => openDevices('Tutti i dispositivi', currentDevices))
 $('#volume').addEventListener('input', (event) => { $('#volume-value').textContent = `${event.target.value}%` })
 document.addEventListener('visibilitychange', () => { if (!document.hidden) refresh() })
 tick()

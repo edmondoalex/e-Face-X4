@@ -11,9 +11,9 @@
   </header>
   <div class="layout">
     <nav class="rail" aria-label="Navigazione principale">
-      <button class="active" data-view="home"><b>⌂</b><span>Home</span></button><button data-view="rooms"><b>◇</b><span>Stanze</span></button>
-      <button data-view="media"><b>♫</b><span>Media</span></button><button data-view="security"><b>⬡</b><span>Sicurezza</span></button>
-      <button data-view="more"><b>▦</b><span>Altro</span></button>
+      <button class="active" data-view="home" title="Home"><b>⌂</b><span>Home</span></button><button data-view="rooms" title="Stanze"><b>◇</b><span>Stanze</span></button>
+      <button data-view="media" title="Multimedia"><b>♫</b><span>Multimedia</span></button><button data-view="security" title="Sicurezza"><b>⬡</b><span>Sicurezza</span></button>
+      <button data-view="more" title="Tutti i dispositivi"><b>▦</b><span>Dispositivi</span></button>
     </nav>
     <main>
       <section class="status-strip">
@@ -24,7 +24,7 @@
         <article class="climate-card xcard"><div><i>❄</i><span>Media<br><b>Raffrescamento</b></span></div><div class="temp-control"><button>−</button><strong id="temperature">22°</strong><button>＋</button></div></article>
         <section class="quick-grid" id="widgets"></section>
         <section class="camera-grid" id="demo-cameras"><button class="camera garden"><span>Giardino</span></button><button class="camera pool"><span>Piscina</span></button><button class="camera patio"><span>Patio</span></button></section>
-        <section class="room-panel xcard"><div class="panel-title"><span>Ambienti</span><button>Vedi tutti ›</button></div><div class="room-grid" id="rooms"></div></section>
+        <section class="room-panel xcard"><div class="panel-title"><span>Ambienti</span><button id="show-all-devices">Vedi tutti ›</button></div><div class="room-grid" id="rooms"></div></section>
       </section>
       <section class="now-playing xcard" id="media">
         <div class="cover"><span>♫</span></div><div class="track"><strong id="track-title">Nessuna riproduzione</strong><span id="track-detail">—</span><i><b></b><b></b><b></b></i></div>

@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.4.1 — 2026-09-11
+
+- Resa funzionale la voce `Vedi tutti` degli ambienti.
+- Collegati i pulsanti Stanze, Multimedia, Sicurezza e Tutti i dispositivi.
+- Aggiunte etichette descrittive alle icone della navigazione laterale.
+
 ## 0.4.0 — 2026-09-11
 
 - Rese cliccabili categorie e stanze con elenco dei dispositivi reali.
