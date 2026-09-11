@@ -26,3 +26,5 @@ configuration:
       token:
         name: Token
 
+network:
+  8099/tcp: Porta interfaccia web diretta

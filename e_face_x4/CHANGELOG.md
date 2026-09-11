@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.4 — 2026-09-11
+
+- Rimossa la modalità `host_network` per evitare conflitti con altri add-on.
+- Aggiunta la porta web esterna configurabile, predefinita su `8130`.
+- Mantenuto Home Assistant Ingress sulla porta interna isolata `8099`.
+
 ## 0.1.3 — 2026-09-11
 
 - Corretto il blocco `expected a URL` con indirizzi dei connettori vuoti.

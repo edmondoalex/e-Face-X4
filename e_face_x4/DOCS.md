@@ -8,6 +8,13 @@ Questa prima versione serve a verificare installazione, Ingress e impostazione g
 2. Aprire la Web UI.
 3. Lasciare `demo_mode` attivo per visualizzare la dashboard dimostrativa.
 
+## Porta web
+
+Ingress usa internamente la porta `8099`. Per l'accesso diretto Home Assistant pubblica per
+impostazione predefinita la porta `8130`, modificabile nella sezione **Rete** dell'add-on.
+
+Esempio: `http://IP_HOME_ASSISTANT:8130`.
+
 ## Collegamento e-HDL BusPro MQTT
 
 Disattivare la modalità demo solo quando almeno un connettore reale è stato configurato.
@@ -21,4 +28,3 @@ Il token resta nel file delle opzioni dell'add-on e non viene restituito al brow
 
 La versione 0.1.0 non invia ancora comandi agli add-on collegati: il primo connettore viene usato
 per verificare disponibilità e contratto dei dati prima di abilitare il controllo reale.
-
