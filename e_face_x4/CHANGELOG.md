@@ -1,6 +1,6 @@
 # Changelog
 
-## 2.0.4 — 2026-09-11
+## 2.1.1 — 2026-09-11
 
 - Mantenuto disabilitato il join multiroom Control4 finché non è disponibile il comando Digital Media corretto.
 - Impedita la selezione diretta del driver riproduttore, che crea sorgenti duplicate nella pagina Sessioni Control4.
