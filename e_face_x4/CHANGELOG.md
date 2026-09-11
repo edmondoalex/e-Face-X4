@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.7.5 — 2026-09-11
+
+- Sostituito il logo della testata con il marchio orizzontale `EKONEX e-Face X4`.
+- Ottimizzate trasparenza, ritaglio e dimensioni responsive del nuovo asset.
+
 ## 0.7.4 — 2026-09-11
 
 - Graduata la colorazione celeste delle cover in base alla posizione 0–100%.

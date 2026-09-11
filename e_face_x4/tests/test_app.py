@@ -57,7 +57,8 @@ def test_x4_shell_and_brand_assets_are_served() -> None:
     assert 'id="show-all-devices"' in page.text
     for label in ("Guarda", "Ascolta", "Luci", "Oscuranti", "Comfort", "Sicurezza"):
         assert f'title="{label}"' in page.text
-    assert 'src="assets/brand-horizontal.png"' in page.text
+    assert 'src="assets/brand-horizontal.png?v=0.7.5"' in page.text
+    assert 'alt="EKONEX e-Face X4"' in page.text
     assert 'class="header-wordmark"' not in page.text
     assert client.get("/assets/brand-horizontal.png").status_code == 200
     assert client.get("/assets/brand-icon.png").status_code == 200
