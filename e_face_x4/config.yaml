@@ -1,5 +1,5 @@
 name: e-Face X4
-version: 0.2.0
+version: 0.2.1
 slug: e_face_x4
 description: Interfaccia unificata per gli add-on e-Konex
 url: https://github.com/edmondoalex/e-Face-X4
@@ -21,6 +21,7 @@ arch:
   - aarch64
   - armhf
 options:
+  home_name: Casa
   demo_mode: true
   request_timeout_s: 4
   buspro:
@@ -32,6 +33,7 @@ options:
     base_url: ""
     token: ""
 schema:
+  home_name: str?
   demo_mode: bool?
   request_timeout_s: float?
   buspro:

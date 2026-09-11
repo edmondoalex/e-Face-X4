@@ -13,7 +13,7 @@ from .config import load_settings
 from .connectors import BusproConnector
 from .demo import dashboard as demo_dashboard
 
-VERSION = "0.2.0"
+VERSION = "0.2.1"
 STATIC = Path(__file__).parent / "static"
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s [e-face-x4] %(message)s")
 
@@ -31,10 +31,12 @@ def create_app() -> FastAPI:
         settings = load_settings()
         connectors = [BusproConnector(settings.buspro, settings.request_timeout_s)]
         providers = await asyncio.gather(*(connector.snapshot() for connector in connectors))
+        dashboard = demo_dashboard() if settings.demo_mode else {"rooms": [], "widgets": [], "media": None}
+        dashboard.setdefault("home", {})["name"] = settings.home_name
         return {
             "version": VERSION,
             "mode": "demo" if settings.demo_mode else "live",
-            "dashboard": demo_dashboard() if settings.demo_mode else {"rooms": [], "widgets": [], "media": None},
+            "dashboard": dashboard,
             "providers": providers,
         }
 

@@ -51,3 +51,12 @@ def test_x4_shell_and_brand_assets_are_served() -> None:
     assert "now-playing" in page.text
     assert client.get("/assets/brand-icon.png").status_code == 200
     assert client.get("/assets/app.css").status_code == 200
+
+
+def test_configured_home_name_is_shown_in_bootstrap(monkeypatch, tmp_path) -> None:
+    options = tmp_path / "options.json"
+    options.write_text('{"home_name":"Villa Aurora","demo_mode":true}', encoding="utf-8")
+    monkeypatch.setenv("EFACE_OPTIONS", str(options))
+    response = TestClient(create_app()).get("/api/bootstrap")
+    assert response.status_code == 200
+    assert response.json()["dashboard"]["home"]["name"] == "Villa Aurora"

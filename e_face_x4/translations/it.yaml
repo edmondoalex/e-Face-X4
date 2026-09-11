@@ -1,4 +1,7 @@
 configuration:
+  home_name:
+    name: Nome abitazione
+    description: Nome mostrato nella testata dell'interfaccia, ad esempio Casa, Villa o Ufficio.
   demo_mode:
     name: Modalità demo
     description: Mostra dati dimostrativi chiaramente identificati mentre si configura l'impianto.

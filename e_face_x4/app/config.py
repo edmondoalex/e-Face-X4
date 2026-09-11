@@ -16,6 +16,7 @@ class ProviderConfig:
 
 @dataclass(frozen=True)
 class Settings:
+    home_name: str
     demo_mode: bool
     request_timeout_s: float
     buspro: ProviderConfig
@@ -39,9 +40,9 @@ def load_settings() -> Settings:
         raw = {}
     timeout = min(15.0, max(1.0, float(raw.get("request_timeout_s", 4))))
     return Settings(
+        home_name=str(raw.get("home_name") or "Casa").strip() or "Casa",
         demo_mode=bool(raw.get("demo_mode", True)),
         request_timeout_s=timeout,
         buspro=_provider(raw.get("buspro")),
         evoice=_provider(raw.get("evoice")),
     )
-

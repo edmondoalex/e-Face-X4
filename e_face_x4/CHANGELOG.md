@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.2.1 — 2026-09-11
+
+- Mostrato il nome fisso e-Face X4 accanto al logo.
+- Aggiunta l'opzione `home_name` per configurare il nome dell'abitazione.
+- Separato visivamente il nome del prodotto dal nome dell'impianto.
+
 ## 0.2.0 — 2026-09-11
 
 - Ridisegnata la dashboard secondo il nuovo riferimento X4.
