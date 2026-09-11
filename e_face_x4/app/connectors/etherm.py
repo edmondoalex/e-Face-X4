@@ -73,8 +73,10 @@ class EThermConnector(Connector):
             return {"id": self.id, "label": self.label, "status": "offline", "reason": "indirizzo non raggiungibile o connessione rifiutata sulla porta 8080", "items": []}
         except httpx.TimeoutException:
             return {"id": self.id, "label": self.label, "status": "offline", "reason": "timeout collegandosi a e-Therm", "items": []}
-        except (httpx.HTTPError, ValueError):
-            return {"id": self.id, "label": self.label, "status": "offline", "reason": "risposta e-Therm non valida", "items": []}
+        except (httpx.HTTPError, ValueError, TypeError) as exc:
+            detail = " ".join(str(exc).split())[:180]
+            reason = f"{type(exc).__name__}: {detail}" if detail else type(exc).__name__
+            return {"id": self.id, "label": self.label, "status": "offline", "reason": reason, "items": []}
 
     async def command(self, source_id: str, action: str, value: Any) -> dict[str, Any]:
         if action not in {"set_target", "set_mode", "set_season"}:

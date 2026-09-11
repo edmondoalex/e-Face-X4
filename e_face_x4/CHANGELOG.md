@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.6.3 — 2026-09-11
+
+- Mostrato il tipo e il dettaglio reale degli errori di parsing/trasporto e-Therm per la diagnosi dal container.
+
 ## 1.6.2 — 2026-09-11
 
 - Corretta la priorità del connettore: l'indirizzo manuale LAN prevale sulla scoperta automatica.
