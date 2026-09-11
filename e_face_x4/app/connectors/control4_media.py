@@ -13,7 +13,7 @@ from pyControl4.websocket import C4Websocket
 from ..control4 import control4_director
 from .base import Connector
 
-ROOM_VARIABLES = ("POWER_STATE", "CURRENT_VOLUME", "IS_MUTED", "CURRENT_SELECTED_DEVICE", "CURRENT_AUDIO_DEVICE", "CURRENT_VIDEO_DEVICE", "CURRENT_VOLUME_DEVICE_ID", "PLAYING_AUDIO_DEVICE", "CURRENT MEDIA INFO")
+ROOM_VARIABLES = ("POWER_STATE", "CURRENT_VOLUME", "IS_MUTED", "CURRENT_SELECTED_DEVICE", "CURRENT_AUDIO_DEVICE", "CURRENT_VIDEO_DEVICE", "CURRENT_VOLUME_DEVICE_ID", "PLAYING_AUDIO_DEVICE", "CURRENT MEDIA INFO", "QUEUE_STATUS_V2")
 _artwork_urls: dict[str, tuple[str, str]] = {}
 _ARTWORK_HOSTS = ("i.scdn.co", "mosaic.scdn.co", "spotifycdn.com", "mzstatic.com", "media-amazon.com", "tunein.com")
 
@@ -34,6 +34,7 @@ class Control4MediaConnector(Connector):
                 director.get_all_item_variable_value(ROOM_VARIABLES),
             )
             items = normalize_control4_media(ui, all_items, variables)
+            groups = normalize_control4_groups(items, variables)
             room_ids = {int(str(item["registry_id"]).removeprefix("c4room:")) for item in items}
             related = {
                 int(item.get("value")) for item in variables
@@ -42,7 +43,7 @@ class Control4MediaConnector(Connector):
                 and str(item.get("value") or "0").isdigit() and int(item.get("value") or 0) > 0
             }
             self._event_ids = room_ids | related
-            return {"id": self.id, "label": self.label, "status": "online", "connection_status": "online", "items": items, "groups": [], "rooms": [item["room"] for item in items]}
+            return {"id": self.id, "label": self.label, "status": "online", "connection_status": "online", "items": items, "groups": groups, "rooms": [item["room"] for item in items]}
         except Exception as exc:
             return {"id": self.id, "label": self.label, "status": "offline", "reason": f"{type(exc).__name__}", "items": [], "groups": [], "rooms": []}
 
@@ -59,6 +60,27 @@ class Control4MediaConnector(Connector):
         elif operation == "volume_unmute": await room.set_mute_off()
         elif operation == "set_volume": await room.set_volume(max(0, min(100, int(value))))
         elif operation == "turn_off": await room.set_room_off()
+        elif operation == "media_join":
+            members = value if isinstance(value, list) else []
+            requested = [str(item) for item in members]
+            snapshot = await self.snapshot()
+            valid = {str(item.get("registry_id")) for item in snapshot.get("items", []) if "listen" in (item.get("experiences") or [])}
+            if not requested or len(requested) > 63 or len(set(requested)) != len(requested) or any(item not in valid or item == registry_id for item in requested):
+                raise ValueError("Stanze Control4 da aggiungere non valide")
+            group = next((item for item in snapshot.get("groups", []) if registry_id in item.get("member_registry_ids", [])), None)
+            owner_id = str(group.get("owner_registry_id")) if group else registry_id
+            owner_room_id = int(owner_id.removeprefix("c4room:"))
+            room_list = ",".join(item.removeprefix("c4room:") for item in requested)
+            await director.send_post_request("/api/v1/items/100002/commands", "ADD_ROOMS_TO_SESSION", {"ROOM_ID": owner_room_id, "ROOM_ID_LIST": room_list})
+        elif operation == "media_unjoin":
+            queue_value = await director.get_item_variable_value(100002, "QUEUE_STATUS_V2")
+            queue = next((item for item in control4_queues(queue_value) if room_id in control4_queue_rooms(item)), None)
+            if not queue:
+                raise ValueError("La stanza non appartiene a una sessione Control4")
+            owner = int(queue.get("owner") or room_id)
+            if owner == room_id:
+                raise ValueError("La stanza principale non può essere rimossa dalla propria sessione")
+            await director.send_post_request("/api/v1/items/100002/commands", "REMOVE_ROOMS_FROM_SESSION", {"ROOM_ID": owner, "ROOM_ID_LIST": str(room_id)})
         elif operation == "select_source":
             experience, source_id = str(value).split(":", 1)
             if experience == "watch": await room.set_video_and_audio_source(int(source_id))
@@ -66,6 +88,29 @@ class Control4MediaConnector(Connector):
             else: raise ValueError("Sorgente Control4 non valida")
         else: raise ValueError("Comando Control4 non supportato")
         return {"status": "success", "operation": operation, "registry_id": registry_id}
+
+    async def group_volume(self, group_id: str, target: int) -> dict[str, Any]:
+        snapshot = await self.snapshot()
+        group = next((item for item in snapshot.get("groups", []) if item.get("group_id") == group_id), None)
+        if not group:
+            raise ValueError("Sessione Control4 non disponibile")
+        players = {item["registry_id"]: item for item in snapshot.get("items", [])}
+        members = [players[item] for item in group["member_registry_ids"] if item in players and isinstance(players[item].get("volume"), int)]
+        if not members:
+            raise ValueError("Volume della sessione non disponibile")
+        target = max(0, min(100, int(target)))
+        average = round(sum(item["volume"] for item in members) / len(members))
+        delta = target - average
+        director, _ = await control4_director(self.config)
+        results = []
+        for item in members:
+            level = max(0, min(100, item["volume"] + delta))
+            try:
+                await C4Room(director, int(item["registry_id"].removeprefix("c4room:"))).set_volume(level)
+                results.append({"registry_id": item["registry_id"], "status": "success", "volume": level})
+            except Exception:
+                results.append({"registry_id": item["registry_id"], "status": "failed"})
+        return {"status": "success" if all(item["status"] == "success" for item in results) else "partial", "members": results}
 
 
     async def artwork(self, registry_id: str, fingerprint: str, if_none_match: str | None = None) -> httpx.Response:
@@ -147,8 +192,41 @@ def normalize_control4_media(ui: Any, all_items: Any, variables: Any) -> list[di
         state_name = playback_state if powered else "off"
         name = names.get(room_id, f"Room {room_id}")
         icon = "mdi:television-speaker" if "watch" in data["experiences"] else "mdi:speaker"
-        result.append({"id": f"c4media:{room_id}", "registry_id": registry_id, "entity_id": f"control4.room.{room_id}", "provider": "control4", "kind": "media_player", "icon": icon, "name": name, "room": name, "state": state_name, "availability": "available", "connection_status": "online", "volume": volume, "muted": str(values.get("IS_MUTED")) in {"1", "True", "true"}, "source": str(media.get("meta", {}).get("audioFormat") or active_source or "") if isinstance(media.get("meta"), dict) else active_source, "title": media.get("title"), "artist": media.get("artist"), "album": media.get("album"), "content_fingerprint": fingerprint, "source_options": data["source_options"], "source_list": [source["label"] for source in data["source_options"]], "experiences": data["experiences"], "capabilities": {"play": True, "pause": True, "stop": True, "previous": True, "next": True, "turn_off": True, "set_volume": volume is not None, "mute": True, "select_source": bool(data["source_options"]), "grouping": False, "artwork": bool(fingerprint)}})
+        playing_device = values.get("PLAYING_AUDIO_DEVICE")
+        can_group = "listen" in data["experiences"] and str(playing_device or "0").isdigit() and int(playing_device or 0) > 0
+        result.append({"id": f"c4media:{room_id}", "registry_id": registry_id, "entity_id": f"control4.room.{room_id}", "provider": "control4", "kind": "media_player", "icon": icon, "name": name, "room": name, "state": state_name, "availability": "available", "connection_status": "online", "volume": volume, "muted": str(values.get("IS_MUTED")) in {"1", "True", "true"}, "source": str(media.get("meta", {}).get("audioFormat") or active_source or "") if isinstance(media.get("meta"), dict) else active_source, "title": media.get("title"), "artist": media.get("artist"), "album": media.get("album"), "content_fingerprint": fingerprint, "source_options": data["source_options"], "source_list": [source["label"] for source in data["source_options"]], "experiences": data["experiences"], "capabilities": {"play": True, "pause": True, "stop": True, "previous": True, "next": True, "turn_off": True, "set_volume": volume is not None, "mute": True, "select_source": bool(data["source_options"]), "grouping": can_group, "artwork": bool(fingerprint)}})
     return result
+
+
+def control4_queues(value: Any) -> list[dict[str, Any]]:
+    queues = value.get("queues", {}).get("queue", []) if isinstance(value, dict) else []
+    if isinstance(queues, dict):
+        queues = [queues]
+    return [item for item in queues if isinstance(item, dict)] if isinstance(queues, list) else []
+
+
+def control4_queue_rooms(queue: dict[str, Any]) -> list[int]:
+    values = queue.get("rooms", {}).get("id", []) if isinstance(queue.get("rooms"), dict) else []
+    if not isinstance(values, list):
+        values = [values]
+    return [int(value) for value in values if str(value).isdigit()]
+
+
+def normalize_control4_groups(items: list[dict[str, Any]], variables: Any) -> list[dict[str, Any]]:
+    player_ids = {str(item.get("registry_id")) for item in items}
+    queue_value = next((item.get("value") for item in (variables if isinstance(variables, list) else []) if isinstance(item, dict) and item.get("varName") == "QUEUE_STATUS_V2"), None)
+    groups = []
+    for queue in control4_queues(queue_value):
+        members = [f"c4room:{room_id}" for room_id in control4_queue_rooms(queue) if f"c4room:{room_id}" in player_ids]
+        if len(members) < 2:
+            continue
+        owner = f"c4room:{queue.get('owner')}"
+        group = {"group_id": f"c4queue:{queue.get('id')}", "name": str(queue.get("name") or "Sessione audio"), "owner_registry_id": owner, "member_registry_ids": members, "completeness": "complete", "resource_revision": int(queue.get("id") or 0)}
+        groups.append(group)
+        for player in items:
+            if player.get("registry_id") in members:
+                player["group"] = group
+    return groups
 
 
 def _decode_artwork_url(value: Any) -> str:

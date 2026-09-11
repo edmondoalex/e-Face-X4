@@ -405,7 +405,9 @@ function renderMediaZones() {
   $('#media-zones-list').innerHTML = players.map((player) => {
     const checked = members.has(player.registry_id)
     const unavailable = player.connection_status === 'offline' || player.availability !== 'available'
-    return `<label class="media-zone ${checked ? 'active' : ''} ${unavailable ? 'unavailable' : ''}"><span><b>${esc(player.room)}</b><small>${esc(player.name)}</small></span><em>${Number.isFinite(Number(player.volume)) ? `${Number(player.volume)}%` : '—'}</em><input type="checkbox" value="${esc(player.registry_id)}" ${checked ? 'checked' : ''} ${player.registry_id === selected.registry_id || unavailable ? 'disabled' : ''}><i></i></label>`
+    const volume = Number.isFinite(Number(player.volume)) ? Number(player.volume) : 0
+    const locked = player.registry_id === selected.registry_id || player.registry_id === group?.owner_registry_id || unavailable
+    return `<div class="media-zone ${checked ? 'active' : ''} ${unavailable ? 'unavailable' : ''}"><label class="media-zone-select"><span><b>${esc(player.room)}</b><small>${esc(player.name)}</small></span><input type="checkbox" value="${esc(player.registry_id)}" ${checked ? 'checked' : ''} ${locked ? 'disabled' : ''}><i></i></label><label class="media-zone-level"><span class="mdi-mask" style="${mdiStyle(player.muted ? 'mdi:volume-off' : 'mdi:volume-high', 'volume-high')}"></span><input type="range" min="0" max="100" value="${volume}" data-zone-volume data-device-id="${esc(player.id)}" ${unavailable || !player.capabilities?.set_volume ? 'disabled' : ''}><output>${volume}%</output></label></div>`
   }).join('')
 }
 
@@ -420,7 +422,7 @@ async function saveMediaZones(button) {
   try {
     for (const registryId of removals) {
       const player = currentDevices.find((item) => item.registry_id === registryId)
-      await postDeviceCommand(`media:${registryId}`, 'media_unjoin', null, player?.resource_revision)
+      if (player) await postDeviceCommand(player.id, 'media_unjoin', null, player.resource_revision)
     }
     if (additions.length) await postDeviceCommand(activeMediaPlayer.id, 'media_join', additions, activeMediaPlayer.resource_revision)
     $('#media-zones-dialog').close()
@@ -805,6 +807,8 @@ $('#rgb-dialog').addEventListener('click', (event) => { if (event.target === $('
 $('#media-zones-close').addEventListener('click', () => $('#media-zones-dialog').close())
 $('#media-zones-save').addEventListener('click', (event) => saveMediaZones(event.currentTarget))
 $('#media-zones-list').addEventListener('change', (event) => { if (event.target.matches('input[type=checkbox]')) { event.target.closest('.media-zone').classList.toggle('active', event.target.checked) } })
+$('#media-zones-list').addEventListener('input', (event) => { if (event.target.matches('[data-zone-volume]')) event.target.closest('.media-zone-level').querySelector('output').textContent = `${event.target.value}%` })
+$('#media-zones-list').addEventListener('change', (event) => { if (event.target.matches('[data-zone-volume]')) sendDeviceCommand(event.target.dataset.deviceId, 'set_volume', event.target, event.target.value) })
 $('#zones-master').addEventListener('input', (event) => { if (event.target.matches('[data-group-volume]')) event.target.nextElementSibling.textContent = `${event.target.value}%` })
 $('#zones-master').addEventListener('change', (event) => { if (event.target.matches('[data-group-volume]')) setMediaGroupVolume(event.target) })
 $('#rgb-palette').addEventListener('click', (event) => { const button = event.target.closest('[data-palette]'); if (button) sendRgbCommand(activeRgbGroup, 'color', button.dataset.palette, button) })

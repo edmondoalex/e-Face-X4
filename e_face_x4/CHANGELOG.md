@@ -1,5 +1,12 @@
 # Changelog
 
+## 2.2.0 — 2026-09-11
+
+- Ripristinato Aggiungi stanza con i comandi nativi Digital Media `ADD_ROOMS_TO_SESSION` e `REMOVE_ROOMS_FROM_SESSION`.
+- Evitata la selezione diretta delle sorgenti, che generava sessioni audio duplicate in Control4.
+- Aggiunti volume generale della sessione e volume indipendente per ogni stanza.
+- Corretta la rimozione delle stanze Control4 e protetta la stanza proprietaria della sessione.
+
 ## 2.1.1 — 2026-09-11
 
 - Mantenuto disabilitato il join multiroom Control4 finché non è disponibile il comando Digital Media corretto.

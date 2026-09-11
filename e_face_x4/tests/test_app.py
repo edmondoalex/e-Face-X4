@@ -6,7 +6,7 @@ from app.connectors.etherm import normalize_thermostats
 from app.connectors.media import normalize_player
 from app.connectors.local_media import normalize_local_snapshot
 from app.connectors.local_media import HA_WEBSOCKET_MAX_BYTES
-from app.connectors.control4_media import normalize_control4_media
+from app.connectors.control4_media import normalize_control4_groups, normalize_control4_media
 from app.connectors.supervisor import find_addon_url
 from app.media_preferences import apply_preferences, load_preferences, save_preferences
 from app.control4 import load_control4_config, public_control4_config, save_control4_config, summarize_ui_configuration
@@ -393,6 +393,29 @@ def test_media_ui_has_room_selection_and_typed_controls() -> None:
     assert "[...currentRooms" not in script
     assert "device.experiences?.includes('watch')" in script
     assert "['listen', 'watch'].includes(experience)" in script
+    assert "data-zone-volume" in script
+    assert "postDeviceCommand(player.id, 'media_unjoin'" in script
+
+
+def test_control4_digital_media_queue_becomes_canonical_group() -> None:
+    players = [
+        {"registry_id": "c4room:50", "name": "Ufficio Contabilità"},
+        {"registry_id": "c4room:51", "name": "Ufficio Alex"},
+    ]
+    variables = [{
+        "varName": "QUEUE_STATUS_V2",
+        "value": {"queues": {"queue": {"id": 10015, "owner": 51, "rooms": {"id": [50, 51]}}}},
+    }]
+    groups = normalize_control4_groups(players, variables)
+    assert groups == [{
+        "group_id": "c4queue:10015",
+        "name": "Sessione audio",
+        "owner_registry_id": "c4room:51",
+        "member_registry_ids": ["c4room:50", "c4room:51"],
+        "completeness": "complete",
+        "resource_revision": 10015,
+    }]
+    assert players[0]["group"] == groups[0]
 
 
 def test_local_home_assistant_media_snapshot_is_normalized() -> None:
