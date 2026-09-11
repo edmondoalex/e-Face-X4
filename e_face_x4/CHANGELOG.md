@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.2.2 — 2026-09-11
+
+- Sostituita la scritta tipografica e-Face X4 con il logo ufficiale completo.
+- Allineati logo, nome configurabile dell'abitazione e stato demo su un'unica riga.
+
 ## 0.2.1 — 2026-09-11
 
 - Mostrato il nome fisso e-Face X4 accanto al logo.

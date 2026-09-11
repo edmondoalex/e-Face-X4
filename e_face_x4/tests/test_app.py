@@ -49,6 +49,8 @@ def test_x4_shell_and_brand_assets_are_served() -> None:
     assert page.status_code == 200
     assert "status-strip" in page.text
     assert "now-playing" in page.text
+    assert 'src="assets/brand-logo.png"' in page.text
+    assert 'class="product-name"' not in page.text
     assert client.get("/assets/brand-icon.png").status_code == 200
     assert client.get("/assets/app.css").status_code == 200
 

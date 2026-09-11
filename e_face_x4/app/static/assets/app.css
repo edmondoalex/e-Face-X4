@@ -3,3 +3,5 @@
 @media(min-width:701px){.camera-grid{grid-column:2}.quick-grid{grid-column:1}.now-playing{margin-left:76px}}
 .product-name{display:block;font-size:18px;line-height:1.05}.home-title h1{margin:3px 0 0;font-size:13px;font-weight:500;color:#dce8ea}
 @media(max-width:700px){.mini-brand{display:block;width:44px;height:44px}.product-name{font-size:19px}.home-title h1{font-size:14px}}
+.home-title{gap:13px}.header-logo{width:92px;height:54px;object-fit:contain}.home-title h1{margin:0;font-size:20px;color:#fff;white-space:nowrap}.home-title>span{font-size:9px;color:#ffd1d5;letter-spacing:.12em;white-space:nowrap}
+@media(max-width:700px){.header-logo{width:76px;height:48px}.home-title{gap:9px}.home-title h1{font-size:18px}.home-title>span{font-size:7px;letter-spacing:.08em}}
