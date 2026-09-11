@@ -1,0 +1,42 @@
+name: e-Face X4
+version: 0.1.0
+slug: e_face_x4
+description: Interfaccia unificata per gli add-on e-Konex
+url: https://github.com/edmondoalex/e-Face-X4
+startup: application
+boot: auto
+init: false
+ingress: true
+ingress_port: 8099
+panel_title: e-Face X4
+panel_icon: mdi:view-dashboard-variant
+homeassistant_api: true
+hassio_api: true
+host_network: true
+arch:
+  - amd64
+  - aarch64
+  - armhf
+options:
+  demo_mode: true
+  request_timeout_s: 4
+  buspro:
+    enabled: false
+    base_url: http://127.0.0.1:8124
+    token: ""
+  evoice:
+    enabled: false
+    base_url: ""
+    token: ""
+schema:
+  demo_mode: bool
+  request_timeout_s: float
+  buspro:
+    enabled: bool
+    base_url: url
+    token: password?
+  evoice:
+    enabled: bool
+    base_url: url?
+    token: password?
+

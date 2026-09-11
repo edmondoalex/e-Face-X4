@@ -1,0 +1,28 @@
+configuration:
+  demo_mode:
+    name: Modalità demo
+    description: Mostra dati dimostrativi chiaramente identificati mentre si configura l'impianto.
+  request_timeout_s:
+    name: Timeout connettori
+    description: Tempo massimo in secondi per attendere la risposta di un add-on collegato.
+  buspro:
+    name: e-HDL BusPro MQTT
+    description: Collegamento all'add-on che gestisce l'impianto BusPro.
+    fields:
+      enabled:
+        name: Abilitato
+      base_url:
+        name: Indirizzo locale
+      token:
+        name: Token
+  evoice:
+    name: e-Voice Multimedia
+    description: Configurazione riservata al futuro connettore multimediale.
+    fields:
+      enabled:
+        name: Abilitato
+      base_url:
+        name: Indirizzo API
+      token:
+        name: Token
+

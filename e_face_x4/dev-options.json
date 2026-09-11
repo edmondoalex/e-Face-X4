@@ -1,0 +1,7 @@
+{
+  "demo_mode": true,
+  "request_timeout_s": 4,
+  "buspro": {"enabled": false, "base_url": "http://127.0.0.1:8124", "token": ""},
+  "evoice": {"enabled": false, "base_url": "", "token": ""}
+}
+
