@@ -1,5 +1,12 @@
 # Changelog
 
+## 2.5.0 — 2026-09-11
+
+- Aggiunto il telecomando completo per le sessioni video Control4.
+- I controlli vengono generati dalle capacità dichiarate dal proxy dell'apparato attivo: navigazione, tastierino, canali, pagine, trasporto, registrazione e funzioni specifiche.
+- Aggiunti i quattro pulsanti colore per i driver che li trasportano tramite i comandi personalizzati Control4.
+- Ogni comando è validato nuovamente rispetto alla sorgente video attiva nella stanza prima dell'invio.
+
 ## 2.4.2 — 2026-09-11
 
 - Le icone Control4 vengono precaricate dal backend insieme allo snapshot e servite dalla memoria locale, evitando richieste e autenticazioni separate dal browser.

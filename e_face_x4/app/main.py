@@ -25,7 +25,7 @@ from .connectors.control4_media import cached_control4_icon, cached_control4_ico
 from .connectors.supervisor import discover_addon_url
 from .demo import dashboard as demo_dashboard
 
-VERSION = "2.4.2"
+VERSION = "2.5.0"
 STATIC = Path(__file__).parent / "static"
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s [e-face-x4] %(message)s")
 
@@ -237,7 +237,7 @@ def create_app() -> FastAPI:
             if not control4_enabled and not config.enabled:
                 raise HTTPException(status_code=503, detail="Ekonex Media non disponibile")
             operation = str(payload.get("action") or "")
-            allowed = {"media_play", "media_pause", "media_stop", "turn_off", "media_next", "media_previous", "set_volume", "volume_mute", "volume_unmute", "select_source", "media_join", "media_unjoin"}
+            allowed = {"media_play", "media_pause", "media_stop", "turn_off", "media_next", "media_previous", "set_volume", "volume_mute", "volume_unmute", "select_source", "media_join", "media_unjoin", "video_remote"}
             if operation not in allowed:
                 raise HTTPException(status_code=400, detail="Comando multimedia non valido")
             arguments = {}

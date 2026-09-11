@@ -17,6 +17,7 @@ let avRoom = ''
 let currentMediaGroups = []
 let currentMediaExperience = ''
 let activeMediaPlayer = null
+let activeVideoRemote = null
 let selectedMediaId = ''
 const mediaTransportOverrides = new Map()
 
@@ -405,7 +406,7 @@ function deviceActions(device, options = {}) {
     const caps = device.capabilities || {}
     const disabled = device.connection_status === 'offline' || device.availability !== 'available'
     const button = (operation, icon, label, enabled = false, className = '') => enabled ? `<button class="${className}" data-media-action="${operation}" aria-label="${label}" ${disabled ? 'disabled' : ''}><span class="mdi-mask" style="${mdiStyle(`mdi:${icon}`, icon)}"></span></button>` : ''
-    const controls = [button('media_shuffle', 'shuffle-variant', 'Riproduzione casuale', caps.shuffle), button('media_previous', 'skip-previous', 'Precedente', caps.previous), String(device.state).toLowerCase() === 'playing' ? button('media_pause', 'pause', 'Pausa', caps.pause, 'primary') : button('media_play', 'play', 'Riproduci', caps.play, 'primary'), button('media_next', 'skip-next', 'Successivo', caps.next), button('media_repeat', 'repeat', 'Ripeti', caps.repeat), button('media_stop', 'stop', 'Stop', caps.stop && currentMediaExperience !== 'listen'), button('turn_off', 'power', 'Spegni stanza', caps.turn_off && !options.hidePower), button('media_zones', 'plus-box-outline', 'Aggiungi stanze', caps.grouping)].join('')
+    const controls = [button('video_remote_menu', 'remote-tv', 'Telecomando video', device.active_experience === 'watch' && device.active_source_id), button('media_shuffle', 'shuffle-variant', 'Riproduzione casuale', caps.shuffle), button('media_previous', 'skip-previous', 'Precedente', caps.previous), String(device.state).toLowerCase() === 'playing' ? button('media_pause', 'pause', 'Pausa', caps.pause, 'primary') : button('media_play', 'play', 'Riproduci', caps.play, 'primary'), button('media_next', 'skip-next', 'Successivo', caps.next), button('media_repeat', 'repeat', 'Ripeti', caps.repeat), button('media_stop', 'stop', 'Stop', caps.stop && currentMediaExperience !== 'listen'), button('turn_off', 'power', 'Spegni stanza', caps.turn_off && !options.hidePower), button('media_zones', 'plus-box-outline', 'Aggiungi stanze', caps.grouping)].join('')
     const mute = caps.mute ? button(device.muted ? 'volume_unmute' : 'volume_mute', device.muted ? 'volume-off' : 'volume-high', device.muted ? 'Riattiva audio' : 'Disattiva audio', true, 'media-volume-mute') : '<span></span>'
     const volume = caps.set_volume ? `<label class="media-volume">${mute}<input type="range" min="0" max="100" value="${Number(device.volume) || 0}" data-media-volume ${disabled ? 'disabled' : ''}><output>${Number(device.volume) || 0}%</output></label>` : ''
     const sourceOptions = device.source_options?.length ? device.source_options.filter((source) => !currentMediaExperience || source.experience === currentMediaExperience) : (device.source_list || []).map((source) => ({key:source,label:source}))
@@ -479,6 +480,32 @@ async function saveMediaZones(button) {
     $('#media-zones-dialog').close()
     await refresh()
   } catch (error) { fail(error) } finally { button.disabled = false }
+}
+
+function openVideoRemote(device) {
+  const source = (device.source_options || []).find((item) => Number(item.source_id) === Number(device.active_source_id) && item.experience === 'watch')
+  if (!source) return fail(new Error('Telecomando video non disponibile'))
+  activeVideoRemote = { device, source }
+  const actions = new Set(source.remote_actions || [])
+  const make = (action, label) => actions.has(action) ? `<button data-remote-command="${esc(action)}">${label}</button>` : ''
+  const quick = [['dvr','DVR'],['guide','GUIDA'],['recall','RICHIAMA'],['menu','MENU'],['cancel','ANNULLA'],['info','INFO'],['input','INGRESSO']].map(([a,l]) => make(a,l)).join('')
+  const nav = [['up','▲'],['left','◀'],['enter','SELEZIONA'],['right','▶'],['down','▼']].map(([a,l]) => make(a,l)).join('')
+  const digits = ['1','2','3','4','5','6','7','8','9','star','0','pound'].map((key) => make(key.length === 1 ? `digit_${key}` : key, key === 'star' ? '*' : key === 'pound' ? '#' : key)).join('')
+  const transport = [['scan_rev','⏪'],['skip_rev','|◀'],['play','▶'],['pause','Ⅱ'],['stop','■'],['skip_fwd','▶|'],['scan_fwd','⏩'],['record','●'],['page_up','PG ▲'],['page_down','PG ▼'],['channel_up','CH ▲'],['channel_down','CH ▼']].map(([a,l]) => make(a,l)).join('')
+  const custom = [['custom:PROGRAM_A','●'],['custom:PROGRAM_B','●'],['custom:PROGRAM_C','●'],['custom:PROGRAM_D','●']].map(([a,l]) => make(a,l)).join('')
+  $('#video-remote-title').textContent = `${source.label} · ${device.room}`
+  $('#video-remote-body').innerHTML = quick || nav || digits || transport ? `<div class="remote-quick">${quick}</div><div class="remote-layout"><div class="remote-nav">${nav}</div><div class="remote-keypad">${digits}</div></div><div class="remote-transport">${transport}</div>${custom ? `<div class="remote-custom">${custom}</div>` : ''}` : '<p class="remote-empty">Questo apparato non espone comandi telecomando.</p>'
+  $('#video-remote-dialog').showModal()
+}
+
+async function sendVideoRemote(action, button) {
+  if (!activeVideoRemote) return
+  button.disabled = true
+  try {
+    if (action === 'off') await postDeviceCommand(activeVideoRemote.device.id, 'turn_off')
+    else await postDeviceCommand(activeVideoRemote.device.id, 'video_remote', { source_id: activeVideoRemote.source.source_id, command: action })
+  } catch (error) { fail(error) }
+  finally { button.disabled = false }
 }
 
 async function setMediaGroupVolume(input) {
@@ -813,6 +840,7 @@ $('#device-list').addEventListener('click', (event) => {
   const mediaButton = event.target.closest('[data-media-action]')
   const mediaCard = event.target.closest('[data-device-id]')
   if (mediaButton?.dataset.mediaAction === 'media_zones' && mediaCard) return openMediaZones(currentDevices.find((item) => String(item.id) === mediaCard.dataset.deviceId))
+  if (mediaButton?.dataset.mediaAction === 'video_remote_menu' && mediaCard) return openVideoRemote(currentDevices.find((item) => String(item.id) === mediaCard.dataset.deviceId))
   if (mediaButton && mediaCard) return sendDeviceCommand(mediaCard.dataset.deviceId, mediaButton.dataset.mediaAction, mediaButton)
   const sourceButton = event.target.closest('button[data-media-source]')
   if (sourceButton && mediaCard) return sendDeviceCommand(mediaCard.dataset.deviceId, 'select_source', sourceButton, sourceButton.dataset.mediaSource)
@@ -857,9 +885,15 @@ $('#rgb-dialog').addEventListener('click', (event) => { if (event.target === $('
 $('#media-zones-close').addEventListener('click', () => $('#media-zones-dialog').close())
 $('#global-media-session').addEventListener('click', openMediaSessions)
 $('#media-sessions-close').addEventListener('click', () => $('#media-sessions-dialog').close())
-$('#media-sessions-list').addEventListener('click', (event) => { const row = event.target.closest('[data-session-device]'); if (!row) return; const player = currentDevices.find((item) => String(item.id) === row.dataset.sessionDevice); if (player) { $('#media-sessions-dialog').close(); openMediaZones(player) } })
+$('#media-sessions-list').addEventListener('click', (event) => { const row = event.target.closest('[data-session-device]'); if (!row) return; const player = currentDevices.find((item) => String(item.id) === row.dataset.sessionDevice); if (player) { $('#media-sessions-dialog').close(); player.active_experience === 'watch' ? openVideoRemote(player) : openMediaZones(player) } })
 $('#media-zones-save').addEventListener('click', (event) => saveMediaZones(event.currentTarget))
 $('#media-zones-list').addEventListener('click', (event) => { const button = event.target.closest('[data-zone-picker-toggle]'); if (button) { const picker = $('.media-zone-picker'); picker.hidden = !picker.hidden; button.classList.toggle('active', !picker.hidden) } })
+$('#video-remote-close').addEventListener('click', () => $('#video-remote-dialog').close())
+$('#video-remote-dialog').addEventListener('click', (event) => {
+  if (event.target === $('#video-remote-dialog')) return $('#video-remote-dialog').close()
+  const button = event.target.closest('[data-remote-command]')
+  if (button) sendVideoRemote(button.dataset.remoteCommand, button)
+})
 $('#media-zones-list').addEventListener('change', (event) => { if (event.target.matches('.media-zone-picker input[type=checkbox]')) { event.target.closest('.media-zone-choice').classList.toggle('active', event.target.checked) } })
 $('#media-zones-list').addEventListener('input', (event) => { if (event.target.matches('[data-zone-volume]')) event.target.closest('.media-zone-level').querySelector('output').textContent = `${event.target.value}%` })
 $('#media-zones-list').addEventListener('change', (event) => { if (event.target.matches('[data-zone-volume]')) sendDeviceCommand(event.target.dataset.deviceId, 'set_volume', event.target, event.target.value) })

@@ -6,7 +6,7 @@ from app.connectors.etherm import normalize_thermostats
 from app.connectors.media import normalize_player
 from app.connectors.local_media import normalize_local_snapshot
 from app.connectors.local_media import HA_WEBSOCKET_MAX_BYTES
-from app.connectors.control4_media import control4_icon_path, normalize_control4_groups, normalize_control4_media
+from app.connectors.control4_media import control4_icon_path, control4_remote_actions, normalize_control4_groups, normalize_control4_media
 from app.connectors.supervisor import find_addon_url
 from app.media_preferences import apply_preferences, load_preferences, save_preferences
 from app.control4 import load_control4_config, public_control4_config, save_control4_config, summarize_ui_configuration
@@ -60,7 +60,7 @@ def test_x4_shell_and_brand_assets_are_served() -> None:
     assert "now-playing" in page.text
     assert 'id="detail-view"' in page.text
     assert 'id="detail-back"' in page.text
-    assert page.text.count('<dialog') == 3
+    assert page.text.count('<dialog') == 4
     assert 'id="rgb-dialog"' in page.text
     assert 'id="show-all-devices"' in page.text
     assert 'id="scenario-panel"' in page.text
@@ -68,7 +68,7 @@ def test_x4_shell_and_brand_assets_are_served() -> None:
     assert '<iframe' not in page.text
     for label in ("Guarda", "Ascolta", "Luci", "Extra", "Scenari", "Oscuranti", "Comfort", "Sicurezza"):
         assert f'title="{label}"' in page.text
-    assert 'src="assets/brand-horizontal.png?v=2.4.2"' in page.text
+    assert 'src="assets/brand-horizontal.png?v=2.5.0"' in page.text
     assert 'alt="e-Face X4"' in page.text
     assert 'class="header-wordmark"' not in page.text
     assert client.get("/assets/brand-horizontal.png").status_code == 200
@@ -155,8 +155,8 @@ def test_control4_media_uses_only_listen_watch_rooms_and_native_sources() -> Non
     assert player["volume"] == 64
     assert player["source"] == "Spotify Connect"
     assert player["source_options"] == [
-        {"key": "watch:809", "label": "Samsung TV", "experience": "watch", "type": "", "source_id": 809},
-        {"key": "listen:100002", "label": "Spotify Connect", "experience": "listen", "type": "", "source_id": 100002},
+            {"key": "watch:809", "label": "Samsung TV", "experience": "watch", "type": "", "source_id": 809, "remote_actions": []},
+            {"key": "listen:100002", "label": "Spotify Connect", "experience": "listen", "type": "", "source_id": 100002, "remote_actions": []},
     ]
     assert player["capabilities"]["turn_off"] is True
     assert player["active_experience"] == "listen"
@@ -169,6 +169,17 @@ def test_control4_native_icon_path_is_strictly_validated() -> None:
     ]}}}}
     assert control4_icon_path(item) == "/driver/sky/icons/device/experience_140.png"
     assert control4_icon_path({"capabilities": {"navigator_display_option": {"display_icons": {"Icon": {"$t": "https://example.test/evil.png"}}}}}) is None
+
+
+def test_control4_remote_uses_only_commands_exposed_by_the_device() -> None:
+    item = {"id": 244, "protocolId": 243, "protocolFilename": "driverworks_ip_uk_sky.c4z", "commands": {"command": [
+        {"id": 2}, {"id": 9}, {"id": 10}, {"id": 14},
+    ]}}
+    actions = control4_remote_actions(item)
+    assert {"play", "menu", "up", "enter", "custom:PROGRAM_A"}.issubset(actions)
+    assert "guide" not in actions
+    named = control4_remote_actions({"id": 807, "commands": {"command": [{"name": "PLAY"}, {"name": "LEFT"}]}})
+    assert named == ["play", "left"]
 
 
 def test_control4_unknown_volume_disables_volume_control() -> None:

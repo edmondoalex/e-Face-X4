@@ -18,7 +18,21 @@ ROOM_VARIABLES = ("POWER_STATE", "CURRENT_VOLUME", "IS_MUTED", "CURRENT_SELECTED
 _artwork_urls: dict[str, tuple[str, str]] = {}
 _source_icon_paths: dict[int, str] = {}
 _source_icon_content: dict[int, tuple[str, bytes]] = {}
+_source_remote_actions: dict[int, set[str]] = {}
+_source_custom_buttons: dict[int, tuple[int, set[str]]] = {}
 _ARTWORK_HOSTS = ("i.scdn.co", "mosaic.scdn.co", "spotifycdn.com", "mzstatic.com", "media-amazon.com", "tunein.com")
+
+REMOTE_COMMANDS = {
+    "play": (2, "PLAY"), "stop": (3, "STOP"), "pause": (4, "PAUSE"), "skip_fwd": (5, "SKIP_FWD"), "skip_rev": (6, "SKIP_REV"),
+    "scan_fwd": (7, "SCAN_FWD"), "scan_rev": (8, "SCAN_REV"), "menu": (9, "MENU"), "up": (10, "UP"), "down": (11, "DOWN"),
+    "left": (12, "LEFT"), "right": (13, "RIGHT"), "enter": (14, "ENTER"), "channel_up": (20, "PULSE_CHANNEL_UP"),
+    "channel_down": (21, "PULSE_CHANNEL_DOWN"), "record": (22, "RECORD"), "page_up": (23, "PAGE_UP"), "page_down": (24, "PAGE_DOWN"),
+    "input": (25, "PULSE_INPUT"), "info": (26, "INFO"), "cancel": (27, "CANCEL"), "recall": (28, "RECALL"), "dvr": (29, "PVR"),
+    "guide": (30, "GUIDE"), "digit_0": (31, "NUMBER_0"), "digit_1": (32, "NUMBER_1"), "digit_2": (33, "NUMBER_2"),
+    "digit_3": (34, "NUMBER_3"), "digit_4": (35, "NUMBER_4"), "digit_5": (36, "NUMBER_5"), "digit_6": (37, "NUMBER_6"),
+    "digit_7": (38, "NUMBER_7"), "digit_8": (39, "NUMBER_8"), "digit_9": (40, "NUMBER_9"), "dash": (41, "DASH"),
+    "star": (42, "STAR"), "pound": (43, "POUND"),
+}
 
 
 class Control4MediaConnector(Connector):
@@ -90,6 +104,25 @@ class Control4MediaConnector(Connector):
             if experience == "watch": await room.set_video_and_audio_source(int(source_id))
             elif experience == "listen": await room.set_audio_source(int(source_id))
             else: raise ValueError("Sorgente Control4 non valida")
+        elif operation == "video_remote":
+            if not isinstance(value, dict):
+                raise ValueError("Comando telecomando non valido")
+            source_id = int(value.get("source_id") or 0)
+            action = str(value.get("command") or "")
+            snapshot = await self.snapshot()
+            player = next((item for item in snapshot.get("items", []) if item.get("registry_id") == registry_id), None)
+            if not player or player.get("active_experience") != "watch" or int(player.get("active_source_id") or 0) != source_id:
+                raise ValueError("La sorgente video non è attiva in questa stanza")
+            if action in REMOTE_COMMANDS and action in _source_remote_actions.get(source_id, set()):
+                await director.send_post_request(f"/api/v1/items/{source_id}/commands", REMOTE_COMMANDS[action][1], {})
+            elif action.startswith("custom:"):
+                button = action.split(":", 1)[1]
+                protocol_id, allowed = _source_custom_buttons.get(source_id, (0, set()))
+                if not protocol_id or button not in allowed:
+                    raise ValueError("Pulsante non supportato dall'apparato")
+                await director.send_post_request(f"/api/v1/items/{protocol_id}/commands", "Press Button", {"Button": button})
+            else:
+                raise ValueError("Comando non supportato dall'apparato")
         else: raise ValueError("Comando Control4 non supportato")
         return {"status": "success", "operation": operation, "registry_id": registry_id}
 
@@ -177,7 +210,8 @@ def normalize_control4_media(ui: Any, all_items: Any, variables: Any) -> list[di
                 icon_path = control4_icon_path(item_info.get(str(source_id)))
                 if icon_path:
                     _source_icon_paths[source_id] = icon_path
-                room["source_options"].append({"key": f"{experience['type']}:{source_id}", "label": str(label), "experience": str(experience["type"]), "type": str(source.get("type") or ""), "source_id": source_id})
+                remote_actions = control4_remote_actions(item_info.get(str(source_id))) if experience["type"] == "watch" else []
+                room["source_options"].append({"key": f"{experience['type']}:{source_id}", "label": str(label), "experience": str(experience["type"]), "type": str(source.get("type") or ""), "source_id": source_id, "remote_actions": remote_actions})
     result = []
     for room_id, data in rooms.items():
         values = state.get(room_id, {})
@@ -244,6 +278,27 @@ def cached_control4_icon_path(source_id: int) -> str | None:
 
 def cached_control4_icon(source_id: int) -> tuple[str, bytes] | None:
     return _source_icon_content.get(source_id)
+
+
+def control4_remote_actions(item: Any) -> list[str]:
+    if isinstance(item, list):
+        item = item[0] if item else None
+    if not isinstance(item, dict):
+        return []
+    commands = item.get("commands", {}).get("command", []) if isinstance(item.get("commands"), dict) else []
+    if isinstance(commands, dict):
+        commands = [commands]
+    ids = {int(command.get("id")) for command in commands if isinstance(command, dict) and str(command.get("id", "")).isdigit()}
+    names = {str(command.get("name") or "").upper() for command in commands if isinstance(command, dict)}
+    actions = [action for action, (command_id, command_name) in REMOTE_COMMANDS.items() if command_id in ids or command_name in names]
+    source_id = int(item.get("id") or 0)
+    if source_id:
+        _source_remote_actions[source_id] = set(actions)
+        protocol_id = int(item.get("protocolId") or 0)
+        if protocol_id and "sky" in str(item.get("protocolFilename") or "").casefold():
+            _source_custom_buttons[source_id] = (protocol_id, {"PROGRAM_A", "PROGRAM_B", "PROGRAM_C", "PROGRAM_D"})
+            actions.extend(["custom:PROGRAM_A", "custom:PROGRAM_B", "custom:PROGRAM_C", "custom:PROGRAM_D"])
+    return actions
 
 
 async def cache_control4_source_icons(director: Any) -> None:
