@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.4.2 — 2026-09-11
+
+- Allineata la navigazione alle categorie Guarda, Ascolta, Luci, Oscuranti, Comfort e Sicurezza.
+- Ogni categoria apre direttamente i dispositivi pertinenti.
+- Resa scorrevole la navigazione a sei voci su smartphone.
+
 ## 0.4.1 — 2026-09-11
 
 - Resa funzionale la voce `Vedi tutti` degli ambienti.

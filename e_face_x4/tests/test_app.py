@@ -53,7 +53,8 @@ def test_x4_shell_and_brand_assets_are_served() -> None:
     assert "now-playing" in page.text
     assert 'id="device-dialog"' in page.text
     assert 'id="show-all-devices"' in page.text
-    assert 'title="Tutti i dispositivi"' in page.text
+    for label in ("Guarda", "Ascolta", "Luci", "Oscuranti", "Comfort", "Sicurezza"):
+        assert f'title="{label}"' in page.text
     assert 'src="assets/brand-horizontal.png"' in page.text
     assert 'class="header-wordmark"' not in page.text
     assert client.get("/assets/brand-horizontal.png").status_code == 200
