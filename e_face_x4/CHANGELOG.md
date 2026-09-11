@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.1.1 — 2026-09-11
+
+- Introdotto il marchio ufficiale e-Face X4.
+- Aggiunti logo e icona per il catalogo Home Assistant.
+- Aggiunti favicon, icona Apple Touch e manifest PWA.
+- Allineata la dashboard alla palette rossa e antracite del marchio.
+
 ## 0.1.0 — 2026-09-11
 
 - Prima fondazione installabile tramite Home Assistant Ingress.
@@ -8,4 +15,3 @@
 - Architettura modulare dei connettori.
 - Primo connettore in sola lettura per e-HDL BusPro MQTT.
 - Endpoint di salute e test contro l'esposizione delle credenziali.
-

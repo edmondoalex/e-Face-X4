@@ -1,0 +1,17 @@
+{
+  "name": "e-Face X4",
+  "short_name": "e-Face X4",
+  "description": "Interfaccia unificata per gli add-on e-Konex",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#0c101a",
+  "theme_color": "#ff1829",
+  "icons": [
+    {
+      "src": "brand-icon.png",
+      "sizes": "1254x1254",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
