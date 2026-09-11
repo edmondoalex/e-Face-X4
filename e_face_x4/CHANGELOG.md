@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.4.2 — 2026-09-11
+
+- Le icone Control4 vengono precaricate dal backend insieme allo snapshot e servite dalla memoria locale, evitando richieste e autenticazioni separate dal browser.
+- Forzato l'aggiornamento della cache delle icone sorgente dopo ogni nuova versione.
+
 ## 2.4.1 — 2026-09-11
 
 - Corretto il caricamento delle icone native dei device e delle sorgenti Control4 usando la mappa già acquisita dal Director.

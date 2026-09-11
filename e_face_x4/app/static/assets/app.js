@@ -271,7 +271,7 @@ function renderMediaExperience(devices) {
   }).join('')
   const options = selected.source_options?.length ? selected.source_options.filter((source) => !currentMediaExperience || source.experience === currentMediaExperience) : (selected.source_list || []).map((source) => ({key:source,label:source}))
   const sources = options.map((source) => {
-    const native = selected.provider === 'control4' && source.source_id ? `<span class="media-source-native"><span class="mdi-mask" style="${mdiStyle('mdi:play-box', 'play-box')}"></span><img src="${apiUrl(`api/control4/source-icon/${source.source_id}`)}" alt="" loading="lazy" onload="this.parentElement.classList.add('loaded')" onerror="this.remove()"></span>` : `<span class="mdi-mask" style="${mdiStyle('mdi:play-box', 'play-box')}"></span>`
+    const native = selected.provider === 'control4' && source.source_id ? `<span class="media-source-native"><span class="mdi-mask" style="${mdiStyle('mdi:play-box', 'play-box')}"></span><img src="${apiUrl(`api/control4/source-icon/${source.source_id}?v=${encodeURIComponent(appVersion)}`)}" alt="" loading="eager" onload="this.parentElement.classList.add('loaded')" onerror="this.parentElement.classList.add('failed')"></span>` : `<span class="mdi-mask" style="${mdiStyle('mdi:play-box', 'play-box')}"></span>`
     return `<button class="media-service-tile ${source.label === selected.source ? 'active' : ''}" data-device-id="${esc(selected.id)}" data-media-source="${esc(source.key)}">${native}<b>${esc(source.label)}</b><small>Sorgente</small></button>`
   }).join('')
   const caps = selected.capabilities || {}

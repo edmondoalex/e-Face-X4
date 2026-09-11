@@ -17,6 +17,7 @@ from .base import Connector
 ROOM_VARIABLES = ("POWER_STATE", "CURRENT_VOLUME", "IS_MUTED", "CURRENT_SELECTED_DEVICE", "CURRENT_AUDIO_DEVICE", "CURRENT_VIDEO_DEVICE", "CURRENT_VOLUME_DEVICE_ID", "PLAYING_AUDIO_DEVICE", "CURRENT MEDIA INFO", "QUEUE_STATUS_V2")
 _artwork_urls: dict[str, tuple[str, str]] = {}
 _source_icon_paths: dict[int, str] = {}
+_source_icon_content: dict[int, tuple[str, bytes]] = {}
 _ARTWORK_HOSTS = ("i.scdn.co", "mosaic.scdn.co", "spotifycdn.com", "mzstatic.com", "media-amazon.com", "tunein.com")
 
 
@@ -36,6 +37,7 @@ class Control4MediaConnector(Connector):
                 director.get_all_item_variable_value(ROOM_VARIABLES),
             )
             items = normalize_control4_media(ui, all_items, variables)
+            await cache_control4_source_icons(director)
             groups = normalize_control4_groups(items, variables)
             room_ids = {int(str(item["registry_id"]).removeprefix("c4room:")) for item in items}
             related = {
@@ -238,6 +240,30 @@ def control4_icon_path(item: Any) -> str | None:
 
 def cached_control4_icon_path(source_id: int) -> str | None:
     return _source_icon_paths.get(source_id)
+
+
+def cached_control4_icon(source_id: int) -> tuple[str, bytes] | None:
+    return _source_icon_content.get(source_id)
+
+
+async def cache_control4_source_icons(director: Any) -> None:
+    pending = [(source_id, path) for source_id, path in _source_icon_paths.items() if source_id not in _source_icon_content]
+    if not pending:
+        return
+    semaphore = asyncio.Semaphore(6)
+
+    async def download(source_id: int, path: str) -> None:
+        async with semaphore:
+            try:
+                async with httpx.AsyncClient(verify=False, timeout=8, follow_redirects=False) as client:
+                    response = await client.get(director.base_url + path, headers=director.headers)
+                media_type = response.headers.get("content-type", "").split(";", 1)[0]
+                if response.status_code == 200 and media_type in {"image/png", "image/jpeg", "image/gif", "image/webp"} and len(response.content) <= 300_000:
+                    _source_icon_content[source_id] = (media_type, response.content)
+            except httpx.HTTPError:
+                return
+
+    await asyncio.gather(*(download(source_id, path) for source_id, path in pending))
 
 
 def control4_queue_rooms(queue: dict[str, Any]) -> list[int]:
