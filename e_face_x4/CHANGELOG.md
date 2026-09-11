@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.2.0 — 2026-09-11
+
+- Riconosciute le luci dimmerabili e aggiunto il controllo luminosità live.
+- Raggruppati i canali red/green/blue e-HDL in un unico dispositivo RGB.
+- Aggiunti selettore colore, master RGB e comandi ON/OFF nativi X4.
+
 ## 1.1.0 — 2026-09-11
 
 - Rimossi gli scenari dalla pagina Luci.

@@ -95,11 +95,51 @@ function stateLabel(device) {
   return `${shown}${device.unit ? ` ${device.unit}` : ''}`
 }
 
+function brightness255(device) {
+  const value = Number(device.brightness)
+  if (Number.isFinite(value)) return Math.max(0, Math.min(255, Math.round(value)))
+  return ['ON', '1', 'TRUE'].includes(String(device.state).trim().toUpperCase()) ? 255 : 0
+}
+
+function rgbChannels(devices) {
+  const groups = new Map()
+  devices.forEach((device) => {
+    if (device.kind !== 'light' || !device.rgb_group) return
+    const channel = String(device.rgb_channel || '').toLowerCase()
+    if (!['red', 'green', 'blue'].includes(channel)) return
+    if (!groups.has(device.rgb_group)) groups.set(device.rgb_group, {})
+    groups.get(device.rgb_group)[channel] = device
+  })
+  return groups
+}
+
+function rgbHex(channels) {
+  return `#${['red', 'green', 'blue'].map((name) => brightness255(channels[name]).toString(16).padStart(2, '0')).join('')}`.toUpperCase()
+}
+
+function renderRgbCard(group, channels) {
+  const color = rgbHex(channels)
+  const master = Math.max(...Object.values(channels).map(brightness255))
+  const representative = channels.red
+  return `<article class="rgb-device ${master ? 'rgb-device-on' : ''}" style="--rgb-color:${color}" data-rgb-group="${esc(group)}">
+    <span class="device-glyph mdi-mask" style="${mdiStyle(representative.icon, 'palette')}"></span>
+    <div><strong>${esc(group)}</strong><small>${esc(representative.room)} · RGB</small></div>
+    <em><i class="rgb-swatch"></i>${color}</em>
+    <div class="rgb-controls"><input type="color" value="${color}" data-rgb-color aria-label="Colore ${esc(group)}"><input type="range" min="1" max="255" value="${Math.max(1, master)}" data-rgb-brightness aria-label="Luminosità ${esc(group)}"><output>${Math.round(master / 255 * 100)}%</output></div>
+    <div class="device-actions"><button data-rgb-action="on">ON</button><button data-rgb-action="off">OFF</button></div>
+  </article>`
+}
+
 function renderDeviceList(devices) {
-  $('#detail-kicker').textContent = `${devices.length} dispositivi`
-  $('#device-list').innerHTML = devices.map((device) => `
+  const groups = rgbChannels(devices)
+  const completeGroups = new Map([...groups].filter(([, channels]) => channels.red && channels.green && channels.blue))
+  const groupedIds = new Set([...completeGroups.values()].flatMap((channels) => Object.values(channels).map((device) => String(device.id))))
+  const cards = devices.filter((device) => !groupedIds.has(String(device.id))).map((device) => `
     <article class="${deviceVisualClass(device)}" style="${deviceCardStyle(device)}" data-device-id="${esc(device.id)}"><span class="device-glyph mdi-mask" style="${mdiStyle(device.icon, device.kind === 'cover' ? 'blinds-horizontal' : device.kind === 'lock' ? 'lock' : 'lightbulb')}"></span><div><strong>${esc(device.name)}</strong><small>${esc(device.room)}</small></div><em>${esc(stateLabel(device))}</em>${deviceActions(device)}</article>
-  `).join('') || '<p class="empty-state">Nessun dispositivo disponibile</p>'
+  `)
+  completeGroups.forEach((channels, group) => cards.push(renderRgbCard(group, channels)))
+  $('#detail-kicker').textContent = `${cards.length} dispositivi`
+  $('#device-list').innerHTML = cards.join('') || '<p class="empty-state">Nessun dispositivo disponibile</p>'
 }
 
 function deviceCardStyle(device) {
@@ -128,29 +168,59 @@ function deviceVisualClass(device) {
 }
 
 function deviceActions(device) {
-  if (['light', 'switch'].includes(device.kind)) return '<div class="device-actions"><button data-action="on">ON</button><button data-action="off">OFF</button></div>'
+  if (['light', 'switch'].includes(device.kind)) {
+    const dimmer = device.kind === 'light' && device.dimmable ? `<label class="dimmer-control"><input type="range" min="1" max="255" value="${Math.max(1, brightness255(device))}" data-brightness><output>${Math.round(brightness255(device) / 255 * 100)}%</output></label>` : ''
+    return `${dimmer}<div class="device-actions"><button data-action="on">ON</button><button data-action="off">OFF</button></div>`
+  }
   if (device.kind === 'cover') return '<div class="device-actions"><button data-action="open">SU</button><button data-action="stop">STOP</button><button data-action="close">GIÙ</button></div>'
   if (device.kind === 'lock') return '<div class="device-actions"><button data-action="unlock">SBLOCCA</button><button data-action="lock">BLOCCA</button></div>'
   return ''
 }
 
-async function sendDeviceCommand(deviceId, action, button) {
-  button.disabled = true
+async function postDeviceCommand(deviceId, action, value) {
+  const response = await fetch(apiUrl(`api/devices/${encodeURIComponent(deviceId)}/command`), {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action, value })
+  })
+  if (!response.ok) throw new Error((await response.json().catch(() => ({}))).detail || `HTTP ${response.status}`)
+}
+
+async function sendDeviceCommand(deviceId, action, button, value) {
+  if (button) button.disabled = true
   try {
-    const response = await fetch(apiUrl(`api/devices/${encodeURIComponent(deviceId)}/command`), {
-      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action })
-    })
-    if (!response.ok) {
-      const problem = await response.json().catch(() => ({}))
-      throw new Error(problem.detail || `HTTP ${response.status}`)
-    }
+    await postDeviceCommand(deviceId, action, value)
     await new Promise((resolve) => setTimeout(resolve, 400))
     await refresh()
   } catch (error) {
     fail(error)
   } finally {
-    button.disabled = false
+    if (button) button.disabled = false
   }
+}
+
+async function sendRgbCommand(group, action, value, control) {
+  const channels = rgbChannels(currentDevices).get(group)
+  if (!channels || !channels.red || !channels.green || !channels.blue) return
+  if (control) control.disabled = true
+  try {
+    let values
+    if (action === 'color') {
+      values = { red: parseInt(value.slice(1, 3), 16), green: parseInt(value.slice(3, 5), 16), blue: parseInt(value.slice(5, 7), 16) }
+      localStorage.setItem(`eface-rgb:${group}`, JSON.stringify(values))
+    } else if (action === 'brightness') {
+      let base = { red: brightness255(channels.red), green: brightness255(channels.green), blue: brightness255(channels.blue) }
+      if (!Math.max(...Object.values(base))) base = JSON.parse(localStorage.getItem(`eface-rgb:${group}`) || '{"red":255,"green":255,"blue":255}')
+      const peak = Math.max(1, ...Object.values(base))
+      values = Object.fromEntries(Object.entries(base).map(([name, channel]) => [name, Math.round(channel * Number(value) / peak)]))
+    } else if (action === 'on') {
+      values = JSON.parse(localStorage.getItem(`eface-rgb:${group}`) || '{"red":255,"green":255,"blue":255}')
+    }
+    await Promise.all(Object.entries(channels).map(([name, device]) => {
+      const level = values?.[name] || 0
+      return postDeviceCommand(device.id, action === 'off' || !level ? 'off' : 'brightness', level || undefined)
+    }))
+    await new Promise((resolve) => setTimeout(resolve, 300))
+    await refresh()
+  } catch (error) { fail(error) } finally { if (control) control.disabled = false }
 }
 
 function openDevices(title, devices) {
@@ -276,6 +346,7 @@ function applyRealtimeEvent(event) {
   if (data.state !== undefined) device.state = data.state
   if (data.value !== undefined) device.state = data.value
   if (data.position !== undefined) device.position = data.position
+  if (data.brightness !== undefined) device.brightness = data.brightness
   if (!detailRenderQueued && activeDetailIds && !$('#detail-view').hidden) {
     detailRenderQueued = true
     requestAnimationFrame(() => {
@@ -319,9 +390,21 @@ $('#scenario-list').addEventListener('click', (event) => {
   if (button && card) sendScenarioCommand(card.dataset.scenarioId, button.dataset.scenarioAction, button)
 })
 $('#device-list').addEventListener('click', (event) => {
+  const rgbButton = event.target.closest('[data-rgb-action]')
+  const rgbCard = event.target.closest('[data-rgb-group]')
+  if (rgbButton && rgbCard) return sendRgbCommand(rgbCard.dataset.rgbGroup, rgbButton.dataset.rgbAction, null, rgbButton)
   const button = event.target.closest('[data-action]')
   const card = event.target.closest('[data-device-id]')
   if (button && card) sendDeviceCommand(card.dataset.deviceId, button.dataset.action, button)
+})
+$('#device-list').addEventListener('input', (event) => {
+  if (event.target.matches('[data-brightness],[data-rgb-brightness]')) event.target.nextElementSibling.textContent = `${Math.round(Number(event.target.value) / 255 * 100)}%`
+})
+$('#device-list').addEventListener('change', (event) => {
+  const card = event.target.closest('[data-device-id],[data-rgb-group]')
+  if (event.target.matches('[data-brightness]')) sendDeviceCommand(card.dataset.deviceId, 'brightness', event.target, event.target.value)
+  if (event.target.matches('[data-rgb-brightness]')) sendRgbCommand(card.dataset.rgbGroup, 'brightness', event.target.value, event.target)
+  if (event.target.matches('[data-rgb-color]')) sendRgbCommand(card.dataset.rgbGroup, 'color', event.target.value, event.target)
 })
 $('.home-title').addEventListener('click', showHome)
 $('#show-all-devices').addEventListener('click', () => openDevices('Tutti i dispositivi', currentDevices))

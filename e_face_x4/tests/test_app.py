@@ -85,7 +85,7 @@ def test_configured_home_name_is_shown_in_bootstrap(monkeypatch, tmp_path) -> No
 def test_buspro_snapshot_is_normalized_by_room_and_kind() -> None:
     normalized = normalize_snapshot({
         "devices": [
-            {"type": "light", "name": "Lampada", "group": "Sala"},
+            {"type": "light", "name": "Lampada", "group": "Sala", "dimmable": True, "rgb_group": "RGB Sala", "rgb_channel": "red"},
             {"type": "cover", "name": "Tenda", "group": "Sala"},
             {"type": "lock", "name": "Porta", "group": "Ingresso"},
             {"type": "temperature", "name": "Temperatura", "group": "Sala", "subnet_id": 1, "device_id": 61, "channel": 1},
@@ -102,6 +102,9 @@ def test_buspro_snapshot_is_normalized_by_room_and_kind() -> None:
     ]
     assert normalized["mqtt_connected"] is True
     assert normalized["devices"][0]["icon"] == ""
+    assert normalized["devices"][0]["dimmable"] is True
+    assert normalized["devices"][0]["rgb_group"] == "RGB Sala"
+    assert normalized["devices"][0]["rgb_channel"] == "red"
     temperature = next(device for device in normalized["devices"] if device["kind"] == "temperature")
     assert temperature["state"] == 28.0
     assert temperature["unit"] == "°C"
@@ -153,6 +156,10 @@ def test_device_commands_are_present_in_frontend() -> None:
     assert "new WebSocket(realtimeUrl())" in script
     assert "applyRealtimeEvent(JSON.parse(message.data))" in script
     assert "realtimeSocket.readyState !== WebSocket.OPEN" in script
+    assert "data-rgb-color" in script
+    assert "data-rgb-brightness" in script
+    assert "data-brightness" in script
+    assert "data.brightness" in script
 
 
 def test_device_command_requires_enabled_connector(monkeypatch, tmp_path) -> None:

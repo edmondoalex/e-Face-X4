@@ -19,7 +19,7 @@ from .connectors import BusproConnector
 from .connectors.supervisor import discover_addon_url
 from .demo import dashboard as demo_dashboard
 
-VERSION = "1.1.0"
+VERSION = "1.2.0"
 STATIC = Path(__file__).parent / "static"
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s [e-face-x4] %(message)s")
 
@@ -94,7 +94,7 @@ def create_app() -> FastAPI:
         if not config.enabled or not config.base_url:
             raise HTTPException(status_code=503, detail="Connettore e-HDL non disponibile")
         try:
-            return await BusproConnector(config, settings.request_timeout_s).command(device_id, str(payload.get("action") or ""))
+            return await BusproConnector(config, settings.request_timeout_s).command(device_id, str(payload.get("action") or ""), payload.get("value"))
         except httpx.HTTPStatusError as exc:
             raise HTTPException(status_code=502, detail=f"e-HDL ha risposto HTTP {exc.response.status_code}")
         except httpx.HTTPError:
@@ -132,7 +132,7 @@ def create_app() -> FastAPI:
                     }
                     data = event.get("data") if isinstance(event, dict) else None
                     if event_type in allowed and isinstance(data, dict):
-                        safe = {key: data.get(key) for key in ("subnet_id", "device_id", "channel", "entity_id", "id", "state", "running", "value", "position") if key in data}
+                        safe = {key: data.get(key) for key in ("subnet_id", "device_id", "channel", "entity_id", "id", "state", "running", "value", "position", "brightness") if key in data}
                         await websocket.send_json({"type": event_type, "data": safe})
         except Exception as exc:
             logging.warning("Realtime BusPro bridge closed: %s", type(exc).__name__)

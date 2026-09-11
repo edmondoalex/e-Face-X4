@@ -63,6 +63,7 @@ def normalize_snapshot(payload: dict[str, Any]) -> dict[str, Any]:
         state: Any = None
         unit = ""
         position: Any = None
+        brightness: Any = None
         entity_id = str(raw.get("entity_id") or "").lower()
         if entity_id and isinstance(ha_states.get(entity_id), dict):
             ha_state = ha_states[entity_id]
@@ -70,6 +71,7 @@ def normalize_snapshot(payload: dict[str, Any]) -> dict[str, Any]:
             attributes = ha_state.get("attributes") if isinstance(ha_state.get("attributes"), dict) else {}
             unit = str(attributes.get("unit_of_measurement") or "")
             position = attributes.get("current_position")
+            brightness = attributes.get("brightness")
         if state is None:
             source = cover_states if kind == "cover" else light_states
             if kind in sensor_sources:
@@ -81,6 +83,7 @@ def normalize_snapshot(payload: dict[str, Any]) -> dict[str, Any]:
             if isinstance(raw_state, dict):
                 state = raw_state.get("value") if raw_state.get("value") is not None else raw_state.get("state")
                 position = raw_state.get("position")
+                brightness = raw_state.get("brightness")
             else:
                 state = raw_state
         normalized.append({
@@ -88,6 +91,9 @@ def normalize_snapshot(payload: dict[str, Any]) -> dict[str, Any]:
             "unit": unit, "position": position, "icon": str(raw.get("icon") or "").strip(),
             "category": category,
             "state_key": entity_id or address,
+            "dimmable": bool(raw.get("dimmable")), "brightness": brightness,
+            "rgb_group": str(raw.get("rgb_group") or "").strip(),
+            "rgb_channel": str(raw.get("rgb_channel") or "").strip().lower(),
         })
     mqtt = payload.get("mqtt") if isinstance(payload.get("mqtt"), dict) else {}
     return {
@@ -155,11 +161,17 @@ class BusproConnector(Connector):
                 "items": [],
             }
 
-    async def command(self, target_id: str, action: str) -> dict[str, Any]:
-        allowed = {"on", "off", "open", "close", "stop", "lock", "unlock"}
+    async def command(self, target_id: str, action: str, value: Any = None) -> dict[str, Any]:
+        allowed = {"on", "off", "brightness", "open", "close", "stop", "lock", "unlock"}
         action = str(action or "").strip().lower()
         if action not in allowed:
             raise ValueError("azione non consentita")
+        brightness_value: int | None = None
+        if action == "brightness":
+            try:
+                brightness_value = max(1, min(255, int(value)))
+            except (TypeError, ValueError):
+                raise ValueError("luminosità non valida")
         async with httpx.AsyncClient(timeout=self.timeout_s, follow_redirects=False) as client:
             snapshot_response = await client.get(f"{self.config.base_url}/api/user/snapshot", headers=self._headers())
             snapshot_response.raise_for_status()
@@ -174,8 +186,11 @@ class BusproConnector(Connector):
             entity_id = str(raw.get("entity_id") or "").strip().lower()
             if entity_id:
                 domain = entity_id.split(".", 1)[0]
-                if domain in {"light", "switch"} and action in {"on", "off"}:
-                    path, body = f"/api/control/ha/{domain}/{entity_id}", {"state": action.upper()}
+                if domain in {"light", "switch"} and action in {"on", "off", "brightness"}:
+                    body = {"state": "ON" if action == "brightness" else action.upper()}
+                    if action == "brightness" and domain == "light":
+                        body["brightness"] = brightness_value
+                    path = f"/api/control/ha/{domain}/{entity_id}"
                 elif domain == "cover" and action in {"open", "close", "stop"}:
                     path, body = f"/api/control/ha/cover/{entity_id}", {"command": action.upper()}
                 elif kind == "lock" and action in {"lock", "unlock", "open"}:
@@ -187,8 +202,11 @@ class BusproConnector(Connector):
                     address = "/".join(str(int(raw[key])) for key in ("subnet_id", "device_id", "channel"))
                 except (KeyError, TypeError, ValueError):
                     raise ValueError("indirizzo dispositivo non valido")
-                if kind in {"light", "switch"} and action in {"on", "off"}:
-                    path, body = f"/api/control/light/{address}", {"state": action.upper()}
+                if kind in {"light", "switch"} and action in {"on", "off", "brightness"}:
+                    body = {"state": "ON" if action == "brightness" else action.upper()}
+                    if action == "brightness":
+                        body["brightness"] = brightness_value
+                    path = f"/api/control/light/{address}"
                 elif kind == "cover" and action in {"open", "close", "stop"}:
                     path, body = f"/api/control/cover/{address}", {"command": action.upper()}
                 else:
