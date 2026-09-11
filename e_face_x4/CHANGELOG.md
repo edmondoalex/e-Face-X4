@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.3.3 — 2026-09-11
+
+- Slider dimmer bianco da spento e riempimento giallo proporzionale alla luminosità.
+- Portando il dimmer a 0% viene inviato il comando OFF.
+
 ## 1.3.2 — 2026-09-11
 
 - Spostato il master RGB sulla scheda e riservata l'apertura della tavola colori alla sola icona quadrata.

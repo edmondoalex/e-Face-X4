@@ -210,7 +210,10 @@ function deviceVisualClass(device) {
 
 function deviceActions(device) {
   if (['light', 'switch'].includes(device.kind)) {
-    const dimmer = device.kind === 'light' && device.dimmable ? `<label class="dimmer-control"><input type="range" min="1" max="255" value="${Math.max(1, brightness255(device))}" data-brightness><output>${Math.round(brightness255(device) / 255 * 100)}%</output></label>` : ''
+    const active = ['ON','1','TRUE'].includes(String(device.state).trim().toUpperCase())
+    const level = active ? brightness255(device) : 0
+    const percent = Math.round(level / 255 * 100)
+    const dimmer = device.kind === 'light' && device.dimmable ? `<label class="dimmer-control ${active ? 'active' : ''}" style="--level:${percent}%"><input type="range" min="0" max="255" value="${level}" data-brightness><output>${percent}%</output></label>` : ''
     return dimmer
   }
   if (device.kind === 'cover') return '<div class="device-actions"><button data-action="open">SU</button><button data-action="stop">STOP</button><button data-action="close">GIÙ</button></div>'
@@ -472,11 +475,18 @@ $('#rgb-channel-controls').addEventListener('change', (event) => {
 $('#rgb-dialog').addEventListener('click', (event) => { const button = event.target.closest('[data-popup-rgb-action]'); if (button) sendRgbCommand(activeRgbGroup, button.dataset.popupRgbAction, null, button) })
 $('#rgb-wheel').addEventListener('pointerdown', (event) => { event.currentTarget.setPointerCapture(event.pointerId); sendRgbCommand(activeRgbGroup, 'color', wheelColor(event), event.currentTarget) })
 $('#device-list').addEventListener('input', (event) => {
-  if (event.target.matches('[data-brightness],[data-rgb-brightness]')) event.target.nextElementSibling.textContent = `${Math.round(Number(event.target.value) / 255 * 100)}%`
+  if (event.target.matches('[data-brightness],[data-rgb-brightness]')) {
+    const percent = Math.round(Number(event.target.value) / 255 * 100)
+    event.target.nextElementSibling.textContent = `${percent}%`
+    if (event.target.matches('[data-brightness]')) {
+      event.target.closest('.dimmer-control').style.setProperty('--level', `${percent}%`)
+      event.target.closest('.dimmer-control').classList.toggle('active', Number(event.target.value) > 0)
+    }
+  }
 })
 $('#device-list').addEventListener('change', (event) => {
   const card = event.target.closest('[data-device-id],[data-rgb-group]')
-  if (event.target.matches('[data-brightness]')) sendDeviceCommand(card.dataset.deviceId, 'brightness', event.target, event.target.value)
+  if (event.target.matches('[data-brightness]')) sendDeviceCommand(card.dataset.deviceId, Number(event.target.value) === 0 ? 'off' : 'brightness', event.target, event.target.value)
   if (event.target.matches('[data-rgb-brightness]')) sendRgbCommand(card.dataset.rgbGroup, 'brightness', event.target.value, event.target)
   if (event.target.matches('[data-rgb-color]')) sendRgbCommand(card.dataset.rgbGroup, 'color', event.target.value, event.target)
 })
