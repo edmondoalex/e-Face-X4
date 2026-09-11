@@ -9,6 +9,7 @@ let realtimeRetry = null
 let detailRenderQueued = false
 let snapshotRefreshTimer = null
 let currentScenarios = []
+let activeRgbGroup = null
 
 function apiUrl(path) {
   const base = location.pathname.endsWith('/') ? location.pathname : `${location.pathname}/`
@@ -121,13 +122,47 @@ function renderRgbCard(group, channels) {
   const color = rgbHex(channels)
   const master = Math.max(...Object.values(channels).map(brightness255))
   const representative = channels.red
-  return `<article class="rgb-device ${master ? 'rgb-device-on' : ''}" style="--rgb-color:${color}" data-rgb-group="${esc(group)}">
+  return `<article class="rgb-device ${master ? 'rgb-device-on' : ''}" style="--rgb-color:${color}" data-rgb-group="${esc(group)}" data-rgb-open tabindex="0">
     <span class="device-glyph mdi-mask" style="${mdiStyle(representative.icon, 'palette')}"></span>
     <div><strong>${esc(group)}</strong><small>${esc(representative.room)} · RGB</small></div>
     <em><i class="rgb-swatch"></i>${color}</em>
-    <div class="rgb-controls"><input type="color" value="${color}" data-rgb-color aria-label="Colore ${esc(group)}"><input type="range" min="1" max="255" value="${Math.max(1, master)}" data-rgb-brightness aria-label="Luminosità ${esc(group)}"><output>${Math.round(master / 255 * 100)}%</output></div>
-    <div class="device-actions"><button data-rgb-action="on">ON</button><button data-rgb-action="off">OFF</button></div>
+    <small class="rgb-open-label">Tocca per regolare</small>
   </article>`
+}
+
+const rgbPalette = ['#ff0000','#ff7a00','#ffd500','#42ed00','#00df70','#00dce5','#0874e8','#7137ed','#a800ff','#ed00bd','#ed3d78','#ffffff','#ffb766','#70edbf','#8ab6ff','#292929']
+
+function openRgbDialog(group) {
+  activeRgbGroup = group
+  renderRgbDialog()
+  $('#rgb-dialog').showModal()
+}
+
+function renderRgbDialog() {
+  const channels = rgbChannels(currentDevices).get(activeRgbGroup)
+  if (!channels?.red || !channels?.green || !channels?.blue) return
+  const values = Object.fromEntries(Object.entries(channels).map(([name, device]) => [name, brightness255(device)]))
+  const color = rgbHex(channels)
+  const master = Math.max(...Object.values(values))
+  $('#rgb-title').textContent = activeRgbGroup
+  $('#rgb-master').value = Math.max(1, master)
+  $('#rgb-master-value').textContent = `${Math.round(master / 255 * 100)}%`
+  $('#rgb-preview').style.setProperty('--rgb-color', color)
+  $('#rgb-hex-swatch').style.background = color
+  $('#rgb-hex-value').textContent = color
+  $('#rgb-palette').innerHTML = rgbPalette.map((item) => `<button style="--swatch:${item}" data-palette="${item}" aria-label="Colore ${item}"></button>`).join('')
+  const labels = { red: 'Rosso', green: 'Verde', blue: 'Blu' }
+  $('#rgb-channel-controls').innerHTML = ['red','green','blue'].map((name) => `<label class="rgb-channel ${name}"><span><i></i>${labels[name]}</span><output>${values[name]}</output><input type="range" min="0" max="255" value="${values[name]}" data-rgb-channel="${name}"></label>`).join('')
+}
+
+function wheelColor(event) {
+  const rect = $('#rgb-wheel').getBoundingClientRect()
+  const x = event.clientX - rect.left - rect.width / 2
+  const y = event.clientY - rect.top - rect.height / 2
+  const saturation = Math.min(1, Math.hypot(x, y) / (rect.width / 2))
+  const hue = (Math.atan2(y, x) * 180 / Math.PI + 450) % 360
+  const f = (n) => { const k = (n + hue / 60) % 6; return Math.round(255 * (1 - saturation * Math.max(0, Math.min(k, 4 - k, 1)))) }
+  return `#${[f(5), f(3), f(1)].map((v) => v.toString(16).padStart(2, '0')).join('')}`
 }
 
 function renderDeviceList(devices) {
@@ -355,6 +390,7 @@ function applyRealtimeEvent(event) {
   if (data.value !== undefined) device.state = data.value
   if (data.position !== undefined) device.position = data.position
   if (data.brightness !== undefined) device.brightness = data.brightness
+  if (activeRgbGroup && $('#rgb-dialog').open && device.rgb_group === activeRgbGroup) renderRgbDialog()
   if (!detailRenderQueued && activeDetailIds && !$('#detail-view').hidden) {
     detailRenderQueued = true
     requestAnimationFrame(() => {
@@ -398,6 +434,8 @@ $('#scenario-list').addEventListener('click', (event) => {
   if (button && card) sendScenarioCommand(card.dataset.scenarioId, button.dataset.scenarioAction, button)
 })
 $('#device-list').addEventListener('click', (event) => {
+  const rgbOpen = event.target.closest('[data-rgb-open]')
+  if (rgbOpen) return openRgbDialog(rgbOpen.dataset.rgbGroup)
   const rgbButton = event.target.closest('[data-rgb-action]')
   const rgbCard = event.target.closest('[data-rgb-group]')
   if (rgbButton && rgbCard) return sendRgbCommand(rgbCard.dataset.rgbGroup, rgbButton.dataset.rgbAction, null, rgbButton)
@@ -405,6 +443,20 @@ $('#device-list').addEventListener('click', (event) => {
   const card = event.target.closest('[data-device-id]')
   if (button && card) sendDeviceCommand(card.dataset.deviceId, button.dataset.action, button)
 })
+$('#rgb-close').addEventListener('click', () => $('#rgb-dialog').close())
+$('#rgb-dialog').addEventListener('click', (event) => { if (event.target === $('#rgb-dialog')) $('#rgb-dialog').close() })
+$('#rgb-palette').addEventListener('click', (event) => { const button = event.target.closest('[data-palette]'); if (button) sendRgbCommand(activeRgbGroup, 'color', button.dataset.palette, button) })
+$('#rgb-master').addEventListener('input', (event) => { $('#rgb-master-value').textContent = `${Math.round(Number(event.target.value) / 255 * 100)}%` })
+$('#rgb-master').addEventListener('change', (event) => sendRgbCommand(activeRgbGroup, 'brightness', event.target.value, event.target))
+$('#rgb-channel-controls').addEventListener('input', (event) => { if (event.target.matches('[data-rgb-channel]')) event.target.previousElementSibling.textContent = event.target.value })
+$('#rgb-channel-controls').addEventListener('change', (event) => {
+  if (!event.target.matches('[data-rgb-channel]')) return
+  const values = Object.fromEntries([...document.querySelectorAll('[data-rgb-channel]')].map((input) => [input.dataset.rgbChannel, Number(input.value)]))
+  const color = `#${['red','green','blue'].map((name) => values[name].toString(16).padStart(2,'0')).join('')}`
+  sendRgbCommand(activeRgbGroup, 'color', color, event.target)
+})
+$('#rgb-dialog').addEventListener('click', (event) => { const button = event.target.closest('[data-popup-rgb-action]'); if (button) sendRgbCommand(activeRgbGroup, button.dataset.popupRgbAction, null, button) })
+$('#rgb-wheel').addEventListener('pointerdown', (event) => { event.currentTarget.setPointerCapture(event.pointerId); sendRgbCommand(activeRgbGroup, 'color', wheelColor(event), event.currentTarget) })
 $('#device-list').addEventListener('input', (event) => {
   if (event.target.matches('[data-brightness],[data-rgb-brightness]')) event.target.nextElementSibling.textContent = `${Math.round(Number(event.target.value) / 255 * 100)}%`
 })

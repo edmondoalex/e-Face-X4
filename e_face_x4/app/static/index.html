@@ -45,4 +45,16 @@
       </section>
     </main>
   </div><div id="notice" class="notice" hidden></div>
+  <dialog id="rgb-dialog" class="rgb-dialog">
+    <header><div><small>CONTROLLO RGB</small><h2 id="rgb-title">Luce RGB</h2></div><button id="rgb-close" aria-label="Chiudi">×</button></header>
+    <div class="rgb-popup-body">
+      <label class="rgb-master"><output id="rgb-master-value">0%</output><input id="rgb-master" type="range" min="1" max="255"></label>
+      <div id="rgb-preview" class="rgb-preview"></div>
+      <div id="rgb-wheel" class="rgb-wheel" role="slider" aria-label="Selettore colore"><i></i></div>
+      <div id="rgb-palette" class="rgb-palette"></div>
+      <div class="rgb-hex"><i id="rgb-hex-swatch"></i><strong id="rgb-hex-value">#000000</strong></div>
+      <div id="rgb-channel-controls" class="rgb-channel-controls"></div>
+      <div class="rgb-popup-actions"><button data-popup-rgb-action="off">OFF</button><button data-popup-rgb-action="on">ON</button></div>
+    </div>
+  </dialog>
 </div><script type="module" src="assets/app.js"></script></body></html>

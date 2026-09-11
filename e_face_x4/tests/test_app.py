@@ -53,7 +53,8 @@ def test_x4_shell_and_brand_assets_are_served() -> None:
     assert "now-playing" in page.text
     assert 'id="detail-view"' in page.text
     assert 'id="detail-back"' in page.text
-    assert '<dialog' not in page.text
+    assert page.text.count('<dialog') == 1
+    assert 'id="rgb-dialog"' in page.text
     assert 'id="show-all-devices"' in page.text
     assert 'id="scenario-panel"' in page.text
     assert 'id="scenario-list"' in page.text
@@ -162,6 +163,8 @@ def test_device_commands_are_present_in_frontend() -> None:
     assert "data.brightness" in script
     assert "--light-glow:" in script
     assert "brightness255(device) / 255" in script
+    assert "openRgbDialog" in script
+    assert "rgb-channel-controls" in script
 
 
 def test_device_command_requires_enabled_connector(monkeypatch, tmp_path) -> None:

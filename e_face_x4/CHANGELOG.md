@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.3.0 — 2026-09-11
+
+- Aggiunto pannello popup RGB con master, ruota colore, palette, HEX e controllo separato dei tre canali.
+- Mantenuta nella pagina Luci una scheda RGB compatta con colore reale.
+
 ## 1.2.1 — 2026-09-11
 
 - Resa l'intensità luminosa dell'icona proporzionale alla percentuale reale del dimmer.
