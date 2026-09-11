@@ -21,10 +21,11 @@ from .control4 import load_control4_config, public_control4_config, save_control
 from .installer_auth import COOKIE, create_session, valid_session
 from .media_preferences import apply_preferences, load_preferences, save_preferences
 from .connectors import BusproConnector, Control4MediaConnector, EThermConnector, EkonexMediaConnector, LocalMediaConnector
+from .connectors.control4_media import control4_icon_path
 from .connectors.supervisor import discover_addon_url
 from .demo import dashboard as demo_dashboard
 
-VERSION = "2.3.4"
+VERSION = "2.4.0"
 STATIC = Path(__file__).parent / "static"
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s [e-face-x4] %(message)s")
 
@@ -313,6 +314,29 @@ def create_app() -> FastAPI:
         if upstream.headers.get("etag"):
             headers["ETag"] = upstream.headers["etag"]
         return Response(upstream.content, media_type=media_type, headers=headers)
+
+    @app.get("/api/control4/source-icon/{source_id}", include_in_schema=False)
+    async def control4_source_icon(source_id: int) -> Response:
+        if source_id <= 0:
+            raise HTTPException(status_code=404, detail="Icona Control4 non disponibile")
+        config = load_control4_config()
+        if not config.get("username") or not config.get("password"):
+            raise HTTPException(status_code=404, detail="Control4 non configurato")
+        try:
+            director, _ = await control4_director(config)
+            path = control4_icon_path(await director.get_item_info(source_id))
+            if not path:
+                raise HTTPException(status_code=404, detail="Icona Control4 non disponibile")
+            async with httpx.AsyncClient(verify=False, timeout=8, follow_redirects=False) as client:
+                upstream = await client.get(director.base_url + path, headers=director.headers)
+            media_type = upstream.headers.get("content-type", "").split(";", 1)[0]
+            if upstream.status_code != 200 or media_type not in {"image/png", "image/jpeg", "image/gif", "image/webp"} or len(upstream.content) > 300_000:
+                raise HTTPException(status_code=404, detail="Icona Control4 non disponibile")
+            return Response(upstream.content, media_type=media_type, headers={"Cache-Control": "private, max-age=86400", "X-Content-Type-Options": "nosniff"})
+        except HTTPException:
+            raise
+        except Exception:
+            raise HTTPException(status_code=502, detail="Icona Control4 non raggiungibile")
 
     @app.post("/api/media/groups/{group_id}/command")
     async def media_group_command(group_id: str, payload: dict) -> dict:

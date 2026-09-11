@@ -270,7 +270,10 @@ function renderMediaExperience(devices) {
     return `<button class="media-service-tile media-room-tile ${device.id === selected.id ? 'active' : ''} ${operating ? `media-room-on media-room-${device.active_experience}` : ''}" data-media-select="${esc(device.id)}"><span class="mdi-mask" style="${mdiStyle(device.icon, 'speaker')}"></span><b>${esc(device.name)}</b><small>${esc(device.room)}</small>${operating ? `<i class="media-room-state" aria-label="${mode}" title="${mode}"></i>` : ''}</button>`
   }).join('')
   const options = selected.source_options?.length ? selected.source_options.filter((source) => !currentMediaExperience || source.experience === currentMediaExperience) : (selected.source_list || []).map((source) => ({key:source,label:source}))
-  const sources = options.map((source) => `<button class="media-service-tile ${source.label === selected.source ? 'active' : ''}" data-device-id="${esc(selected.id)}" data-media-source="${esc(source.key)}"><span class="mdi-mask" style="${mdiStyle('mdi:play-box', 'play-box')}"></span><b>${esc(source.label)}</b><small>Sorgente</small></button>`).join('')
+  const sources = options.map((source) => {
+    const native = selected.provider === 'control4' && source.source_id ? `<span class="media-source-native"><span class="mdi-mask" style="${mdiStyle('mdi:play-box', 'play-box')}"></span><img src="${apiUrl(`api/control4/source-icon/${source.source_id}`)}" alt="" loading="lazy" onload="this.parentElement.classList.add('loaded')" onerror="this.remove()"></span>` : `<span class="mdi-mask" style="${mdiStyle('mdi:play-box', 'play-box')}"></span>`
+    return `<button class="media-service-tile ${source.label === selected.source ? 'active' : ''}" data-device-id="${esc(selected.id)}" data-media-source="${esc(source.key)}">${native}<b>${esc(source.label)}</b><small>Sorgente</small></button>`
+  }).join('')
   const caps = selected.capabilities || {}
   const disabled = selected.connection_status === 'offline' || selected.availability !== 'available'
   const power = caps.turn_off ? `<button class="media-session-power" data-media-action="turn_off" aria-label="Spegni stanza" ${disabled ? 'disabled' : ''}><span class="mdi-mask" style="${mdiStyle('mdi:power', 'power')}"></span></button>` : ''

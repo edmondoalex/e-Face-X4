@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import base64
 import hashlib
+import re
 from typing import Any, AsyncIterator
 
 import httpx
@@ -168,7 +169,7 @@ def normalize_control4_media(ui: Any, all_items: Any, variables: Any) -> list[di
             if not isinstance(source, dict) or source.get("id") is None: continue
             label = source.get("name") or names.get(str(source.get("id")))
             if label:
-                room["source_options"].append({"key": f"{experience['type']}:{source['id']}", "label": str(label), "experience": str(experience["type"]), "type": str(source.get("type") or "")})
+                room["source_options"].append({"key": f"{experience['type']}:{source['id']}", "label": str(label), "experience": str(experience["type"]), "type": str(source.get("type") or ""), "source_id": int(source["id"])})
     result = []
     for room_id, data in rooms.items():
         values = state.get(room_id, {})
@@ -208,6 +209,24 @@ def control4_queues(value: Any) -> list[dict[str, Any]]:
     if isinstance(queues, dict):
         queues = [queues]
     return [item for item in queues if isinstance(item, dict)] if isinstance(queues, list) else []
+
+
+def control4_icon_path(item: Any) -> str | None:
+    if isinstance(item, list):
+        item = item[0] if item else None
+    if not isinstance(item, dict):
+        return None
+    capabilities = item.get("capabilities")
+    display = capabilities.get("navigator_display_option") if isinstance(capabilities, dict) else None
+    icons = display.get("display_icons", {}).get("Icon", []) if isinstance(display, dict) else []
+    if isinstance(icons, dict):
+        icons = [icons]
+    candidates = [icon for icon in icons if isinstance(icon, dict) and isinstance(icon.get("$t"), str)]
+    candidates.sort(key=lambda icon: abs(int(icon.get("width") or 0) - 140))
+    uri = str(candidates[0].get("$t")) if candidates else ""
+    if not re.fullmatch(r"controller://driver/[A-Za-z0-9_.-]+/[A-Za-z0-9_./-]+\.(?:png|gif|jpe?g)", uri, re.IGNORECASE):
+        return None
+    return "/driver/" + uri.removeprefix("controller://driver/")
 
 
 def control4_queue_rooms(queue: dict[str, Any]) -> list[int]:

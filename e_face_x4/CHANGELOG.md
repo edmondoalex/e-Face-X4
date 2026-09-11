@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.4.0 — 2026-09-11
+
+- Caricate dal Director le icone native dei singoli device e servizi Control4.
+- Aggiunto un proxy locale sicuro con validazione di percorso, tipo MIME e dimensione.
+- Mantenuta l'icona generica come fallback quando un driver non pubblica un asset grafico.
+
 ## 2.3.4 — 2026-09-11
 
 - Rimossi i testi `AUDIO ON` e `VIDEO ON` dalle tessere.

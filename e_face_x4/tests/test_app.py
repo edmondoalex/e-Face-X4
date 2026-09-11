@@ -6,7 +6,7 @@ from app.connectors.etherm import normalize_thermostats
 from app.connectors.media import normalize_player
 from app.connectors.local_media import normalize_local_snapshot
 from app.connectors.local_media import HA_WEBSOCKET_MAX_BYTES
-from app.connectors.control4_media import normalize_control4_groups, normalize_control4_media
+from app.connectors.control4_media import control4_icon_path, normalize_control4_groups, normalize_control4_media
 from app.connectors.supervisor import find_addon_url
 from app.media_preferences import apply_preferences, load_preferences, save_preferences
 from app.control4 import load_control4_config, public_control4_config, save_control4_config, summarize_ui_configuration
@@ -155,11 +155,20 @@ def test_control4_media_uses_only_listen_watch_rooms_and_native_sources() -> Non
     assert player["volume"] == 64
     assert player["source"] == "Spotify Connect"
     assert player["source_options"] == [
-        {"key": "watch:809", "label": "Samsung TV", "experience": "watch", "type": ""},
-        {"key": "listen:100002", "label": "Spotify Connect", "experience": "listen", "type": ""},
+        {"key": "watch:809", "label": "Samsung TV", "experience": "watch", "type": "", "source_id": 809},
+        {"key": "listen:100002", "label": "Spotify Connect", "experience": "listen", "type": "", "source_id": 100002},
     ]
     assert player["capabilities"]["turn_off"] is True
     assert player["active_experience"] == "listen"
+
+
+def test_control4_native_icon_path_is_strictly_validated() -> None:
+    item = {"capabilities": {"navigator_display_option": {"display_icons": {"Icon": [
+        {"width": 300, "$t": "controller://driver/sky/icons/device/experience_300.png"},
+        {"width": 140, "$t": "controller://driver/sky/icons/device/experience_140.png"},
+    ]}}}}
+    assert control4_icon_path(item) == "/driver/sky/icons/device/experience_140.png"
+    assert control4_icon_path({"capabilities": {"navigator_display_option": {"display_icons": {"Icon": {"$t": "https://example.test/evil.png"}}}}}) is None
 
 
 def test_control4_unknown_volume_disables_volume_control() -> None:
