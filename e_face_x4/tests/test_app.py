@@ -158,6 +158,8 @@ def test_device_commands_are_present_in_frontend() -> None:
     assert "new WebSocket(realtimeUrl())" in script
     assert "applyRealtimeEvent(JSON.parse(message.data))" in script
     assert "realtimeSocket.readyState !== WebSocket.OPEN" in script
+    assert "updateNavigationStates()" in script
+    assert "status-yellow" in script
     assert "data-rgb-color" in script
     assert "data-rgb-brightness" in script
     assert "data-brightness" in script

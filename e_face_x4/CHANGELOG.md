@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.5.0 — 2026-09-11
+
+- Aggiunti indicatori live colorati alle icone di navigazione per luci, extra, cover, sicurezza, multimedia e clima attivi.
+
 ## 1.4.3 — 2026-09-11
 
 - Ridisegnata la barra filtri Luci come Control4: Stanza, icona circolare solo accesi e Tutto.

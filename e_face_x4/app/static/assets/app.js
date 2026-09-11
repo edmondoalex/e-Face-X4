@@ -48,6 +48,7 @@ function render(data) {
   const providers = data.providers || []
   const navIcons = data.nav_icons || {}
   currentDevices = Array.isArray(dashboard.devices) ? dashboard.devices : []
+  updateNavigationStates()
   if (activeDetailIds && !$('#detail-view').hidden) {
     renderActiveDeviceList()
   }
@@ -97,6 +98,27 @@ function stateLabel(device) {
   const numeric = Number(value)
   const shown = Number.isFinite(numeric) && ['temp', 'temperature'].includes(device.kind) ? numeric.toFixed(2) : String(value)
   return `${shown}${device.unit ? ` ${device.unit}` : ''}`
+}
+
+function stateIsActive(device) {
+  const state = String(device.state ?? '').trim().toUpperCase()
+  return ['ON','1','TRUE','OPEN','OPENING','UNLOCKED','PLAYING','HEATING','COOLING'].includes(state)
+}
+
+function updateNavigationStates() {
+  const setState = (view, className, active) => {
+    const button = document.querySelector(`.rail [data-view="${view}"]`)
+    if (!button) return
+    button.classList.remove('status-yellow','status-red','status-cyan','status-green')
+    if (active) button.classList.add(className)
+  }
+  setState('lights', 'status-yellow', currentDevices.some((device) => device.kind === 'light' && lightIsOn(device)))
+  setState('extra', 'status-red', currentDevices.some((device) => device.kind === 'switch' && stateIsActive(device)))
+  setState('covers', 'status-cyan', currentDevices.some((device) => device.kind === 'cover' && (stateIsActive(device) || Number(device.position) > 0)))
+  setState('security', 'status-red', currentDevices.some((device) => device.kind === 'lock' && ['OPEN','OPENING','UNLOCKED'].includes(String(device.state ?? '').trim().toUpperCase())))
+  setState('listen', 'status-green', currentDevices.some((device) => ['media','media_player'].includes(device.kind) && stateIsActive(device)))
+  setState('comfort', 'status-cyan', currentDevices.some((device) => device.kind === 'climate' && stateIsActive(device)))
+  setState('scenarios', 'status-yellow', currentScenarios.some((scenario) => scenario.running || ['ON','1','TRUE'].includes(String(scenario.state ?? '').toUpperCase())))
 }
 
 function brightness255(device) {
@@ -327,6 +349,7 @@ async function loadScenarios() {
 }
 
 function renderScenarios() {
+  updateNavigationStates()
   $('#scenario-list').innerHTML = currentScenarios.map((scenario) => {
     const active = String(scenario.state).toUpperCase() === 'ON'
     const controls = []
@@ -419,6 +442,7 @@ function applyRealtimeEvent(event) {
   if (data.value !== undefined) device.state = data.value
   if (data.position !== undefined) device.position = data.position
   if (data.brightness !== undefined) device.brightness = data.brightness
+  updateNavigationStates()
   if (activeRgbGroup && $('#rgb-dialog').open && device.rgb_group === activeRgbGroup) renderRgbDialog()
   if (!detailRenderQueued && activeDetailIds && !$('#detail-view').hidden) {
     detailRenderQueued = true
