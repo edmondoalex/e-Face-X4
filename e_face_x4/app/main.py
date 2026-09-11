@@ -24,7 +24,7 @@ from .connectors import BusproConnector, Control4MediaConnector, EThermConnector
 from .connectors.supervisor import discover_addon_url
 from .demo import dashboard as demo_dashboard
 
-VERSION = "2.2.2"
+VERSION = "2.2.3"
 STATIC = Path(__file__).parent / "static"
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s [e-face-x4] %(message)s")
 

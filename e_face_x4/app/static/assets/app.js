@@ -95,6 +95,7 @@ function render(data) {
     }
     if (!override.state && !Object.hasOwn(override, 'muted') && !Object.hasOwn(override, 'volume')) mediaTransportOverrides.delete(String(device.id))
   })
+  updateGlobalMediaSession()
   updateNavigationStates()
   if (activeDetailIds && !$('#detail-view').hidden) {
     renderActiveDeviceList()
@@ -269,11 +270,20 @@ function renderMediaExperience(devices) {
   const caps = selected.capabilities || {}
   const disabled = selected.connection_status === 'offline' || selected.availability !== 'available'
   const power = caps.turn_off ? `<button class="media-session-power" data-media-action="turn_off" aria-label="Spegni stanza" ${disabled ? 'disabled' : ''}><span class="mdi-mask" style="${mdiStyle('mdi:power', 'power')}"></span></button>` : ''
-  const group = mediaGroupFor(selected)
-  const activeGroupMembers = (group?.member_registry_ids || [selected.registry_id]).filter((registryId) => currentDevices.some((item) => item.registry_id === registryId && item.availability === 'available' && item.connection_status !== 'offline' && !['off', 'unavailable', 'unknown'].includes(String(item.state).toLowerCase())))
-  const mixer = caps.grouping && activeGroupMembers.length > 0 ? `<button class="media-session-mixer" data-media-action="media_zones" aria-label="Gestione stanze audio e video"><span class="mdi-mask" style="${mdiStyle('mdi:home-sound-out', 'home-sound-out')}"></span><b>${activeGroupMembers.length}</b></button>` : ''
   const experienceClass = currentMediaExperience === 'listen' ? 'media-session-listen' : 'media-session-watch'
-  $('#device-list').innerHTML = `<article class="media-session ${experienceClass} ${deviceVisualClass(selected)}" data-device-id="${esc(selected.id)}">${mediaArtwork(selected)}<span class="device-glyph mdi-mask" style="${mdiStyle(mediaSourceIcon(selected.source), 'music-circle')}"></span><div class="media-session-info"><strong>${esc(selected.title || selected.source || selected.name)}</strong><small>${esc(selected.artist || selected.source || selected.room)}</small><span class="media-track">${esc(selected.album || selected.name)}</span></div>${mixer}${power}${deviceActions(selected, { hidePower: true })}</article><div class="media-library"><h3>Dispositivi e servizi</h3><div class="media-service-grid">${players}${sources}</div></div>`
+  $('#device-list').innerHTML = `<article class="media-session ${experienceClass} ${deviceVisualClass(selected)}" data-device-id="${esc(selected.id)}">${mediaArtwork(selected)}<span class="device-glyph mdi-mask" style="${mdiStyle(mediaSourceIcon(selected.source), 'music-circle')}"></span><div class="media-session-info"><strong>${esc(selected.title || selected.source || selected.name)}</strong><small>${esc(selected.artist || selected.source || selected.room)}</small><span class="media-track">${esc(selected.album || selected.name)}</span></div>${power}${deviceActions(selected, { hidePower: true })}</article><div class="media-library"><h3>Dispositivi e servizi</h3><div class="media-service-grid">${players}${sources}</div></div>`
+}
+
+function updateGlobalMediaSession() {
+  const button = $('#global-media-session')
+  const active = currentDevices.filter((item) => item.kind === 'media_player' && item.capabilities?.grouping && item.availability === 'available' && item.connection_status !== 'offline' && !['off', 'unavailable', 'unknown'].includes(String(item.state).toLowerCase()))
+  const selected = active.find((item) => String(item.state).toLowerCase() === 'playing') || active[0]
+  button.hidden = !selected
+  button.dataset.deviceId = selected?.id || ''
+  if (!selected) return
+  const group = mediaGroupFor(selected)
+  const count = (group?.member_registry_ids || [selected.registry_id]).filter((registryId) => active.some((item) => item.registry_id === registryId)).length || 1
+  button.querySelector('b').textContent = count
 }
 
 function mediaArtwork(device) {
@@ -815,6 +825,7 @@ $('#device-list').addEventListener('keydown', (event) => {
 $('#rgb-close').addEventListener('click', () => $('#rgb-dialog').close())
 $('#rgb-dialog').addEventListener('click', (event) => { if (event.target === $('#rgb-dialog')) $('#rgb-dialog').close() })
 $('#media-zones-close').addEventListener('click', () => $('#media-zones-dialog').close())
+$('#global-media-session').addEventListener('click', (event) => { const player = currentDevices.find((item) => String(item.id) === event.currentTarget.dataset.deviceId); if (player) openMediaZones(player) })
 $('#media-zones-save').addEventListener('click', (event) => saveMediaZones(event.currentTarget))
 $('#media-zones-list').addEventListener('click', (event) => { const button = event.target.closest('[data-zone-picker-toggle]'); if (button) { const picker = $('.media-zone-picker'); picker.hidden = !picker.hidden; button.classList.toggle('active', !picker.hidden) } })
 $('#media-zones-list').addEventListener('change', (event) => { if (event.target.matches('.media-zone-picker input[type=checkbox]')) { event.target.closest('.media-zone-choice').classList.toggle('active', event.target.checked) } })

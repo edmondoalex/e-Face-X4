@@ -395,7 +395,8 @@ def test_media_ui_has_room_selection_and_typed_controls() -> None:
     assert "['listen', 'watch'].includes(experience)" in script
     assert "data-zone-volume" in script
     assert "postDeviceCommand(player.id, 'media_unjoin'" in script
-    assert "activeGroupMembers.length > 0" in script
+    assert "updateGlobalMediaSession()" in script
+    assert 'id="global-media-session"' in page
 
 
 def test_control4_digital_media_queue_becomes_canonical_group() -> None:

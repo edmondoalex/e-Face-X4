@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.2.3 — 2026-09-11
+
+- Spostato il gestore della sessione audio/video nella testata, a sinistra del menu con i tre puntini.
+- Il comando resta disponibile da ogni pagina quando almeno una stanza multimediale è attiva.
+- Rimossa l'icona duplicata dalla scheda del player.
+
 ## 2.2.2 — 2026-09-11
 
 - Il gestore sessione mostra fonte audio, contenuto e stanze attualmente in riproduzione.
