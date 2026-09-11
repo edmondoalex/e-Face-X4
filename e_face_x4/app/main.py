@@ -20,7 +20,7 @@ from .connectors import BusproConnector, EThermConnector, EkonexMediaConnector, 
 from .connectors.supervisor import discover_addon_url
 from .demo import dashboard as demo_dashboard
 
-VERSION = "1.7.3"
+VERSION = "1.7.4"
 STATIC = Path(__file__).parent / "static"
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s [e-face-x4] %(message)s")
 
@@ -283,6 +283,9 @@ def create_app() -> FastAPI:
                 try:
                     async for event in connector.events():
                         event_type = str(event.get("type") or "")
+                        if event_type == "local.player_updated":
+                            await queue.put({"type": "media_state", "data": event.get("data") or {}})
+                            continue
                         if event_type != "heartbeat":
                             await queue.put({"type": "media_changed", "event_type": event_type})
                 except asyncio.CancelledError:

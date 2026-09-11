@@ -264,3 +264,12 @@ def test_local_home_assistant_media_snapshot_is_normalized() -> None:
     assert players[0]["volume"] == 40
     assert players[0]["capabilities"]["play"] is True
     assert HA_WEBSOCKET_MAX_BYTES == 16 * 1024 * 1024
+
+
+def test_dynamic_media_player_without_registry_entry_is_visible() -> None:
+    players, _ = normalize_local_snapshot({
+        "areas": [], "devices": [], "entities": [],
+        "states": [{"entity_id": "media_player.ufficio_alex", "state": "playing", "last_updated": "2026-09-11T10:00:00Z", "attributes": {"friendly_name": "Ufficio Alex", "supported_features": 16384}}],
+    })
+    assert players[0]["name"] == "Ufficio Alex"
+    assert players[0]["registry_id"] == "entity:media_player.ufficio_alex"

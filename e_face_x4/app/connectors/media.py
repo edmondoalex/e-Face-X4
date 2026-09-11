@@ -104,7 +104,7 @@ def normalize_player(player: dict[str, Any]) -> dict[str, Any]:
     group = player.get("group") if isinstance(player.get("group"), dict) else None
     experiences = player.get("experiences") if isinstance(player.get("experiences"), list) else ["watch", "listen"]
     return {
-        "id": f"media:{registry_id}", "registry_id": registry_id, "provider": "evoice",
+        "id": f"media:{registry_id}", "registry_id": registry_id, "entity_id": str(player.get("entity_id") or ""), "provider": "evoice",
         "kind": "media_player", "icon": "mdi:speaker", "name": str(player.get("name") or "Player"),
         "room": str(area.get("name") or "Senza stanza"), "state": player.get("state"),
         "availability": str(player.get("availability") or "unknown"),

@@ -69,6 +69,9 @@ class LocalMediaConnector(Connector):
         raw = await self._registry_snapshot()
         entries = {str(item.get("id")): item for item in raw["entities"] if isinstance(item, dict)}
         entry = entries.get(registry_id)
+        if entry is None and registry_id.startswith("entity:"):
+            entity_id = registry_id.removeprefix("entity:")
+            entry = {"id": registry_id, "entity_id": entity_id} if entity_id.startswith("media_player.") else None
         if not entry or not str(entry.get("entity_id", "")).startswith("media_player."):
             raise ValueError("Player locale non trovato")
         entity_id = str(entry["entity_id"])
@@ -97,6 +100,8 @@ class LocalMediaConnector(Connector):
     async def artwork(self, registry_id: str) -> httpx.Response:
         raw = await self._registry_snapshot()
         entry = next((item for item in raw["entities"] if isinstance(item, dict) and str(item.get("id")) == registry_id), None)
+        if entry is None and registry_id.startswith("entity:"):
+            entry = {"entity_id": registry_id.removeprefix("entity:")}
         if not entry or not str(entry.get("entity_id", "")).startswith("media_player."):
             raise ValueError("Player locale non trovato")
         entity_id = str(entry["entity_id"])
@@ -139,7 +144,9 @@ class LocalMediaConnector(Connector):
                 event = json.loads(message)
                 data = ((event.get("event") or {}).get("data") or {}) if event.get("type") == "event" else {}
                 if str(data.get("entity_id", "")).startswith("media_player."):
-                    yield {"type": "player.updated"}
+                    state = data.get("new_state") if isinstance(data.get("new_state"), dict) else {}
+                    attrs = state.get("attributes") if isinstance(state.get("attributes"), dict) else {}
+                    yield {"type": "local.player_updated", "data": {"entity_id": data.get("entity_id"), "state": state.get("state"), "title": attrs.get("media_title"), "artist": attrs.get("media_artist"), "album": attrs.get("media_album_name"), "volume": round(float(attrs["volume_level"]) * 100) if isinstance(attrs.get("volume_level"), (int, float)) and not isinstance(attrs.get("volume_level"), bool) else None, "muted": attrs.get("is_volume_muted"), "source": attrs.get("source")}}
 
 
 def normalize_local_snapshot(raw: dict[str, Any]) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
@@ -150,8 +157,9 @@ def normalize_local_snapshot(raw: dict[str, Any]) -> tuple[list[dict[str, Any]],
     for state in raw.get("states", []):
         entity_id = str(state.get("entity_id") or "") if isinstance(state, dict) else ""
         entry = entries.get(entity_id)
-        if not entry or not entity_id.startswith("media_player.") or entry.get("disabled_by"):
+        if not entity_id.startswith("media_player.") or (entry and entry.get("disabled_by")):
             continue
+        entry = entry or {"id": f"entity:{entity_id}", "entity_id": entity_id, "device_id": None}
         attrs = state.get("attributes") if isinstance(state.get("attributes"), dict) else {}
         area_id = entry.get("area_id") or (devices.get(str(entry.get("device_id"))) or {}).get("area_id")
         features = int(attrs.get("supported_features") or 0)

@@ -287,6 +287,12 @@
 - Architettura modulare dei connettori.
 - Primo connettore in sola lettura per e-HDL BusPro MQTT.
 - Endpoint di salute e test contro l'esposizione delle credenziali.
+# 1.7.4
+
+- Aggiornamenti media mirati senza ricostruzione continua della pagina.
+- Inclusi i media player dinamici non presenti nel registro entità Home Assistant.
+- Stabilizzata la geometria delle pagine Guarda e Ascolta.
+
 # 1.7.3
 
 - Il selettore stanze di Guarda e Ascolta mostra tutte le aree Home Assistant, anche senza player.

@@ -535,6 +535,25 @@ function applyRealtimeEvent(event) {
     return
   }
   const data = event.data || {}
+  if (event.type === 'media_state') {
+    const device = currentDevices.find((item) => item.kind === 'media_player' && item.entity_id === data.entity_id)
+    if (!device) {
+      clearTimeout(snapshotRefreshTimer)
+      snapshotRefreshTimer = setTimeout(refresh, 500)
+      return
+    }
+    let changed = false
+    for (const field of ['state','title','artist','album','volume','muted','source']) {
+      if (data[field] !== undefined && data[field] !== device[field]) {
+        device[field] = data[field]
+        changed = true
+      }
+    }
+    if (!changed) return
+    updateNavigationStates()
+    if (activeDetailIds && !$('#detail-view').hidden) requestAnimationFrame(renderActiveDeviceList)
+    return
+  }
   if (event.type === 'light_scenario_state' || event.type === 'light_scenario_running') {
     const scenario = currentScenarios.find((item) => item.id === String(data.id || ''))
     if (scenario) {
