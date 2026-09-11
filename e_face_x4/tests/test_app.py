@@ -251,14 +251,14 @@ def test_media_ui_has_room_selection_and_typed_controls() -> None:
     assert "renderMediaExperience" in script
     assert 'id="media-zones-dialog"' in page
     assert "[...currentRooms" not in script
-    assert "device.experiences.some" in script
+    assert "device.experiences?.includes('watch')" in script
 
 
 def test_local_home_assistant_media_snapshot_is_normalized() -> None:
     players, groups = normalize_local_snapshot({
         "areas": [{"area_id": "living", "name": "Soggiorno"}],
         "devices": [{"id": "device-1", "area_id": "living"}],
-        "entities": [{"id": "registry-1", "entity_id": "media_player.sala", "device_id": "device-1", "disabled_by": None}],
+        "entities": [{"id": "registry-1", "entity_id": "media_player.sala", "device_id": "device-1", "device_class": "tv", "disabled_by": None}],
         "states": [{"entity_id": "media_player.sala", "state": "playing", "last_updated": "2026-09-11T10:00:00Z", "attributes": {"friendly_name": "Sala", "volume_level": 0.4, "supported_features": 16397, "source_list": ["Spotify"]}}],
     })
     assert groups == []
@@ -266,6 +266,7 @@ def test_local_home_assistant_media_snapshot_is_normalized() -> None:
     assert players[0]["room"] == "Soggiorno"
     assert players[0]["volume"] == 40
     assert players[0]["capabilities"]["play"] is True
+    assert players[0]["experiences"] == ["watch"]
     assert HA_WEBSOCKET_MAX_BYTES == 16 * 1024 * 1024
 
 

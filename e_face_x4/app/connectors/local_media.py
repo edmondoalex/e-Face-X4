@@ -200,6 +200,8 @@ def normalize_local_snapshot(raw: dict[str, Any]) -> tuple[list[dict[str, Any]],
         if not area_id or not areas.get(str(area_id)):
             continue
         features = int(attrs.get("supported_features") or 0)
+        media_class = str(entry.get("device_class") or attrs.get("device_class") or "").lower()
+        experiences = ["watch"] if media_class == "tv" else ["listen"]
         changed = str(state.get("last_updated") or state.get("last_changed") or "")
         try: revision = int(datetime.fromisoformat(changed.replace("Z", "+00:00")).timestamp() * 1_000_000)
         except ValueError: revision = 0
@@ -214,7 +216,7 @@ def normalize_local_snapshot(raw: dict[str, Any]) -> tuple[list[dict[str, Any]],
             "content_fingerprint": changed or entity_id, "volume": round(float(volume) * 100) if isinstance(volume, (int, float)) and not isinstance(volume, bool) else None,
             "muted": attrs.get("is_volume_muted"), "source": attrs.get("source"), "source_list": attrs.get("source_list") or [],
             "group_entity_ids": attrs.get("group_members") or [], "capabilities": {"play": bool(features & 16384), "pause": bool(features & 1), "stop": bool(features & 4096), "next": bool(features & 32), "previous": bool(features & 16), "set_volume": bool(features & 4), "mute": bool(features & 8), "select_source": bool(features & 2048), "grouping": bool(features & 524288), "artwork": bool(attrs.get("entity_picture"))},
-            "resource_revision": revision, "experiences": ["watch", "listen"],
+            "resource_revision": revision, "experiences": experiences,
         }
         by_entity[entity_id] = item
     players = list(by_entity.values())

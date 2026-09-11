@@ -599,7 +599,7 @@ document.querySelectorAll('.rail button').forEach((button) => button.addEventLis
   button.classList.add('active')
   document.querySelector('main').classList.remove('app-view')
   requestAnimationFrame(() => document.querySelector('main').classList.add('app-view'))
-  if (button.dataset.view === 'watch') openDevices('Guarda', currentDevices.filter((device) => ['camera', 'doorbell'].includes(device.kind) || (device.kind === 'media_player' && (!device.experiences?.length || device.experiences.some((experience) => ['watch', 'listen'].includes(experience))))), { av: true })
+  if (button.dataset.view === 'watch') openDevices('Guarda', currentDevices.filter((device) => ['camera', 'doorbell'].includes(device.kind) || (device.kind === 'media_player' && device.experiences?.includes('watch'))), { av: true })
   if (button.dataset.view === 'listen') openDevices('Ascolta', currentDevices.filter((device) => ['media_player', 'media'].includes(device.kind) && (!device.experiences?.length || device.experiences.includes('listen'))), { av: true })
   if (button.dataset.view === 'lights') openDevices('Luci', currentDevices.filter((device) => device.kind === 'light'), { lights: true })
   if (button.dataset.view === 'extra') openDevices('Extra', currentDevices.filter((device) => device.kind === 'switch'))

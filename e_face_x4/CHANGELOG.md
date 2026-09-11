@@ -287,6 +287,12 @@
 - Architettura modulare dei connettori.
 - Primo connettore in sola lettura per e-HDL BusPro MQTT.
 - Endpoint di salute e test contro l'esposizione delle credenziali.
+# 1.7.10
+
+- La pagina Guarda include esclusivamente videocamere, campanelli e player classificati `watch`.
+- I player classificati soltanto `listen` restano esclusivamente nella pagina Ascolta.
+- Nel collegamento locale, i media player `tv` sono classificati video; gli altri restano audio.
+
 # 1.7.9
 
 - Il selettore stanze di Guarda e Ascolta usa soltanto le stanze dei dispositivi multimediali mostrati, non tutte le aree Home Assistant.
