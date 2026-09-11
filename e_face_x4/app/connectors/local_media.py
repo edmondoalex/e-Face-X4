@@ -17,7 +17,6 @@ HA_WEBSOCKET_MAX_BYTES = 16 * 1024 * 1024
 def local_websocket_urls(supervisor: str, home_assistant: str = "http://homeassistant:8123") -> tuple[str, ...]:
     """Return local HA WebSocket endpoints in compatibility order."""
     candidates = (
-        f"{supervisor.rstrip('/')}/core/api/websocket",
         f"{supervisor.rstrip('/')}/core/websocket",
         f"{home_assistant.rstrip('/')}/api/websocket",
     )
@@ -54,7 +53,10 @@ class LocalMediaConnector(Connector):
             ws = None
             try:
                 ws = await websockets.connect(
-                    url, open_timeout=self.timeout, max_size=HA_WEBSOCKET_MAX_BYTES
+                    url,
+                    open_timeout=self.timeout,
+                    max_size=HA_WEBSOCKET_MAX_BYTES,
+                    additional_headers={"Authorization": f"Bearer {self.token}"},
                 )
                 await ws.recv()
                 await ws.send(json.dumps({"type": "auth", "access_token": self.token}))
