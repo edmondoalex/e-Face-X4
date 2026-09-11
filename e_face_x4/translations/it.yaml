@@ -40,8 +40,8 @@ configuration:
       token:
         name: Token
   evoice:
-    name: e-Voice Multimedia
-    description: Configurazione riservata al futuro connettore multimediale.
+    name: Ekonex Media
+    description: Collegamento al backend multimediale con stati e comandi in tempo reale.
     fields:
       enabled:
         name: Abilitato
@@ -49,6 +49,9 @@ configuration:
         name: Indirizzo API
       token:
         name: Token
+      installation_id:
+        name: ID impianto
+        description: Identificativo dell'impianto autorizzato nel backend Ekonex Media.
   etherm:
     name: e-Therm Plus KS
     description: Collegamento ai termostati e-Therm con stati e comandi in tempo reale.

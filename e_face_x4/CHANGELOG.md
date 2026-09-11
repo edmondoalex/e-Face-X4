@@ -287,3 +287,7 @@
 - Architettura modulare dei connettori.
 - Primo connettore in sola lettura per e-HDL BusPro MQTT.
 - Endpoint di salute e test contro l'esposizione delle credenziali.
+# 1.7.0
+
+- Prima integrazione Ekonex Media con player, controlli, sorgenti, artwork e realtime SSE.
+- Pagine Guarda e Ascolta con selezione stanza e layout responsive ispirato a Control4 X4.

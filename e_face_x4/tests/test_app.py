@@ -3,6 +3,7 @@ from fastapi.testclient import TestClient
 from app.main import create_app
 from app.connectors.buspro import normalize_snapshot
 from app.connectors.etherm import normalize_thermostats
+from app.connectors.media import normalize_player
 from app.connectors.supervisor import find_addon_url
 
 
@@ -68,6 +69,7 @@ def test_x4_shell_and_brand_assets_are_served() -> None:
     assert client.get("/assets/brand-horizontal.png").status_code == 200
     assert client.get("/assets/brand-icon.png").status_code == 200
     assert client.get("/assets/app.css").status_code == 200
+    assert client.get("/assets/media.css").status_code == 200
     css = client.get("/assets/app.css").text
     assert ".layout>main,.detail-view,.scenario-panel,.scenario-list{min-width:0;max-width:100%}" in css
     assert ".scenario-list{display:grid" in css
@@ -206,3 +208,40 @@ def test_provider_url_without_protocol_is_normalized(monkeypatch, tmp_path) -> N
     options.write_text('{"etherm":{"enabled":true,"base_url":"192.168.3.24:8080"}}', encoding="utf-8")
     monkeypatch.setenv("EFACE_OPTIONS", str(options))
     assert load_settings().etherm.base_url == "http://192.168.3.24:8080"
+
+
+def test_media_player_is_normalized_without_exposing_credentials() -> None:
+    item = normalize_player({
+        "registry_id": "abc123", "entity_id": "media_player.sala", "name": "Sala",
+        "area": {"id": "sala", "name": "SALA"}, "state": "playing",
+        "availability": "available", "connection_status": "online",
+        "media": {"title": "Brano", "artist": "Artista", "content_fingerprint": "sha256:track"},
+        "volume_percent": 42, "muted": False, "source": "Spotify",
+        "source_list": ["Spotify", "Radio"], "capabilities": {"play": True, "set_volume": True},
+        "resource_revision": 9, "access_token": "never-share",
+    })
+    assert item["id"] == "media:abc123"
+    assert item["title"] == "Brano"
+    assert item["volume"] == 42
+    assert "access_token" not in item
+
+
+def test_media_configuration_includes_installation(monkeypatch, tmp_path) -> None:
+    from app.config import load_settings
+    options = tmp_path / "options.json"
+    options.write_text('{"evoice":{"enabled":true,"base_url":"media.local","token":"secret","installation_id":"plant-1"}}', encoding="utf-8")
+    monkeypatch.setenv("EFACE_OPTIONS", str(options))
+    settings = load_settings()
+    assert settings.evoice.base_url == "http://media.local"
+    assert settings.evoice.installation_id == "plant-1"
+
+
+def test_media_ui_has_room_selection_and_typed_controls() -> None:
+    client = TestClient(create_app())
+    page = client.get("/").text
+    script = client.get("/assets/app.js").text
+    assert 'id="av-room-toggle"' in page
+    assert "data-media-action" in script
+    assert "data-media-volume" in script
+    assert "data-media-source" in script
+    assert "media_changed" in script

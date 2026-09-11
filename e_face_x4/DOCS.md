@@ -33,5 +33,17 @@ Per il primo connettore impostare:
 
 Il token resta nel file delle opzioni dell'add-on e non viene restituito al browser.
 
+## Collegamento Ekonex Media
+
+Per abilitare le pagine **Guarda** e **Ascolta** configurare:
+
+- `evoice.enabled`: abilita il collegamento;
+- `evoice.base_url`: indirizzo del backend Ekonex Media, senza il suffisso `/api/media/v1`;
+- `evoice.installation_id`: identificativo dell'impianto autorizzato;
+- `evoice.token`: token Bearer del backend, se richiesto.
+
+Le credenziali restano nell'add-on. Il browser comunica esclusivamente con e-Face X4. Gli
+aggiornamenti arrivano dallo stream realtime; lo snapshot periodico viene usato come recupero.
+
 La versione 0.1.0 non invia ancora comandi agli add-on collegati: il primo connettore viene usato
 per verificare disponibilità e contratto dei dati prima di abilitare il controllo reale.

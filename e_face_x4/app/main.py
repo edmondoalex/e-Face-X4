@@ -4,22 +4,23 @@ import asyncio
 import json
 import logging
 import re
+import uuid
 from pathlib import Path
 from dataclasses import replace
 
 import httpx
 import uvicorn
 import websockets
-from fastapi import FastAPI, HTTPException, Response, WebSocket
+from fastapi import FastAPI, Header, HTTPException, Query, Response, WebSocket
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
 from .config import load_settings
-from .connectors import BusproConnector, EThermConnector
+from .connectors import BusproConnector, EThermConnector, EkonexMediaConnector
 from .connectors.supervisor import discover_addon_url
 from .demo import dashboard as demo_dashboard
 
-VERSION = "1.6.4"
+VERSION = "1.7.0"
 STATIC = Path(__file__).parent / "static"
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s [e-face-x4] %(message)s")
 
@@ -46,7 +47,11 @@ def create_app() -> FastAPI:
             resolved_provider(settings.buspro, "e_hdl_buspro_mqtt", 8124, settings.request_timeout_s),
             resolved_provider(settings.etherm, "e_therm_plus_ks", 8080, settings.request_timeout_s),
         )
-        connectors = [BusproConnector(buspro_config, settings.request_timeout_s), EThermConnector(etherm_config, settings.request_timeout_s)]
+        connectors = [
+            BusproConnector(buspro_config, settings.request_timeout_s),
+            EThermConnector(etherm_config, settings.request_timeout_s),
+            EkonexMediaConnector(settings.evoice, settings.request_timeout_s),
+        ]
         providers = await asyncio.gather(*(connector.snapshot() for connector in connectors))
         dashboard = demo_dashboard() if settings.demo_mode else {"rooms": [], "widgets": [], "media": None}
         dashboard.setdefault("home", {})["name"] = settings.home_name
@@ -59,6 +64,18 @@ def create_app() -> FastAPI:
             etherm = next((item for item in providers if item.get("id") == "etherm" and item.get("status") == "online"), None)
             if isinstance(etherm, dict):
                 dashboard["devices"].extend(etherm.get("items", []))
+            media = next((item for item in providers if item.get("id") == "evoice" and item.get("status") == "online"), None)
+            if isinstance(media, dict):
+                media_items = media.get("items", [])
+                dashboard["devices"].extend(media_items)
+                playing = next((item for item in media_items if str(item.get("state", "")).lower() == "playing"), None)
+                selected = playing or next(iter(media_items), None)
+                if isinstance(selected, dict):
+                    dashboard["media"] = {
+                        "title": selected.get("title") or selected.get("name"),
+                        "artist": selected.get("artist"), "room": selected.get("room"),
+                        "volume": selected.get("volume") or 0,
+                    }
             room_map = {str(room.get("name", "")).casefold(): room for room in dashboard["rooms"] if isinstance(room, dict)}
             for device in dashboard["devices"]:
                 room = str(device.get("room") or "Clima")
@@ -111,6 +128,35 @@ def create_app() -> FastAPI:
     @app.post("/api/devices/{device_id}/command")
     async def device_command(device_id: str, payload: dict) -> dict:
         settings = load_settings()
+        if device_id.startswith("media:"):
+            config = settings.evoice
+            if not config.enabled or not config.base_url or not config.installation_id:
+                raise HTTPException(status_code=503, detail="Ekonex Media non disponibile")
+            operation = str(payload.get("action") or "")
+            allowed = {"media_play", "media_pause", "media_stop", "media_next", "media_previous", "set_volume", "volume_mute", "volume_unmute", "select_source", "media_unjoin"}
+            if operation not in allowed:
+                raise HTTPException(status_code=400, detail="Comando multimedia non valido")
+            arguments = {}
+            if operation == "set_volume":
+                arguments["volume_percent"] = int(payload.get("value"))
+            elif operation == "select_source":
+                arguments["source"] = str(payload.get("value") or "")
+            command = {"request_id": str(uuid.uuid4()), "operation": operation, "arguments": arguments, "expected_resource_revision": payload.get("resource_revision") if operation == "media_unjoin" else None}
+            try:
+                return await EkonexMediaConnector(config, settings.request_timeout_s).command(device_id.split(":", 1)[1], command)
+            except httpx.HTTPStatusError as exc:
+                detail = None
+                if exc.response.headers.get("content-type", "").startswith("application/json"):
+                    try:
+                        error_payload = exc.response.json()
+                        detail = (error_payload.get("error") or {}).get("message") if isinstance(error_payload, dict) else None
+                    except ValueError:
+                        pass
+                raise HTTPException(status_code=exc.response.status_code, detail=detail or "Comando Ekonex Media rifiutato")
+            except httpx.HTTPError:
+                raise HTTPException(status_code=502, detail="Ekonex Media non raggiungibile")
+            except (ValueError, TypeError) as exc:
+                raise HTTPException(status_code=400, detail=str(exc))
         if device_id.startswith("therm:"):
             config = await resolved_provider(settings.etherm, "e_therm_plus_ks", 8080, settings.request_timeout_s)
             if not config.enabled or not config.base_url:
@@ -132,6 +178,28 @@ def create_app() -> FastAPI:
             raise HTTPException(status_code=502, detail="e-HDL non raggiungibile")
         except ValueError as exc:
             raise HTTPException(status_code=400, detail=str(exc))
+
+    @app.get("/api/media/{registry_id}/artwork")
+    async def media_artwork(registry_id: str, fingerprint: str = Query(..., min_length=8, max_length=256), if_none_match: str | None = Header(None)) -> Response:
+        settings = load_settings()
+        config = settings.evoice
+        if not config.enabled or not config.base_url or not config.installation_id:
+            raise HTTPException(status_code=503, detail="Ekonex Media non disponibile")
+        try:
+            upstream = await EkonexMediaConnector(config, settings.request_timeout_s).artwork(registry_id, fingerprint, if_none_match)
+        except httpx.HTTPError:
+            raise HTTPException(status_code=502, detail="Ekonex Media non raggiungibile")
+        if upstream.status_code == 304:
+            return Response(status_code=304, headers={"Cache-Control": "private, max-age=300"})
+        if upstream.status_code != 200:
+            raise HTTPException(status_code=upstream.status_code, detail="Copertina non disponibile")
+        media_type = upstream.headers.get("content-type", "").split(";", 1)[0]
+        if media_type not in {"image/jpeg", "image/png", "image/webp", "image/gif"} or len(upstream.content) > 700_000:
+            raise HTTPException(status_code=415, detail="Copertina non valida")
+        headers = {"Cache-Control": "private, max-age=300", "X-Content-Type-Options": "nosniff"}
+        if upstream.headers.get("etag"):
+            headers["ETag"] = upstream.headers["etag"]
+        return Response(upstream.content, media_type=media_type, headers=headers)
 
     @app.websocket("/api/realtime")
     async def realtime(websocket: WebSocket) -> None:
@@ -171,11 +239,27 @@ def create_app() -> FastAPI:
                         if line.startswith("data:"):
                             await queue.put({"type": "thermostats_changed"})
 
+        async def media_events() -> None:
+            connector = EkonexMediaConnector(settings.evoice, settings.request_timeout_s)
+            while True:
+                try:
+                    async for event in connector.events():
+                        event_type = str(event.get("type") or "")
+                        if event_type != "heartbeat":
+                            await queue.put({"type": "media_changed", "event_type": event_type})
+                except asyncio.CancelledError:
+                    raise
+                except Exception:
+                    logging.warning("Ekonex Media realtime disconnected; retrying")
+                    await asyncio.sleep(2)
+
         tasks = []
         if buspro.enabled and buspro.base_url:
             tasks.append(asyncio.create_task(buspro_events()))
         if etherm.enabled and etherm.base_url:
             tasks.append(asyncio.create_task(etherm_events()))
+        if settings.evoice.enabled and settings.evoice.base_url and settings.evoice.installation_id:
+            tasks.append(asyncio.create_task(media_events()))
         if not tasks:
             await websocket.close(code=1013, reason="Nessun connettore realtime disponibile")
             return

@@ -16,6 +16,7 @@ class ProviderConfig:
     auth_mode: str = "none"
     username: str = ""
     password: str = ""
+    installation_id: str = ""
 
 
 @dataclass(frozen=True)
@@ -45,6 +46,7 @@ def _provider(value: Any) -> ProviderConfig:
         auth_mode=str(raw.get("auth_mode") or ("token" if raw.get("token") else "none")).strip().lower(),
         username=str(raw.get("username") or "").strip(),
         password=str(raw.get("password") or ""),
+        installation_id=str(raw.get("installation_id") or "").strip(),
     )
 
 

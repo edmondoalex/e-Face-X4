@@ -13,6 +13,7 @@ let activeRgbGroup = null
 let lightFilterActive = false
 let lightFilterRoom = ''
 let devicePointerGesture = null
+let avRoom = ''
 
 function apiUrl(path) {
   const base = location.pathname.endsWith('/') ? location.pathname : `${location.pathname}/`
@@ -92,6 +93,10 @@ function render(data) {
 }
 
 function stateLabel(device) {
+  if (device.kind === 'media_player') {
+    if (device.connection_status === 'offline' || device.availability !== 'available') return 'Non disponibile'
+    return String(device.state || 'unknown').toLocaleUpperCase('it')
+  }
   if (device.kind === 'climate') {
     const current = Number(device.temperature)
     const target = Number(device.target_temperature)
@@ -198,10 +203,16 @@ function renderDeviceList(devices) {
   const completeGroups = new Map([...groups].filter(([, channels]) => channels.red && channels.green && channels.blue))
   const groupedIds = new Set([...completeGroups.values()].flatMap((channels) => Object.values(channels).map((device) => String(device.id))))
   const cards = devices.filter((device) => !groupedIds.has(String(device.id))).map((device) => `
-    <article class="${deviceVisualClass(device)}" style="${deviceCardStyle(device)}" data-device-id="${esc(device.id)}" ${['light','switch'].includes(device.kind) ? 'data-device-toggle tabindex="0"' : ''}><span class="device-glyph mdi-mask" style="${mdiStyle(device.icon, device.kind === 'cover' ? 'blinds-horizontal' : device.kind === 'lock' ? 'lock' : 'lightbulb')}"></span><div><strong>${esc(device.name)}</strong><small>${esc(device.room)}</small></div><em>${esc(stateLabel(device))}</em>${deviceActions(device)}</article>
+    <article class="${deviceVisualClass(device)} ${device.kind === 'media_player' ? 'media-player-card' : ''}" style="${deviceCardStyle(device)}" data-device-id="${esc(device.id)}" ${['light','switch'].includes(device.kind) ? 'data-device-toggle tabindex="0"' : ''}>${mediaArtwork(device)}<span class="device-glyph mdi-mask" style="${mdiStyle(device.icon, device.kind === 'cover' ? 'blinds-horizontal' : device.kind === 'lock' ? 'lock' : device.kind === 'media_player' ? 'speaker' : 'lightbulb')}"></span><div><strong>${esc(device.name)}</strong><small>${esc(device.room)}</small>${device.kind === 'media_player' ? `<span class="media-track">${esc(device.title || 'Nessuna riproduzione')}</span><span class="media-artist">${esc([device.artist, device.album].filter(Boolean).join(' · '))}</span>` : ''}</div><em>${esc(stateLabel(device))}</em>${deviceActions(device)}</article>
   `)
   completeGroups.forEach((channels, group) => cards.push(renderRgbCard(group, channels)))
   $('#device-list').innerHTML = cards.join('') || '<p class="empty-state">Nessun dispositivo disponibile</p>'
+}
+
+function mediaArtwork(device) {
+  if (device.kind !== 'media_player' || !device.content_fingerprint) return ''
+  const source = apiUrl(`api/media/${encodeURIComponent(device.registry_id)}/artwork?fingerprint=${encodeURIComponent(device.content_fingerprint)}`)
+  return `<img class="media-artwork" src="${esc(source)}" alt="" loading="lazy" onerror="this.hidden=true">`
 }
 
 function lightIsOn(device) {
@@ -217,7 +228,15 @@ function renderActiveDeviceList() {
     if (lightFilterRoom) devices = devices.filter((device) => device.room === lightFilterRoom)
     if (lightFilterActive) devices = devices.filter(lightIsOn)
   }
+  if (!$('#av-filters').hidden && avRoom) devices = devices.filter((device) => device.room === avRoom)
   renderDeviceList(devices)
+}
+
+function configureAvRooms(devices) {
+  const rooms = [...new Set(devices.map((device) => device.room).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'it'))
+  if (avRoom && !rooms.includes(avRoom)) avRoom = ''
+  $('#av-room-label').textContent = avRoom || 'Tutte le stanze'
+  $('#av-room-menu').innerHTML = `<button data-av-room="" class="${avRoom ? '' : 'active'}">Tutte le stanze</button>${rooms.map((room) => `<button data-av-room="${esc(room)}" class="${room === avRoom ? 'active' : ''}">${esc(room)}</button>`).join('')}`
 }
 
 function configureLightFilters(devices) {
@@ -258,6 +277,7 @@ function deviceVisualClass(device) {
   if (device.kind === 'cover') return ['OPEN', 'OPENING'].includes(state) || Number(device.position) > 0 ? 'device-cover-open' : 'device-cover-closed'
   if (device.kind === 'lock') return ['UNLOCKED', 'OPEN', 'OPENING'].includes(state) ? 'device-lock-open' : 'device-lock-closed'
   if (device.kind === 'climate') return state === 'HEATING' ? 'device-climate-heat' : state === 'COOLING' ? 'device-climate-cool' : 'device-climate-off'
+  if (device.kind === 'media_player') return state === 'PLAYING' ? 'device-media-playing' : ''
   return ''
 }
 
@@ -275,6 +295,15 @@ function deviceActions(device) {
     const target = Number(device.target_temperature)
     const value = Number.isFinite(target) ? target : 20
     return `<div class="climate-summary"><span>UR ${device.humidity ?? '--'}%</span><span>${device.season === 'SUM' ? 'ESTATE' : 'INVERNO'}</span><span>PWM ${device.pwm ?? 0}%</span></div><div class="device-actions"><button data-climate-target="${(value - .5).toFixed(1)}">−</button><strong>${value.toFixed(1)}°</strong><button data-climate-target="${(value + .5).toFixed(1)}">＋</button></div>`
+  }
+  if (device.kind === 'media_player') {
+    const caps = device.capabilities || {}
+    const disabled = device.connection_status === 'offline' || device.availability !== 'available'
+    const button = (operation, icon, label, enabled = true) => enabled ? `<button data-media-action="${operation}" aria-label="${label}" ${disabled ? 'disabled' : ''}>${icon}</button>` : ''
+    const controls = [button('media_previous', '◀', 'Precedente', caps.previous), String(device.state).toLowerCase() === 'playing' ? button('media_pause', 'Ⅱ', 'Pausa', caps.pause) : button('media_play', '▶', 'Riproduci', caps.play), button('media_stop', '■', 'Stop', caps.stop), button('media_next', '▶|', 'Successivo', caps.next), device.muted ? button('volume_unmute', '🔇', 'Riattiva audio', caps.mute) : button('volume_mute', '🔊', 'Disattiva audio', caps.mute)].join('')
+    const volume = caps.set_volume ? `<label class="media-volume"><input type="range" min="0" max="100" value="${Number(device.volume) || 0}" data-media-volume ${disabled ? 'disabled' : ''}><output>${Number(device.volume) || 0}%</output></label>` : ''
+    const sources = caps.select_source && Array.isArray(device.source_list) && device.source_list.length ? `<div class="media-sources">${device.source_list.map((source) => `<button data-media-source="${esc(source)}" class="${source === device.source ? 'active' : ''}" ${disabled ? 'disabled' : ''}><span class="mdi-mask" style="${mdiStyle('mdi:play-box', 'play-box')}"></span><b>${esc(source)}</b></button>`).join('')}</div>` : ''
+    return `<div class="media-controls">${controls}</div>${volume}${sources}`
   }
   return ''
 }
@@ -329,12 +358,15 @@ function openDevices(title, devices, options = {}) {
   activeDetailIds = new Set(devices.map((device) => String(device.id)))
   $('#detail-title').textContent = title
   $('#light-filters').hidden = !options.lights
+  $('#av-filters').hidden = !options.av
   if (options.lights) configureLightFilters(devices)
+  if (options.av) configureAvRooms(devices)
   renderActiveDeviceList()
   $('#scenario-panel').hidden = true
   $('#device-list').hidden = false
   $('#home-view').hidden = true
   $('#detail-view').hidden = false
+  $('#detail-view').classList.toggle('av-view', Boolean(options.av))
   window.scrollTo({ top: 0, behavior: 'smooth' })
 }
 
@@ -342,10 +374,12 @@ function openScenariosPage() {
   activeDetailIds = null
   $('#detail-title').textContent = 'Scenari'
   $('#light-filters').hidden = true
+  $('#av-filters').hidden = true
   $('#device-list').hidden = true
   $('#scenario-panel').hidden = false
   $('#home-view').hidden = true
   $('#detail-view').hidden = false
+  $('#detail-view').classList.remove('av-view')
   loadScenarios()
   window.scrollTo({ top: 0, behavior: 'smooth' })
 }
@@ -382,10 +416,12 @@ async function sendScenarioCommand(id, action, button) {
 function showHome() {
   activeDetailIds = null
   $('#detail-view').hidden = true
+  $('#detail-view').classList.remove('av-view')
   $('#home-view').hidden = false
   $('#scenario-panel').hidden = true
   $('#device-list').hidden = false
   $('#light-filters').hidden = true
+  $('#av-filters').hidden = true
   document.querySelectorAll('.rail button').forEach((item) => item.classList.remove('active'))
 }
 
@@ -431,7 +467,7 @@ function connectRealtime() {
 }
 
 function applyRealtimeEvent(event) {
-  if (event.type === 'devices_changed' || event.type === 'thermostats_changed') {
+  if (event.type === 'devices_changed' || event.type === 'thermostats_changed' || event.type === 'media_changed') {
     clearTimeout(snapshotRefreshTimer)
     snapshotRefreshTimer = setTimeout(refresh, 500)
     return
@@ -469,8 +505,8 @@ document.querySelectorAll('.rail button').forEach((button) => button.addEventLis
   button.classList.add('active')
   document.querySelector('main').classList.remove('app-view')
   requestAnimationFrame(() => document.querySelector('main').classList.add('app-view'))
-  if (button.dataset.view === 'watch') openDevices('Guarda', currentDevices.filter((device) => ['camera', 'doorbell'].includes(device.kind)))
-  if (button.dataset.view === 'listen') openDevices('Ascolta', currentDevices.filter((device) => ['media_player', 'media'].includes(device.kind)))
+  if (button.dataset.view === 'watch') openDevices('Guarda', currentDevices.filter((device) => ['camera', 'doorbell'].includes(device.kind) || (device.kind === 'media_player' && (!device.experiences?.length || device.experiences.includes('watch')))), { av: true })
+  if (button.dataset.view === 'listen') openDevices('Ascolta', currentDevices.filter((device) => ['media_player', 'media'].includes(device.kind) && (!device.experiences?.length || device.experiences.includes('listen'))), { av: true })
   if (button.dataset.view === 'lights') openDevices('Luci', currentDevices.filter((device) => device.kind === 'light'), { lights: true })
   if (button.dataset.view === 'extra') openDevices('Extra', currentDevices.filter((device) => device.kind === 'switch'))
   if (button.dataset.view === 'scenarios') openScenariosPage()
@@ -524,6 +560,20 @@ $('#light-all-filter').addEventListener('click', () => {
   $('#light-on-filter').setAttribute('aria-pressed', 'false')
   renderActiveDeviceList()
 })
+$('#av-room-toggle').addEventListener('click', (event) => {
+  const open = $('#av-room-menu').hidden
+  $('#av-room-menu').hidden = !open
+  event.currentTarget.setAttribute('aria-expanded', String(open))
+})
+$('#av-room-menu').addEventListener('click', (event) => {
+  const button = event.target.closest('[data-av-room]')
+  if (!button) return
+  avRoom = button.dataset.avRoom || ''
+  $('#av-room-menu').hidden = true
+  $('#av-room-toggle').setAttribute('aria-expanded', 'false')
+  configureAvRooms(currentDevices.filter((device) => activeDetailIds?.has(String(device.id))))
+  renderActiveDeviceList()
+})
 document.addEventListener('click', (event) => {
   if (!event.target.closest('.room-filter')) {
     $('#light-room-menu').hidden = true
@@ -546,6 +596,11 @@ $('#device-list').addEventListener('click', (event) => {
   const climateButton = event.target.closest('[data-climate-target]')
   const climateCard = event.target.closest('[data-device-id]')
   if (climateButton && climateCard) return sendDeviceCommand(climateCard.dataset.deviceId, 'set_target', climateButton, climateButton.dataset.climateTarget)
+  const mediaButton = event.target.closest('[data-media-action]')
+  const mediaCard = event.target.closest('[data-device-id]')
+  if (mediaButton && mediaCard) return sendDeviceCommand(mediaCard.dataset.deviceId, mediaButton.dataset.mediaAction, mediaButton)
+  const sourceButton = event.target.closest('button[data-media-source]')
+  if (sourceButton && mediaCard) return sendDeviceCommand(mediaCard.dataset.deviceId, 'select_source', sourceButton, sourceButton.dataset.mediaSource)
   const button = event.target.closest('[data-action]')
   const card = event.target.closest('[data-device-id]')
   if (button && card) sendDeviceCommand(card.dataset.deviceId, button.dataset.action, button)
@@ -591,6 +646,7 @@ $('#rgb-channel-controls').addEventListener('change', (event) => {
 $('#rgb-dialog').addEventListener('click', (event) => { const button = event.target.closest('[data-popup-rgb-action]'); if (button) sendRgbCommand(activeRgbGroup, button.dataset.popupRgbAction, null, button) })
 $('#rgb-wheel').addEventListener('pointerdown', (event) => { event.currentTarget.setPointerCapture(event.pointerId); sendRgbCommand(activeRgbGroup, 'color', wheelColor(event), event.currentTarget) })
 $('#device-list').addEventListener('input', (event) => {
+  if (event.target.matches('[data-media-volume]')) event.target.nextElementSibling.textContent = `${event.target.value}%`
   if (event.target.matches('[data-brightness],[data-rgb-brightness]')) {
     const percent = Math.round(Number(event.target.value) / 255 * 100)
     event.target.nextElementSibling.textContent = `${percent}%`
@@ -605,6 +661,8 @@ $('#device-list').addEventListener('change', (event) => {
   if (event.target.matches('[data-brightness]')) sendDeviceCommand(card.dataset.deviceId, Number(event.target.value) === 0 ? 'off' : 'brightness', event.target, event.target.value)
   if (event.target.matches('[data-rgb-brightness]')) sendRgbCommand(card.dataset.rgbGroup, 'brightness', event.target.value, event.target)
   if (event.target.matches('[data-rgb-color]')) sendRgbCommand(card.dataset.rgbGroup, 'color', event.target.value, event.target)
+  if (event.target.matches('[data-media-volume]')) sendDeviceCommand(card.dataset.deviceId, 'set_volume', event.target, event.target.value)
+  if (event.target.matches('select[data-media-source]')) sendDeviceCommand(card.dataset.deviceId, 'select_source', event.target, event.target.value)
 })
 $('.home-title').addEventListener('click', showHome)
 $('#show-all-devices').addEventListener('click', () => openDevices('Tutti i dispositivi', currentDevices))
