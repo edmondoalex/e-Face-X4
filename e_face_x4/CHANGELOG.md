@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.7.2 — 2026-09-11
+
+- Evidenziate in giallo le icone delle luci accese, in stile e-HDL.
+- Aggiornato automaticamente l'indicatore visivo insieme allo stato live.
+
 ## 0.7.1 — 2026-09-11
 
 - Riconosciuti come luci i dispositivi BusPro storici privi del campo `type`, come fa e-HDL.

@@ -79,6 +79,7 @@ def normalize_snapshot(payload: dict[str, Any]) -> dict[str, Any]:
         normalized.append({
             "id": device_id, "name": name, "kind": kind, "room": room_entry["name"], "state": state,
             "unit": unit, "icon": str(raw.get("icon") or "").strip(),
+            "category": str(raw.get("category") or raw.get("page") or "").strip(),
         })
     mqtt = payload.get("mqtt") if isinstance(payload.get("mqtt"), dict) else {}
     return {
