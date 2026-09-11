@@ -122,3 +122,18 @@ def test_icon_urls_are_invalidated_by_addon_version() -> None:
     script = TestClient(create_app()).get("/assets/app.js")
     assert script.status_code == 200
     assert "encodeURIComponent(appVersion)" in script.text
+
+
+def test_device_commands_are_present_in_frontend() -> None:
+    script = TestClient(create_app()).get("/assets/app.js").text
+    assert 'data-action="on"' in script
+    assert 'data-action="open"' in script
+    assert "api/devices/${encodeURIComponent(deviceId)}/command" in script
+
+
+def test_device_command_requires_enabled_connector(monkeypatch, tmp_path) -> None:
+    options = tmp_path / "options.json"
+    options.write_text('{"buspro":{"enabled":false,"base_url":"","token":""}}', encoding="utf-8")
+    monkeypatch.setenv("EFACE_OPTIONS", str(options))
+    response = TestClient(create_app()).post("/api/devices/1/command", json={"action": "on"})
+    assert response.status_code == 503

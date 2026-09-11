@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.7.0 — 2026-09-11
+
+- Collegati i comandi reali ON/OFF, apertura/arresto/chiusura e blocco/sblocco.
+- Verificato ogni dispositivo lato server prima dell'inoltro del comando a e-HDL.
+- Migliorata la compatibilità della lettura stati BusPro.
+
 ## 0.6.2 — 2026-09-11
 
 - Visualizzati valore e unità dei sensori BusPro nelle pagine dispositivo.

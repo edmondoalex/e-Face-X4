@@ -29,6 +29,12 @@ def normalize_snapshot(payload: dict[str, Any]) -> dict[str, Any]:
         "pir": ("pir_states", ""),
         "ultrasonic": ("ultrasonic_states", ""),
     }
+
+    def state_at(source: dict[str, Any], address: str) -> Any:
+        for key in (address, address.lower(), address.upper()):
+            if key in source:
+                return source[key]
+        return None
     for index, raw in enumerate(devices):
         if not isinstance(raw, dict):
             continue
@@ -63,7 +69,7 @@ def normalize_snapshot(payload: dict[str, Any]) -> dict[str, Any]:
                 candidate = payload.get(source_name)
                 source = candidate if isinstance(candidate, dict) else {}
                 unit = default_unit
-            raw_state = source.get(address) if address else None
+            raw_state = state_at(source, address) if address else None
             if isinstance(raw_state, dict):
                 state = raw_state.get("value") if raw_state.get("value") is not None else raw_state.get("state")
             else:
@@ -137,3 +143,45 @@ class BusproConnector(Connector):
                 "reason": reason,
                 "items": [],
             }
+
+    async def command(self, target_id: str, action: str) -> dict[str, Any]:
+        allowed = {"on", "off", "open", "close", "stop", "lock", "unlock"}
+        action = str(action or "").strip().lower()
+        if action not in allowed:
+            raise ValueError("azione non consentita")
+        async with httpx.AsyncClient(timeout=self.timeout_s, follow_redirects=False) as client:
+            snapshot_response = await client.get(f"{self.config.base_url}/api/user/snapshot", headers=self._headers())
+            snapshot_response.raise_for_status()
+            snapshot = snapshot_response.json()
+            devices = snapshot.get("devices") if isinstance(snapshot, dict) else None
+            if not isinstance(devices, list):
+                raise ValueError("snapshot non valido")
+            raw = next((item for index, item in enumerate(devices) if isinstance(item, dict) and str(item.get("entity_id") or item.get("id") or index) == str(target_id)), None)
+            if raw is None:
+                raise ValueError("dispositivo non trovato")
+            kind = str(raw.get("type") or raw.get("domain") or "").strip().lower()
+            entity_id = str(raw.get("entity_id") or "").strip().lower()
+            if entity_id:
+                domain = entity_id.split(".", 1)[0]
+                if domain in {"light", "switch"} and action in {"on", "off"}:
+                    path, body = f"/api/control/ha/{domain}/{entity_id}", {"state": action.upper()}
+                elif domain == "cover" and action in {"open", "close", "stop"}:
+                    path, body = f"/api/control/ha/cover/{entity_id}", {"command": action.upper()}
+                elif kind == "lock" and action in {"lock", "unlock", "open"}:
+                    path, body = f"/api/control/ha/lock/{entity_id}", {"command": action.upper()}
+                else:
+                    raise ValueError("comando non compatibile con il dispositivo")
+            else:
+                try:
+                    address = "/".join(str(int(raw[key])) for key in ("subnet_id", "device_id", "channel"))
+                except (KeyError, TypeError, ValueError):
+                    raise ValueError("indirizzo dispositivo non valido")
+                if kind in {"light", "switch"} and action in {"on", "off"}:
+                    path, body = f"/api/control/light/{address}", {"state": action.upper()}
+                elif kind == "cover" and action in {"open", "close", "stop"}:
+                    path, body = f"/api/control/cover/{address}", {"command": action.upper()}
+                else:
+                    raise ValueError("comando non disponibile per questo dispositivo")
+            response = await client.post(f"{self.config.base_url}{path}", headers=self._headers(), json=body)
+            response.raise_for_status()
+            return {"ok": True}

@@ -93,8 +93,34 @@ function stateLabel(device) {
 function renderDeviceList(devices) {
   $('#detail-kicker').textContent = `${devices.length} dispositivi`
   $('#device-list').innerHTML = devices.map((device) => `
-    <article><span class="device-glyph mdi-mask" style="${mdiStyle(device.icon, device.kind === 'cover' ? 'blinds-horizontal' : device.kind === 'lock' ? 'lock' : 'lightbulb')}"></span><div><strong>${esc(device.name)}</strong><small>${esc(device.room)}</small></div><em>${esc(stateLabel(device))}</em></article>
+    <article data-device-id="${esc(device.id)}"><span class="device-glyph mdi-mask" style="${mdiStyle(device.icon, device.kind === 'cover' ? 'blinds-horizontal' : device.kind === 'lock' ? 'lock' : 'lightbulb')}"></span><div><strong>${esc(device.name)}</strong><small>${esc(device.room)}</small></div><em>${esc(stateLabel(device))}</em>${deviceActions(device)}</article>
   `).join('') || '<p class="empty-state">Nessun dispositivo disponibile</p>'
+}
+
+function deviceActions(device) {
+  if (['light', 'switch'].includes(device.kind)) return '<div class="device-actions"><button data-action="on">ON</button><button data-action="off">OFF</button></div>'
+  if (device.kind === 'cover') return '<div class="device-actions"><button data-action="open">SU</button><button data-action="stop">STOP</button><button data-action="close">GIÙ</button></div>'
+  if (device.kind === 'lock') return '<div class="device-actions"><button data-action="unlock">SBLOCCA</button><button data-action="lock">BLOCCA</button></div>'
+  return ''
+}
+
+async function sendDeviceCommand(deviceId, action, button) {
+  button.disabled = true
+  try {
+    const response = await fetch(apiUrl(`api/devices/${encodeURIComponent(deviceId)}/command`), {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action })
+    })
+    if (!response.ok) {
+      const problem = await response.json().catch(() => ({}))
+      throw new Error(problem.detail || `HTTP ${response.status}`)
+    }
+    await new Promise((resolve) => setTimeout(resolve, 400))
+    await refresh()
+  } catch (error) {
+    fail(error)
+  } finally {
+    button.disabled = false
+  }
 }
 
 function openDevices(title, devices) {
@@ -159,6 +185,11 @@ $('#rooms').addEventListener('click', (event) => {
   openDevices(button.dataset.room, currentDevices.filter((device) => device.room.toLocaleLowerCase('it') === button.dataset.room.toLocaleLowerCase('it')))
 })
 $('#detail-back').addEventListener('click', showHome)
+$('#device-list').addEventListener('click', (event) => {
+  const button = event.target.closest('[data-action]')
+  const card = event.target.closest('[data-device-id]')
+  if (button && card) sendDeviceCommand(card.dataset.deviceId, button.dataset.action, button)
+})
 $('.home-title').addEventListener('click', showHome)
 $('#show-all-devices').addEventListener('click', () => openDevices('Tutti i dispositivi', currentDevices))
 $('#volume').addEventListener('input', (event) => { $('#volume-value').textContent = `${event.target.value}%` })

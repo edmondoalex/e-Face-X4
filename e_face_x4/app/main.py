@@ -8,7 +8,7 @@ from dataclasses import replace
 
 import httpx
 import uvicorn
-from fastapi import FastAPI, Response
+from fastapi import FastAPI, HTTPException, Response
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
@@ -17,7 +17,7 @@ from .connectors import BusproConnector
 from .connectors.supervisor import discover_addon_url
 from .demo import dashboard as demo_dashboard
 
-VERSION = "0.6.2"
+VERSION = "0.7.0"
 STATIC = Path(__file__).parent / "static"
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s [e-face-x4] %(message)s")
 
@@ -83,6 +83,22 @@ def create_app() -> FastAPI:
             return Response(upstream.content, media_type="image/svg+xml", headers={"Cache-Control": "public, max-age=86400"})
         except (httpx.HTTPError, OSError, ValueError):
             return Response(fallback, media_type="image/svg+xml")
+
+    @app.post("/api/devices/{device_id}/command")
+    async def device_command(device_id: str, payload: dict) -> dict:
+        settings = load_settings()
+        internal_url = await discover_addon_url("e_hdl_buspro_mqtt", 8124, settings.request_timeout_s)
+        config = replace(settings.buspro, base_url=internal_url) if internal_url else settings.buspro
+        if not config.enabled or not config.base_url:
+            raise HTTPException(status_code=503, detail="Connettore e-HDL non disponibile")
+        try:
+            return await BusproConnector(config, settings.request_timeout_s).command(device_id, str(payload.get("action") or ""))
+        except httpx.HTTPStatusError as exc:
+            raise HTTPException(status_code=502, detail=f"e-HDL ha risposto HTTP {exc.response.status_code}")
+        except httpx.HTTPError:
+            raise HTTPException(status_code=502, detail="e-HDL non raggiungibile")
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc))
 
     @app.get("/{path:path}", include_in_schema=False)
     async def frontend(path: str) -> FileResponse:
