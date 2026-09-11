@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.2.0 — 2026-09-11
+
+- Ridisegnata la dashboard secondo il nuovo riferimento X4.
+- Navigazione laterale su tablet e inferiore su smartphone.
+- Aggiunte barra contestuale, pillole di stato e griglia domotica compatta.
+- Introdotti pannello clima dominante, anteprime camera e player persistente.
+- Mantenuta l'identità originale e-Face X4 senza asset Control4.
+
 ## 0.1.4 — 2026-09-11
 
 - Rimossa la modalità `host_network` per evitare conflitti con altri add-on.

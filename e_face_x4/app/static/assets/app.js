@@ -1,80 +1,9 @@
-const $ = (selector) => document.querySelector(selector)
-
-function apiUrl(path) {
-  const base = location.pathname.endsWith('/') ? location.pathname : `${location.pathname}/`
-  return new URL(path.replace(/^\//, ''), `${location.origin}${base}`).toString()
-}
-
-function icon(name) {
-  return { light: '✦', climate: '❄', shield: '⬡', energy: 'ϟ' }[name] || '◇'
-}
-
-function render(data) {
-  const dashboard = data.dashboard || {}
-  const home = dashboard.home || {}
-  $('#home-name').textContent = home.name || 'Casa'
-  $('#weather').textContent = home.temperature ? `${home.temperature}°C · ${home.weather || ''}` : 'Sistema connesso'
-  $('#mode').textContent = data.mode === 'demo' ? 'ANTEPRIMA DEMO' : 'LIVE'
-  $('#mode').classList.toggle('live', data.mode === 'live')
-
-  $('#widgets').innerHTML = (dashboard.widgets || []).map((w, index) => `
-    <article class="metric-card tone-${index % 4}">
-      <div class="card-top"><span class="symbol">${icon(w.icon)}</span><span class="status-dot"></span></div>
-      <p>${escapeHtml(w.title)}</p><strong>${escapeHtml(w.value)}</strong><small>${escapeHtml(w.detail)}</small>
-      <div class="wave"></div>
-    </article>`).join('')
-
-  $('#rooms').innerHTML = (dashboard.rooms || []).map((room) => `
-    <button class="room-card ${escapeHtml(room.accent || '')}">
-      <span class="room-glow"></span><span class="room-name">${escapeHtml(room.name)}</span>
-      <small>${Number(room.devices) || 0} dispositivi</small><b>↗</b>
-    </button>`).join('') || '<p class="empty">Nessuna stanza configurata.</p>'
-
-  const media = dashboard.media
-  $('#media').hidden = !media
-  if (media) {
-    $('#track-title').textContent = media.title || 'Nessun titolo'
-    $('#track-detail').textContent = [media.artist, media.source, media.room].filter(Boolean).join(' · ')
-    $('#volume').value = Number(media.volume) || 0
-    $('#volume-value').textContent = `${Number(media.volume) || 0}%`
-  }
-  $('#app').classList.remove('loading')
-}
-
-function escapeHtml(value) {
-  const node = document.createElement('span')
-  node.textContent = String(value ?? '')
-  return node.innerHTML
-}
-
-function showError(message) {
-  const notice = $('#notice')
-  notice.textContent = message
-  notice.hidden = false
-}
-
-async function boot() {
-  const hour = new Date().getHours()
-  $('#greeting').textContent = hour < 12 ? 'Buongiorno' : hour < 18 ? 'Buon pomeriggio' : 'Buonasera'
-  try {
-    const response = await fetch(apiUrl('api/bootstrap'), { cache: 'no-store' })
-    if (!response.ok) throw new Error(`HTTP ${response.status}`)
-    render(await response.json())
-  } catch (error) {
-    $('#app').classList.remove('loading')
-    showError(`e-Face X4 non riesce a caricare i dati (${error.message}).`)
-  }
-}
-
-$('#theme').addEventListener('click', () => document.body.classList.toggle('light'))
-$('#volume').addEventListener('input', (event) => { $('#volume-value').textContent = `${event.target.value}%` })
-document.querySelectorAll('.dock button').forEach((button) => button.addEventListener('click', () => {
-  document.querySelectorAll('.dock button').forEach((item) => item.classList.remove('active'))
-  button.classList.add('active')
-  const target = button.dataset.view
-  if (target === 'media') $('#media').scrollIntoView({ behavior: 'smooth', block: 'center' })
-  else if (target === 'rooms') $('#rooms').scrollIntoView({ behavior: 'smooth', block: 'center' })
-}))
-
-boot()
-
+const $=s=>document.querySelector(s)
+function apiUrl(path){const base=location.pathname.endsWith('/')?location.pathname:`${location.pathname}/`;return new URL(path.replace(/^\//,''),`${location.origin}${base}`).toString()}
+function esc(v){const n=document.createElement('span');n.textContent=String(v??'');return n.innerHTML}
+const glyph={light:'✦',climate:'❄',shield:'⬡',energy:'ϟ'}
+function tick(){const now=new Date();$('#clock').textContent=now.toLocaleTimeString('it-IT',{hour:'2-digit',minute:'2-digit'});$('#date').textContent=now.toLocaleDateString('it-IT',{day:'2-digit',month:'short',year:'numeric'})}
+function render(data){const d=data.dashboard||{},home=d.home||{};$('#home-name').textContent=home.name||'La mia casa';$('#mode').textContent=data.mode==='demo'?'ANTEPRIMA DEMO':'LIVE';$('#weather').textContent=home.temperature?`${home.temperature}° · ${home.weather||'Comfort'}`:'Comfort';$('#temperature').textContent=`${home.temperature||22}°`;const widgets=d.widgets||[];$('#lights-count').textContent=widgets.find(w=>w.id==='lights')?.value||'0';$('#widgets').innerHTML=widgets.slice(0,4).map(w=>`<button class="quick-card"><span class="qicon">${glyph[w.icon]||'◇'}</span><span>${esc(w.title)}<strong>${esc(w.value)}</strong><small>${esc(w.detail)}</small></span></button>`).join('');$('#rooms').innerHTML=(d.rooms||[]).map(r=>`<button class="room-card"><span>${esc(r.name)}</span><small>${Number(r.devices)||0} dispositivi</small></button>`).join('');const m=d.media;$('#media').hidden=!m;if(m){$('#track-title').textContent=m.title||'Nessun titolo';$('#track-detail').textContent=[m.artist,m.room].filter(Boolean).join(' · ');$('#volume').value=Number(m.volume)||0;$('#volume-value').textContent=`${Number(m.volume)||0}%`}$('#app').classList.remove('loading')}
+function fail(e){$('#app').classList.remove('loading');const n=$('#notice');n.textContent=`Dati non disponibili (${e.message})`;n.hidden=false}
+document.querySelectorAll('.rail button').forEach(b=>b.addEventListener('click',()=>{document.querySelectorAll('.rail button').forEach(x=>x.classList.remove('active'));b.classList.add('active');document.querySelector('main').classList.remove('app-view');requestAnimationFrame(()=>document.querySelector('main').classList.add('app-view'));if(b.dataset.view==='media')$('#media').scrollIntoView({behavior:'smooth',block:'center'})}))
+$('#volume').addEventListener('input',e=>{$('#volume-value').textContent=`${e.target.value}%`});tick();setInterval(tick,30000);fetch(apiUrl('api/bootstrap'),{cache:'no-store'}).then(r=>{if(!r.ok)throw Error(`HTTP ${r.status}`);return r.json()}).then(render).catch(fail)

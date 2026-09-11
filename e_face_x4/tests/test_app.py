@@ -41,3 +41,13 @@ def test_starts_with_empty_connector_urls(monkeypatch, tmp_path) -> None:
     response = TestClient(create_app()).get("/api/bootstrap")
     assert response.status_code == 200
     assert response.json()["mode"] == "demo"
+
+
+def test_x4_shell_and_brand_assets_are_served() -> None:
+    client = TestClient(create_app())
+    page = client.get("/")
+    assert page.status_code == 200
+    assert "status-strip" in page.text
+    assert "now-playing" in page.text
+    assert client.get("/assets/brand-icon.png").status_code == 200
+    assert client.get("/assets/app.css").status_code == 200

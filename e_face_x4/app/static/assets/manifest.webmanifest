@@ -4,7 +4,7 @@
   "description": "Interfaccia unificata per gli add-on e-Konex",
   "start_url": "./",
   "display": "standalone",
-  "background_color": "#0c101a",
+  "background_color": "#142c33",
   "theme_color": "#ff1829",
   "icons": [
     {
