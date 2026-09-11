@@ -271,7 +271,7 @@ function renderMediaExperience(devices) {
   const disabled = selected.connection_status === 'offline' || selected.availability !== 'available'
   const power = caps.turn_off ? `<button class="media-session-power" data-media-action="turn_off" aria-label="Spegni stanza" ${disabled ? 'disabled' : ''}><span class="mdi-mask" style="${mdiStyle('mdi:power', 'power')}"></span></button>` : ''
   const experienceClass = currentMediaExperience === 'listen' ? 'media-session-listen' : 'media-session-watch'
-  $('#device-list').innerHTML = `<article class="media-session ${experienceClass} ${deviceVisualClass(selected)}" data-device-id="${esc(selected.id)}">${mediaArtwork(selected)}<span class="device-glyph mdi-mask" style="${mdiStyle(mediaSourceIcon(selected.source), 'music-circle')}"></span><div class="media-session-info"><strong>${esc(selected.title || selected.source || selected.name)}</strong><small>${esc(selected.artist || selected.source || selected.room)}</small><span class="media-track">${esc(selected.album || selected.name)}</span></div>${power}${deviceActions(selected, { hidePower: true })}</article><div class="media-library"><h3>Dispositivi e servizi</h3><div class="media-service-grid">${players}${sources}</div></div>`
+  $('#device-list').innerHTML = `<article class="media-session ${experienceClass} ${deviceVisualClass(selected)}" data-device-id="${esc(selected.id)}">${mediaArtwork(selected)}<span class="device-glyph mdi-mask" style="${mdiStyle(mediaSourceIcon(selected.source), 'music-circle')}"></span><div class="media-session-info"><strong>${esc(selected.title || selected.source || selected.name)}</strong><small>${esc(selected.artist || selected.source || selected.room)}</small><span class="media-track">${esc(selected.album || selected.name)}</span></div>${power}${deviceActions(selected, { hidePower: true })}</article><div class="media-library media-room-library"><h3>Stanze</h3><div class="media-service-grid">${players}</div></div><div class="media-library media-source-library"><h3>Sorgenti e servizi</h3><div class="media-service-grid">${sources || '<span class="empty-state">Nessuna sorgente disponibile</span>'}</div></div>`
 }
 
 function updateGlobalMediaSession() {
@@ -543,9 +543,8 @@ function openDevices(title, devices, options = {}) {
   activeDetailIds = new Set(devices.map((device) => String(device.id)))
   $('#detail-title').textContent = title
   $('#light-filters').hidden = !options.lights
-  $('#av-filters').hidden = !options.av
+  $('#av-filters').hidden = true
   if (options.lights) configureLightFilters(devices)
-  if (options.av) configureAvRooms(devices)
   renderActiveDeviceList()
   $('#scenario-panel').hidden = true
   $('#device-list').hidden = false

@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.3.1 — 2026-09-11
+
+- Rimosso il selettore duplicato `Tutte le stanze` dalle pagine Guarda e Ascolta.
+- Separati i player nelle sezioni `Stanze` e `Sorgenti e servizi`.
+
 ## 2.3.0 — 2026-09-11
 
 - Aggiunta la pagina Sessioni in stile Control4, con una scheda distinta per ogni sessione audio/video attiva.
