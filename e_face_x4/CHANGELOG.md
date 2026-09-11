@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.3.1 — 2026-09-11
+
+- Mostrato nella UI il motivo per cui un connettore è offline.
+- Distinti errori HTTP, timeout, connessione rifiutata e risposta non valida.
+- Nascosto correttamente il player quando non esistono dati multimediali live.
+
 ## 0.3.0 — 2026-09-11
 
 - Normalizzati dispositivi e stanze provenienti da e-HDL BusPro MQTT.

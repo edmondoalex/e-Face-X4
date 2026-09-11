@@ -75,10 +75,21 @@ class BusproConnector(Connector):
                 "items": normalized["devices"],
             }
         except (httpx.HTTPError, ValueError) as exc:
+            if isinstance(exc, httpx.HTTPStatusError):
+                reason = f"HTTP {exc.response.status_code}"
+            elif isinstance(exc, httpx.ConnectTimeout):
+                reason = "timeout di connessione"
+            elif isinstance(exc, httpx.ConnectError):
+                reason = "connessione rifiutata o indirizzo non raggiungibile"
+            elif isinstance(exc, httpx.TimeoutException):
+                reason = "timeout della risposta"
+            else:
+                reason = "risposta non valida"
             return {
                 "id": self.id,
                 "label": self.label,
                 "status": "offline",
                 "error": type(exc).__name__,
+                "reason": reason,
                 "items": [],
             }

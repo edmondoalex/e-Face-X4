@@ -33,6 +33,12 @@ function render(data) {
   $('#lights-count').textContent = widgets.find((widget) => widget.id === 'lights')?.value || '0'
   $('#provider-state strong').textContent = enabled ? `${online}/${enabled}` : 'OFF'
   $('#provider-state').classList.toggle('provider-online', enabled > 0 && online === enabled)
+  const failedProvider = providers.find((provider) => provider.status === 'offline' || provider.status === 'misconfigured')
+  if (data.mode === 'live' && failedProvider) {
+    const notice = $('#notice')
+    notice.textContent = `${failedProvider.label}: ${failedProvider.reason || 'connettore non disponibile'}. Controlla indirizzo, porta e autenticazione.`
+    notice.hidden = false
+  }
   $('#widgets').innerHTML = widgets.slice(0, 4).map((widget) => `
     <button class="quick-card">
       <span class="qicon">${glyph[widget.icon] || '◇'}</span>
@@ -50,7 +56,7 @@ function render(data) {
     $('#volume-value').textContent = `${Number(media.volume) || 0}%`
   }
   $('#app').classList.remove('loading')
-  $('#notice').hidden = true
+  if (!failedProvider) $('#notice').hidden = true
 }
 
 function fail(error) {
