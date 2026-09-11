@@ -8,6 +8,38 @@ from ..config import ProviderConfig
 from .base import Connector
 
 
+def normalize_snapshot(payload: dict[str, Any]) -> dict[str, Any]:
+    raw_devices = payload.get("devices")
+    devices = raw_devices if isinstance(raw_devices, list) else []
+    counts = {"lights": 0, "covers": 0, "locks": 0, "sensors": 0}
+    rooms: dict[str, int] = {}
+    normalized: list[dict[str, Any]] = []
+    sensor_types = {"temp", "temperature", "humidity", "illuminance", "pir", "ultrasonic", "dry_contact", "air_quality", "gas_percent"}
+    for index, raw in enumerate(devices):
+        if not isinstance(raw, dict):
+            continue
+        kind = str(raw.get("type") or raw.get("domain") or "unknown").strip().lower()
+        room = str(raw.get("group") or "Senza stanza").strip() or "Senza stanza"
+        name = str(raw.get("name") or raw.get("entity_id") or f"Dispositivo {index + 1}").strip()
+        if kind in {"light", "switch"}:
+            counts["lights"] += 1
+        elif kind == "cover":
+            counts["covers"] += 1
+        elif kind == "lock":
+            counts["locks"] += 1
+        elif kind in sensor_types:
+            counts["sensors"] += 1
+        rooms[room] = rooms.get(room, 0) + 1
+        normalized.append({"id": str(raw.get("entity_id") or raw.get("id") or index), "name": name, "kind": kind, "room": room})
+    mqtt = payload.get("mqtt") if isinstance(payload.get("mqtt"), dict) else {}
+    return {
+        "devices": normalized,
+        "rooms": [{"id": f"room-{i}", "name": name, "devices": total} for i, (name, total) in enumerate(sorted(rooms.items()))],
+        "counts": counts,
+        "mqtt_connected": bool(mqtt.get("connected")),
+    }
+
+
 class BusproConnector(Connector):
     id = "buspro"
     label = "e-HDL BusPro MQTT"
@@ -33,12 +65,14 @@ class BusproConnector(Connector):
                 payload = response.json()
                 if not isinstance(payload, dict):
                     raise ValueError("invalid snapshot shape")
+                normalized = normalize_snapshot(payload)
             return {
                 "id": self.id,
                 "label": self.label,
                 "status": "online",
                 "data": payload,
-                "items": payload.get("devices", []) if isinstance(payload.get("devices"), list) else [],
+                "normalized": normalized,
+                "items": normalized["devices"],
             }
         except (httpx.HTTPError, ValueError) as exc:
             return {
@@ -48,4 +82,3 @@ class BusproConnector(Connector):
                 "error": type(exc).__name__,
                 "items": [],
             }
-

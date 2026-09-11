@@ -13,7 +13,7 @@ from .config import load_settings
 from .connectors import BusproConnector
 from .demo import dashboard as demo_dashboard
 
-VERSION = "0.2.4"
+VERSION = "0.3.0"
 STATIC = Path(__file__).parent / "static"
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s [e-face-x4] %(message)s")
 
@@ -33,6 +33,17 @@ def create_app() -> FastAPI:
         providers = await asyncio.gather(*(connector.snapshot() for connector in connectors))
         dashboard = demo_dashboard() if settings.demo_mode else {"rooms": [], "widgets": [], "media": None}
         dashboard.setdefault("home", {})["name"] = settings.home_name
+        if not settings.demo_mode:
+            buspro = next((item for item in providers if item.get("id") == "buspro" and item.get("status") == "online"), None)
+            normalized = buspro.get("normalized", {}) if isinstance(buspro, dict) else {}
+            counts = normalized.get("counts", {}) if isinstance(normalized, dict) else {}
+            dashboard["rooms"] = normalized.get("rooms", []) if isinstance(normalized, dict) else []
+            dashboard["widgets"] = [
+                {"id": "lights", "title": "Luci", "value": str(counts.get("lights", 0)), "detail": "dispositivi", "icon": "light"},
+                {"id": "covers", "title": "Cover", "value": str(counts.get("covers", 0)), "detail": "dispositivi", "icon": "cover"},
+                {"id": "locks", "title": "Sicurezza", "value": str(counts.get("locks", 0)), "detail": "serrature", "icon": "shield"},
+                {"id": "sensors", "title": "Sensori", "value": str(counts.get("sensors", 0)), "detail": "dispositivi", "icon": "sensor"},
+            ]
         return {
             "version": VERSION,
             "mode": "demo" if settings.demo_mode else "live",

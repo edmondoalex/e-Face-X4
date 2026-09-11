@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.3.0 — 2026-09-11
+
+- Normalizzati dispositivi e stanze provenienti da e-HDL BusPro MQTT.
+- La modalità live mostra conteggi reali di luci, cover, serrature e sensori.
+- Aggiunto lo stato online/offline dei connettori nella barra superiore.
+- Aggiunto aggiornamento automatico ogni 10 secondi, sospeso quando la pagina non è visibile.
+- Mantenuto il confine architetturale: nessun motore BusPro è incluso in e-Face X4.
+
 ## 0.2.4 — 2026-09-11
 
 - Applicato il marchio orizzontale ufficiale fornito dall'utente.

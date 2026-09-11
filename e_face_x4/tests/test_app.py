@@ -1,6 +1,7 @@
 from fastapi.testclient import TestClient
 
 from app.main import create_app
+from app.connectors.buspro import normalize_snapshot
 
 
 def test_health() -> None:
@@ -63,3 +64,21 @@ def test_configured_home_name_is_shown_in_bootstrap(monkeypatch, tmp_path) -> No
     response = TestClient(create_app()).get("/api/bootstrap")
     assert response.status_code == 200
     assert response.json()["dashboard"]["home"]["name"] == "Villa Aurora"
+
+
+def test_buspro_snapshot_is_normalized_by_room_and_kind() -> None:
+    normalized = normalize_snapshot({
+        "devices": [
+            {"type": "light", "name": "Lampada", "group": "Sala"},
+            {"type": "cover", "name": "Tenda", "group": "Sala"},
+            {"type": "lock", "name": "Porta", "group": "Ingresso"},
+            {"type": "temperature", "name": "Temperatura", "group": "Sala"},
+        ],
+        "mqtt": {"connected": True},
+    })
+    assert normalized["counts"] == {"lights": 1, "covers": 1, "locks": 1, "sensors": 1}
+    assert normalized["rooms"] == [
+        {"id": "room-0", "name": "Ingresso", "devices": 1},
+        {"id": "room-1", "name": "Sala", "devices": 3},
+    ]
+    assert normalized["mqtt_connected"] is True
