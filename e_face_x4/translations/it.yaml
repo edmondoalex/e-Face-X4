@@ -18,6 +18,8 @@ configuration:
         name: Ascolta
       lights:
         name: Luci
+      extra:
+        name: Extra
       covers:
         name: Oscuranti
       comfort:

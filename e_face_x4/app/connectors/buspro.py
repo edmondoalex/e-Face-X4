@@ -11,7 +11,7 @@ from .base import Connector
 def normalize_snapshot(payload: dict[str, Any]) -> dict[str, Any]:
     raw_devices = payload.get("devices")
     devices = raw_devices if isinstance(raw_devices, list) else []
-    counts = {"lights": 0, "covers": 0, "locks": 0, "sensors": 0}
+    counts = {"lights": 0, "switches": 0, "covers": 0, "locks": 0, "sensors": 0}
     rooms: dict[str, dict[str, Any]] = {}
     normalized: list[dict[str, Any]] = []
     light_states = payload.get("states") if isinstance(payload.get("states"), dict) else {}
@@ -43,8 +43,10 @@ def normalize_snapshot(payload: dict[str, Any]) -> dict[str, Any]:
         kind = str(raw.get("type") or raw.get("domain") or "light").strip().lower()
         room = str(raw.get("group") or "Senza stanza").strip() or "Senza stanza"
         name = str(raw.get("name") or raw.get("entity_id") or f"Dispositivo {index + 1}").strip()
-        if kind in {"light", "switch"}:
+        if kind == "light":
             counts["lights"] += 1
+        elif kind == "switch":
+            counts["switches"] += 1
         elif kind == "cover":
             counts["covers"] += 1
         elif kind == "lock":

@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.9.0 — 2026-09-11
+
+- Aggiunta la categoria Extra dedicata agli switch, come in e-HDL.
+- Separati switch e luci nelle pagine e nei conteggi.
+- Aggiunta l'icona Extra configurabile nelle opzioni dell'add-on.
+
 ## 0.8.0 — 2026-09-11
 
 - Collegato il canale WebSocket realtime di e-HDL tramite un ponte interno sicuro.

@@ -19,7 +19,7 @@ from .connectors import BusproConnector
 from .connectors.supervisor import discover_addon_url
 from .demo import dashboard as demo_dashboard
 
-VERSION = "0.8.0"
+VERSION = "0.9.0"
 STATIC = Path(__file__).parent / "static"
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s [e-face-x4] %(message)s")
 
@@ -49,9 +49,9 @@ def create_app() -> FastAPI:
             dashboard["devices"] = normalized.get("devices", []) if isinstance(normalized, dict) else []
             dashboard["widgets"] = [
                 {"id": "lights", "title": "Luci", "value": str(counts.get("lights", 0)), "detail": "dispositivi", "icon": "light"},
+                {"id": "extra", "title": "Extra", "value": str(counts.get("switches", 0)), "detail": "switch", "icon": "energy"},
                 {"id": "covers", "title": "Cover", "value": str(counts.get("covers", 0)), "detail": "dispositivi", "icon": "cover"},
                 {"id": "locks", "title": "Sicurezza", "value": str(counts.get("locks", 0)), "detail": "serrature", "icon": "shield"},
-                {"id": "sensors", "title": "Sensori", "value": str(counts.get("sensors", 0)), "detail": "dispositivi", "icon": "sensor"},
             ]
         return {
             "version": VERSION,

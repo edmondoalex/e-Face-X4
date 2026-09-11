@@ -55,7 +55,7 @@ def test_x4_shell_and_brand_assets_are_served() -> None:
     assert 'id="detail-back"' in page.text
     assert '<dialog' not in page.text
     assert 'id="show-all-devices"' in page.text
-    for label in ("Guarda", "Ascolta", "Luci", "Oscuranti", "Comfort", "Sicurezza"):
+    for label in ("Guarda", "Ascolta", "Luci", "Extra", "Oscuranti", "Comfort", "Sicurezza"):
         assert f'title="{label}"' in page.text
     assert 'src="assets/brand-horizontal.png?v=0.7.5"' in page.text
     assert 'alt="EKONEX e-Face X4"' in page.text
@@ -87,7 +87,7 @@ def test_buspro_snapshot_is_normalized_by_room_and_kind() -> None:
         "mqtt": {"connected": True},
         "temp_states": {"1.61.1": {"value": 28.0, "ts": 123}},
     })
-    assert normalized["counts"] == {"lights": 3, "covers": 1, "locks": 1, "sensors": 1}
+    assert normalized["counts"] == {"lights": 2, "switches": 1, "covers": 1, "locks": 1, "sensors": 1}
     assert normalized["rooms"] == [
         {"id": "room-0", "name": "Ingresso", "devices": 1},
         {"id": "room-1", "name": "Sala", "devices": 5},
@@ -113,6 +113,7 @@ def test_navigation_icons_have_defaults(monkeypatch, tmp_path) -> None:
     data = TestClient(create_app()).get("/api/bootstrap").json()
     assert data["nav_icons"]["watch"] == "mdi:television-play"
     assert data["nav_icons"]["security"] == "mdi:shield-home"
+    assert data["nav_icons"]["extra"] == "mdi:shape"
 
 
 def test_invalid_mdi_icon_name_returns_safe_fallback() -> None:

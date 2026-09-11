@@ -1,5 +1,5 @@
 name: e-Face X4
-version: 0.8.0
+version: 0.9.0
 slug: e_face_x4
 description: Interfaccia unificata per gli add-on e-Konex
 url: https://github.com/edmondoalex/e-Face-X4
@@ -28,6 +28,7 @@ options:
     watch: mdi:television-play
     listen: mdi:music
     lights: mdi:lightbulb-group
+    extra: mdi:shape
     covers: mdi:blinds-horizontal
     comfort: mdi:home-thermometer
     security: mdi:shield-home
@@ -47,6 +48,7 @@ schema:
     watch: str?
     listen: str?
     lights: str?
+    extra: str?
     covers: str?
     comfort: str?
     security: str?

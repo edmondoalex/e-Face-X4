@@ -238,7 +238,8 @@ document.querySelectorAll('.rail button').forEach((button) => button.addEventLis
   requestAnimationFrame(() => document.querySelector('main').classList.add('app-view'))
   if (button.dataset.view === 'watch') openDevices('Guarda', currentDevices.filter((device) => ['camera', 'doorbell'].includes(device.kind)))
   if (button.dataset.view === 'listen') openDevices('Ascolta', currentDevices.filter((device) => ['media_player', 'media'].includes(device.kind)))
-  if (button.dataset.view === 'lights') openDevices('Luci', currentDevices.filter((device) => ['light', 'switch'].includes(device.kind)))
+  if (button.dataset.view === 'lights') openDevices('Luci', currentDevices.filter((device) => device.kind === 'light'))
+  if (button.dataset.view === 'extra') openDevices('Extra', currentDevices.filter((device) => device.kind === 'switch'))
   if (button.dataset.view === 'covers') openDevices('Oscuranti', currentDevices.filter((device) => device.kind === 'cover'))
   if (button.dataset.view === 'comfort') openDevices('Comfort', currentDevices.filter((device) => ['climate', 'temp', 'temperature', 'humidity', 'air', 'air_quality'].includes(device.kind)))
   if (button.dataset.view === 'security') openDevices('Sicurezza', currentDevices.filter((device) => device.kind === 'lock'))
@@ -246,7 +247,7 @@ document.querySelectorAll('.rail button').forEach((button) => button.addEventLis
 $('#widgets').addEventListener('click', (event) => {
   const button = event.target.closest('[data-kind]')
   if (!button) return
-  const map = { lights: ['light', 'switch'], covers: ['cover'], locks: ['lock'], sensors: ['temp', 'temperature', 'humidity', 'illuminance', 'pir', 'ultrasonic', 'dry_contact', 'air', 'air_quality', 'gas_percent'] }
+  const map = { lights: ['light'], extra: ['switch'], covers: ['cover'], locks: ['lock'], sensors: ['temp', 'temperature', 'humidity', 'illuminance', 'pir', 'ultrasonic', 'dry_contact', 'air', 'air_quality', 'gas_percent'] }
   const kinds = map[button.dataset.kind] || []
   openDevices(button.textContent.trim(), currentDevices.filter((device) => kinds.includes(device.kind)))
 })

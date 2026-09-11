@@ -42,7 +42,7 @@ def load_settings() -> Settings:
     timeout = min(15.0, max(1.0, float(raw.get("request_timeout_s", 4))))
     icon_defaults = {
         "watch": "mdi:television-play", "listen": "mdi:music", "lights": "mdi:lightbulb-group",
-        "covers": "mdi:blinds-horizontal", "comfort": "mdi:home-thermometer", "security": "mdi:shield-home",
+        "extra": "mdi:shape", "covers": "mdi:blinds-horizontal", "comfort": "mdi:home-thermometer", "security": "mdi:shield-home",
     }
     raw_icons = raw.get("nav_icons") if isinstance(raw.get("nav_icons"), dict) else {}
     nav_icons = {key: str(raw_icons.get(key) or value).strip() for key, value in icon_defaults.items()}
