@@ -1,5 +1,9 @@
 # Changelog
 
+## 2.2.4 — 2026-09-11
+
+- Resa sempre visibile l'icona del gestore sessione nella testata usando un simbolo vettoriale incorporato, compatibile con Home Assistant Ingress.
+
 ## 2.2.3 — 2026-09-11
 
 - Spostato il gestore della sessione audio/video nella testata, a sinistra del menu con i tre puntini.
