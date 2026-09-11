@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.7.1 — 2026-09-11
+
+- Riconosciuti come luci i dispositivi BusPro storici privi del campo `type`, come fa e-HDL.
+- Mostrati i comandi ON/OFF anche su questi dispositivi.
+- Aggiunto il tipo sensore `air` usato dallo snapshot e-HDL.
+
 ## 0.7.0 — 2026-09-11
 
 - Collegati i comandi reali ON/OFF, apertura/arresto/chiusura e blocco/sblocco.

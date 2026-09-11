@@ -17,12 +17,13 @@ def normalize_snapshot(payload: dict[str, Any]) -> dict[str, Any]:
     light_states = payload.get("states") if isinstance(payload.get("states"), dict) else {}
     cover_states = payload.get("cover_states") if isinstance(payload.get("cover_states"), dict) else {}
     ha_states = payload.get("ha_states") if isinstance(payload.get("ha_states"), dict) else {}
-    sensor_types = {"temp", "temperature", "humidity", "illuminance", "pir", "ultrasonic", "dry_contact", "air_quality", "gas_percent"}
+    sensor_types = {"temp", "temperature", "humidity", "illuminance", "pir", "ultrasonic", "dry_contact", "air", "air_quality", "gas_percent"}
     sensor_sources = {
         "temp": ("temp_states", "°C"),
         "temperature": ("temp_states", "°C"),
         "humidity": ("humidity_states", "%"),
         "illuminance": ("illuminance_states", "lx"),
+        "air": ("air_quality_states", ""),
         "air_quality": ("air_quality_states", ""),
         "gas_percent": ("gas_percent_states", "%"),
         "dry_contact": ("dry_contact_states", ""),
@@ -38,7 +39,8 @@ def normalize_snapshot(payload: dict[str, Any]) -> dict[str, Any]:
     for index, raw in enumerate(devices):
         if not isinstance(raw, dict):
             continue
-        kind = str(raw.get("type") or raw.get("domain") or "unknown").strip().lower()
+        # e-HDL treats legacy BusPro records without an explicit type as lights.
+        kind = str(raw.get("type") or raw.get("domain") or "light").strip().lower()
         room = str(raw.get("group") or "Senza stanza").strip() or "Senza stanza"
         name = str(raw.get("name") or raw.get("entity_id") or f"Dispositivo {index + 1}").strip()
         if kind in {"light", "switch"}:
@@ -159,7 +161,7 @@ class BusproConnector(Connector):
             raw = next((item for index, item in enumerate(devices) if isinstance(item, dict) and str(item.get("entity_id") or item.get("id") or index) == str(target_id)), None)
             if raw is None:
                 raise ValueError("dispositivo non trovato")
-            kind = str(raw.get("type") or raw.get("domain") or "").strip().lower()
+            kind = str(raw.get("type") or raw.get("domain") or "light").strip().lower()
             entity_id = str(raw.get("entity_id") or "").strip().lower()
             if entity_id:
                 domain = entity_id.split(".", 1)[0]

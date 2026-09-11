@@ -81,20 +81,22 @@ def test_buspro_snapshot_is_normalized_by_room_and_kind() -> None:
             {"type": "lock", "name": "Porta", "group": "Ingresso"},
             {"type": "temperature", "name": "Temperatura", "group": "Sala", "subnet_id": 1, "device_id": 61, "channel": 1},
             {"type": "switch", "name": "Presa", "group": "sala"},
+            {"name": "Luce legacy", "group": "Sala", "subnet_id": 1, "device_id": 2, "channel": 3},
         ],
         "mqtt": {"connected": True},
         "temp_states": {"1.61.1": {"value": 28.0, "ts": 123}},
     })
-    assert normalized["counts"] == {"lights": 2, "covers": 1, "locks": 1, "sensors": 1}
+    assert normalized["counts"] == {"lights": 3, "covers": 1, "locks": 1, "sensors": 1}
     assert normalized["rooms"] == [
         {"id": "room-0", "name": "Ingresso", "devices": 1},
-        {"id": "room-1", "name": "Sala", "devices": 4},
+        {"id": "room-1", "name": "Sala", "devices": 5},
     ]
     assert normalized["mqtt_connected"] is True
     assert normalized["devices"][0]["icon"] == ""
     temperature = next(device for device in normalized["devices"] if device["kind"] == "temperature")
     assert temperature["state"] == 28.0
     assert temperature["unit"] == "°C"
+    assert normalized["devices"][-1]["kind"] == "light"
 
 
 def test_supervisor_addon_slug_becomes_internal_dns_name() -> None:
