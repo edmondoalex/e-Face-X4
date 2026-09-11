@@ -197,8 +197,7 @@ def normalize_local_snapshot(raw: dict[str, Any]) -> tuple[list[dict[str, Any]],
         entry = entry or {"id": f"entity:{entity_id}", "entity_id": entity_id, "device_id": None}
         attrs = state.get("attributes") if isinstance(state.get("attributes"), dict) else {}
         area_id = entry.get("area_id") or (devices.get(str(entry.get("device_id"))) or {}).get("area_id")
-        if not area_id or not areas.get(str(area_id)):
-            continue
+        player_name = str(attrs.get("friendly_name") or entry.get("name") or entity_id)
         features = int(attrs.get("supported_features") or 0)
         media_class = str(entry.get("device_class") or attrs.get("device_class") or "").lower()
         experiences = ["watch"] if media_class == "tv" else ["listen"]
@@ -209,7 +208,7 @@ def normalize_local_snapshot(raw: dict[str, Any]) -> tuple[list[dict[str, Any]],
         item = {
             "id": f"media:{entry['id']}", "registry_id": str(entry["id"]), "entity_id": entity_id,
             "provider": "evoice", "kind": "media_player", "icon": str(attrs.get("icon") or "mdi:speaker"),
-            "name": str(attrs.get("friendly_name") or entry.get("name") or entity_id), "room": areas[str(area_id)],
+            "name": player_name, "room": player_name,
             "state": state.get("state"), "availability": "unavailable" if state.get("state") == "unavailable" else "available",
             "connection_status": "online", "title": attrs.get("media_title"), "artist": attrs.get("media_artist"),
             "album": attrs.get("media_album_name"), "duration_seconds": attrs.get("media_duration"),

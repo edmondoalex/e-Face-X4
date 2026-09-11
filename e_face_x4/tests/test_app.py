@@ -263,16 +263,16 @@ def test_local_home_assistant_media_snapshot_is_normalized() -> None:
     })
     assert groups == []
     assert players[0]["id"] == "media:registry-1"
-    assert players[0]["room"] == "Soggiorno"
+    assert players[0]["room"] == "Sala"
     assert players[0]["volume"] == 40
     assert players[0]["capabilities"]["play"] is True
     assert players[0]["experiences"] == ["watch"]
     assert HA_WEBSOCKET_MAX_BYTES == 16 * 1024 * 1024
 
 
-def test_media_player_without_room_is_excluded() -> None:
+def test_media_player_without_area_uses_its_name_as_room() -> None:
     players, _ = normalize_local_snapshot({
         "areas": [], "devices": [], "entities": [],
         "states": [{"entity_id": "media_player.ufficio_alex", "state": "playing", "last_updated": "2026-09-11T10:00:00Z", "attributes": {"friendly_name": "Ufficio Alex", "supported_features": 16384}}],
     })
-    assert players == []
+    assert players[0]["room"] == "Ufficio Alex"

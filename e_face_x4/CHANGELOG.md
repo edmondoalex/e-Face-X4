@@ -287,6 +287,11 @@
 - Architettura modulare dei connettori.
 - Primo connettore in sola lettura per e-HDL BusPro MQTT.
 - Endpoint di salute e test contro l'esposizione delle credenziali.
+# 1.7.11
+
+- Ogni media player locale è trattato come stanza e usa il proprio nome visibile, senza richiedere un'Area Home Assistant.
+- Inclusi anche i media player dinamici non registrati o privi di area.
+
 # 1.7.10
 
 - La pagina Guarda include esclusivamente videocamere, campanelli e player classificati `watch`.
