@@ -1,5 +1,12 @@
 # Changelog
 
+## 2.0.3 — 2026-09-11
+
+- Impedito al valore obsoleto `OK_playing` di Control4 di sovrascrivere una pausa appena comandata.
+- L'icona resta Play dopo la pausa e torna Pausa quando l'utente riprende la riproduzione.
+- L'override viene eliminato automaticamente al cambio brano, sorgente o spegnimento della stanza.
+- Stabilizzati anche mute e volume: l'interfaccia mantiene il valore richiesto fino alla conferma del Director.
+
 ## 2.0.2 — 2026-09-11
 
 - Collegati i comandi Control4 nativi precedente e successivo (`SKIP_REV`/`SKIP_FWD`).

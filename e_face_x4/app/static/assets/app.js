@@ -18,6 +18,12 @@ let currentMediaGroups = []
 let currentMediaExperience = ''
 let activeMediaPlayer = null
 let selectedMediaId = ''
+const mediaTransportOverrides = new Map()
+
+function setMediaOverride(deviceId, values) {
+  const key = String(deviceId)
+  mediaTransportOverrides.set(key, { ...(mediaTransportOverrides.get(key) || {}), ...values })
+}
 
 $('#tools-open')?.addEventListener('click', () => { location.href = apiUrl('tools') })
 
@@ -66,6 +72,29 @@ function render(data) {
   currentMediaGroups = providers.find((provider) => ['control4','evoice'].includes(provider.id))?.groups || []
   const navIcons = data.nav_icons || {}
   currentDevices = Array.isArray(dashboard.devices) ? dashboard.devices : []
+  currentDevices.forEach((device) => {
+    const override = mediaTransportOverrides.get(String(device.id))
+    if (!override || device.kind !== 'media_player') return
+    const trackChanged = override.fingerprint && device.content_fingerprint && override.fingerprint !== device.content_fingerprint
+    if (String(device.state).toLowerCase() === 'off' || trackChanged) {
+      mediaTransportOverrides.delete(String(device.id))
+      return
+    }
+    if (override.expires && Date.now() > override.expires) {
+      delete override.state
+      delete override.expires
+    }
+    if (override.state) device.state = override.state
+    if (Object.hasOwn(override, 'muted')) {
+      if (device.muted === override.muted) delete override.muted
+      else device.muted = override.muted
+    }
+    if (Object.hasOwn(override, 'volume')) {
+      if (Number(device.volume) === override.volume) delete override.volume
+      else device.volume = override.volume
+    }
+    if (!override.state && !Object.hasOwn(override, 'muted') && !Object.hasOwn(override, 'volume')) mediaTransportOverrides.delete(String(device.id))
+  })
   updateNavigationStates()
   if (activeDetailIds && !$('#detail-view').hidden) {
     renderActiveDeviceList()
@@ -423,6 +452,13 @@ async function sendDeviceCommand(deviceId, action, button, value) {
       if (action === 'media_play') media.state = 'playing'
       if (action === 'media_stop') media.state = 'idle'
       if (action === 'turn_off') media.state = 'off'
+      if (action === 'volume_mute') setMediaOverride(deviceId, { muted: true })
+      if (action === 'volume_unmute') setMediaOverride(deviceId, { muted: false })
+      if (action === 'set_volume') setMediaOverride(deviceId, { volume: Number(value) })
+      if (action === 'media_pause') setMediaOverride(deviceId, { state: 'paused', fingerprint: media.content_fingerprint || '', expires: 0 })
+      if (action === 'media_stop') setMediaOverride(deviceId, { state: 'idle', fingerprint: media.content_fingerprint || '', expires: 0 })
+      if (action === 'media_play') setMediaOverride(deviceId, { state: 'playing', expires: Date.now() + 3000 })
+      if (['turn_off','media_next','media_previous','select_source'].includes(action)) mediaTransportOverrides.delete(String(deviceId))
       renderActiveDeviceList()
       updateNavigationStates()
     }
