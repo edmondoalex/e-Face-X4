@@ -19,7 +19,7 @@ from .connectors import BusproConnector, EThermConnector
 from .connectors.supervisor import discover_addon_url
 from .demo import dashboard as demo_dashboard
 
-VERSION = "1.6.0"
+VERSION = "1.6.1"
 STATIC = Path(__file__).parent / "static"
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s [e-face-x4] %(message)s")
 
@@ -158,7 +158,7 @@ def create_app() -> FastAPI:
                         await queue.put({"type": event_type, "data": safe})
 
         async def etherm_events() -> None:
-            headers = {"Authorization": f"Bearer {etherm.token}"} if etherm.token else {}
+            headers = EThermConnector(etherm, settings.request_timeout_s).headers()
             async with httpx.AsyncClient(timeout=None, follow_redirects=False) as client:
                 async with client.stream("GET", f"{etherm.base_url}/api/stream?type=thermostats", headers=headers) as response:
                     response.raise_for_status()

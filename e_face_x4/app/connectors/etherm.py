@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from typing import Any
+import base64
 
 import httpx
 
@@ -46,7 +47,12 @@ class EThermConnector(Connector):
         self.timeout_s = timeout_s
 
     def headers(self) -> dict[str, str]:
-        return {"Authorization": f"Bearer {self.config.token}"} if self.config.token else {}
+        if self.config.auth_mode == "basic" and self.config.username:
+            encoded = base64.b64encode(f"{self.config.username}:{self.config.password}".encode()).decode()
+            return {"Authorization": f"Basic {encoded}"}
+        if self.config.auth_mode == "token" and self.config.token:
+            return {"Authorization": f"Bearer {self.config.token}"}
+        return {}
 
     async def snapshot(self) -> dict[str, Any]:
         if not self.config.enabled:
@@ -60,8 +66,15 @@ class EThermConnector(Connector):
                 payload = response.json()
             items = normalize_thermostats(payload)
             return {"id": self.id, "label": self.label, "status": "online", "items": items}
+        except httpx.HTTPStatusError as exc:
+            reason = f"HTTP {exc.response.status_code}: autenticazione non valida" if exc.response.status_code == 401 else f"HTTP {exc.response.status_code} da e-Therm"
+            return {"id": self.id, "label": self.label, "status": "offline", "reason": reason, "items": []}
+        except httpx.ConnectError:
+            return {"id": self.id, "label": self.label, "status": "offline", "reason": "indirizzo non raggiungibile o connessione rifiutata sulla porta 8080", "items": []}
+        except httpx.TimeoutException:
+            return {"id": self.id, "label": self.label, "status": "offline", "reason": "timeout collegandosi a e-Therm", "items": []}
         except (httpx.HTTPError, ValueError):
-            return {"id": self.id, "label": self.label, "status": "offline", "reason": "connessione o autenticazione non valida", "items": []}
+            return {"id": self.id, "label": self.label, "status": "offline", "reason": "risposta e-Therm non valida", "items": []}
 
     async def command(self, source_id: str, action: str, value: Any) -> dict[str, Any]:
         if action not in {"set_target", "set_mode", "set_season"}:

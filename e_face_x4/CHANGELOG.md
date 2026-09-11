@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.6.1 — 2026-09-11
+
+- Aggiunto supporto completo all'autenticazione e-Therm none/basic/token.
+- Resi diagnostici gli errori del connettore: HTTP, autenticazione, timeout e connessione rifiutata.
+
 ## 1.6.0 — 2026-09-11
 
 - Aggiunto il connettore e-Therm Plus KS con scoperta automatica sulla porta 8080.

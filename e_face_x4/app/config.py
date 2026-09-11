@@ -12,6 +12,9 @@ class ProviderConfig:
     enabled: bool
     base_url: str
     token: str
+    auth_mode: str = "none"
+    username: str = ""
+    password: str = ""
 
 
 @dataclass(frozen=True)
@@ -31,6 +34,9 @@ def _provider(value: Any) -> ProviderConfig:
         enabled=bool(raw.get("enabled", False)),
         base_url=str(raw.get("base_url") or "").strip().rstrip("/"),
         token=str(raw.get("token") or "").strip(),
+        auth_mode=str(raw.get("auth_mode") or ("token" if raw.get("token") else "none")).strip().lower(),
+        username=str(raw.get("username") or "").strip(),
+        password=str(raw.get("password") or ""),
     )
 
 

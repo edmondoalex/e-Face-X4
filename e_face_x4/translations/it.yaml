@@ -58,6 +58,13 @@ configuration:
       base_url:
         name: Indirizzo locale
         description: Indirizzo manuale di riserva; normalmente e-Face X4 rileva automaticamente l'add-on sulla porta 8080.
+      auth_mode:
+        name: Autenticazione
+        description: Deve corrispondere a web_auth_mode configurato in e-Therm.
+      username:
+        name: Utente Basic
+      password:
+        name: Password Basic
       token:
         name: Token
         description: Compilare solo se e-Therm usa autenticazione token.

@@ -190,3 +190,10 @@ def test_etherm_thermostat_is_normalized() -> None:
     assert items[0]["state"] == "HEATING"
     assert items[0]["temperature"] == 21.4
     assert items[0]["target_temperature"] == 22.5
+
+
+def test_etherm_basic_auth_header() -> None:
+    from app.config import ProviderConfig
+    from app.connectors.etherm import EThermConnector
+    config = ProviderConfig(True, "http://etherm:8080", "", "basic", "alex", "secret")
+    assert EThermConnector(config, 4).headers()["Authorization"].startswith("Basic ")
