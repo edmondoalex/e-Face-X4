@@ -7,7 +7,8 @@
 .media-controls{grid-column:1/-1;grid-row:2;height:40px;display:flex;justify-content:center;align-items:center;gap:7px;overflow:hidden}
 .media-controls button{width:42px;height:36px;border:1px solid var(--line);border-radius:10px;color:#fff;background:rgba(255,255,255,.07);font-weight:700}
 .media-controls button:active{background:#ff243f}.media-controls button:disabled{opacity:.35}
-.media-volume{grid-column:1/-1;grid-row:3;height:38px;display:grid;grid-template-columns:minmax(0,1fr) 42px;align-items:center;gap:8px}
+.media-volume{grid-column:1/-1;grid-row:3;height:38px;display:grid;grid-template-columns:42px minmax(0,1fr) 42px;align-items:center;gap:8px}
+.media-volume span{width:30px;height:30px;color:#eef2f3}
 .media-volume input{width:100%;accent-color:#ff243f}.media-volume output{font-size:10px;text-align:right}
 .media-sources{grid-column:1/-1;grid-row:4;height:92px;overflow-y:auto;align-self:end;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));grid-auto-rows:90px;gap:1px;background:rgba(0,0,0,.18);scrollbar-width:none;-ms-overflow-style:none}.media-sources::-webkit-scrollbar{display:none}
 .media-sources button{min-width:0;min-height:86px;padding:10px 6px;border:1px solid rgba(255,255,255,.1);color:#dfe8ea;background:rgba(255,255,255,.055)}

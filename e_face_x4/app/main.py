@@ -24,7 +24,7 @@ from .connectors import BusproConnector, Control4MediaConnector, EThermConnector
 from .connectors.supervisor import discover_addon_url
 from .demo import dashboard as demo_dashboard
 
-VERSION = "2.0.0"
+VERSION = "2.0.1"
 STATIC = Path(__file__).parent / "static"
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s [e-face-x4] %(message)s")
 
@@ -293,10 +293,10 @@ def create_app() -> FastAPI:
     async def media_artwork(registry_id: str, fingerprint: str = Query(..., min_length=8, max_length=256), if_none_match: str | None = Header(None)) -> Response:
         settings = load_settings()
         config = settings.evoice
-        if not config.enabled:
+        connector = media_connector(settings)
+        if not config.enabled and not isinstance(connector, Control4MediaConnector):
             raise HTTPException(status_code=503, detail="Ekonex Media non disponibile")
         try:
-            connector = media_connector(settings)
             upstream = await connector.artwork(registry_id) if isinstance(connector, LocalMediaConnector) else await connector.artwork(registry_id, fingerprint, if_none_match)
         except httpx.HTTPError:
             raise HTTPException(status_code=502, detail="Ekonex Media non raggiungibile")

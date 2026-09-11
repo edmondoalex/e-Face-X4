@@ -171,6 +171,27 @@ def test_control4_unknown_volume_disables_volume_control() -> None:
     assert players[0]["capabilities"]["set_volume"] is False
 
 
+def test_control4_current_media_info_exposes_metadata_and_safe_artwork_fingerprint() -> None:
+    import base64
+
+    cover = "https://i.scdn.co/image/example"
+    players = normalize_control4_media(
+        {"experiences": [{"type": "listen", "room_id": 51, "sources": {"source": []}}]},
+        [{"id": 51, "name": "Ufficio Alex"}],
+        [{"id": 51, "varName": "CURRENT MEDIA INFO", "value": {"mediainfo": {
+            "title": "Brano", "artist": "Artista", "album": "Album",
+            "meta": {"audioFormat": "Spotify Connect"},
+            "img": base64.b64encode(cover.encode()).decode(),
+        }}}],
+    )
+    assert players[0]["title"] == "Brano"
+    assert players[0]["artist"] == "Artista"
+    assert players[0]["album"] == "Album"
+    assert players[0]["source"] == "Spotify Connect"
+    assert len(players[0]["content_fingerprint"]) == 64
+    assert players[0]["capabilities"]["artwork"] is True
+
+
 def test_control4_command_does_not_require_evoice_enabled(monkeypatch, tmp_path) -> None:
     import app.main as main_module
 

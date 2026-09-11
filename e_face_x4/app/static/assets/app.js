@@ -227,7 +227,11 @@ function renderMediaExperience(devices) {
   const players = devices.map((device) => `<button class="media-service-tile ${device.id === selected.id ? 'active' : ''}" data-media-select="${esc(device.id)}"><span class="mdi-mask" style="${mdiStyle(device.icon, 'speaker')}"></span><b>${esc(device.name)}</b><small>${esc(device.room)}</small></button>`).join('')
   const options = selected.source_options?.length ? selected.source_options.filter((source) => !currentMediaExperience || source.experience === currentMediaExperience) : (selected.source_list || []).map((source) => ({key:source,label:source}))
   const sources = options.map((source) => `<button class="media-service-tile ${source.label === selected.source ? 'active' : ''}" data-device-id="${esc(selected.id)}" data-media-source="${esc(source.key)}"><span class="mdi-mask" style="${mdiStyle('mdi:play-box', 'play-box')}"></span><b>${esc(source.label)}</b><small>Sorgente</small></button>`).join('')
-  $('#device-list').innerHTML = `<article class="media-session ${deviceVisualClass(selected)}" data-device-id="${esc(selected.id)}">${mediaArtwork(selected)}<span class="device-glyph mdi-mask" style="${mdiStyle(selected.icon, 'speaker')}"></span><div class="media-session-info"><strong>${esc(selected.name)}</strong><small>${esc(selected.room)}</small><span class="media-track">${esc(selected.title || 'Nessuna riproduzione')}</span><span class="media-artist">${esc([selected.artist, selected.album].filter(Boolean).join(' · '))}</span></div><em>${esc(stateLabel(selected))}</em>${deviceActions(selected)}</article><div class="media-library"><h3>Dispositivi e servizi</h3><div class="media-service-grid">${players}${sources}</div></div>`
+  const caps = selected.capabilities || {}
+  const disabled = selected.connection_status === 'offline' || selected.availability !== 'available'
+  const power = caps.turn_off ? `<button class="media-session-power" data-media-action="turn_off" aria-label="Spegni stanza" ${disabled ? 'disabled' : ''}><span class="mdi-mask" style="${mdiStyle('mdi:power', 'power')}"></span></button>` : ''
+  const experienceClass = currentMediaExperience === 'listen' ? 'media-session-listen' : 'media-session-watch'
+  $('#device-list').innerHTML = `<article class="media-session ${experienceClass} ${deviceVisualClass(selected)}" data-device-id="${esc(selected.id)}">${mediaArtwork(selected)}<span class="device-glyph mdi-mask" style="${mdiStyle(selected.icon, 'speaker')}"></span><div class="media-session-info"><strong>${esc(selected.title || selected.source || selected.name)}</strong><small>${esc(selected.artist || selected.source || selected.room)}</small><span class="media-track">${esc(selected.album || selected.name)}</span></div>${power}${deviceActions(selected, { hidePower: true })}</article><div class="media-library"><h3>Dispositivi e servizi</h3><div class="media-service-grid">${players}${sources}</div></div>`
 }
 
 function mediaArtwork(device) {
@@ -303,7 +307,7 @@ function deviceVisualClass(device) {
   return ''
 }
 
-function deviceActions(device) {
+function deviceActions(device, options = {}) {
   if (['light', 'switch'].includes(device.kind)) {
     const active = ['ON','1','TRUE'].includes(String(device.state).trim().toUpperCase())
     const level = active ? brightness255(device) : 0
@@ -322,8 +326,8 @@ function deviceActions(device) {
     const caps = device.capabilities || {}
     const disabled = device.connection_status === 'offline' || device.availability !== 'available'
     const button = (operation, icon, label, enabled = true) => enabled ? `<button data-media-action="${operation}" aria-label="${label}" ${disabled ? 'disabled' : ''}>${icon}</button>` : ''
-    const controls = [button('media_previous', '◀', 'Precedente', caps.previous), String(device.state).toLowerCase() === 'playing' ? button('media_pause', 'Ⅱ', 'Pausa', caps.pause) : button('media_play', '▶', 'Riproduci', caps.play), button('media_stop', '■', 'Stop', caps.stop), button('turn_off', '⏻', 'Spegni stanza', caps.turn_off), button('media_next', '▶|', 'Successivo', caps.next), device.muted ? button('volume_unmute', '🔇', 'Riattiva audio', caps.mute) : button('volume_mute', '🔊', 'Disattiva audio', caps.mute), button('media_zones', '▣+', 'Aggiungi stanze', caps.grouping)].join('')
-    const volume = caps.set_volume ? `<label class="media-volume"><input type="range" min="0" max="100" value="${Number(device.volume) || 0}" data-media-volume ${disabled ? 'disabled' : ''}><output>${Number(device.volume) || 0}%</output></label>` : ''
+    const controls = [button('media_previous', '◀', 'Precedente', caps.previous), String(device.state).toLowerCase() === 'playing' ? button('media_pause', 'Ⅱ', 'Pausa', caps.pause) : button('media_play', '▶', 'Riproduci', caps.play), button('media_stop', '■', 'Stop', caps.stop), button('turn_off', '⏻', caps.turn_off && !options.hidePower), button('media_next', '▶|', 'Successivo', caps.next), device.muted ? button('volume_unmute', '🔇', 'Riattiva audio', caps.mute) : button('volume_mute', '🔊', 'Disattiva audio', caps.mute), button('media_zones', '▣+', 'Aggiungi stanze', caps.grouping)].join('')
+    const volume = caps.set_volume ? `<label class="media-volume"><span class="mdi-mask" style="${mdiStyle(device.muted ? 'mdi:volume-off' : 'mdi:volume-high', 'volume-high')}"></span><input type="range" min="0" max="100" value="${Number(device.volume) || 0}" data-media-volume ${disabled ? 'disabled' : ''}><output>${Number(device.volume) || 0}%</output></label>` : ''
     const sourceOptions = device.source_options?.length ? device.source_options.filter((source) => !currentMediaExperience || source.experience === currentMediaExperience) : (device.source_list || []).map((source) => ({key:source,label:source}))
     const sources = caps.select_source && sourceOptions.length ? `<div class="media-sources">${sourceOptions.map((source) => `<button data-media-source="${esc(source.key)}" class="${source.label === device.source ? 'active' : ''}" ${disabled ? 'disabled' : ''}><span class="mdi-mask" style="${mdiStyle('mdi:play-box', 'play-box')}"></span><b>${esc(source.label)}</b></button>`).join('')}</div>` : ''
     return `<div class="media-controls">${controls}</div>${volume}${sources}`

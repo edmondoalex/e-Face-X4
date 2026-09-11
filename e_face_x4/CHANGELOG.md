@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.0.1 — 2026-09-11
+
+- Ridisegnato il player Ascolta come barra Control4 a tutta larghezza e responsive.
+- Importati da `CURRENT MEDIA INFO` titolo, artista, album, formato e copertina correnti.
+- Le copertine vengono servite attraverso e-Face con fingerprint e domini CDN convalidati.
+
 ## 2.0.0 — 2026-09-11
 
 - Aggiunto il connettore multimediale nativo Control4 Director sulla rete locale.
