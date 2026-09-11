@@ -2,11 +2,13 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import re
 from pathlib import Path
 from dataclasses import replace
 
+import httpx
 import uvicorn
-from fastapi import FastAPI
+from fastapi import FastAPI, Response
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
@@ -15,7 +17,7 @@ from .connectors import BusproConnector
 from .connectors.supervisor import discover_addon_url
 from .demo import dashboard as demo_dashboard
 
-VERSION = "0.5.0"
+VERSION = "0.6.0"
 STATIC = Path(__file__).parent / "static"
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s [e-face-x4] %(message)s")
 
@@ -51,10 +53,33 @@ def create_app() -> FastAPI:
             ]
         return {
             "version": VERSION,
+            "nav_icons": settings.nav_icons,
             "mode": "demo" if settings.demo_mode else "live",
             "dashboard": dashboard,
             "providers": providers,
         }
+
+    @app.get("/api/icons/mdi/{icon_name}.svg", include_in_schema=False)
+    async def mdi_icon(icon_name: str) -> Response:
+        name = icon_name.strip().lower()
+        fallback = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path fill="currentColor" d="M12 2 22 12 12 22 2 12Z"/></svg>'
+        if not re.fullmatch(r"[a-z0-9_-]{1,64}", name):
+            return Response(fallback, media_type="image/svg+xml")
+        settings = load_settings()
+        internal_url = await discover_addon_url("e_hdl_buspro_mqtt", 8124, settings.request_timeout_s)
+        base_url = internal_url or settings.buspro.base_url
+        if not base_url:
+            return Response(fallback, media_type="image/svg+xml")
+        headers = {"Authorization": f"Bearer {settings.buspro.token}"} if settings.buspro.token else {}
+        try:
+            async with httpx.AsyncClient(timeout=settings.request_timeout_s, follow_redirects=False) as client:
+                upstream = await client.get(f"{base_url}/api/icons/mdi/{name}.svg", headers=headers)
+                upstream.raise_for_status()
+            if len(upstream.content) > 200_000 or "svg" not in upstream.headers.get("content-type", ""):
+                raise ValueError("invalid icon")
+            return Response(upstream.content, media_type="image/svg+xml", headers={"Cache-Control": "public, max-age=3600"})
+        except (httpx.HTTPError, ValueError):
+            return Response(fallback, media_type="image/svg+xml")
 
     @app.get("/{path:path}", include_in_schema=False)
     async def frontend(path: str) -> FileResponse:

@@ -19,6 +19,7 @@ class Settings:
     home_name: str
     demo_mode: bool
     request_timeout_s: float
+    nav_icons: dict[str, str]
     buspro: ProviderConfig
     evoice: ProviderConfig
 
@@ -39,10 +40,17 @@ def load_settings() -> Settings:
     except (OSError, json.JSONDecodeError):
         raw = {}
     timeout = min(15.0, max(1.0, float(raw.get("request_timeout_s", 4))))
+    icon_defaults = {
+        "watch": "mdi:television-play", "listen": "mdi:music", "lights": "mdi:lightbulb-group",
+        "covers": "mdi:blinds-horizontal", "comfort": "mdi:home-thermometer", "security": "mdi:shield-home",
+    }
+    raw_icons = raw.get("nav_icons") if isinstance(raw.get("nav_icons"), dict) else {}
+    nav_icons = {key: str(raw_icons.get(key) or value).strip() for key, value in icon_defaults.items()}
     return Settings(
         home_name=str(raw.get("home_name") or "Casa").strip() or "Casa",
         demo_mode=bool(raw.get("demo_mode", True)),
         request_timeout_s=timeout,
+        nav_icons=nav_icons,
         buspro=_provider(raw.get("buspro")),
         evoice=_provider(raw.get("evoice")),
     )

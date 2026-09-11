@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.6.0 — 2026-09-11
+
+- Aggiunta la sezione `Icone navigazione` nella configurazione dell'add-on.
+- Sostituiti i simboli Unicode con icone MDI configurabili.
+- Ereditata per ogni dispositivo l'icona scelta in e-HDL BusPro MQTT.
+- Aggiunto un proxy SVG ristretto e sicuro verso la libreria icone del BusPro.
+- Mantenuti fallback visivi quando un'icona non è disponibile.
+
 ## 0.5.0 — 2026-09-11
 
 - Sostituiti i popup con vere pagine interne alla shell e-Face X4.

@@ -45,7 +45,10 @@ def normalize_snapshot(payload: dict[str, Any]) -> dict[str, Any]:
             source = cover_states if kind == "cover" else light_states
             raw_state = source.get(address) if address else None
             state = raw_state.get("state", raw_state.get("value")) if isinstance(raw_state, dict) else raw_state
-        normalized.append({"id": device_id, "name": name, "kind": kind, "room": room_entry["name"], "state": state})
+        normalized.append({
+            "id": device_id, "name": name, "kind": kind, "room": room_entry["name"], "state": state,
+            "icon": str(raw.get("icon") or "").strip(),
+        })
     mqtt = payload.get("mqtt") if isinstance(payload.get("mqtt"), dict) else {}
     return {
         "devices": normalized,

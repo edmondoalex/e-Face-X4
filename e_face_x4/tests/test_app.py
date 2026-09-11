@@ -90,8 +90,18 @@ def test_buspro_snapshot_is_normalized_by_room_and_kind() -> None:
         {"id": "room-1", "name": "Sala", "devices": 4},
     ]
     assert normalized["mqtt_connected"] is True
+    assert normalized["devices"][0]["icon"] == ""
 
 
 def test_supervisor_addon_slug_becomes_internal_dns_name() -> None:
     payload = {"data": {"addons": [{"slug": "a59e0dbb_e_hdl_buspro_mqtt"}]}}
     assert find_addon_url(payload, "e_hdl_buspro_mqtt", 8124) == "http://a59e0dbb-e-hdl-buspro-mqtt:8124"
+
+
+def test_navigation_icons_have_defaults(monkeypatch, tmp_path) -> None:
+    options = tmp_path / "options.json"
+    options.write_text("{}", encoding="utf-8")
+    monkeypatch.setenv("EFACE_OPTIONS", str(options))
+    data = TestClient(create_app()).get("/api/bootstrap").json()
+    assert data["nav_icons"]["watch"] == "mdi:television-play"
+    assert data["nav_icons"]["security"] == "mdi:shield-home"

@@ -8,6 +8,22 @@ configuration:
   request_timeout_s:
     name: Timeout connettori
     description: Tempo massimo in secondi per attendere la risposta di un add-on collegato.
+  nav_icons:
+    name: Icone navigazione
+    description: Icone Material Design mostrate nella barra principale.
+    fields:
+      watch:
+        name: Guarda
+      listen:
+        name: Ascolta
+      lights:
+        name: Luci
+      covers:
+        name: Oscuranti
+      comfort:
+        name: Comfort
+      security:
+        name: Sicurezza
   buspro:
     name: e-HDL BusPro MQTT
     description: Collegamento all'add-on che gestisce l'impianto BusPro.

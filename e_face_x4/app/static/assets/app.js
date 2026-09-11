@@ -14,6 +14,15 @@ function esc(value) {
   return node.innerHTML
 }
 
+function mdiName(value, fallback = 'shape') {
+  const match = /^mdi:([a-z0-9_-]+)$/i.exec(String(value || '').trim())
+  return match ? match[1].toLowerCase() : fallback
+}
+
+function mdiStyle(value, fallback) {
+  return `--icon:url('${apiUrl(`api/icons/mdi/${mdiName(value, fallback)}.svg`)}')`
+}
+
 function tick() {
   const now = new Date()
   $('#clock').textContent = now.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })
@@ -25,6 +34,7 @@ function render(data) {
   const home = dashboard.home || {}
   const widgets = dashboard.widgets || []
   const providers = data.providers || []
+  const navIcons = data.nav_icons || {}
   currentDevices = Array.isArray(dashboard.devices) ? dashboard.devices : []
   const online = providers.filter((provider) => provider.status === 'online').length
   const enabled = providers.filter((provider) => provider.status !== 'disabled').length
@@ -35,6 +45,9 @@ function render(data) {
   $('#lights-count').textContent = widgets.find((widget) => widget.id === 'lights')?.value || '0'
   $('#provider-state strong').textContent = enabled ? `${online}/${enabled}` : 'OFF'
   $('#provider-state').classList.toggle('provider-online', enabled > 0 && online === enabled)
+  document.querySelectorAll('.nav-icon').forEach((node) => {
+    node.setAttribute('style', mdiStyle(navIcons[node.dataset.icon], 'shape'))
+  })
   $('#demo-cameras').hidden = data.mode !== 'demo'
   const failedProvider = providers.find((provider) => provider.status === 'offline' || provider.status === 'misconfigured')
   if (data.mode === 'live' && failedProvider) {
@@ -72,7 +85,7 @@ function openDevices(title, devices) {
   $('#detail-title').textContent = title
   $('#detail-kicker').textContent = `${devices.length} dispositivi`
   $('#device-list').innerHTML = devices.map((device) => `
-    <article><span class="device-glyph">${glyph[device.kind] || '◇'}</span><div><strong>${esc(device.name)}</strong><small>${esc(device.room)}</small></div><em>${esc(stateLabel(device.state))}</em></article>
+    <article><span class="device-glyph mdi-mask" style="${mdiStyle(device.icon, device.kind === 'cover' ? 'blinds-horizontal' : device.kind === 'lock' ? 'lock' : 'lightbulb')}"></span><div><strong>${esc(device.name)}</strong><small>${esc(device.room)}</small></div><em>${esc(stateLabel(device.state))}</em></article>
   `).join('') || '<p class="empty-state">Nessun dispositivo disponibile</p>'
   $('#home-view').hidden = true
   $('#detail-view').hidden = false

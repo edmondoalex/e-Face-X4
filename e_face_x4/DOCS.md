@@ -15,6 +15,13 @@ impostazione predefinita la porta `8130`, modificabile nella sezione **Rete** de
 
 Esempio: `http://IP_HOME_ASSISTANT:8130`.
 
+## Icone
+
+Nella scheda **Configurazione**, la sezione **Icone navigazione** permette di impostare le icone
+di Guarda, Ascolta, Luci, Oscuranti, Comfort e Sicurezza usando identificatori `mdi:...`.
+Le icone dei singoli dispositivi vengono invece ereditate automaticamente dalla configurazione
+di e-HDL BusPro MQTT.
+
 ## Collegamento e-HDL BusPro MQTT
 
 Disattivare la modalità demo solo quando almeno un connettore reale è stato configurato.

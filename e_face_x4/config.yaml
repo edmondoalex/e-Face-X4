@@ -1,5 +1,5 @@
 name: e-Face X4
-version: 0.5.0
+version: 0.6.0
 slug: e_face_x4
 description: Interfaccia unificata per gli add-on e-Konex
 url: https://github.com/edmondoalex/e-Face-X4
@@ -24,6 +24,13 @@ options:
   home_name: Casa
   demo_mode: true
   request_timeout_s: 4
+  nav_icons:
+    watch: mdi:television-play
+    listen: mdi:music
+    lights: mdi:lightbulb-group
+    covers: mdi:blinds-horizontal
+    comfort: mdi:home-thermometer
+    security: mdi:shield-home
   buspro:
     enabled: false
     base_url: http://127.0.0.1:8124
@@ -36,6 +43,13 @@ schema:
   home_name: str?
   demo_mode: bool?
   request_timeout_s: float?
+  nav_icons:
+    watch: str?
+    listen: str?
+    lights: str?
+    covers: str?
+    comfort: str?
+    security: str?
   buspro:
     enabled: bool?
     base_url: str?
