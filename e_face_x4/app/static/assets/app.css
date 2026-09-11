@@ -5,3 +5,5 @@
 @media(max-width:700px){.mini-brand{display:block;width:44px;height:44px}.product-name{font-size:19px}.home-title h1{font-size:14px}}
 .home-title{gap:13px}.header-logo{width:92px;height:54px;object-fit:contain}.home-title h1{margin:0;font-size:20px;color:#fff;white-space:nowrap}.home-title>span{font-size:9px;color:#ffd1d5;letter-spacing:.12em;white-space:nowrap}
 @media(max-width:700px){.header-logo{width:76px;height:48px}.home-title{gap:9px}.home-title h1{font-size:18px}.home-title>span{font-size:7px;letter-spacing:.08em}}
+.header-symbol{width:43px;height:43px;object-fit:contain}.header-wordmark{font-size:21px;line-height:1;white-space:nowrap;color:#20252a;text-shadow:0 1px 1px rgba(255,255,255,.16)}.header-wordmark i{color:var(--red);font-style:normal}.home-title h1:before{content:"·";margin-right:13px;color:rgba(255,255,255,.45)}
+@media(max-width:700px){.header-symbol{width:37px;height:37px}.header-wordmark{font-size:17px}.home-title h1{font-size:17px}.home-title h1:before{margin-right:8px}.home-title>span{display:none}}

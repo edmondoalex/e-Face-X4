@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.2.3 — 2026-09-11
+
+- Separati simbolo, wordmark e nome dell'abitazione nella testata.
+- Usato il simbolo e-Face senza scritta, seguito da `e-Face X4` e dal nome configurabile.
+
 ## 0.2.2 — 2026-09-11
 
 - Sostituita la scritta tipografica e-Face X4 con il logo ufficiale completo.
