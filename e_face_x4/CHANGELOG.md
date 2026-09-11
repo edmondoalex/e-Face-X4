@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.9.1 — 2026-09-11
+
+- Spostati in Extra anche gli output BusPro salvati da e-HDL come `type: light` e `category: Switch`.
+- Allineata la classificazione Luci/Extra alla logica effettiva di e-HDL.
+
 ## 0.9.0 — 2026-09-11
 
 - Aggiunta la categoria Extra dedicata agli switch, come in e-HDL.

@@ -39,8 +39,10 @@ def normalize_snapshot(payload: dict[str, Any]) -> dict[str, Any]:
     for index, raw in enumerate(devices):
         if not isinstance(raw, dict):
             continue
-        # e-HDL treats legacy BusPro records without an explicit type as lights.
-        kind = str(raw.get("type") or raw.get("domain") or "light").strip().lower()
+        # e-HDL stores BusPro outputs as type=light, but category=Switch belongs to Extra.
+        raw_kind = str(raw.get("type") or raw.get("domain") or "light").strip().lower()
+        category = str(raw.get("category") or raw.get("page") or "").strip()
+        kind = "switch" if category.casefold() == "switch" else raw_kind
         room = str(raw.get("group") or "Senza stanza").strip() or "Senza stanza"
         name = str(raw.get("name") or raw.get("entity_id") or f"Dispositivo {index + 1}").strip()
         if kind == "light":
@@ -84,7 +86,7 @@ def normalize_snapshot(payload: dict[str, Any]) -> dict[str, Any]:
         normalized.append({
             "id": device_id, "name": name, "kind": kind, "room": room_entry["name"], "state": state,
             "unit": unit, "position": position, "icon": str(raw.get("icon") or "").strip(),
-            "category": str(raw.get("category") or raw.get("page") or "").strip(),
+            "category": category,
             "state_key": entity_id or address,
         })
     mqtt = payload.get("mqtt") if isinstance(payload.get("mqtt"), dict) else {}
