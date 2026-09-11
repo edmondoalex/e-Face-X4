@@ -159,6 +159,7 @@ def test_control4_media_uses_only_listen_watch_rooms_and_native_sources() -> Non
         {"key": "listen:100002", "label": "Spotify Connect", "experience": "listen", "type": ""},
     ]
     assert player["capabilities"]["turn_off"] is True
+    assert player["active_experience"] == "listen"
 
 
 def test_control4_unknown_volume_disables_volume_control() -> None:
@@ -187,6 +188,7 @@ def test_control4_active_video_room_is_a_media_session() -> None:
     assert players[0]["state"] == "playing"
     assert players[0]["source"] == "Sky Q"
     assert players[0]["capabilities"]["grouping"] is True
+    assert players[0]["active_experience"] == "watch"
 
 
 def test_control4_current_media_info_exposes_metadata_and_safe_artwork_fingerprint() -> None:

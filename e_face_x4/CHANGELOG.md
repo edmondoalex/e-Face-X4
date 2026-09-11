@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.3.3 — 2026-09-11
+
+- Evidenziate le stanze operative con indicatori distinti `AUDIO ON` e `VIDEO ON` basati sullo stato reale Control4.
+- Separato graficamente lo stato operativo dalla semplice selezione del player.
+
 ## 2.3.2 — 2026-09-11
 
 - Riconosciute come sessioni anche le stanze con una sorgente video Control4 attiva.
