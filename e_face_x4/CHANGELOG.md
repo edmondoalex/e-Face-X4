@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.3.2 — 2026-09-11
+
+- Riconosciute come sessioni anche le stanze con una sorgente video Control4 attiva.
+- Le sessioni contemporanee audio e video vengono elencate separatamente, ad esempio Spotify in Ufficio e Sky in Sala.
+
 ## 2.3.1 — 2026-09-11
 
 - Rimosso il selettore duplicato `Tutte le stanze` dalle pagine Guarda e Ascolta.

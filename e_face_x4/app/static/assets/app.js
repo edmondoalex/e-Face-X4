@@ -282,7 +282,7 @@ function updateGlobalMediaSession() {
 }
 
 function activeMediaSessions() {
-  const active = currentDevices.filter((item) => item.kind === 'media_player' && item.capabilities?.grouping && item.availability === 'available' && item.connection_status !== 'offline' && !['off', 'unavailable', 'unknown'].includes(String(item.state).toLowerCase()))
+  const active = currentDevices.filter((item) => item.kind === 'media_player' && item.availability === 'available' && item.connection_status !== 'offline' && !['off', 'unavailable', 'unknown'].includes(String(item.state).toLowerCase()))
   const sessions = []
   const consumed = new Set()
   for (const player of active) {

@@ -193,7 +193,10 @@ def normalize_control4_media(ui: Any, all_items: Any, variables: Any) -> list[di
         name = names.get(room_id, f"Room {room_id}")
         icon = "mdi:television-speaker" if "watch" in data["experiences"] else "mdi:speaker"
         playing_device = values.get("PLAYING_AUDIO_DEVICE")
-        can_group = "listen" in data["experiences"] and str(playing_device or "0").isdigit() and int(playing_device or 0) > 0
+        video_device = values.get("CURRENT_VIDEO_DEVICE")
+        has_audio_session = str(playing_device or "0").isdigit() and int(playing_device or 0) > 0
+        has_video_session = str(video_device or "0").isdigit() and int(video_device or 0) > 0
+        can_group = "listen" in data["experiences"] and (has_audio_session or has_video_session)
         result.append({"id": f"c4media:{room_id}", "registry_id": registry_id, "entity_id": f"control4.room.{room_id}", "provider": "control4", "kind": "media_player", "icon": icon, "name": name, "room": name, "state": state_name, "availability": "available", "connection_status": "online", "volume": volume, "muted": str(values.get("IS_MUTED")) in {"1", "True", "true"}, "source": str(media.get("meta", {}).get("audioFormat") or active_source or "") if isinstance(media.get("meta"), dict) else active_source, "title": media.get("title"), "artist": media.get("artist"), "album": media.get("album"), "content_fingerprint": fingerprint, "source_options": data["source_options"], "source_list": [source["label"] for source in data["source_options"]], "experiences": data["experiences"], "capabilities": {"play": True, "pause": True, "stop": True, "previous": True, "next": True, "turn_off": True, "set_volume": volume is not None, "mute": True, "select_source": bool(data["source_options"]), "grouping": can_group, "artwork": bool(fingerprint)}})
     return result
 

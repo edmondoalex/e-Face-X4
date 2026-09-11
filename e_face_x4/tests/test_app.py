@@ -171,6 +171,24 @@ def test_control4_unknown_volume_disables_volume_control() -> None:
     assert players[0]["capabilities"]["set_volume"] is False
 
 
+def test_control4_active_video_room_is_a_media_session() -> None:
+    players = normalize_control4_media(
+        {"experiences": [
+            {"type": "watch", "room_id": 61, "sources": {"source": [{"id": 244, "name": "Sky Q"}]}},
+            {"type": "listen", "room_id": 61, "sources": {"source": []}},
+        ]},
+        [{"id": 61, "name": "Sala"}],
+        [
+            {"id": 61, "varName": "POWER_STATE", "value": 1},
+            {"id": 61, "varName": "CURRENT_VIDEO_DEVICE", "value": 244},
+            {"id": 61, "varName": "PLAYING_AUDIO_DEVICE", "value": 0},
+        ],
+    )
+    assert players[0]["state"] == "playing"
+    assert players[0]["source"] == "Sky Q"
+    assert players[0]["capabilities"]["grouping"] is True
+
+
 def test_control4_current_media_info_exposes_metadata_and_safe_artwork_fingerprint() -> None:
     import base64
 
