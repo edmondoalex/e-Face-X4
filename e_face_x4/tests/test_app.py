@@ -131,7 +131,10 @@ def test_device_commands_are_present_in_frontend() -> None:
     assert 'data-action="on"' in script
     assert 'data-action="open"' in script
     assert "api/devices/${encodeURIComponent(deviceId)}/command" in script
-    assert "deviceIsOn(device)" in script
+    assert "deviceVisualClass(device)" in script
+    assert "device-switch-on" in script
+    assert "device-cover-open" in script
+    assert "device-lock-closed" in script
 
 
 def test_device_command_requires_enabled_connector(monkeypatch, tmp_path) -> None:

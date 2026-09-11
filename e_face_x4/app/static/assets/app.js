@@ -93,14 +93,21 @@ function stateLabel(device) {
 function renderDeviceList(devices) {
   $('#detail-kicker').textContent = `${devices.length} dispositivi`
   $('#device-list').innerHTML = devices.map((device) => `
-    <article class="${deviceIsOn(device) ? 'device-on' : ''}" data-device-id="${esc(device.id)}"><span class="device-glyph mdi-mask" style="${mdiStyle(device.icon, device.kind === 'cover' ? 'blinds-horizontal' : device.kind === 'lock' ? 'lock' : 'lightbulb')}"></span><div><strong>${esc(device.name)}</strong><small>${esc(device.room)}</small></div><em>${esc(stateLabel(device))}</em>${deviceActions(device)}</article>
+    <article class="${deviceVisualClass(device)}" data-device-id="${esc(device.id)}"><span class="device-glyph mdi-mask" style="${mdiStyle(device.icon, device.kind === 'cover' ? 'blinds-horizontal' : device.kind === 'lock' ? 'lock' : 'lightbulb')}"></span><div><strong>${esc(device.name)}</strong><small>${esc(device.room)}</small></div><em>${esc(stateLabel(device))}</em>${deviceActions(device)}</article>
   `).join('') || '<p class="empty-state">Nessun dispositivo disponibile</p>'
 }
 
-function deviceIsOn(device) {
+function deviceVisualClass(device) {
   const identity = `${device.name || ''} ${device.icon || ''} ${device.category || ''}`.toLocaleLowerCase('it')
   const isLight = device.kind === 'light' || (device.kind === 'switch' && /(luc[ei]|lamp|applique|light|bulb|sconce|chandelier)/.test(identity))
-  return isLight && ['ON', 'OPEN', '1', 'TRUE'].includes(String(device.state).trim().toUpperCase())
+  const state = String(device.state).trim().toUpperCase()
+  if (!state || ['UNKNOWN', 'UNAVAILABLE', '?'].includes(state)) return ''
+  const active = ['ON', 'OPEN', 'OPENING', 'UNLOCKED', '1', 'TRUE'].includes(state)
+  if (isLight) return active ? 'device-light-on' : ''
+  if (device.kind === 'switch') return active ? 'device-switch-on' : 'device-switch-off'
+  if (device.kind === 'cover') return ['OPEN', 'OPENING'].includes(state) || Number(device.position) > 0 ? 'device-cover-open' : 'device-cover-closed'
+  if (device.kind === 'lock') return ['UNLOCKED', 'OPEN', 'OPENING'].includes(state) ? 'device-lock-open' : 'device-lock-closed'
+  return ''
 }
 
 function deviceActions(device) {

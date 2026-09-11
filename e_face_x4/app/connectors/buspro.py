@@ -57,12 +57,14 @@ def normalize_snapshot(payload: dict[str, Any]) -> dict[str, Any]:
         device_id = str(raw.get("entity_id") or raw.get("id") or index)
         state: Any = None
         unit = ""
+        position: Any = None
         entity_id = str(raw.get("entity_id") or "").lower()
         if entity_id and isinstance(ha_states.get(entity_id), dict):
             ha_state = ha_states[entity_id]
             state = ha_state.get("state")
             attributes = ha_state.get("attributes") if isinstance(ha_state.get("attributes"), dict) else {}
             unit = str(attributes.get("unit_of_measurement") or "")
+            position = attributes.get("current_position")
         if state is None:
             address = ".".join(str(raw.get(key)) for key in ("subnet_id", "device_id", "channel") if raw.get(key) is not None)
             source = cover_states if kind == "cover" else light_states
@@ -74,11 +76,12 @@ def normalize_snapshot(payload: dict[str, Any]) -> dict[str, Any]:
             raw_state = state_at(source, address) if address else None
             if isinstance(raw_state, dict):
                 state = raw_state.get("value") if raw_state.get("value") is not None else raw_state.get("state")
+                position = raw_state.get("position")
             else:
                 state = raw_state
         normalized.append({
             "id": device_id, "name": name, "kind": kind, "room": room_entry["name"], "state": state,
-            "unit": unit, "icon": str(raw.get("icon") or "").strip(),
+            "unit": unit, "position": position, "icon": str(raw.get("icon") or "").strip(),
             "category": str(raw.get("category") or raw.get("page") or "").strip(),
         })
     mqtt = payload.get("mqtt") if isinstance(payload.get("mqtt"), dict) else {}

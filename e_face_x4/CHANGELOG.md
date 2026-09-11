@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.7.3 — 2026-09-11
+
+- Switch verdi da spenti e rossi da accesi.
+- Cover grigie da chiuse e celesti da aperte.
+- Lock verdi da chiusi e rossi da aperti o sbloccati.
+
 ## 0.7.2 — 2026-09-11
 
 - Evidenziate in giallo le icone delle luci accese, in stile e-HDL.
