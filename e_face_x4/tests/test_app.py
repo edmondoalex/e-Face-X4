@@ -6,7 +6,7 @@ from app.connectors.etherm import normalize_thermostats
 from app.connectors.media import normalize_player
 from app.connectors.local_media import normalize_local_snapshot
 from app.connectors.local_media import HA_WEBSOCKET_MAX_BYTES
-from app.connectors.control4_media import normalize_control4_media
+from app.connectors.control4_media import normalize_control4_groups, normalize_control4_media
 from app.connectors.supervisor import find_addon_url
 from app.media_preferences import apply_preferences, load_preferences, save_preferences
 from app.control4 import load_control4_config, public_control4_config, save_control4_config, summarize_ui_configuration
@@ -196,6 +196,28 @@ def test_control4_current_media_info_exposes_metadata_and_safe_artwork_fingerpri
     assert players[0]["capabilities"]["previous"] is True
     assert players[0]["capabilities"]["next"] is True
     assert players[0]["capabilities"]["grouping"] is False
+
+
+def test_control4_queue_becomes_native_multiroom_group() -> None:
+    players = [
+        {"registry_id": "c4room:50", "name": "Ufficio Contabilità"},
+        {"registry_id": "c4room:51", "name": "Ufficio Alex"},
+        {"registry_id": "c4room:54", "name": "Bagno PT"},
+    ]
+    groups = normalize_control4_groups(players, [{
+        "id": 100002,
+        "varName": "QUEUE_STATUS_V2",
+        "value": {"queues": {"queue": {"id": 10013, "owner": 51, "name": "Ufficio Alex", "rooms": {"id": [50, 51]}}}},
+    }])
+    assert groups == [{
+        "group_id": "c4queue:10013",
+        "name": "Ufficio Alex",
+        "member_registry_ids": ["c4room:50", "c4room:51"],
+        "completeness": "complete",
+        "resource_revision": 10013,
+    }]
+    assert players[0]["group"]["group_id"] == "c4queue:10013"
+    assert "group" not in players[2]
 
 
 def test_control4_command_does_not_require_evoice_enabled(monkeypatch, tmp_path) -> None:

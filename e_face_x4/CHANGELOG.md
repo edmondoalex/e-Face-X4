@@ -1,5 +1,13 @@
 # Changelog
 
+## 2.1.0 — 2026-09-11
+
+- Aggiunta la gestione nativa delle sessioni audio multiroom Control4.
+- Il pulsante zone usa il `PLAYING_AUDIO_DEVICE` della stanza principale per collegare una o più stanze alla stessa coda.
+- Le code `QUEUE_STATUS_V2` vengono convertite in gruppi realtime con membri effettivi.
+- La rimozione di una zona spegne soltanto la stanza rimossa.
+- Aggiunto il volume relativo di gruppo con limite 0–100 e risultato per membro.
+
 ## 2.0.3 — 2026-09-11
 
 - Impedito al valore obsoleto `OK_playing` di Control4 di sovrascrivere una pausa appena comandata.
