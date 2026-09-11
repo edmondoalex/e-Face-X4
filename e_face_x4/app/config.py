@@ -22,6 +22,7 @@ class ProviderConfig:
 @dataclass(frozen=True)
 class Settings:
     home_name: str
+    installer_password: str
     demo_mode: bool
     request_timeout_s: float
     nav_icons: dict[str, str]
@@ -65,6 +66,7 @@ def load_settings() -> Settings:
     nav_icons = {key: str(raw_icons.get(key) or value).strip() for key, value in icon_defaults.items()}
     return Settings(
         home_name=str(raw.get("home_name") or "Casa").strip() or "Casa",
+        installer_password=str(raw.get("installer_password") or ""),
         demo_mode=bool(raw.get("demo_mode", True)),
         request_timeout_s=timeout,
         nav_icons=nav_icons,

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import hmac
 import json
 import logging
 import re
@@ -11,16 +12,18 @@ from dataclasses import replace
 import httpx
 import uvicorn
 import websockets
-from fastapi import FastAPI, Header, HTTPException, Query, Response, WebSocket
-from fastapi.responses import FileResponse
+from fastapi import FastAPI, Header, HTTPException, Query, Request, Response, WebSocket
+from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from .config import load_settings
+from .installer_auth import COOKIE, create_session, valid_session
+from .media_preferences import apply_preferences, load_preferences, save_preferences
 from .connectors import BusproConnector, EThermConnector, EkonexMediaConnector, LocalMediaConnector
 from .connectors.supervisor import discover_addon_url
 from .demo import dashboard as demo_dashboard
 
-VERSION = "1.7.12"
+VERSION = "1.8.0"
 STATIC = Path(__file__).parent / "static"
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s [e-face-x4] %(message)s")
 
@@ -59,7 +62,8 @@ def create_app() -> FastAPI:
             EThermConnector(etherm_config, settings.request_timeout_s),
             media_connector(settings),
         ]
-        providers = await asyncio.gather(*(connector.snapshot() for connector in connectors))
+        providers = list(await asyncio.gather(*(connector.snapshot() for connector in connectors)))
+        providers = [apply_preferences(provider) if provider.get("id") == "evoice" else provider for provider in providers]
         dashboard = demo_dashboard() if settings.demo_mode else {"rooms": [], "widgets": [], "media": None}
         dashboard.setdefault("home", {})["name"] = settings.home_name
         if not settings.demo_mode:
@@ -111,6 +115,60 @@ def create_app() -> FastAPI:
             "dashboard": dashboard,
             "providers": providers,
         }
+
+    def require_installer(request: Request) -> None:
+        if not valid_session(request.cookies.get(COOKIE)):
+            raise HTTPException(status_code=401, detail="Accesso installatore richiesto")
+
+    @app.get("/tools", include_in_schema=False)
+    @app.get("/installer", include_in_schema=False)
+    async def tools_page() -> FileResponse:
+        return FileResponse(STATIC / "tools.html", headers={"Cache-Control": "no-cache"})
+
+    @app.post("/api/installer/login")
+    async def installer_login(payload: dict) -> JSONResponse:
+        configured = load_settings().installer_password
+        if not configured:
+            raise HTTPException(status_code=503, detail="Imposta prima la password installatore nelle opzioni dell'add-on")
+        if not hmac.compare_digest(str(payload.get("password") or ""), configured):
+            raise HTTPException(status_code=401, detail="Password non valida")
+        response = JSONResponse({"ok": True})
+        response.set_cookie(COOKIE, create_session(), max_age=8 * 60 * 60, httponly=True, samesite="strict", secure=False, path="/")
+        return response
+
+    @app.post("/api/installer/logout")
+    async def installer_logout() -> JSONResponse:
+        response = JSONResponse({"ok": True})
+        response.delete_cookie(COOKIE, path="/")
+        return response
+
+    @app.get("/api/installer/media-players")
+    async def installer_media_players(request: Request) -> dict:
+        require_installer(request)
+        settings = load_settings()
+        snapshot = await media_connector(settings).snapshot()
+        if snapshot.get("status") != "online":
+            raise HTTPException(status_code=503, detail=snapshot.get("reason") or "Player non disponibili")
+        saved = load_preferences()
+        items = []
+        for player in snapshot.get("items", []):
+            registry_id = str(player.get("registry_id") or "")
+            inferred = set(player.get("experiences") or [])
+            selected = saved.get(registry_id, {"visible": True, "audio": "listen" in inferred, "video": "watch" in inferred})
+            items.append({"registry_id": registry_id, "name": str(player.get("name") or registry_id), "entity_id": str(player.get("entity_id") or ""), **selected})
+        return {"items": items, "configured": bool(saved)}
+
+    @app.put("/api/installer/media-players")
+    async def installer_save_media_players(request: Request, payload: dict) -> dict:
+        require_installer(request)
+        settings = load_settings()
+        snapshot = await media_connector(settings).snapshot()
+        valid_ids = {str(item.get("registry_id")) for item in snapshot.get("items", []) if item.get("registry_id")}
+        try:
+            saved = save_preferences(payload.get("players"), valid_ids)
+        except (OSError, ValueError) as exc:
+            raise HTTPException(status_code=400, detail=str(exc))
+        return {"ok": True, "players": len(saved)}
 
     @app.get("/api/icons/mdi/{icon_name}.svg", include_in_schema=False)
     async def mdi_icon(icon_name: str) -> Response:

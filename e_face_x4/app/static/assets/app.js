@@ -18,6 +18,8 @@ let currentMediaGroups = []
 let activeMediaPlayer = null
 let selectedMediaId = ''
 
+$('#tools-open')?.addEventListener('click', () => { location.href = apiUrl('tools') })
+
 function apiUrl(path) {
   const base = location.pathname.endsWith('/') ? location.pathname : `${location.pathname}/`
   return new URL(path.replace(/^\//, ''), `${location.origin}${base}`).toString()

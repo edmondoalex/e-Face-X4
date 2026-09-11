@@ -7,6 +7,7 @@ from app.connectors.media import normalize_player
 from app.connectors.local_media import normalize_local_snapshot
 from app.connectors.local_media import HA_WEBSOCKET_MAX_BYTES
 from app.connectors.supervisor import find_addon_url
+from app.media_preferences import apply_preferences, load_preferences, save_preferences
 
 
 def test_health() -> None:
@@ -73,11 +74,41 @@ def test_x4_shell_and_brand_assets_are_served() -> None:
     assert client.get("/assets/app.css").status_code == 200
     assert client.get("/assets/media.css").status_code == 200
     assert client.get("/assets/media-x4.css").status_code == 200
+    assert client.get("/tools").status_code == 200
+    assert "Admin / Installatore" in client.get("/tools").text
     css = client.get("/assets/app.css").text
     assert ".layout>main,.detail-view,.scenario-panel,.scenario-list{min-width:0;max-width:100%}" in css
     assert ".scenario-list{display:grid" in css
     assert "@media(min-width:701px) and (max-width:1024px)" in css
     assert ".scenario-list{grid-template-columns:1fr}" in css
+
+
+def test_media_preferences_are_saved_and_applied(monkeypatch, tmp_path) -> None:
+    path = tmp_path / "media_players.json"
+    monkeypatch.setenv("EFACE_MEDIA_PREFERENCES", str(path))
+    saved = save_preferences({"one": {"visible": True, "audio": True, "video": False}, "two": {"visible": False}}, {"one", "two"})
+    assert load_preferences() == saved
+    filtered = apply_preferences({"items": [
+        {"registry_id": "one", "room": "Sala", "experiences": ["watch"]},
+        {"registry_id": "two", "room": "Studio", "experiences": ["listen"]},
+        {"registry_id": "three", "room": "Altro", "experiences": ["listen"]},
+    ], "groups": [], "rooms": []})
+    assert [item["registry_id"] for item in filtered["items"]] == ["one"]
+    assert filtered["items"][0]["experiences"] == ["listen"]
+    assert filtered["rooms"] == ["Sala"]
+
+
+def test_installer_login_is_protected(monkeypatch, tmp_path) -> None:
+    options = tmp_path / "options.json"
+    options.write_text('{"installer_password":"segreta"}', encoding="utf-8")
+    monkeypatch.setenv("EFACE_OPTIONS", str(options))
+    monkeypatch.setenv("EFACE_INSTALLER_SECRET", str(tmp_path / "secret"))
+    client = TestClient(create_app())
+    assert client.get("/api/installer/media-players").status_code == 401
+    assert client.post("/api/installer/login", json={"password": "errata"}).status_code == 401
+    response = client.post("/api/installer/login", json={"password": "segreta"})
+    assert response.status_code == 200
+    assert "httponly" in response.headers["set-cookie"].lower()
 
 
 def test_configured_home_name_is_shown_in_bootstrap(monkeypatch, tmp_path) -> None:
