@@ -15,7 +15,7 @@ from .connectors import BusproConnector
 from .connectors.supervisor import discover_addon_url
 from .demo import dashboard as demo_dashboard
 
-VERSION = "0.3.2"
+VERSION = "0.4.0"
 STATIC = Path(__file__).parent / "static"
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s [e-face-x4] %(message)s")
 
@@ -42,6 +42,7 @@ def create_app() -> FastAPI:
             normalized = buspro.get("normalized", {}) if isinstance(buspro, dict) else {}
             counts = normalized.get("counts", {}) if isinstance(normalized, dict) else {}
             dashboard["rooms"] = normalized.get("rooms", []) if isinstance(normalized, dict) else []
+            dashboard["devices"] = normalized.get("devices", []) if isinstance(normalized, dict) else []
             dashboard["widgets"] = [
                 {"id": "lights", "title": "Luci", "value": str(counts.get("lights", 0)), "detail": "dispositivi", "icon": "light"},
                 {"id": "covers", "title": "Cover", "value": str(counts.get("covers", 0)), "detail": "dispositivi", "icon": "cover"},

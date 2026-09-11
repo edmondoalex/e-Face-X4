@@ -23,7 +23,7 @@
       <section class="dashboard-grid">
         <article class="climate-card xcard"><div><i>❄</i><span>Media<br><b>Raffrescamento</b></span></div><div class="temp-control"><button>−</button><strong id="temperature">22°</strong><button>＋</button></div></article>
         <section class="quick-grid" id="widgets"></section>
-        <section class="camera-grid"><button class="camera garden"><span>Giardino</span></button><button class="camera pool"><span>Piscina</span></button><button class="camera patio"><span>Patio</span></button></section>
+        <section class="camera-grid" id="demo-cameras"><button class="camera garden"><span>Giardino</span></button><button class="camera pool"><span>Piscina</span></button><button class="camera patio"><span>Patio</span></button></section>
         <section class="room-panel xcard"><div class="panel-title"><span>Ambienti</span><button>Vedi tutti ›</button></div><div class="room-grid" id="rooms"></div></section>
       </section>
       <section class="now-playing xcard" id="media">
@@ -33,4 +33,5 @@
       </section>
     </main>
   </div><div id="notice" class="notice" hidden></div>
+  <dialog id="device-dialog"><header><div><small id="dialog-kicker">Dispositivi</small><h2 id="dialog-title">Ambiente</h2></div><button id="dialog-close" aria-label="Chiudi">×</button></header><div id="device-list" class="device-list"></div></dialog>
 </div><script type="module" src="assets/app.js"></script></body></html>

@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.4.0 — 2026-09-11
+
+- Rese cliccabili categorie e stanze con elenco dei dispositivi reali.
+- Mostrato lo stato disponibile per ogni dispositivo BusPro o Home Assistant.
+- Deduplicati gli ambienti senza distinzione tra maiuscole e minuscole.
+- Corretta la leggibilità di titolo, quantità e descrizione nelle schede.
+- Nascosti i riquadri camera dimostrativi in modalità live.
+
 ## 0.3.2 — 2026-09-11
 
 - Aggiunto il rilevamento automatico di e-HDL BusPro MQTT tramite Supervisor.

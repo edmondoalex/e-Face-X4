@@ -12,8 +12,11 @@ def normalize_snapshot(payload: dict[str, Any]) -> dict[str, Any]:
     raw_devices = payload.get("devices")
     devices = raw_devices if isinstance(raw_devices, list) else []
     counts = {"lights": 0, "covers": 0, "locks": 0, "sensors": 0}
-    rooms: dict[str, int] = {}
+    rooms: dict[str, dict[str, Any]] = {}
     normalized: list[dict[str, Any]] = []
+    light_states = payload.get("states") if isinstance(payload.get("states"), dict) else {}
+    cover_states = payload.get("cover_states") if isinstance(payload.get("cover_states"), dict) else {}
+    ha_states = payload.get("ha_states") if isinstance(payload.get("ha_states"), dict) else {}
     sensor_types = {"temp", "temperature", "humidity", "illuminance", "pir", "ultrasonic", "dry_contact", "air_quality", "gas_percent"}
     for index, raw in enumerate(devices):
         if not isinstance(raw, dict):
@@ -29,12 +32,27 @@ def normalize_snapshot(payload: dict[str, Any]) -> dict[str, Any]:
             counts["locks"] += 1
         elif kind in sensor_types:
             counts["sensors"] += 1
-        rooms[room] = rooms.get(room, 0) + 1
-        normalized.append({"id": str(raw.get("entity_id") or raw.get("id") or index), "name": name, "kind": kind, "room": room})
+        room_key = room.casefold()
+        room_entry = rooms.setdefault(room_key, {"name": room, "devices": 0})
+        room_entry["devices"] += 1
+        device_id = str(raw.get("entity_id") or raw.get("id") or index)
+        state: Any = None
+        entity_id = str(raw.get("entity_id") or "").lower()
+        if entity_id and isinstance(ha_states.get(entity_id), dict):
+            state = ha_states[entity_id].get("state")
+        if state is None:
+            address = ".".join(str(raw.get(key)) for key in ("subnet_id", "device_id", "channel") if raw.get(key) is not None)
+            source = cover_states if kind == "cover" else light_states
+            raw_state = source.get(address) if address else None
+            state = raw_state.get("state", raw_state.get("value")) if isinstance(raw_state, dict) else raw_state
+        normalized.append({"id": device_id, "name": name, "kind": kind, "room": room_entry["name"], "state": state})
     mqtt = payload.get("mqtt") if isinstance(payload.get("mqtt"), dict) else {}
     return {
         "devices": normalized,
-        "rooms": [{"id": f"room-{i}", "name": name, "devices": total} for i, (name, total) in enumerate(sorted(rooms.items()))],
+        "rooms": [
+            {"id": f"room-{i}", "name": entry["name"], "devices": entry["devices"]}
+            for i, (_, entry) in enumerate(sorted(rooms.items()))
+        ],
         "counts": counts,
         "mqtt_connected": bool(mqtt.get("connected")),
     }

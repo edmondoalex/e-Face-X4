@@ -51,6 +51,7 @@ def test_x4_shell_and_brand_assets_are_served() -> None:
     assert page.status_code == 200
     assert "status-strip" in page.text
     assert "now-playing" in page.text
+    assert 'id="device-dialog"' in page.text
     assert 'src="assets/brand-horizontal.png"' in page.text
     assert 'class="header-wordmark"' not in page.text
     assert client.get("/assets/brand-horizontal.png").status_code == 200
@@ -74,13 +75,14 @@ def test_buspro_snapshot_is_normalized_by_room_and_kind() -> None:
             {"type": "cover", "name": "Tenda", "group": "Sala"},
             {"type": "lock", "name": "Porta", "group": "Ingresso"},
             {"type": "temperature", "name": "Temperatura", "group": "Sala"},
+            {"type": "switch", "name": "Presa", "group": "sala"},
         ],
         "mqtt": {"connected": True},
     })
-    assert normalized["counts"] == {"lights": 1, "covers": 1, "locks": 1, "sensors": 1}
+    assert normalized["counts"] == {"lights": 2, "covers": 1, "locks": 1, "sensors": 1}
     assert normalized["rooms"] == [
         {"id": "room-0", "name": "Ingresso", "devices": 1},
-        {"id": "room-1", "name": "Sala", "devices": 3},
+        {"id": "room-1", "name": "Sala", "devices": 4},
     ]
     assert normalized["mqtt_connected"] is True
 
