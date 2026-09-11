@@ -185,11 +185,12 @@ def test_scenario_command_rejects_unknown_action_before_connector() -> None:
 
 
 def test_etherm_thermostat_is_normalized() -> None:
-    items = normalize_thermostats({"entities": [{"type": "thermostats", "id": 7, "name": "Sala", "realtime": {"TEMP": 21.4, "RH": 48, "THERM": {"ACT_SEA": "WIN", "ACT_MODEL": "MAN", "DEMAND_ON": "ON", "TEMP_THR": {"VAL": 22.5}, "PWM": 35}}}]})
+    items = normalize_thermostats({"entities": [{"type": "thermostats", "id": 7, "name": "Sala", "realtime": {"TEMP": 21.4, "RH": 48, "THERM": {"ACT_SEA": "WIN", "ACT_MODEL": "MAN", "DEMAND_ON": "ON", "TEMP_THR": {"VAL": 22.5}, "PWM": 35}}}], "meta": {"vtherm_config": {"thermostats": [{"id": 7, "floor": "Piano terra"}]}}})
     assert items[0]["id"] == "therm:7"
     assert items[0]["state"] == "HEATING"
     assert items[0]["temperature"] == 21.4
     assert items[0]["target_temperature"] == 22.5
+    assert items[0]["room"] == "Piano terra"
 
 
 def test_etherm_basic_auth_header() -> None:

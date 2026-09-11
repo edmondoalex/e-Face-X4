@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.6.2 — 2026-09-11
+
+- Corretta la priorità del connettore: l'indirizzo manuale LAN prevale sulla scoperta automatica.
+- Raggruppati i termostati usando anche il campo piano (`floor`) di e-Therm.
+
 ## 1.6.1 — 2026-09-11
 
 - Aggiunto supporto completo all'autenticazione e-Therm none/basic/token.

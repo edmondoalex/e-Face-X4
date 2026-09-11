@@ -19,7 +19,7 @@ from .connectors import BusproConnector, EThermConnector
 from .connectors.supervisor import discover_addon_url
 from .demo import dashboard as demo_dashboard
 
-VERSION = "1.6.1"
+VERSION = "1.6.2"
 STATIC = Path(__file__).parent / "static"
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s [e-face-x4] %(message)s")
 
@@ -28,6 +28,13 @@ def create_app() -> FastAPI:
     app = FastAPI(title="e-Face X4", version=VERSION, docs_url=None, redoc_url=None)
     app.mount("/assets", StaticFiles(directory=STATIC / "assets"), name="assets")
 
+    async def resolved_provider(config, slug: str, port: int, timeout: float):
+        manual = str(config.base_url or "").lower()
+        if manual and "127.0.0.1" not in manual and "localhost" not in manual:
+            return config
+        discovered = await discover_addon_url(slug, port, timeout)
+        return replace(config, base_url=discovered) if discovered else config
+
     @app.get("/health")
     async def health() -> dict:
         return {"ok": True, "version": VERSION}
@@ -35,10 +42,10 @@ def create_app() -> FastAPI:
     @app.get("/api/bootstrap")
     async def bootstrap() -> dict:
         settings = load_settings()
-        internal_buspro_url = await discover_addon_url("e_hdl_buspro_mqtt", 8124, settings.request_timeout_s)
-        internal_etherm_url = await discover_addon_url("e_therm_plus_ks", 8080, settings.request_timeout_s)
-        buspro_config = replace(settings.buspro, base_url=internal_buspro_url) if internal_buspro_url else settings.buspro
-        etherm_config = replace(settings.etherm, base_url=internal_etherm_url) if internal_etherm_url else settings.etherm
+        buspro_config, etherm_config = await asyncio.gather(
+            resolved_provider(settings.buspro, "e_hdl_buspro_mqtt", 8124, settings.request_timeout_s),
+            resolved_provider(settings.etherm, "e_therm_plus_ks", 8080, settings.request_timeout_s),
+        )
         connectors = [BusproConnector(buspro_config, settings.request_timeout_s), EThermConnector(etherm_config, settings.request_timeout_s)]
         providers = await asyncio.gather(*(connector.snapshot() for connector in connectors))
         dashboard = demo_dashboard() if settings.demo_mode else {"rooms": [], "widgets": [], "media": None}
@@ -105,8 +112,7 @@ def create_app() -> FastAPI:
     async def device_command(device_id: str, payload: dict) -> dict:
         settings = load_settings()
         if device_id.startswith("therm:"):
-            internal_url = await discover_addon_url("e_therm_plus_ks", 8080, settings.request_timeout_s)
-            config = replace(settings.etherm, base_url=internal_url) if internal_url else settings.etherm
+            config = await resolved_provider(settings.etherm, "e_therm_plus_ks", 8080, settings.request_timeout_s)
             if not config.enabled or not config.base_url:
                 raise HTTPException(status_code=503, detail="Connettore e-Therm non disponibile")
             try:
@@ -115,8 +121,7 @@ def create_app() -> FastAPI:
                 raise HTTPException(status_code=502, detail="e-Therm non raggiungibile")
             except (ValueError, TypeError) as exc:
                 raise HTTPException(status_code=400, detail=str(exc))
-        internal_url = await discover_addon_url("e_hdl_buspro_mqtt", 8124, settings.request_timeout_s)
-        config = replace(settings.buspro, base_url=internal_url) if internal_url else settings.buspro
+        config = await resolved_provider(settings.buspro, "e_hdl_buspro_mqtt", 8124, settings.request_timeout_s)
         if not config.enabled or not config.base_url:
             raise HTTPException(status_code=503, detail="Connettore e-HDL non disponibile")
         try:
@@ -132,10 +137,10 @@ def create_app() -> FastAPI:
     async def realtime(websocket: WebSocket) -> None:
         await websocket.accept()
         settings = load_settings()
-        buspro_url = await discover_addon_url("e_hdl_buspro_mqtt", 8124, settings.request_timeout_s)
-        etherm_url = await discover_addon_url("e_therm_plus_ks", 8080, settings.request_timeout_s)
-        buspro = replace(settings.buspro, base_url=buspro_url) if buspro_url else settings.buspro
-        etherm = replace(settings.etherm, base_url=etherm_url) if etherm_url else settings.etherm
+        buspro, etherm = await asyncio.gather(
+            resolved_provider(settings.buspro, "e_hdl_buspro_mqtt", 8124, settings.request_timeout_s),
+            resolved_provider(settings.etherm, "e_therm_plus_ks", 8080, settings.request_timeout_s),
+        )
         queue: asyncio.Queue[dict] = asyncio.Queue(maxsize=100)
 
         async def buspro_events() -> None:
@@ -195,8 +200,7 @@ def create_app() -> FastAPI:
 
     async def buspro_config():
         settings = load_settings()
-        internal_url = await discover_addon_url("e_hdl_buspro_mqtt", 8124, settings.request_timeout_s)
-        config = replace(settings.buspro, base_url=internal_url) if internal_url else settings.buspro
+        config = await resolved_provider(settings.buspro, "e_hdl_buspro_mqtt", 8124, settings.request_timeout_s)
         if not config.enabled or not config.base_url:
             raise HTTPException(status_code=503, detail="Connettore e-HDL non disponibile")
         return settings, config

@@ -29,7 +29,7 @@ def normalize_thermostats(payload: dict[str, Any]) -> list[dict[str, Any]]:
         result.append({
             "id": f"therm:{source_id}", "source_id": source_id, "provider": "etherm",
             "name": str(entity.get("name") or static.get("DES") or f"Termostato {source_id}"),
-            "kind": "climate", "room": str(cfg.get("room") or cfg.get("group") or "Clima"),
+            "kind": "climate", "room": str(cfg.get("room") or cfg.get("group") or cfg.get("floor") or "Clima"),
             "state": state, "temperature": realtime.get("TEMP"), "value": realtime.get("TEMP"),
             "target_temperature": threshold.get("VAL"), "humidity": realtime.get("RH"),
             "season": season, "mode": mode, "pwm": therm.get("PWM"), "unit": "°C",
