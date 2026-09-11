@@ -156,6 +156,9 @@ function openDevices(title, devices) {
   activeDetailIds = new Set(devices.map((device) => String(device.id)))
   $('#detail-title').textContent = title
   renderDeviceList(devices)
+  const showScenarios = title === 'Luci'
+  $('#scenario-panel').hidden = !showScenarios
+  if (showScenarios && !$('#scenario-frame').getAttribute('src')) $('#scenario-frame').src = apiUrl('buspro/scenarios')
   $('#home-view').hidden = true
   $('#detail-view').hidden = false
   window.scrollTo({ top: 0, behavior: 'smooth' })
@@ -165,6 +168,7 @@ function showHome() {
   activeDetailIds = null
   $('#detail-view').hidden = true
   $('#home-view').hidden = false
+  $('#scenario-panel').hidden = true
   document.querySelectorAll('.rail button').forEach((item) => item.classList.remove('active'))
 }
 

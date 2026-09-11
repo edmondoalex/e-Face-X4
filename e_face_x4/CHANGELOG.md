@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.0.0 — 2026-09-11
+
+- Incorporata nella pagina Luci la gestione scenari completa e originale di e-HDL.
+- Supportati richiamo, stato, Run/Stop, ON/OFF, creazione, modifica, eliminazione e trigger.
+- Aggiunto un proxy interno ristretto alle sole API necessarie agli scenari, senza esporre token o indirizzi.
+- Collegato anche il WebSocket dell'editor per gli aggiornamenti live.
+
 ## 0.9.1 — 2026-09-11
 
 - Spostati in Extra anche gli output BusPro salvati da e-HDL come `type: light` e `category: Switch`.

@@ -10,7 +10,7 @@ from dataclasses import replace
 import httpx
 import uvicorn
 import websockets
-from fastapi import FastAPI, HTTPException, Response, WebSocket
+from fastapi import FastAPI, HTTPException, Request, Response, WebSocket
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
@@ -19,7 +19,7 @@ from .connectors import BusproConnector
 from .connectors.supervisor import discover_addon_url
 from .demo import dashboard as demo_dashboard
 
-VERSION = "0.9.1"
+VERSION = "1.0.0"
 STATIC = Path(__file__).parent / "static"
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s [e-face-x4] %(message)s")
 
@@ -135,6 +135,68 @@ def create_app() -> FastAPI:
                         await websocket.send_json({"type": event_type, "data": safe})
         except Exception as exc:
             logging.warning("Realtime BusPro bridge closed: %s", type(exc).__name__)
+            try:
+                await websocket.close(code=1011)
+            except RuntimeError:
+                pass
+
+    async def buspro_config():
+        settings = load_settings()
+        internal_url = await discover_addon_url("e_hdl_buspro_mqtt", 8124, settings.request_timeout_s)
+        config = replace(settings.buspro, base_url=internal_url) if internal_url else settings.buspro
+        if not config.enabled or not config.base_url:
+            raise HTTPException(status_code=503, detail="Connettore e-HDL non disponibile")
+        return settings, config
+
+    @app.api_route("/buspro/{path:path}", methods=["GET", "POST", "PUT", "DELETE"], include_in_schema=False)
+    async def buspro_scenario_proxy(path: str, request: Request) -> Response:
+        clean = path.strip("/") or "scenarios"
+        read_allowed = clean in {"scenarios", "lights", "home2"} or clean.startswith(("static/user/", "api/meta", "api/user/", "api/cover_groups", "api/icons/mdi/"))
+        write_allowed = clean.startswith(("api/user/light_scenarios", "api/control/light_scenario/", "api/control/light/", "api/control/ha/light/", "api/control/ha/switch/"))
+        if (request.method == "GET" and not read_allowed) or (request.method != "GET" and not write_allowed):
+            raise HTTPException(status_code=404, detail="Risorsa non disponibile")
+        settings, config = await buspro_config()
+        headers = {"Authorization": f"Bearer {config.token}"} if config.token else {}
+        content_type = request.headers.get("content-type")
+        if content_type:
+            headers["Content-Type"] = content_type
+        body = await request.body()
+        url = f"{config.base_url}/{clean}"
+        if request.url.query:
+            url += f"?{request.url.query}"
+        try:
+            async with httpx.AsyncClient(timeout=settings.request_timeout_s, follow_redirects=False) as client:
+                upstream = await client.request(request.method, url, headers=headers, content=body)
+        except httpx.HTTPError:
+            raise HTTPException(status_code=502, detail="e-HDL non raggiungibile")
+        response_headers = {}
+        if upstream.headers.get("content-type"):
+            response_headers["Content-Type"] = upstream.headers["content-type"]
+        return Response(upstream.content, status_code=upstream.status_code, headers=response_headers)
+
+    @app.websocket("/buspro/ws")
+    async def buspro_scenario_websocket(websocket: WebSocket) -> None:
+        await websocket.accept()
+        try:
+            settings, config = await buspro_config()
+            ws_url = re.sub(r"^http", "ws", config.base_url.rstrip("/"), count=1) + "/ws"
+            headers = {"Authorization": f"Bearer {config.token}"} if config.token else None
+            async with websockets.connect(ws_url, additional_headers=headers, open_timeout=settings.request_timeout_s) as upstream:
+                async def to_browser() -> None:
+                    async for message in upstream:
+                        await websocket.send_text(message)
+
+                async def to_buspro() -> None:
+                    while True:
+                        await upstream.send(await websocket.receive_text())
+
+                tasks = [asyncio.create_task(to_browser()), asyncio.create_task(to_buspro())]
+                done, pending = await asyncio.wait(tasks, return_when=asyncio.FIRST_COMPLETED)
+                for task in pending:
+                    task.cancel()
+                for task in done:
+                    task.result()
+        except Exception:
             try:
                 await websocket.close(code=1011)
             except RuntimeError:

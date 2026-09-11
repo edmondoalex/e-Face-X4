@@ -55,6 +55,8 @@ def test_x4_shell_and_brand_assets_are_served() -> None:
     assert 'id="detail-back"' in page.text
     assert '<dialog' not in page.text
     assert 'id="show-all-devices"' in page.text
+    assert 'id="scenario-panel"' in page.text
+    assert 'id="scenario-frame"' in page.text
     for label in ("Guarda", "Ascolta", "Luci", "Extra", "Oscuranti", "Comfort", "Sicurezza"):
         assert f'title="{label}"' in page.text
     assert 'src="assets/brand-horizontal.png?v=0.7.5"' in page.text
@@ -152,3 +154,8 @@ def test_device_command_requires_enabled_connector(monkeypatch, tmp_path) -> Non
     monkeypatch.setenv("EFACE_OPTIONS", str(options))
     response = TestClient(create_app()).post("/api/devices/1/command", json={"action": "on"})
     assert response.status_code == 503
+
+
+def test_scenario_proxy_rejects_unrelated_buspro_routes() -> None:
+    response = TestClient(create_app()).get("/buspro/api/config")
+    assert response.status_code == 404
