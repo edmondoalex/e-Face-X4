@@ -287,6 +287,11 @@
 - Architettura modulare dei connettori.
 - Primo connettore in sola lettura per e-HDL BusPro MQTT.
 - Endpoint di salute e test contro l'esposizione delle credenziali.
+# 1.7.6
+
+- Corretto il collegamento WebSocket locale con fallback automatico tra proxy Supervisor e endpoint diretto Home Assistant.
+- Nessuna configurazione URL, token o installation_id richiesta per il collegamento locale.
+
 # 1.7.5
 
 - Esclusi da Guarda e Ascolta i player senza area Home Assistant.

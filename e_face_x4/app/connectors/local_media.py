@@ -4,6 +4,7 @@ import json
 import os
 from datetime import datetime
 from typing import Any, AsyncIterator
+from urllib.parse import urlsplit, urlunsplit
 
 import httpx
 import websockets
@@ -11,6 +12,23 @@ import websockets
 from .base import Connector
 
 HA_WEBSOCKET_MAX_BYTES = 16 * 1024 * 1024
+
+
+def local_websocket_urls(supervisor: str, home_assistant: str = "http://homeassistant:8123") -> tuple[str, ...]:
+    """Return local HA WebSocket endpoints in compatibility order."""
+    candidates = (
+        f"{supervisor.rstrip('/')}/core/api/websocket",
+        f"{supervisor.rstrip('/')}/core/websocket",
+        f"{home_assistant.rstrip('/')}/api/websocket",
+    )
+    urls: list[str] = []
+    for candidate in candidates:
+        parsed = urlsplit(candidate)
+        scheme = "wss" if parsed.scheme == "https" else "ws"
+        url = urlunsplit((scheme, parsed.netloc, parsed.path, parsed.query, ""))
+        if url not in urls:
+            urls.append(url)
+    return tuple(urls)
 
 
 class LocalMediaConnector(Connector):
@@ -22,22 +40,37 @@ class LocalMediaConnector(Connector):
         self.token = os.environ.get("SUPERVISOR_TOKEN", "")
         supervisor = os.environ.get("SUPERVISOR_API", "http://supervisor").rstrip("/")
         self.api_url = f"{supervisor}/core/api"
-        self.ws_url = f"{supervisor.replace('https://', 'wss://').replace('http://', 'ws://')}/core/websocket"
+        home_assistant = os.environ.get("HOME_ASSISTANT_URL", "http://homeassistant:8123")
+        self.ws_urls = local_websocket_urls(supervisor, home_assistant)
 
     def headers(self) -> dict[str, str]:
         return {"Authorization": f"Bearer {self.token}", "Content-Type": "application/json"}
 
-    async def _registry_snapshot(self) -> dict[str, Any]:
+    async def _connect_websocket(self) -> Any:
         if not self.token:
             raise RuntimeError("SUPERVISOR_TOKEN mancante")
-        async with websockets.connect(
-            self.ws_url, open_timeout=self.timeout, max_size=HA_WEBSOCKET_MAX_BYTES
-        ) as ws:
-            await ws.recv()
-            await ws.send(json.dumps({"type": "auth", "access_token": self.token}))
-            authenticated = json.loads(await ws.recv())
-            if authenticated.get("type") != "auth_ok":
-                raise RuntimeError("autenticazione Home Assistant rifiutata")
+        failures: list[str] = []
+        for index, url in enumerate(self.ws_urls, start=1):
+            ws = None
+            try:
+                ws = await websockets.connect(
+                    url, open_timeout=self.timeout, max_size=HA_WEBSOCKET_MAX_BYTES
+                )
+                await ws.recv()
+                await ws.send(json.dumps({"type": "auth", "access_token": self.token}))
+                authenticated = json.loads(await ws.recv())
+                if authenticated.get("type") != "auth_ok":
+                    raise RuntimeError("autenticazione rifiutata")
+                return ws
+            except Exception as exc:
+                failures.append(f"percorso {index}: {type(exc).__name__}")
+                if ws is not None:
+                    await ws.close()
+        raise RuntimeError("WebSocket Home Assistant locale non raggiungibile (" + ", ".join(failures) + ")")
+
+    async def _registry_snapshot(self) -> dict[str, Any]:
+        ws = await self._connect_websocket()
+        try:
             commands = {
                 1: "get_states", 2: "config/entity_registry/list",
                 3: "config/device_registry/list", 4: "config/area_registry/list",
@@ -52,6 +85,8 @@ class LocalMediaConnector(Connector):
                         raise RuntimeError(f"comando HA fallito: {commands[message['id']]}")
                     results[int(message["id"])] = message.get("result") or []
             return {"states": results[1], "entities": results[2], "devices": results[3], "areas": results[4]}
+        finally:
+            await ws.close()
 
     async def snapshot(self) -> dict[str, Any]:
         try:
@@ -133,12 +168,8 @@ class LocalMediaConnector(Connector):
         return {"status": "success" if all(item["status"] == "success" for item in results) else "partial_failure", "operation": "set_group_volume", "group_id": group_id, "members": results}
 
     async def events(self) -> AsyncIterator[dict[str, Any]]:
-        async with websockets.connect(
-            self.ws_url, open_timeout=self.timeout, max_size=HA_WEBSOCKET_MAX_BYTES
-        ) as ws:
-            await ws.recv()
-            await ws.send(json.dumps({"type": "auth", "access_token": self.token}))
-            if json.loads(await ws.recv()).get("type") != "auth_ok": raise RuntimeError("autenticazione HA rifiutata")
+        ws = await self._connect_websocket()
+        try:
             await ws.send(json.dumps({"id": 1, "type": "subscribe_events", "event_type": "state_changed"}))
             async for message in ws:
                 event = json.loads(message)
@@ -147,6 +178,8 @@ class LocalMediaConnector(Connector):
                     state = data.get("new_state") if isinstance(data.get("new_state"), dict) else {}
                     attrs = state.get("attributes") if isinstance(state.get("attributes"), dict) else {}
                     yield {"type": "local.player_updated", "data": {"entity_id": data.get("entity_id"), "state": state.get("state"), "title": attrs.get("media_title"), "artist": attrs.get("media_artist"), "album": attrs.get("media_album_name"), "volume": round(float(attrs["volume_level"]) * 100) if isinstance(attrs.get("volume_level"), (int, float)) and not isinstance(attrs.get("volume_level"), bool) else None, "muted": attrs.get("is_volume_muted"), "source": attrs.get("source")}}
+        finally:
+            await ws.close()
 
 
 def normalize_local_snapshot(raw: dict[str, Any]) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
