@@ -287,6 +287,10 @@
 - Architettura modulare dei connettori.
 - Primo connettore in sola lettura per e-HDL BusPro MQTT.
 - Endpoint di salute e test contro l'esposizione delle credenziali.
+# 1.7.7
+
+- Nascoste le barre di scorrimento native nei menu stanze, sorgenti e selezione zone, mantenendo lo scorrimento touch e con rotella.
+
 # 1.7.6
 
 - Corretto il collegamento WebSocket locale con fallback automatico tra proxy Supervisor e endpoint diretto Home Assistant.
