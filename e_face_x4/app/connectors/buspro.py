@@ -18,6 +18,17 @@ def normalize_snapshot(payload: dict[str, Any]) -> dict[str, Any]:
     cover_states = payload.get("cover_states") if isinstance(payload.get("cover_states"), dict) else {}
     ha_states = payload.get("ha_states") if isinstance(payload.get("ha_states"), dict) else {}
     sensor_types = {"temp", "temperature", "humidity", "illuminance", "pir", "ultrasonic", "dry_contact", "air_quality", "gas_percent"}
+    sensor_sources = {
+        "temp": ("temp_states", "°C"),
+        "temperature": ("temp_states", "°C"),
+        "humidity": ("humidity_states", "%"),
+        "illuminance": ("illuminance_states", "lx"),
+        "air_quality": ("air_quality_states", ""),
+        "gas_percent": ("gas_percent_states", "%"),
+        "dry_contact": ("dry_contact_states", ""),
+        "pir": ("pir_states", ""),
+        "ultrasonic": ("ultrasonic_states", ""),
+    }
     for index, raw in enumerate(devices):
         if not isinstance(raw, dict):
             continue
@@ -37,17 +48,29 @@ def normalize_snapshot(payload: dict[str, Any]) -> dict[str, Any]:
         room_entry["devices"] += 1
         device_id = str(raw.get("entity_id") or raw.get("id") or index)
         state: Any = None
+        unit = ""
         entity_id = str(raw.get("entity_id") or "").lower()
         if entity_id and isinstance(ha_states.get(entity_id), dict):
-            state = ha_states[entity_id].get("state")
+            ha_state = ha_states[entity_id]
+            state = ha_state.get("state")
+            attributes = ha_state.get("attributes") if isinstance(ha_state.get("attributes"), dict) else {}
+            unit = str(attributes.get("unit_of_measurement") or "")
         if state is None:
             address = ".".join(str(raw.get(key)) for key in ("subnet_id", "device_id", "channel") if raw.get(key) is not None)
             source = cover_states if kind == "cover" else light_states
+            if kind in sensor_sources:
+                source_name, default_unit = sensor_sources[kind]
+                candidate = payload.get(source_name)
+                source = candidate if isinstance(candidate, dict) else {}
+                unit = default_unit
             raw_state = source.get(address) if address else None
-            state = raw_state.get("state", raw_state.get("value")) if isinstance(raw_state, dict) else raw_state
+            if isinstance(raw_state, dict):
+                state = raw_state.get("value") if raw_state.get("value") is not None else raw_state.get("state")
+            else:
+                state = raw_state
         normalized.append({
             "id": device_id, "name": name, "kind": kind, "room": room_entry["name"], "state": state,
-            "icon": str(raw.get("icon") or "").strip(),
+            "unit": unit, "icon": str(raw.get("icon") or "").strip(),
         })
     mqtt = payload.get("mqtt") if isinstance(payload.get("mqtt"), dict) else {}
     return {

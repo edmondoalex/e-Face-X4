@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.6.2 — 2026-09-11
+
+- Visualizzati valore e unità dei sensori BusPro nelle pagine dispositivo.
+- Gestiti gli stati dedicati per temperatura, umidità, luminosità, aria, gas e presenza.
+- Aggiornata automaticamente ogni 10 secondi anche la pagina di dettaglio aperta.
+
 ## 0.6.1 — 2026-09-11
 
 - Eliminata la dipendenza dalla cache icone del BusPro.

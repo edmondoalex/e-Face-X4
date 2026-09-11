@@ -3,6 +3,7 @@ const glyph = { light: '✦', climate: '❄', shield: '⬡', energy: 'ϟ', cover
 let refreshRunning = false
 let currentDevices = []
 let appVersion = '0'
+let activeDetailIds = null
 
 function apiUrl(path) {
   const base = location.pathname.endsWith('/') ? location.pathname : `${location.pathname}/`
@@ -38,6 +39,9 @@ function render(data) {
   const providers = data.providers || []
   const navIcons = data.nav_icons || {}
   currentDevices = Array.isArray(dashboard.devices) ? dashboard.devices : []
+  if (activeDetailIds && !$('#detail-view').hidden) {
+    renderDeviceList(currentDevices.filter((device) => activeDetailIds.has(String(device.id))))
+  }
   const online = providers.filter((provider) => provider.status === 'online').length
   const enabled = providers.filter((provider) => provider.status !== 'disabled').length
   $('#home-name').textContent = home.name || 'Casa'
@@ -77,24 +81,33 @@ function render(data) {
   if (!failedProvider) $('#notice').hidden = true
 }
 
-function stateLabel(value) {
+function stateLabel(device) {
+  const value = device.state
   if (value === null || value === undefined || value === '') return 'Stato non disponibile'
   if (typeof value === 'boolean') return value ? 'Attivo' : 'Disattivo'
-  return String(value)
+  const numeric = Number(value)
+  const shown = Number.isFinite(numeric) && ['temp', 'temperature'].includes(device.kind) ? numeric.toFixed(2) : String(value)
+  return `${shown}${device.unit ? ` ${device.unit}` : ''}`
+}
+
+function renderDeviceList(devices) {
+  $('#detail-kicker').textContent = `${devices.length} dispositivi`
+  $('#device-list').innerHTML = devices.map((device) => `
+    <article><span class="device-glyph mdi-mask" style="${mdiStyle(device.icon, device.kind === 'cover' ? 'blinds-horizontal' : device.kind === 'lock' ? 'lock' : 'lightbulb')}"></span><div><strong>${esc(device.name)}</strong><small>${esc(device.room)}</small></div><em>${esc(stateLabel(device))}</em></article>
+  `).join('') || '<p class="empty-state">Nessun dispositivo disponibile</p>'
 }
 
 function openDevices(title, devices) {
+  activeDetailIds = new Set(devices.map((device) => String(device.id)))
   $('#detail-title').textContent = title
-  $('#detail-kicker').textContent = `${devices.length} dispositivi`
-  $('#device-list').innerHTML = devices.map((device) => `
-    <article><span class="device-glyph mdi-mask" style="${mdiStyle(device.icon, device.kind === 'cover' ? 'blinds-horizontal' : device.kind === 'lock' ? 'lock' : 'lightbulb')}"></span><div><strong>${esc(device.name)}</strong><small>${esc(device.room)}</small></div><em>${esc(stateLabel(device.state))}</em></article>
-  `).join('') || '<p class="empty-state">Nessun dispositivo disponibile</p>'
+  renderDeviceList(devices)
   $('#home-view').hidden = true
   $('#detail-view').hidden = false
   window.scrollTo({ top: 0, behavior: 'smooth' })
 }
 
 function showHome() {
+  activeDetailIds = null
   $('#detail-view').hidden = true
   $('#home-view').hidden = false
   document.querySelectorAll('.rail button').forEach((item) => item.classList.remove('active'))

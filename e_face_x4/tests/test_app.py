@@ -79,10 +79,11 @@ def test_buspro_snapshot_is_normalized_by_room_and_kind() -> None:
             {"type": "light", "name": "Lampada", "group": "Sala"},
             {"type": "cover", "name": "Tenda", "group": "Sala"},
             {"type": "lock", "name": "Porta", "group": "Ingresso"},
-            {"type": "temperature", "name": "Temperatura", "group": "Sala"},
+            {"type": "temperature", "name": "Temperatura", "group": "Sala", "subnet_id": 1, "device_id": 61, "channel": 1},
             {"type": "switch", "name": "Presa", "group": "sala"},
         ],
         "mqtt": {"connected": True},
+        "temp_states": {"1.61.1": {"value": 28.0, "ts": 123}},
     })
     assert normalized["counts"] == {"lights": 2, "covers": 1, "locks": 1, "sensors": 1}
     assert normalized["rooms"] == [
@@ -91,6 +92,9 @@ def test_buspro_snapshot_is_normalized_by_room_and_kind() -> None:
     ]
     assert normalized["mqtt_connected"] is True
     assert normalized["devices"][0]["icon"] == ""
+    temperature = next(device for device in normalized["devices"] if device["kind"] == "temperature")
+    assert temperature["state"] == 28.0
+    assert temperature["unit"] == "°C"
 
 
 def test_supervisor_addon_slug_becomes_internal_dns_name() -> None:
