@@ -20,7 +20,7 @@ from .connectors import BusproConnector, EThermConnector, EkonexMediaConnector, 
 from .connectors.supervisor import discover_addon_url
 from .demo import dashboard as demo_dashboard
 
-VERSION = "1.7.2"
+VERSION = "1.7.3"
 STATIC = Path(__file__).parent / "static"
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s [e-face-x4] %(message)s")
 
@@ -75,6 +75,11 @@ def create_app() -> FastAPI:
             if isinstance(media, dict):
                 media_items = media.get("items", [])
                 dashboard["devices"].extend(media_items)
+                known_rooms = {str(item.get("name", "")).casefold() for item in dashboard["rooms"] if isinstance(item, dict)}
+                for room_name in media.get("rooms", []):
+                    if str(room_name).casefold() not in known_rooms:
+                        dashboard["rooms"].append({"id": f"ha-area-{len(dashboard['rooms'])}", "name": str(room_name), "devices": 0})
+                        known_rooms.add(str(room_name).casefold())
                 playing = next((item for item in media_items if str(item.get("state", "")).lower() == "playing"), None)
                 selected = playing or next(iter(media_items), None)
                 if isinstance(selected, dict):

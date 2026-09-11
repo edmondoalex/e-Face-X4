@@ -248,6 +248,7 @@ def test_media_ui_has_room_selection_and_typed_controls() -> None:
     assert "data-media-source" in script
     assert "media_changed" in script
     assert 'id="media-zones-dialog"' in page
+    assert "currentRooms" in script
 
 
 def test_local_home_assistant_media_snapshot_is_normalized() -> None:

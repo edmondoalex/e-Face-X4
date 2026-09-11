@@ -16,6 +16,7 @@ let devicePointerGesture = null
 let avRoom = ''
 let currentMediaGroups = []
 let activeMediaPlayer = null
+let currentRooms = []
 
 function apiUrl(path) {
   const base = location.pathname.endsWith('/') ? location.pathname : `${location.pathname}/`
@@ -52,6 +53,7 @@ function render(data) {
   currentMediaGroups = providers.find((provider) => provider.id === 'evoice')?.groups || []
   const navIcons = data.nav_icons || {}
   currentDevices = Array.isArray(dashboard.devices) ? dashboard.devices : []
+  currentRooms = Array.isArray(dashboard.rooms) ? dashboard.rooms.map((room) => room.name).filter(Boolean) : []
   updateNavigationStates()
   if (activeDetailIds && !$('#detail-view').hidden) {
     renderActiveDeviceList()
@@ -236,7 +238,7 @@ function renderActiveDeviceList() {
 }
 
 function configureAvRooms(devices) {
-  const rooms = [...new Set(devices.map((device) => device.room).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'it'))
+  const rooms = [...new Set([...currentRooms, ...devices.map((device) => device.room)].filter(Boolean))].sort((a, b) => a.localeCompare(b, 'it'))
   if (avRoom && !rooms.includes(avRoom)) avRoom = ''
   $('#av-room-label').textContent = avRoom || 'Tutte le stanze'
   $('#av-room-menu').innerHTML = `<button data-av-room="" class="${avRoom ? '' : 'active'}">Tutte le stanze</button>${rooms.map((room) => `<button data-av-room="${esc(room)}" class="${room === avRoom ? 'active' : ''}">${esc(room)}</button>`).join('')}`

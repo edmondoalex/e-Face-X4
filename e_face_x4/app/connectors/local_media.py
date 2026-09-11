@@ -57,7 +57,11 @@ class LocalMediaConnector(Connector):
         try:
             raw = await self._registry_snapshot()
             players, groups = normalize_local_snapshot(raw)
-            return {"id": self.id, "label": self.label, "status": "online", "connection_status": "online", "items": players, "groups": groups}
+            rooms = sorted(
+                {str(item.get("name")) for item in raw.get("areas", []) if isinstance(item, dict) and item.get("name")},
+                key=str.casefold,
+            )
+            return {"id": self.id, "label": self.label, "status": "online", "connection_status": "online", "items": players, "groups": groups, "rooms": rooms}
         except Exception as exc:
             return {"id": self.id, "label": self.label, "status": "offline", "reason": str(exc)[:160], "items": [], "groups": []}
 
