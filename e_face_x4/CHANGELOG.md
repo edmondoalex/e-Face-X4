@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.6.0 — 2026-09-11
+
+- Aggiunto il connettore e-Therm Plus KS con scoperta automatica sulla porta 8080.
+- Importati in Comfort temperatura, setpoint, umidità, stagione, richiesta e PWM dei termostati.
+- Aggiunti i comandi setpoint e predisposta autenticazione Bearer.
+
 ## 1.5.0 — 2026-09-11
 
 - Aggiunti indicatori live colorati alle icone di navigazione per luci, extra, cover, sicurezza, multimedia e clima attivi.

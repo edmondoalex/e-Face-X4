@@ -15,11 +15,11 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
 from .config import load_settings
-from .connectors import BusproConnector
+from .connectors import BusproConnector, EThermConnector
 from .connectors.supervisor import discover_addon_url
 from .demo import dashboard as demo_dashboard
 
-VERSION = "1.5.0"
+VERSION = "1.6.0"
 STATIC = Path(__file__).parent / "static"
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s [e-face-x4] %(message)s")
 
@@ -36,8 +36,10 @@ def create_app() -> FastAPI:
     async def bootstrap() -> dict:
         settings = load_settings()
         internal_buspro_url = await discover_addon_url("e_hdl_buspro_mqtt", 8124, settings.request_timeout_s)
+        internal_etherm_url = await discover_addon_url("e_therm_plus_ks", 8080, settings.request_timeout_s)
         buspro_config = replace(settings.buspro, base_url=internal_buspro_url) if internal_buspro_url else settings.buspro
-        connectors = [BusproConnector(buspro_config, settings.request_timeout_s)]
+        etherm_config = replace(settings.etherm, base_url=internal_etherm_url) if internal_etherm_url else settings.etherm
+        connectors = [BusproConnector(buspro_config, settings.request_timeout_s), EThermConnector(etherm_config, settings.request_timeout_s)]
         providers = await asyncio.gather(*(connector.snapshot() for connector in connectors))
         dashboard = demo_dashboard() if settings.demo_mode else {"rooms": [], "widgets": [], "media": None}
         dashboard.setdefault("home", {})["name"] = settings.home_name
@@ -47,6 +49,19 @@ def create_app() -> FastAPI:
             counts = normalized.get("counts", {}) if isinstance(normalized, dict) else {}
             dashboard["rooms"] = normalized.get("rooms", []) if isinstance(normalized, dict) else []
             dashboard["devices"] = normalized.get("devices", []) if isinstance(normalized, dict) else []
+            etherm = next((item for item in providers if item.get("id") == "etherm" and item.get("status") == "online"), None)
+            if isinstance(etherm, dict):
+                dashboard["devices"].extend(etherm.get("items", []))
+            room_map = {str(room.get("name", "")).casefold(): room for room in dashboard["rooms"] if isinstance(room, dict)}
+            for device in dashboard["devices"]:
+                room = str(device.get("room") or "Clima")
+                key = room.casefold()
+                if key not in room_map:
+                    entry = {"id": f"room-{len(room_map)}", "name": room, "devices": 0}
+                    room_map[key] = entry
+                    dashboard["rooms"].append(entry)
+                if device.get("provider") == "etherm":
+                    room_map[key]["devices"] += 1
             dashboard["widgets"] = [
                 {"id": "lights", "title": "Luci", "value": str(counts.get("lights", 0)), "detail": "dispositivi", "icon": "light"},
                 {"id": "extra", "title": "Extra", "value": str(counts.get("switches", 0)), "detail": "switch", "icon": "energy"},
@@ -89,6 +104,17 @@ def create_app() -> FastAPI:
     @app.post("/api/devices/{device_id}/command")
     async def device_command(device_id: str, payload: dict) -> dict:
         settings = load_settings()
+        if device_id.startswith("therm:"):
+            internal_url = await discover_addon_url("e_therm_plus_ks", 8080, settings.request_timeout_s)
+            config = replace(settings.etherm, base_url=internal_url) if internal_url else settings.etherm
+            if not config.enabled or not config.base_url:
+                raise HTTPException(status_code=503, detail="Connettore e-Therm non disponibile")
+            try:
+                return await EThermConnector(config, settings.request_timeout_s).command(device_id.split(":", 1)[1], str(payload.get("action") or ""), payload.get("value"))
+            except httpx.HTTPError:
+                raise HTTPException(status_code=502, detail="e-Therm non raggiungibile")
+            except (ValueError, TypeError) as exc:
+                raise HTTPException(status_code=400, detail=str(exc))
         internal_url = await discover_addon_url("e_hdl_buspro_mqtt", 8124, settings.request_timeout_s)
         config = replace(settings.buspro, base_url=internal_url) if internal_url else settings.buspro
         if not config.enabled or not config.base_url:
@@ -106,14 +132,15 @@ def create_app() -> FastAPI:
     async def realtime(websocket: WebSocket) -> None:
         await websocket.accept()
         settings = load_settings()
-        internal_url = await discover_addon_url("e_hdl_buspro_mqtt", 8124, settings.request_timeout_s)
-        config = replace(settings.buspro, base_url=internal_url) if internal_url else settings.buspro
-        if not config.enabled or not config.base_url:
-            await websocket.close(code=1013, reason="Connettore e-HDL non disponibile")
-            return
-        ws_url = re.sub(r"^http", "ws", config.base_url.rstrip("/"), count=1) + "/ws"
-        headers = {"Authorization": f"Bearer {config.token}"} if config.token else None
-        try:
+        buspro_url = await discover_addon_url("e_hdl_buspro_mqtt", 8124, settings.request_timeout_s)
+        etherm_url = await discover_addon_url("e_therm_plus_ks", 8080, settings.request_timeout_s)
+        buspro = replace(settings.buspro, base_url=buspro_url) if buspro_url else settings.buspro
+        etherm = replace(settings.etherm, base_url=etherm_url) if etherm_url else settings.etherm
+        queue: asyncio.Queue[dict] = asyncio.Queue(maxsize=100)
+
+        async def buspro_events() -> None:
+            ws_url = re.sub(r"^http", "ws", buspro.base_url.rstrip("/"), count=1) + "/ws"
+            headers = {"Authorization": f"Bearer {buspro.token}"} if buspro.token else None
             async with websockets.connect(ws_url, additional_headers=headers, open_timeout=settings.request_timeout_s) as upstream:
                 async for message in upstream:
                     try:
@@ -122,24 +149,49 @@ def create_app() -> FastAPI:
                         continue
                     event_type = str(event.get("type") or "") if isinstance(event, dict) else ""
                     if event_type == "devices":
-                        await websocket.send_json({"type": "devices_changed"})
+                        await queue.put({"type": "devices_changed"})
                         continue
-                    allowed = {
-                        "light_state", "cover_state", "temp_value", "humidity_value", "illuminance_value",
-                        "air_quality", "gas_percent", "pir_state", "ultrasonic_state", "dry_contact_state",
-                        "ha_light_state", "ha_switch_state", "ha_cover_state", "ha_lock_state",
-                        "light_scenario_state", "light_scenario_running",
-                    }
+                    allowed = {"light_state", "cover_state", "temp_value", "humidity_value", "illuminance_value", "air_quality", "gas_percent", "pir_state", "ultrasonic_state", "dry_contact_state", "ha_light_state", "ha_switch_state", "ha_cover_state", "ha_lock_state", "light_scenario_state", "light_scenario_running"}
                     data = event.get("data") if isinstance(event, dict) else None
                     if event_type in allowed and isinstance(data, dict):
                         safe = {key: data.get(key) for key in ("subnet_id", "device_id", "channel", "entity_id", "id", "state", "running", "value", "position", "brightness") if key in data}
-                        await websocket.send_json({"type": event_type, "data": safe})
+                        await queue.put({"type": event_type, "data": safe})
+
+        async def etherm_events() -> None:
+            headers = {"Authorization": f"Bearer {etherm.token}"} if etherm.token else {}
+            async with httpx.AsyncClient(timeout=None, follow_redirects=False) as client:
+                async with client.stream("GET", f"{etherm.base_url}/api/stream?type=thermostats", headers=headers) as response:
+                    response.raise_for_status()
+                    async for line in response.aiter_lines():
+                        if line.startswith("data:"):
+                            await queue.put({"type": "thermostats_changed"})
+
+        tasks = []
+        if buspro.enabled and buspro.base_url:
+            tasks.append(asyncio.create_task(buspro_events()))
+        if etherm.enabled and etherm.base_url:
+            tasks.append(asyncio.create_task(etherm_events()))
+        if not tasks:
+            await websocket.close(code=1013, reason="Nessun connettore realtime disponibile")
+            return
+        try:
+            while True:
+                try:
+                    event = await asyncio.wait_for(queue.get(), timeout=30)
+                except asyncio.TimeoutError:
+                    if tasks and all(task.done() for task in tasks):
+                        raise RuntimeError("connettori realtime disconnessi")
+                    event = {"type": "keepalive"}
+                await websocket.send_json(event)
         except Exception as exc:
-            logging.warning("Realtime BusPro bridge closed: %s", type(exc).__name__)
+            logging.warning("Realtime bridge closed: %s", type(exc).__name__)
             try:
                 await websocket.close(code=1011)
             except RuntimeError:
                 pass
+        finally:
+            for task in tasks:
+                task.cancel()
 
     async def buspro_config():
         settings = load_settings()

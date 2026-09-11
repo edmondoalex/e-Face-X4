@@ -49,6 +49,18 @@ configuration:
         name: Indirizzo API
       token:
         name: Token
+  etherm:
+    name: e-Therm Plus KS
+    description: Collegamento ai termostati e-Therm con stati e comandi in tempo reale.
+    fields:
+      enabled:
+        name: Abilitato
+      base_url:
+        name: Indirizzo locale
+        description: Indirizzo manuale di riserva; normalmente e-Face X4 rileva automaticamente l'add-on sulla porta 8080.
+      token:
+        name: Token
+        description: Compilare solo se e-Therm usa autenticazione token.
 
 network:
   8099/tcp: Porta interfaccia web diretta

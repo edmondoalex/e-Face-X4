@@ -92,6 +92,11 @@ function render(data) {
 }
 
 function stateLabel(device) {
+  if (device.kind === 'climate') {
+    const current = Number(device.temperature)
+    const target = Number(device.target_temperature)
+    return `${Number.isFinite(current) ? current.toFixed(1) + '°' : '--'} → ${Number.isFinite(target) ? target.toFixed(1) + '°' : '--'}`
+  }
   const value = device.state
   if (value === null || value === undefined || value === '') return 'Stato non disponibile'
   if (typeof value === 'boolean') return value ? 'Attivo' : 'Disattivo'
@@ -252,6 +257,7 @@ function deviceVisualClass(device) {
   if (device.kind === 'switch') return active ? 'device-switch-on' : 'device-switch-off'
   if (device.kind === 'cover') return ['OPEN', 'OPENING'].includes(state) || Number(device.position) > 0 ? 'device-cover-open' : 'device-cover-closed'
   if (device.kind === 'lock') return ['UNLOCKED', 'OPEN', 'OPENING'].includes(state) ? 'device-lock-open' : 'device-lock-closed'
+  if (device.kind === 'climate') return state === 'HEATING' ? 'device-climate-heat' : state === 'COOLING' ? 'device-climate-cool' : 'device-climate-off'
   return ''
 }
 
@@ -265,6 +271,11 @@ function deviceActions(device) {
   }
   if (device.kind === 'cover') return '<div class="device-actions"><button data-action="open">SU</button><button data-action="stop">STOP</button><button data-action="close">GIÙ</button></div>'
   if (device.kind === 'lock') return '<div class="device-actions"><button data-action="unlock">SBLOCCA</button><button data-action="lock">BLOCCA</button></div>'
+  if (device.kind === 'climate') {
+    const target = Number(device.target_temperature)
+    const value = Number.isFinite(target) ? target : 20
+    return `<div class="climate-summary"><span>UR ${device.humidity ?? '--'}%</span><span>${device.season === 'SUM' ? 'ESTATE' : 'INVERNO'}</span><span>PWM ${device.pwm ?? 0}%</span></div><div class="device-actions"><button data-climate-target="${(value - .5).toFixed(1)}">−</button><strong>${value.toFixed(1)}°</strong><button data-climate-target="${(value + .5).toFixed(1)}">＋</button></div>`
+  }
   return ''
 }
 
@@ -420,7 +431,7 @@ function connectRealtime() {
 }
 
 function applyRealtimeEvent(event) {
-  if (event.type === 'devices_changed') {
+  if (event.type === 'devices_changed' || event.type === 'thermostats_changed') {
     clearTimeout(snapshotRefreshTimer)
     snapshotRefreshTimer = setTimeout(refresh, 500)
     return
@@ -532,6 +543,9 @@ $('#device-list').addEventListener('click', (event) => {
   const rgbButton = event.target.closest('[data-rgb-action]')
   const rgbCard = event.target.closest('[data-rgb-group]')
   if (rgbButton && rgbCard) return sendRgbCommand(rgbCard.dataset.rgbGroup, rgbButton.dataset.rgbAction, null, rgbButton)
+  const climateButton = event.target.closest('[data-climate-target]')
+  const climateCard = event.target.closest('[data-device-id]')
+  if (climateButton && climateCard) return sendDeviceCommand(climateCard.dataset.deviceId, 'set_target', climateButton, climateButton.dataset.climateTarget)
   const button = event.target.closest('[data-action]')
   const card = event.target.closest('[data-device-id]')
   if (button && card) sendDeviceCommand(card.dataset.deviceId, button.dataset.action, button)
@@ -601,5 +615,6 @@ setInterval(tick, 30000)
 setInterval(() => {
   if (!realtimeSocket || realtimeSocket.readyState !== WebSocket.OPEN) refresh()
 }, 30000)
+setInterval(refresh, 60000)
 refresh()
 connectRealtime()

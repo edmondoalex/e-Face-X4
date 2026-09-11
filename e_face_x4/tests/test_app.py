@@ -2,6 +2,7 @@ from fastapi.testclient import TestClient
 
 from app.main import create_app
 from app.connectors.buspro import normalize_snapshot
+from app.connectors.etherm import normalize_thermostats
 from app.connectors.supervisor import find_addon_url
 
 
@@ -181,3 +182,11 @@ def test_device_command_requires_enabled_connector(monkeypatch, tmp_path) -> Non
 def test_scenario_command_rejects_unknown_action_before_connector() -> None:
     response = TestClient(create_app()).post("/api/scenarios/example/command", json={"action": "delete"})
     assert response.status_code == 400
+
+
+def test_etherm_thermostat_is_normalized() -> None:
+    items = normalize_thermostats({"entities": [{"type": "thermostats", "id": 7, "name": "Sala", "realtime": {"TEMP": 21.4, "RH": 48, "THERM": {"ACT_SEA": "WIN", "ACT_MODEL": "MAN", "DEMAND_ON": "ON", "TEMP_THR": {"VAL": 22.5}, "PWM": 35}}}]})
+    assert items[0]["id"] == "therm:7"
+    assert items[0]["state"] == "HEATING"
+    assert items[0]["temperature"] == 21.4
+    assert items[0]["target_temperature"] == 22.5

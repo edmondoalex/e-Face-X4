@@ -22,6 +22,7 @@ class Settings:
     nav_icons: dict[str, str]
     buspro: ProviderConfig
     evoice: ProviderConfig
+    etherm: ProviderConfig
 
 
 def _provider(value: Any) -> ProviderConfig:
@@ -53,4 +54,5 @@ def load_settings() -> Settings:
         nav_icons=nav_icons,
         buspro=_provider(raw.get("buspro")),
         evoice=_provider(raw.get("evoice")),
+        etherm=_provider(raw.get("etherm")),
     )

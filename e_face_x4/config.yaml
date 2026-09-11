@@ -1,5 +1,5 @@
 name: e-Face X4
-version: 1.5.0
+version: 1.6.0
 slug: e_face_x4
 description: Interfaccia unificata per gli add-on e-Konex
 url: https://github.com/edmondoalex/e-Face-X4
@@ -41,6 +41,10 @@ options:
     enabled: false
     base_url: ""
     token: ""
+  etherm:
+    enabled: false
+    base_url: http://127.0.0.1:8080
+    token: ""
 schema:
   home_name: str?
   demo_mode: bool?
@@ -59,6 +63,10 @@ schema:
     base_url: str?
     token: password?
   evoice:
+    enabled: bool?
+    base_url: str?
+    token: password?
+  etherm:
     enabled: bool?
     base_url: str?
     token: password?
