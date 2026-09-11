@@ -135,6 +135,8 @@ def test_device_commands_are_present_in_frontend() -> None:
     assert "device-switch-on" in script
     assert "device-cover-open" in script
     assert "device-lock-closed" in script
+    assert "deviceCardStyle(device)" in script
+    assert "--cover-color:rgb" in script
 
 
 def test_device_command_requires_enabled_connector(monkeypatch, tmp_path) -> None:

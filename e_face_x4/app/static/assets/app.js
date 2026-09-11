@@ -93,8 +93,20 @@ function stateLabel(device) {
 function renderDeviceList(devices) {
   $('#detail-kicker').textContent = `${devices.length} dispositivi`
   $('#device-list').innerHTML = devices.map((device) => `
-    <article class="${deviceVisualClass(device)}" data-device-id="${esc(device.id)}"><span class="device-glyph mdi-mask" style="${mdiStyle(device.icon, device.kind === 'cover' ? 'blinds-horizontal' : device.kind === 'lock' ? 'lock' : 'lightbulb')}"></span><div><strong>${esc(device.name)}</strong><small>${esc(device.room)}</small></div><em>${esc(stateLabel(device))}</em>${deviceActions(device)}</article>
+    <article class="${deviceVisualClass(device)}" style="${deviceCardStyle(device)}" data-device-id="${esc(device.id)}"><span class="device-glyph mdi-mask" style="${mdiStyle(device.icon, device.kind === 'cover' ? 'blinds-horizontal' : device.kind === 'lock' ? 'lock' : 'lightbulb')}"></span><div><strong>${esc(device.name)}</strong><small>${esc(device.room)}</small></div><em>${esc(stateLabel(device))}</em>${deviceActions(device)}</article>
   `).join('') || '<p class="empty-state">Nessun dispositivo disponibile</p>'
+}
+
+function deviceCardStyle(device) {
+  if (device.kind !== 'cover') return ''
+  const state = String(device.state).trim().toUpperCase()
+  const hasPosition = device.position !== null && device.position !== undefined && device.position !== '' && Number.isFinite(Number(device.position))
+  const percent = Math.max(0, Math.min(100, hasPosition ? Number(device.position) : ['OPEN', 'OPENING'].includes(state) ? 100 : 0))
+  const mix = percent / 100
+  const from = [170, 181, 184]
+  const to = [97, 216, 242]
+  const color = from.map((channel, index) => Math.round(channel + (to[index] - channel) * mix))
+  return `--cover-color:rgb(${color.join(',')});--cover-glow:${(2 + 5 * mix).toFixed(1)}px;--cover-alpha:${(.12 + .3 * mix).toFixed(2)}`
 }
 
 function deviceVisualClass(device) {

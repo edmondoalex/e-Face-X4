@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.7.4 — 2026-09-11
+
+- Graduata la colorazione celeste delle cover in base alla posizione 0–100%.
+- Aumentati progressivamente anche alone e bordo durante l'apertura.
+
 ## 0.7.3 — 2026-09-11
 
 - Switch verdi da spenti e rossi da accesi.
