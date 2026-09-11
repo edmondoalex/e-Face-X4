@@ -19,7 +19,7 @@ from .connectors import BusproConnector, EThermConnector
 from .connectors.supervisor import discover_addon_url
 from .demo import dashboard as demo_dashboard
 
-VERSION = "1.6.3"
+VERSION = "1.6.4"
 STATIC = Path(__file__).parent / "static"
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s [e-face-x4] %(message)s")
 

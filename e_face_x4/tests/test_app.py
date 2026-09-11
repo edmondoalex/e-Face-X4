@@ -198,3 +198,11 @@ def test_etherm_basic_auth_header() -> None:
     from app.connectors.etherm import EThermConnector
     config = ProviderConfig(True, "http://etherm:8080", "", "basic", "alex", "secret")
     assert EThermConnector(config, 4).headers()["Authorization"].startswith("Basic ")
+
+
+def test_provider_url_without_protocol_is_normalized(monkeypatch, tmp_path) -> None:
+    from app.config import load_settings
+    options = tmp_path / "options.json"
+    options.write_text('{"etherm":{"enabled":true,"base_url":"192.168.3.24:8080"}}', encoding="utf-8")
+    monkeypatch.setenv("EFACE_OPTIONS", str(options))
+    assert load_settings().etherm.base_url == "http://192.168.3.24:8080"

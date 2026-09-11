@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.6.4 — 2026-09-11
+
+- Normalizzati automaticamente gli URL dei connettori aggiungendo o correggendo lo schema HTTP/HTTPS.
+
 ## 1.6.3 — 2026-09-11
 
 - Mostrato il tipo e il dettaglio reale degli errori di parsing/trasporto e-Therm per la diagnosi dal container.

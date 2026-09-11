@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -30,9 +31,16 @@ class Settings:
 
 def _provider(value: Any) -> ProviderConfig:
     raw = value if isinstance(value, dict) else {}
+    base_url = str(raw.get("base_url") or "").strip().strip("'\"").rstrip("/")
+    if base_url:
+        match = re.match(r"^(https?)\s*:?\s*/?\s*/?\s*(.+)$", base_url, re.IGNORECASE)
+        if match:
+            base_url = f"{match.group(1).lower()}://{match.group(2)}"
+        elif not re.match(r"^[a-z][a-z0-9+.-]*://", base_url, re.IGNORECASE):
+            base_url = f"http://{base_url.lstrip('/')}"
     return ProviderConfig(
         enabled=bool(raw.get("enabled", False)),
-        base_url=str(raw.get("base_url") or "").strip().rstrip("/"),
+        base_url=base_url,
         token=str(raw.get("token") or "").strip(),
         auth_mode=str(raw.get("auth_mode") or ("token" if raw.get("token") else "none")).strip().lower(),
         username=str(raw.get("username") or "").strip(),
