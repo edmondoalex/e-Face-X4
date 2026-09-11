@@ -24,7 +24,7 @@ from .connectors import BusproConnector, Control4MediaConnector, EThermConnector
 from .connectors.supervisor import discover_addon_url
 from .demo import dashboard as demo_dashboard
 
-VERSION = "2.1.0"
+VERSION = "2.0.4"
 STATIC = Path(__file__).parent / "static"
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s [e-face-x4] %(message)s")
 
@@ -318,16 +318,14 @@ def create_app() -> FastAPI:
     async def media_group_command(group_id: str, payload: dict) -> dict:
         settings = load_settings()
         config = settings.evoice
-        connector = media_connector(settings)
-        if not isinstance(connector, Control4MediaConnector) and (not config.enabled or not config.base_url or not config.installation_id):
+        if not config.enabled or not config.base_url or not config.installation_id:
             raise HTTPException(status_code=503, detail="Ekonex Media non disponibile")
         operation = str(payload.get("action") or "")
         if operation != "set_group_volume":
             raise HTTPException(status_code=400, detail="Comando gruppo non valido")
         command = {"request_id": str(uuid.uuid4()), "operation": operation, "arguments": {"volume_percent": int(payload.get("value"))}, "expected_resource_revision": payload.get("resource_revision")}
         try:
-            if isinstance(connector, Control4MediaConnector):
-                return await connector.group_volume(group_id, int(payload.get("value")))
+            connector = media_connector(settings)
             if isinstance(connector, LocalMediaConnector):
                 return await connector.group_volume(group_id, int(payload.get("value")))
             return await connector.group_command(group_id, command)
@@ -335,10 +333,6 @@ def create_app() -> FastAPI:
             raise HTTPException(status_code=exc.response.status_code, detail="Comando gruppo Ekonex Media rifiutato")
         except httpx.HTTPError:
             raise HTTPException(status_code=502, detail="Ekonex Media non raggiungibile")
-        except (ValueError, TypeError) as exc:
-            raise HTTPException(status_code=400, detail=str(exc))
-        except RuntimeError as exc:
-            raise HTTPException(status_code=502, detail=str(exc))
 
     @app.websocket("/api/realtime")
     async def realtime(websocket: WebSocket) -> None:

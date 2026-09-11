@@ -420,7 +420,7 @@ async function saveMediaZones(button) {
   try {
     for (const registryId of removals) {
       const player = currentDevices.find((item) => item.registry_id === registryId)
-      if (player) await postDeviceCommand(player.id, 'media_unjoin', null, player.resource_revision)
+      await postDeviceCommand(`media:${registryId}`, 'media_unjoin', null, player?.resource_revision)
     }
     if (additions.length) await postDeviceCommand(activeMediaPlayer.id, 'media_join', additions, activeMediaPlayer.resource_revision)
     $('#media-zones-dialog').close()
