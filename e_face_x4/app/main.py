@@ -13,7 +13,7 @@ from .config import load_settings
 from .connectors import BusproConnector
 from .demo import dashboard as demo_dashboard
 
-VERSION = "0.1.1"
+VERSION = "0.1.2"
 STATIC = Path(__file__).parent / "static"
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s [e-face-x4] %(message)s")
 

@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.2 — 2026-09-11
+
+- Resi opzionali tutti i parametri della configurazione iniziale.
+- La modalità demo può avviarsi senza configurare BusPro o e-Voice.
+- Mantenuti fallback sicuri lato applicazione per opzioni assenti.
+
 ## 0.1.1 — 2026-09-11
 
 - Introdotto il marchio ufficiale e-Face X4.
