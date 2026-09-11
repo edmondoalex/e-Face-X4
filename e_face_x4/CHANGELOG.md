@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.0.2 — 2026-09-11
+
+- Impedito alla fascia Scenari di allargare orizzontalmente l'intera interfaccia.
+- Limitato lo scorrimento orizzontale al solo elenco delle card scenario.
+- Ottimizzata la fascia per tablet e cellulare con card adattive, scorrimento touch e pulsanti maggiorati.
+
 ## 1.0.1 — 2026-09-11
 
 - Rimossa la pagina e-HDL incorporata che interrompeva lo stile X4.

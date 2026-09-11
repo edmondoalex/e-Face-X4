@@ -66,6 +66,11 @@ def test_x4_shell_and_brand_assets_are_served() -> None:
     assert client.get("/assets/brand-horizontal.png").status_code == 200
     assert client.get("/assets/brand-icon.png").status_code == 200
     assert client.get("/assets/app.css").status_code == 200
+    css = client.get("/assets/app.css").text
+    assert ".layout>main,.detail-view,.scenario-panel,.scenario-list{min-width:0;max-width:100%}" in css
+    assert "overscroll-behavior-x:contain" in css
+    assert "@media(min-width:701px) and (max-width:1024px)" in css
+    assert "flex-basis:min(82vw,260px)" in css
 
 
 def test_configured_home_name_is_shown_in_bootstrap(monkeypatch, tmp_path) -> None:
