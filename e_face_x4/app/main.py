@@ -23,7 +23,7 @@ from .connectors import BusproConnector, EThermConnector, EkonexMediaConnector, 
 from .connectors.supervisor import discover_addon_url
 from .demo import dashboard as demo_dashboard
 
-VERSION = "1.8.0"
+VERSION = "1.8.1"
 STATIC = Path(__file__).parent / "static"
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s [e-face-x4] %(message)s")
 
@@ -151,11 +151,12 @@ def create_app() -> FastAPI:
             raise HTTPException(status_code=503, detail=snapshot.get("reason") or "Player non disponibili")
         saved = load_preferences()
         items = []
-        for player in snapshot.get("items", []):
+        for index, player in enumerate(snapshot.get("items", [])):
             registry_id = str(player.get("registry_id") or "")
             inferred = set(player.get("experiences") or [])
-            selected = saved.get(registry_id, {"visible": True, "audio": "listen" in inferred, "video": "watch" in inferred})
+            selected = saved.get(registry_id, {"visible": True, "audio": "listen" in inferred, "video": "watch" in inferred, "order": index})
             items.append({"registry_id": registry_id, "name": str(player.get("name") or registry_id), "entity_id": str(player.get("entity_id") or ""), **selected})
+        items.sort(key=lambda item: int(item.get("order", 0)))
         return {"items": items, "configured": bool(saved)}
 
     @app.put("/api/installer/media-players")

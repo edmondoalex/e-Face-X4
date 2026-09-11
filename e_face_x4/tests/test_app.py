@@ -86,16 +86,16 @@ def test_x4_shell_and_brand_assets_are_served() -> None:
 def test_media_preferences_are_saved_and_applied(monkeypatch, tmp_path) -> None:
     path = tmp_path / "media_players.json"
     monkeypatch.setenv("EFACE_MEDIA_PREFERENCES", str(path))
-    saved = save_preferences({"one": {"visible": True, "audio": True, "video": False}, "two": {"visible": False}}, {"one", "two"})
+    saved = save_preferences({"one": {"visible": True, "audio": True, "video": False, "order": 1}, "two": {"visible": True, "audio": True, "order": 0}}, {"one", "two"})
     assert load_preferences() == saved
     filtered = apply_preferences({"items": [
         {"registry_id": "one", "room": "Sala", "experiences": ["watch"]},
         {"registry_id": "two", "room": "Studio", "experiences": ["listen"]},
         {"registry_id": "three", "room": "Altro", "experiences": ["listen"]},
     ], "groups": [], "rooms": []})
-    assert [item["registry_id"] for item in filtered["items"]] == ["one"]
-    assert filtered["items"][0]["experiences"] == ["listen"]
-    assert filtered["rooms"] == ["Sala"]
+    assert [item["registry_id"] for item in filtered["items"]] == ["two", "one"]
+    assert filtered["items"][1]["experiences"] == ["listen"]
+    assert filtered["rooms"] == ["Sala", "Studio"]
 
 
 def test_installer_login_is_protected(monkeypatch, tmp_path) -> None:

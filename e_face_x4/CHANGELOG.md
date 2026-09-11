@@ -287,6 +287,12 @@
 - Architettura modulare dei connettori.
 - Primo connettore in sola lettura per e-HDL BusPro MQTT.
 - Endpoint di salute e test contro l'esposizione delle credenziali.
+# 1.8.1
+
+- Aggiunto il riordino verticale dei player tramite trascinamento nell'area Admin multimediale.
+- L'ordine personalizzato viene salvato e applicato all'elenco Dispositivi e servizi.
+- Il trascinamento usa Pointer Events ed è compatibile con mouse, tablet e telefono.
+
 # 1.8.0
 
 - Aggiunta la pagina dedicata Strumenti, aperta dal menu a tre puntini e predisposta per nuove funzioni.

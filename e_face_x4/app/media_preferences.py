@@ -10,7 +10,7 @@ def _path() -> Path:
     return Path(os.environ.get("EFACE_MEDIA_PREFERENCES", "/data/media_players.json"))
 
 
-def load_preferences() -> dict[str, dict[str, bool]]:
+def load_preferences() -> dict[str, dict[str, bool | int]]:
     try:
         raw = json.loads(_path().read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError):
@@ -18,20 +18,26 @@ def load_preferences() -> dict[str, dict[str, bool]]:
     if not isinstance(raw, dict):
         return {}
     return {
-        key: {name: bool(value.get(name, False)) for name in ("visible", "audio", "video")}
+        key: {
+            **{name: bool(value.get(name, False)) for name in ("visible", "audio", "video")},
+            "order": max(0, int(value.get("order", 0))),
+        }
         for key, value in raw.items()
         if isinstance(key, str) and isinstance(value, dict)
     }
 
 
-def save_preferences(raw: Any, valid_ids: set[str]) -> dict[str, dict[str, bool]]:
+def save_preferences(raw: Any, valid_ids: set[str]) -> dict[str, dict[str, bool | int]]:
     if not isinstance(raw, dict) or len(raw) > 512:
         raise ValueError("Configurazione player non valida")
-    cleaned: dict[str, dict[str, bool]] = {}
+    cleaned: dict[str, dict[str, bool | int]] = {}
     for registry_id, value in raw.items():
         if registry_id not in valid_ids or not isinstance(value, dict):
             raise ValueError("Player non valido")
-        selection = {name: bool(value.get(name, False)) for name in ("visible", "audio", "video")}
+        selection = {
+            **{name: bool(value.get(name, False)) for name in ("visible", "audio", "video")},
+            "order": max(0, int(value.get("order", 0))),
+        }
         if selection["visible"] and not (selection["audio"] or selection["video"]):
             raise ValueError("Seleziona Audio o Video per ogni player visibile")
         cleaned[registry_id] = selection
@@ -57,6 +63,7 @@ def apply_preferences(snapshot: dict[str, Any]) -> dict[str, Any]:
         item = dict(source)
         item["experiences"] = (["listen"] if selected["audio"] else []) + (["watch"] if selected["video"] else [])
         items.append(item)
+    items.sort(key=lambda item: int(preferences[str(item.get("registry_id"))]["order"]))
     result = dict(snapshot)
     result["items"] = items
     result["rooms"] = sorted({str(item["room"]) for item in items if item.get("room")}, key=str.casefold)

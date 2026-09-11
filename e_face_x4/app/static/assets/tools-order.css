@@ -1,0 +1,35 @@
+.player-row {
+  position: relative;
+  padding-left: 48px;
+  touch-action: pan-y;
+}
+
+.player-row.dragging {
+  z-index: 2;
+  opacity: .72;
+  background: #21575d;
+}
+
+.drag-handle {
+  position: absolute;
+  left: 7px;
+  top: 50%;
+  width: 35px;
+  height: 48px;
+  display: grid;
+  place-items: center;
+  transform: translateY(-50%);
+  border: 0;
+  color: #d8e4e6;
+  background: transparent;
+  font-size: 24px;
+  cursor: grab;
+  touch-action: none;
+}
+
+.drag-handle:active { cursor: grabbing; }
+
+@media (max-width: 600px) {
+  .player-row { padding-left: 43px; }
+  .drag-handle { left: 3px; }
+}
