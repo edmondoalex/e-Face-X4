@@ -19,6 +19,7 @@
       <button data-view="security" title="Sicurezza"><b>⬡</b><span>Sicurezza</span></button>
     </nav>
     <main>
+      <div id="home-view">
       <section class="status-strip">
         <button><i>⬡</i><span>Sicurezza</span><strong>OK</strong></button><button><i>✦</i><strong id="lights-count">7</strong><span>Luci</span></button>
         <button><i>❄</i><span id="weather">Comfort</span></button><button><i>▤</i><span>Cover</span></button><button id="provider-state"><i>◌</i><span>Connettori</span><strong>—</strong></button>
@@ -34,7 +35,11 @@
         <div class="transport"><button>◁</button><button>◀</button><button class="play">Ⅱ</button><button>▶</button><button>▷</button></div>
         <div class="volume"><input id="volume" type="range" min="0" max="100" value="0"><strong id="volume-value">0%</strong></div>
       </section>
+      </div>
+      <section id="detail-view" class="detail-view" hidden>
+        <header class="detail-header"><button id="detail-back" aria-label="Torna alla home">‹</button><div><small id="detail-kicker">Dispositivi</small><h2 id="detail-title">Sezione</h2></div></header>
+        <div id="device-list" class="device-list page-device-list"></div>
+      </section>
     </main>
   </div><div id="notice" class="notice" hidden></div>
-  <dialog id="device-dialog"><header><div><small id="dialog-kicker">Dispositivi</small><h2 id="dialog-title">Ambiente</h2></div><button id="dialog-close" aria-label="Chiudi">×</button></header><div id="device-list" class="device-list"></div></dialog>
 </div><script type="module" src="assets/app.js"></script></body></html>

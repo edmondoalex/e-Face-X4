@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.5.0 — 2026-09-11
+
+- Sostituiti i popup con vere pagine interne alla shell e-Face X4.
+- Categorie, ambienti e `Vedi tutti` aprono una vista completa con griglia dispositivi.
+- Aggiunti intestazione della sezione, conteggio e comando indietro.
+- Il logo riporta sempre alla dashboard principale.
+
 ## 0.4.2 — 2026-09-11
 
 - Allineata la navigazione alle categorie Guarda, Ascolta, Luci, Oscuranti, Comfort e Sicurezza.

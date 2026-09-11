@@ -51,7 +51,9 @@ def test_x4_shell_and_brand_assets_are_served() -> None:
     assert page.status_code == 200
     assert "status-strip" in page.text
     assert "now-playing" in page.text
-    assert 'id="device-dialog"' in page.text
+    assert 'id="detail-view"' in page.text
+    assert 'id="detail-back"' in page.text
+    assert '<dialog' not in page.text
     assert 'id="show-all-devices"' in page.text
     for label in ("Guarda", "Ascolta", "Luci", "Oscuranti", "Comfort", "Sicurezza"):
         assert f'title="{label}"' in page.text

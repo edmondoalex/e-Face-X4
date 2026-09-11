@@ -69,12 +69,20 @@ function stateLabel(value) {
 }
 
 function openDevices(title, devices) {
-  $('#dialog-title').textContent = title
-  $('#dialog-kicker').textContent = `${devices.length} dispositivi`
+  $('#detail-title').textContent = title
+  $('#detail-kicker').textContent = `${devices.length} dispositivi`
   $('#device-list').innerHTML = devices.map((device) => `
     <article><span class="device-glyph">${glyph[device.kind] || '◇'}</span><div><strong>${esc(device.name)}</strong><small>${esc(device.room)}</small></div><em>${esc(stateLabel(device.state))}</em></article>
   `).join('') || '<p class="empty-state">Nessun dispositivo disponibile</p>'
-  $('#device-dialog').showModal()
+  $('#home-view').hidden = true
+  $('#detail-view').hidden = false
+  window.scrollTo({ top: 0, behavior: 'smooth' })
+}
+
+function showHome() {
+  $('#detail-view').hidden = true
+  $('#home-view').hidden = false
+  document.querySelectorAll('.rail button').forEach((item) => item.classList.remove('active'))
 }
 
 function fail(error) {
@@ -104,7 +112,7 @@ document.querySelectorAll('.rail button').forEach((button) => button.addEventLis
   document.querySelector('main').classList.remove('app-view')
   requestAnimationFrame(() => document.querySelector('main').classList.add('app-view'))
   if (button.dataset.view === 'watch') openDevices('Guarda', currentDevices.filter((device) => ['camera', 'doorbell'].includes(device.kind)))
-  if (button.dataset.view === 'listen') $('#media').scrollIntoView({ behavior: 'smooth', block: 'center' })
+  if (button.dataset.view === 'listen') openDevices('Ascolta', currentDevices.filter((device) => ['media_player', 'media'].includes(device.kind)))
   if (button.dataset.view === 'lights') openDevices('Luci', currentDevices.filter((device) => ['light', 'switch'].includes(device.kind)))
   if (button.dataset.view === 'covers') openDevices('Oscuranti', currentDevices.filter((device) => device.kind === 'cover'))
   if (button.dataset.view === 'comfort') openDevices('Comfort', currentDevices.filter((device) => ['climate', 'temp', 'temperature', 'humidity', 'air_quality'].includes(device.kind)))
@@ -122,7 +130,8 @@ $('#rooms').addEventListener('click', (event) => {
   if (!button) return
   openDevices(button.dataset.room, currentDevices.filter((device) => device.room.toLocaleLowerCase('it') === button.dataset.room.toLocaleLowerCase('it')))
 })
-$('#dialog-close').addEventListener('click', () => $('#device-dialog').close())
+$('#detail-back').addEventListener('click', showHome)
+$('.home-title').addEventListener('click', showHome)
 $('#show-all-devices').addEventListener('click', () => openDevices('Tutti i dispositivi', currentDevices))
 $('#volume').addEventListener('input', (event) => { $('#volume-value').textContent = `${event.target.value}%` })
 document.addEventListener('visibilitychange', () => { if (!document.hidden) refresh() })
