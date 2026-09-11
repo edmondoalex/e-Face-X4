@@ -287,6 +287,11 @@
 - Architettura modulare dei connettori.
 - Primo connettore in sola lettura per e-HDL BusPro MQTT.
 - Endpoint di salute e test contro l'esposizione delle credenziali.
+# 1.7.12
+
+- Ascolta include sia i player audio (`listen`) sia quelli video (`watch`), perché ogni player video dispone anche dell'audio.
+- Guarda resta limitato ai soli player video (`watch`).
+
 # 1.7.11
 
 - Ogni media player locale è trattato come stanza e usa il proprio nome visibile, senza richiedere un'Area Home Assistant.
