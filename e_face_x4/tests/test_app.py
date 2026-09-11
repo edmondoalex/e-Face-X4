@@ -5,6 +5,7 @@ from app.connectors.buspro import normalize_snapshot
 from app.connectors.etherm import normalize_thermostats
 from app.connectors.media import normalize_player
 from app.connectors.local_media import normalize_local_snapshot
+from app.connectors.local_media import HA_WEBSOCKET_MAX_BYTES
 from app.connectors.supervisor import find_addon_url
 
 
@@ -261,3 +262,4 @@ def test_local_home_assistant_media_snapshot_is_normalized() -> None:
     assert players[0]["room"] == "Soggiorno"
     assert players[0]["volume"] == 40
     assert players[0]["capabilities"]["play"] is True
+    assert HA_WEBSOCKET_MAX_BYTES == 16 * 1024 * 1024

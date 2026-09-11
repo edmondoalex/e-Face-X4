@@ -10,6 +10,8 @@ import websockets
 
 from .base import Connector
 
+HA_WEBSOCKET_MAX_BYTES = 16 * 1024 * 1024
+
 
 class LocalMediaConnector(Connector):
     id = "evoice"
@@ -28,7 +30,9 @@ class LocalMediaConnector(Connector):
     async def _registry_snapshot(self) -> dict[str, Any]:
         if not self.token:
             raise RuntimeError("SUPERVISOR_TOKEN mancante")
-        async with websockets.connect(self.ws_url, open_timeout=self.timeout) as ws:
+        async with websockets.connect(
+            self.ws_url, open_timeout=self.timeout, max_size=HA_WEBSOCKET_MAX_BYTES
+        ) as ws:
             await ws.recv()
             await ws.send(json.dumps({"type": "auth", "access_token": self.token}))
             authenticated = json.loads(await ws.recv())
@@ -120,7 +124,9 @@ class LocalMediaConnector(Connector):
         return {"status": "success" if all(item["status"] == "success" for item in results) else "partial_failure", "operation": "set_group_volume", "group_id": group_id, "members": results}
 
     async def events(self) -> AsyncIterator[dict[str, Any]]:
-        async with websockets.connect(self.ws_url, open_timeout=self.timeout) as ws:
+        async with websockets.connect(
+            self.ws_url, open_timeout=self.timeout, max_size=HA_WEBSOCKET_MAX_BYTES
+        ) as ws:
             await ws.recv()
             await ws.send(json.dumps({"type": "auth", "access_token": self.token}))
             if json.loads(await ws.recv()).get("type") != "auth_ok": raise RuntimeError("autenticazione HA rifiutata")

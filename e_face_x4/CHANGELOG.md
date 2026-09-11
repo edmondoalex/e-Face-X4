@@ -287,6 +287,10 @@
 - Architettura modulare dei connettori.
 - Primo connettore in sola lettura per e-HDL BusPro MQTT.
 - Endpoint di salute e test contro l'esposizione delle credenziali.
+# 1.7.2
+
+- Aumentato a 16 MB il limite controllato dei frame WebSocket Home Assistant per impianti con registri entità estesi.
+
 # 1.7.1
 
 - Collegamento multimediale locale automatico tramite Home Assistant e Supervisor.
