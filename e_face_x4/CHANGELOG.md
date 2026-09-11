@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.0.1 — 2026-09-11
+
+- Rimossa la pagina e-HDL incorporata che interrompeva lo stile X4.
+- Ricostruiti i richiami scenario come schede native e-Face compatte e responsive.
+- Collegati stato, Run/Stop e Accendi/Spegni al WebSocket realtime.
+
 ## 1.0.0 — 2026-09-11
 
 - Incorporata nella pagina Luci la gestione scenari completa e originale di e-HDL.

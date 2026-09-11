@@ -8,6 +8,7 @@ let realtimeSocket = null
 let realtimeRetry = null
 let detailRenderQueued = false
 let snapshotRefreshTimer = null
+let currentScenarios = []
 
 function apiUrl(path) {
   const base = location.pathname.endsWith('/') ? location.pathname : `${location.pathname}/`
@@ -158,10 +159,38 @@ function openDevices(title, devices) {
   renderDeviceList(devices)
   const showScenarios = title === 'Luci'
   $('#scenario-panel').hidden = !showScenarios
-  if (showScenarios && !$('#scenario-frame').getAttribute('src')) $('#scenario-frame').src = apiUrl('buspro/scenarios')
+  if (showScenarios) loadScenarios()
   $('#home-view').hidden = true
   $('#detail-view').hidden = false
   window.scrollTo({ top: 0, behavior: 'smooth' })
+}
+
+async function loadScenarios() {
+  try {
+    const response = await fetch(apiUrl('api/scenarios'), { cache: 'no-store' })
+    if (!response.ok) throw new Error(`HTTP ${response.status}`)
+    currentScenarios = (await response.json()).items || []
+    renderScenarios()
+  } catch (error) { fail(error) }
+}
+
+function renderScenarios() {
+  $('#scenario-list').innerHTML = currentScenarios.map((scenario) => {
+    const active = String(scenario.state).toUpperCase() === 'ON'
+    const controls = []
+    if (scenario.run_enabled) controls.push(`<button data-scenario-action="${scenario.running ? 'stop' : 'run'}">${scenario.running ? 'STOP' : 'ESEGUI'}</button>`)
+    if (scenario.onoff_enabled) controls.push(`<button data-scenario-action="${active ? 'off' : 'on'}">${active ? 'SPEGNI' : 'ACCENDI'}</button>`)
+    return `<article class="scenario-card ${active ? 'active' : ''}" data-scenario-id="${esc(scenario.id)}"><span class="scenario-glyph mdi-mask" style="${mdiStyle('mdi:creation', 'creation')}"></span><div><strong>${esc(scenario.name)}</strong><small>${scenario.lights} luci · ${scenario.covers} cover</small></div><div class="scenario-actions">${controls.join('')}</div></article>`
+  }).join('') || '<span class="empty-state">Nessuno scenario configurato in e-HDL</span>'
+}
+
+async function sendScenarioCommand(id, action, button) {
+  button.disabled = true
+  try {
+    const response = await fetch(apiUrl(`api/scenarios/${encodeURIComponent(id)}/command`), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action }) })
+    if (!response.ok) throw new Error((await response.json().catch(() => ({}))).detail || `HTTP ${response.status}`)
+    await loadScenarios()
+  } catch (error) { fail(error) } finally { button.disabled = false }
 }
 
 function showHome() {
@@ -220,6 +249,15 @@ function applyRealtimeEvent(event) {
     return
   }
   const data = event.data || {}
+  if (event.type === 'light_scenario_state' || event.type === 'light_scenario_running') {
+    const scenario = currentScenarios.find((item) => item.id === String(data.id || ''))
+    if (scenario) {
+      if (data.state !== undefined) scenario.state = data.state
+      if (data.running !== undefined) scenario.running = data.running
+      renderScenarios()
+    }
+    return
+  }
   const key = data.entity_id || [data.subnet_id, data.device_id, data.channel].join('.')
   const device = currentDevices.find((item) => item.state_key === key)
   if (!device) return
@@ -261,6 +299,12 @@ $('#rooms').addEventListener('click', (event) => {
   openDevices(button.dataset.room, currentDevices.filter((device) => device.room.toLocaleLowerCase('it') === button.dataset.room.toLocaleLowerCase('it')))
 })
 $('#detail-back').addEventListener('click', showHome)
+$('#scenario-refresh').addEventListener('click', loadScenarios)
+$('#scenario-list').addEventListener('click', (event) => {
+  const button = event.target.closest('[data-scenario-action]')
+  const card = event.target.closest('[data-scenario-id]')
+  if (button && card) sendScenarioCommand(card.dataset.scenarioId, button.dataset.scenarioAction, button)
+})
 $('#device-list').addEventListener('click', (event) => {
   const button = event.target.closest('[data-action]')
   const card = event.target.closest('[data-device-id]')

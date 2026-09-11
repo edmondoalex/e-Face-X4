@@ -56,7 +56,8 @@ def test_x4_shell_and_brand_assets_are_served() -> None:
     assert '<dialog' not in page.text
     assert 'id="show-all-devices"' in page.text
     assert 'id="scenario-panel"' in page.text
-    assert 'id="scenario-frame"' in page.text
+    assert 'id="scenario-list"' in page.text
+    assert '<iframe' not in page.text
     for label in ("Guarda", "Ascolta", "Luci", "Extra", "Oscuranti", "Comfort", "Sicurezza"):
         assert f'title="{label}"' in page.text
     assert 'src="assets/brand-horizontal.png?v=0.7.5"' in page.text
@@ -156,6 +157,6 @@ def test_device_command_requires_enabled_connector(monkeypatch, tmp_path) -> Non
     assert response.status_code == 503
 
 
-def test_scenario_proxy_rejects_unrelated_buspro_routes() -> None:
-    response = TestClient(create_app()).get("/buspro/api/config")
-    assert response.status_code == 404
+def test_scenario_command_rejects_unknown_action_before_connector() -> None:
+    response = TestClient(create_app()).post("/api/scenarios/example/command", json={"action": "delete"})
+    assert response.status_code == 400
