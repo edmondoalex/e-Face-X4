@@ -7,6 +7,8 @@ import os
 from pathlib import Path
 from typing import Any
 
+_director_cache: dict[str, Any] = {}
+
 
 def _path() -> Path:
     return Path(os.environ.get("EFACE_CONTROL4_CONFIG", "/data/control4.json"))
@@ -95,6 +97,31 @@ async def test_control4_connection(config: dict[str, str]) -> dict[str, Any]:
         **summary,
         "local_host": config["host"],
     }
+
+
+async def control4_director(config: dict[str, str]) -> tuple[Any, str]:
+    """Authenticate and return a local Director client and its ephemeral token."""
+    import time
+    from pyControl4.account import C4Account
+    from pyControl4.director import C4Director
+
+    key = f"{config['host']}\0{config['username']}\0{config['password']}"
+    cached = _director_cache.get(key)
+    if cached and cached[0] > time.monotonic():
+        return C4Director(config["host"], cached[1]), cached[1]
+    account = C4Account(config["username"], config["password"])
+    await account.get_account_bearer_token()
+    info = await account.get_account_controllers()
+    common_name = _find_first(info, "controllerCommonName")
+    if not common_name:
+        raise RuntimeError("Nessun controller Control4 associato")
+    payload = await account.get_director_bearer_token(str(common_name))
+    token = payload.get("token") if isinstance(payload, dict) else None
+    if not token:
+        raise RuntimeError("Token Director non disponibile")
+    _director_cache.clear()
+    _director_cache[key] = (time.monotonic() + 20 * 60 * 60, str(token))
+    return C4Director(config["host"], str(token)), str(token)
 
 
 def summarize_ui_configuration(ui: Any, all_items: Any) -> dict[str, Any]:

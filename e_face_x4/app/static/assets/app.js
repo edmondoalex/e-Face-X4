@@ -15,6 +15,7 @@ let lightFilterRoom = ''
 let devicePointerGesture = null
 let avRoom = ''
 let currentMediaGroups = []
+let currentMediaExperience = ''
 let activeMediaPlayer = null
 let selectedMediaId = ''
 
@@ -52,7 +53,7 @@ function render(data) {
   const home = dashboard.home || {}
   const widgets = dashboard.widgets || []
   const providers = data.providers || []
-  currentMediaGroups = providers.find((provider) => provider.id === 'evoice')?.groups || []
+  currentMediaGroups = providers.find((provider) => ['control4','evoice'].includes(provider.id))?.groups || []
   const navIcons = data.nav_icons || {}
   currentDevices = Array.isArray(dashboard.devices) ? dashboard.devices : []
   updateNavigationStates()
@@ -224,7 +225,8 @@ function renderMediaExperience(devices) {
   selected = selected || devices.find((device) => String(device.state).toLowerCase() === 'playing') || devices[0]
   selectedMediaId = String(selected.id)
   const players = devices.map((device) => `<button class="media-service-tile ${device.id === selected.id ? 'active' : ''}" data-media-select="${esc(device.id)}"><span class="mdi-mask" style="${mdiStyle(device.icon, 'speaker')}"></span><b>${esc(device.name)}</b><small>${esc(device.room)}</small></button>`).join('')
-  const sources = (selected.source_list || []).map((source) => `<button class="media-service-tile ${source === selected.source ? 'active' : ''}" data-device-id="${esc(selected.id)}" data-media-source="${esc(source)}"><span class="mdi-mask" style="${mdiStyle('mdi:play-box', 'play-box')}"></span><b>${esc(source)}</b><small>Sorgente</small></button>`).join('')
+  const options = selected.source_options?.length ? selected.source_options.filter((source) => !currentMediaExperience || source.experience === currentMediaExperience) : (selected.source_list || []).map((source) => ({key:source,label:source}))
+  const sources = options.map((source) => `<button class="media-service-tile ${source.label === selected.source ? 'active' : ''}" data-device-id="${esc(selected.id)}" data-media-source="${esc(source.key)}"><span class="mdi-mask" style="${mdiStyle('mdi:play-box', 'play-box')}"></span><b>${esc(source.label)}</b><small>Sorgente</small></button>`).join('')
   $('#device-list').innerHTML = `<article class="media-session ${deviceVisualClass(selected)}" data-device-id="${esc(selected.id)}">${mediaArtwork(selected)}<span class="device-glyph mdi-mask" style="${mdiStyle(selected.icon, 'speaker')}"></span><div class="media-session-info"><strong>${esc(selected.name)}</strong><small>${esc(selected.room)}</small><span class="media-track">${esc(selected.title || 'Nessuna riproduzione')}</span><span class="media-artist">${esc([selected.artist, selected.album].filter(Boolean).join(' · '))}</span></div><em>${esc(stateLabel(selected))}</em>${deviceActions(selected)}</article><div class="media-library"><h3>Dispositivi e servizi</h3><div class="media-service-grid">${players}${sources}</div></div>`
 }
 
@@ -320,9 +322,10 @@ function deviceActions(device) {
     const caps = device.capabilities || {}
     const disabled = device.connection_status === 'offline' || device.availability !== 'available'
     const button = (operation, icon, label, enabled = true) => enabled ? `<button data-media-action="${operation}" aria-label="${label}" ${disabled ? 'disabled' : ''}>${icon}</button>` : ''
-    const controls = [button('media_previous', '◀', 'Precedente', caps.previous), String(device.state).toLowerCase() === 'playing' ? button('media_pause', 'Ⅱ', 'Pausa', caps.pause) : button('media_play', '▶', 'Riproduci', caps.play), button('media_stop', '■', 'Stop', caps.stop), button('media_next', '▶|', 'Successivo', caps.next), device.muted ? button('volume_unmute', '🔇', 'Riattiva audio', caps.mute) : button('volume_mute', '🔊', 'Disattiva audio', caps.mute), button('media_zones', '▣+', 'Aggiungi stanze', caps.grouping)].join('')
+    const controls = [button('media_previous', '◀', 'Precedente', caps.previous), String(device.state).toLowerCase() === 'playing' ? button('media_pause', 'Ⅱ', 'Pausa', caps.pause) : button('media_play', '▶', 'Riproduci', caps.play), button('media_stop', '■', 'Stop', caps.stop), button('turn_off', '⏻', 'Spegni stanza', caps.turn_off), button('media_next', '▶|', 'Successivo', caps.next), device.muted ? button('volume_unmute', '🔇', 'Riattiva audio', caps.mute) : button('volume_mute', '🔊', 'Disattiva audio', caps.mute), button('media_zones', '▣+', 'Aggiungi stanze', caps.grouping)].join('')
     const volume = caps.set_volume ? `<label class="media-volume"><input type="range" min="0" max="100" value="${Number(device.volume) || 0}" data-media-volume ${disabled ? 'disabled' : ''}><output>${Number(device.volume) || 0}%</output></label>` : ''
-    const sources = caps.select_source && Array.isArray(device.source_list) && device.source_list.length ? `<div class="media-sources">${device.source_list.map((source) => `<button data-media-source="${esc(source)}" class="${source === device.source ? 'active' : ''}" ${disabled ? 'disabled' : ''}><span class="mdi-mask" style="${mdiStyle('mdi:play-box', 'play-box')}"></span><b>${esc(source)}</b></button>`).join('')}</div>` : ''
+    const sourceOptions = device.source_options?.length ? device.source_options.filter((source) => !currentMediaExperience || source.experience === currentMediaExperience) : (device.source_list || []).map((source) => ({key:source,label:source}))
+    const sources = caps.select_source && sourceOptions.length ? `<div class="media-sources">${sourceOptions.map((source) => `<button data-media-source="${esc(source.key)}" class="${source.label === device.source ? 'active' : ''}" ${disabled ? 'disabled' : ''}><span class="mdi-mask" style="${mdiStyle('mdi:play-box', 'play-box')}"></span><b>${esc(source.label)}</b></button>`).join('')}</div>` : ''
     return `<div class="media-controls">${controls}</div>${volume}${sources}`
   }
   return ''
@@ -432,6 +435,7 @@ async function sendRgbCommand(group, action, value, control) {
 }
 
 function openDevices(title, devices, options = {}) {
+  currentMediaExperience = options.experience || ''
   activeDetailIds = new Set(devices.map((device) => String(device.id)))
   $('#detail-title').textContent = title
   $('#light-filters').hidden = !options.lights
@@ -601,8 +605,8 @@ document.querySelectorAll('.rail button').forEach((button) => button.addEventLis
   button.classList.add('active')
   document.querySelector('main').classList.remove('app-view')
   requestAnimationFrame(() => document.querySelector('main').classList.add('app-view'))
-  if (button.dataset.view === 'watch') openDevices('Guarda', currentDevices.filter((device) => ['camera', 'doorbell'].includes(device.kind) || (device.kind === 'media_player' && device.experiences?.includes('watch'))), { av: true })
-  if (button.dataset.view === 'listen') openDevices('Ascolta', currentDevices.filter((device) => ['media_player', 'media'].includes(device.kind) && (!device.experiences?.length || device.experiences.some((experience) => ['listen', 'watch'].includes(experience)))), { av: true })
+  if (button.dataset.view === 'watch') openDevices('Guarda', currentDevices.filter((device) => ['camera', 'doorbell'].includes(device.kind) || (device.kind === 'media_player' && device.experiences?.includes('watch'))), { av: true, experience: 'watch' })
+  if (button.dataset.view === 'listen') openDevices('Ascolta', currentDevices.filter((device) => ['media_player', 'media'].includes(device.kind) && (!device.experiences?.length || device.experiences.some((experience) => ['listen', 'watch'].includes(experience)))), { av: true, experience: 'listen' })
   if (button.dataset.view === 'lights') openDevices('Luci', currentDevices.filter((device) => device.kind === 'light'), { lights: true })
   if (button.dataset.view === 'extra') openDevices('Extra', currentDevices.filter((device) => device.kind === 'switch'))
   if (button.dataset.view === 'scenarios') openScenariosPage()

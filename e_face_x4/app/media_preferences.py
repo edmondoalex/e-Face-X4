@@ -53,6 +53,9 @@ def apply_preferences(snapshot: dict[str, Any]) -> dict[str, Any]:
     preferences = load_preferences()
     if not preferences:
         return snapshot
+    snapshot_ids = {str(item.get("registry_id")) for item in snapshot.get("items", []) if isinstance(item, dict)}
+    if not snapshot_ids.intersection(preferences):
+        return snapshot
     items: list[dict[str, Any]] = []
     for source in snapshot.get("items", []):
         if not isinstance(source, dict):

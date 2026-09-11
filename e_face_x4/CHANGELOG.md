@@ -1,5 +1,13 @@
 # Changelog
 
+## 2.0.0 — 2026-09-11
+
+- Aggiunto il connettore multimediale nativo Control4 Director sulla rete locale.
+- Importate esclusivamente le stanze Listen e Watch configurate in Control4, con sorgenti distinte per esperienza.
+- Aggiunti stato realtime via WebSocket, volume, mute, play, pausa, stop, spegnimento stanza e selezione sorgente.
+- Mantenute selezione, classificazione audio/video e riordino installatore anche per i player Control4.
+- Le credenziali restano locali nell'add-on e i token temporanei Control4 non vengono esposti al browser.
+
 ## 1.6.4 — 2026-09-11
 
 - Normalizzati automaticamente gli URL dei connettori aggiungendo o correggendo lo schema HTTP/HTTPS.

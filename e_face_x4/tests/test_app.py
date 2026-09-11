@@ -6,6 +6,7 @@ from app.connectors.etherm import normalize_thermostats
 from app.connectors.media import normalize_player
 from app.connectors.local_media import normalize_local_snapshot
 from app.connectors.local_media import HA_WEBSOCKET_MAX_BYTES
+from app.connectors.control4_media import normalize_control4_media
 from app.connectors.supervisor import find_addon_url
 from app.media_preferences import apply_preferences, load_preferences, save_preferences
 from app.control4 import load_control4_config, public_control4_config, save_control4_config, summarize_ui_configuration
@@ -131,6 +132,60 @@ def test_control4_ui_configuration_provides_rooms_and_sources() -> None:
         {"type": "listen", "room_id": 12, "sources": {"source": []}},
     ]}, [{"id": 9, "name": "Sala"}, {"id": 12, "name": "Studio"}])
     assert result == {"rooms": 2, "room_names": ["Studio", "Sala"], "experiences": ["listen", "watch"], "sources": 3}
+
+
+def test_control4_media_uses_only_listen_watch_rooms_and_native_sources() -> None:
+    ui = {"experiences": [
+        {"type": "watch", "room_id": 51, "sources": {"source": [{"id": 809, "name": "Samsung TV"}]}},
+        {"type": "listen", "room_id": 51, "sources": {"source": [{"id": 100002, "name": "Spotify Connect"}]}},
+        {"type": "lights", "room_id": 54, "sources": {"source": [{"id": 1, "name": "Luce"}]}},
+    ]}
+    variables = [
+        {"id": 51, "varName": "POWER_STATE", "value": 1},
+        {"id": 51, "varName": "CURRENT_VOLUME", "value": 64},
+        {"id": 51, "varName": "IS_MUTED", "value": 0},
+        {"id": 51, "varName": "CURRENT_AUDIO_DEVICE", "value": 100002},
+    ]
+    players = normalize_control4_media(ui, [{"id": 51, "name": "Ufficio Alex"}, {"id": 54, "name": "Bagno PT"}], variables)
+    assert len(players) == 1
+    player = players[0]
+    assert player["name"] == "Ufficio Alex"
+    assert player["experiences"] == ["watch", "listen"]
+    assert player["state"] == "playing"
+    assert player["volume"] == 64
+    assert player["source"] == "Spotify Connect"
+    assert player["source_options"] == [
+        {"key": "watch:809", "label": "Samsung TV", "experience": "watch", "type": ""},
+        {"key": "listen:100002", "label": "Spotify Connect", "experience": "listen", "type": ""},
+    ]
+    assert player["capabilities"]["turn_off"] is True
+
+
+def test_control4_unknown_volume_disables_volume_control() -> None:
+    players = normalize_control4_media(
+        {"experiences": [{"type": "listen", "room_id": 7, "sources": {"source": []}}]},
+        [{"id": 7, "name": "Esterno"}],
+        [{"id": 7, "varName": "CURRENT_VOLUME", "value": -1}],
+    )
+    assert players[0]["volume"] is None
+    assert players[0]["capabilities"]["set_volume"] is False
+
+
+def test_control4_command_does_not_require_evoice_enabled(monkeypatch, tmp_path) -> None:
+    import app.main as main_module
+
+    options = tmp_path / "options.json"
+    options.write_text('{"evoice":{"enabled":false,"base_url":"","token":"","installation_id":""}}', encoding="utf-8")
+    monkeypatch.setenv("EFACE_OPTIONS", str(options))
+    monkeypatch.setattr(main_module, "load_control4_config", lambda: {"host": "192.168.3.10", "username": "configured", "password": "configured"})
+
+    async def command(self, registry_id, operation, value=None):
+        return {"status": "success", "registry_id": registry_id, "operation": operation}
+
+    monkeypatch.setattr(main_module.Control4MediaConnector, "command", command)
+    response = TestClient(main_module.create_app()).post("/api/devices/c4media:51/command", json={"action": "turn_off"})
+    assert response.status_code == 200
+    assert response.json() == {"status": "success", "registry_id": "c4room:51", "operation": "turn_off"}
 
 
 def test_configured_home_name_is_shown_in_bootstrap(monkeypatch, tmp_path) -> None:

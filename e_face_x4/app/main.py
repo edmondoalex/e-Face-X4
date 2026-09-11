@@ -17,14 +17,14 @@ from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from .config import load_settings
-from .control4 import public_control4_config, save_control4_config, test_control4_connection
+from .control4 import load_control4_config, public_control4_config, save_control4_config, test_control4_connection
 from .installer_auth import COOKIE, create_session, valid_session
 from .media_preferences import apply_preferences, load_preferences, save_preferences
-from .connectors import BusproConnector, EThermConnector, EkonexMediaConnector, LocalMediaConnector
+from .connectors import BusproConnector, Control4MediaConnector, EThermConnector, EkonexMediaConnector, LocalMediaConnector
 from .connectors.supervisor import discover_addon_url
 from .demo import dashboard as demo_dashboard
 
-VERSION = "1.9.1"
+VERSION = "2.0.0"
 STATIC = Path(__file__).parent / "static"
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s [e-face-x4] %(message)s")
 
@@ -41,6 +41,9 @@ def create_app() -> FastAPI:
         return replace(config, base_url=discovered) if discovered else config
 
     def media_connector(settings):
+        control4 = load_control4_config()
+        if control4.get("username") and control4.get("password"):
+            return Control4MediaConnector(control4)
         if settings.evoice.enabled and settings.evoice.base_url and settings.evoice.installation_id:
             return EkonexMediaConnector(settings.evoice, settings.request_timeout_s)
         if settings.evoice.enabled:
@@ -64,7 +67,7 @@ def create_app() -> FastAPI:
             media_connector(settings),
         ]
         providers = list(await asyncio.gather(*(connector.snapshot() for connector in connectors)))
-        providers = [apply_preferences(provider) if provider.get("id") == "evoice" else provider for provider in providers]
+        providers = [apply_preferences(provider) if provider.get("id") in {"evoice", "control4"} else provider for provider in providers]
         dashboard = demo_dashboard() if settings.demo_mode else {"rooms": [], "widgets": [], "media": None}
         dashboard.setdefault("home", {})["name"] = settings.home_name
         if not settings.demo_mode:
@@ -76,7 +79,7 @@ def create_app() -> FastAPI:
             etherm = next((item for item in providers if item.get("id") == "etherm" and item.get("status") == "online"), None)
             if isinstance(etherm, dict):
                 dashboard["devices"].extend(etherm.get("items", []))
-            media = next((item for item in providers if item.get("id") == "evoice" and item.get("status") == "online"), None)
+            media = next((item for item in providers if item.get("id") in {"control4", "evoice"} and item.get("status") == "online"), None)
             if isinstance(media, dict):
                 media_items = media.get("items", [])
                 dashboard["devices"].extend(media_items)
@@ -226,12 +229,14 @@ def create_app() -> FastAPI:
     @app.post("/api/devices/{device_id}/command")
     async def device_command(device_id: str, payload: dict) -> dict:
         settings = load_settings()
-        if device_id.startswith("media:"):
+        if device_id.startswith(("media:", "c4media:")):
             config = settings.evoice
-            if not config.enabled:
+            control4 = load_control4_config()
+            control4_enabled = bool(control4.get("username") and control4.get("password"))
+            if not control4_enabled and not config.enabled:
                 raise HTTPException(status_code=503, detail="Ekonex Media non disponibile")
             operation = str(payload.get("action") or "")
-            allowed = {"media_play", "media_pause", "media_stop", "media_next", "media_previous", "set_volume", "volume_mute", "volume_unmute", "select_source", "media_join", "media_unjoin"}
+            allowed = {"media_play", "media_pause", "media_stop", "turn_off", "media_next", "media_previous", "set_volume", "volume_mute", "volume_unmute", "select_source", "media_join", "media_unjoin"}
             if operation not in allowed:
                 raise HTTPException(status_code=400, detail="Comando multimedia non valido")
             arguments = {}
@@ -244,6 +249,8 @@ def create_app() -> FastAPI:
             command = {"request_id": str(uuid.uuid4()), "operation": operation, "arguments": arguments, "expected_resource_revision": payload.get("resource_revision") if operation in {"media_join", "media_unjoin"} else None}
             try:
                 connector = media_connector(settings)
+                if isinstance(connector, Control4MediaConnector):
+                    return await connector.command(f"c4room:{device_id.split(':', 1)[1]}", operation, payload.get("value"))
                 if isinstance(connector, LocalMediaConnector):
                     return await connector.command(device_id.split(":", 1)[1], operation, payload.get("value"))
                 return await connector.command(device_id.split(":", 1)[1], command)
@@ -385,7 +392,8 @@ def create_app() -> FastAPI:
             tasks.append(asyncio.create_task(buspro_events()))
         if etherm.enabled and etherm.base_url:
             tasks.append(asyncio.create_task(etherm_events()))
-        if settings.evoice.enabled:
+        control4_config = load_control4_config()
+        if settings.evoice.enabled or (control4_config.get("username") and control4_config.get("password")):
             tasks.append(asyncio.create_task(media_events()))
         if not tasks:
             await websocket.close(code=1013, reason="Nessun connettore realtime disponibile")
