@@ -289,7 +289,7 @@ function updateGlobalMediaSession() {
 }
 
 function activeMediaSessions() {
-  const active = currentDevices.filter((item) => item.kind === 'media_player' && item.availability === 'available' && item.connection_status !== 'offline' && !['off', 'unavailable', 'unknown'].includes(String(item.state).toLowerCase()))
+  const active = currentDevices.filter((item) => item.kind === 'media_player' && item.availability === 'available' && item.connection_status !== 'offline' && !['off', 'unavailable', 'unknown'].includes(String(item.state).toLowerCase()) && (item.provider !== 'control4' || Boolean(item.active_experience)))
   const sessions = []
   const consumed = new Set()
   for (const player of active) {
@@ -438,7 +438,11 @@ function renderMediaZones() {
   if (!selected) return
   const group = mediaGroupFor(selected)
   const members = new Set(group?.member_registry_ids || [selected.registry_id])
-  const players = currentDevices.filter((item) => item.kind === 'media_player')
+  const allPlayers = currentDevices.filter((item) => item.kind === 'media_player')
+  const sourceId = Number(selected.active_source_id)
+  const experience = selected.active_experience
+  const compatible = (item) => !sourceId || item.provider !== 'control4' || (item.source_options || []).some((source) => Number(source.source_id) === sourceId && (!experience || source.experience === experience))
+  const players = allPlayers.filter((item) => members.has(item.registry_id) || compatible(item))
   const playing = players.filter((item) => members.has(item.registry_id))
   const volumes = players.filter((item) => members.has(item.registry_id) && Number.isFinite(Number(item.volume))).map((item) => Number(item.volume))
   const average = volumes.length ? Math.round(volumes.reduce((sum, value) => sum + value, 0) / volumes.length) : 0

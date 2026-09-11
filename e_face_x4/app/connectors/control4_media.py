@@ -16,6 +16,7 @@ from .base import Connector
 
 ROOM_VARIABLES = ("POWER_STATE", "CURRENT_VOLUME", "IS_MUTED", "CURRENT_SELECTED_DEVICE", "CURRENT_AUDIO_DEVICE", "CURRENT_VIDEO_DEVICE", "CURRENT_VOLUME_DEVICE_ID", "PLAYING_AUDIO_DEVICE", "CURRENT MEDIA INFO", "QUEUE_STATUS_V2")
 _artwork_urls: dict[str, tuple[str, str]] = {}
+_source_icon_paths: dict[int, str] = {}
 _ARTWORK_HOSTS = ("i.scdn.co", "mosaic.scdn.co", "spotifycdn.com", "mzstatic.com", "media-amazon.com", "tunein.com")
 
 
@@ -152,6 +153,7 @@ def normalize_control4_media(ui: Any, all_items: Any, variables: Any) -> list[di
     experiences = ui.get("experiences", []) if isinstance(ui, dict) else []
     if isinstance(experiences, dict): experiences = experiences.get("experience", [])
     names = {str(item.get("id")): str(item.get("name")) for item in (all_items if isinstance(all_items, list) else []) if isinstance(item, dict) and item.get("id") is not None and item.get("name")}
+    item_info = {str(item.get("id")): item for item in (all_items if isinstance(all_items, list) else []) if isinstance(item, dict) and item.get("id") is not None}
     state: dict[str, dict[str, Any]] = {}
     for item in variables if isinstance(variables, list) else []:
         if isinstance(item, dict): state.setdefault(str(item.get("id")), {})[str(item.get("varName"))] = item.get("value")
@@ -169,7 +171,11 @@ def normalize_control4_media(ui: Any, all_items: Any, variables: Any) -> list[di
             if not isinstance(source, dict) or source.get("id") is None: continue
             label = source.get("name") or names.get(str(source.get("id")))
             if label:
-                room["source_options"].append({"key": f"{experience['type']}:{source['id']}", "label": str(label), "experience": str(experience["type"]), "type": str(source.get("type") or ""), "source_id": int(source["id"])})
+                source_id = int(source["id"])
+                icon_path = control4_icon_path(item_info.get(str(source_id)))
+                if icon_path:
+                    _source_icon_paths[source_id] = icon_path
+                room["source_options"].append({"key": f"{experience['type']}:{source_id}", "label": str(label), "experience": str(experience["type"]), "type": str(source.get("type") or ""), "source_id": source_id})
     result = []
     for room_id, data in rooms.items():
         values = state.get(room_id, {})
@@ -177,6 +183,7 @@ def normalize_control4_media(ui: Any, all_items: Any, variables: Any) -> list[di
         volume = int(volume) if isinstance(volume, (int, float, str)) and str(volume).lstrip("-").isdigit() and int(volume) >= 0 else None
         selected = {str(values.get("CURRENT_AUDIO_DEVICE")), str(values.get("CURRENT_VIDEO_DEVICE")), str(values.get("CURRENT_SELECTED_DEVICE"))}
         active_source = next((source["label"] for source in data["source_options"] if source["key"].split(":", 1)[1] in selected), None)
+        active_source_id = next((source["source_id"] for source in data["source_options"] if str(source["source_id"]) in selected), None)
         media = values.get("CURRENT MEDIA INFO")
         media = media.get("mediainfo", {}) if isinstance(media, dict) else {}
         media = media if isinstance(media, dict) else {}
@@ -200,7 +207,7 @@ def normalize_control4_media(ui: Any, all_items: Any, variables: Any) -> list[di
         has_video_session = str(video_device or "0").isdigit() and int(video_device or 0) > 0
         active_experience = "watch" if has_video_session else "listen" if has_audio_session else None
         can_group = "listen" in data["experiences"] and (has_audio_session or has_video_session)
-        result.append({"id": f"c4media:{room_id}", "registry_id": registry_id, "entity_id": f"control4.room.{room_id}", "provider": "control4", "kind": "media_player", "icon": icon, "name": name, "room": name, "state": state_name, "availability": "available", "connection_status": "online", "volume": volume, "muted": str(values.get("IS_MUTED")) in {"1", "True", "true"}, "source": str(media.get("meta", {}).get("audioFormat") or active_source or "") if isinstance(media.get("meta"), dict) else active_source, "title": media.get("title"), "artist": media.get("artist"), "album": media.get("album"), "content_fingerprint": fingerprint, "source_options": data["source_options"], "source_list": [source["label"] for source in data["source_options"]], "experiences": data["experiences"], "active_experience": active_experience, "capabilities": {"play": True, "pause": True, "stop": True, "previous": True, "next": True, "turn_off": True, "set_volume": volume is not None, "mute": True, "select_source": bool(data["source_options"]), "grouping": can_group, "artwork": bool(fingerprint)}})
+        result.append({"id": f"c4media:{room_id}", "registry_id": registry_id, "entity_id": f"control4.room.{room_id}", "provider": "control4", "kind": "media_player", "icon": icon, "name": name, "room": name, "state": state_name, "availability": "available", "connection_status": "online", "volume": volume, "muted": str(values.get("IS_MUTED")) in {"1", "True", "true"}, "source": str(media.get("meta", {}).get("audioFormat") or active_source or "") if isinstance(media.get("meta"), dict) else active_source, "active_source_id": active_source_id, "title": media.get("title"), "artist": media.get("artist"), "album": media.get("album"), "content_fingerprint": fingerprint, "source_options": data["source_options"], "source_list": [source["label"] for source in data["source_options"]], "experiences": data["experiences"], "active_experience": active_experience, "capabilities": {"play": True, "pause": True, "stop": True, "previous": True, "next": True, "turn_off": True, "set_volume": volume is not None, "mute": True, "select_source": bool(data["source_options"]), "grouping": can_group, "artwork": bool(fingerprint)}})
     return result
 
 
@@ -227,6 +234,10 @@ def control4_icon_path(item: Any) -> str | None:
     if not re.fullmatch(r"controller://driver/[A-Za-z0-9_.-]+/[A-Za-z0-9_./-]+\.(?:png|gif|jpe?g)", uri, re.IGNORECASE):
         return None
     return "/driver/" + uri.removeprefix("controller://driver/")
+
+
+def cached_control4_icon_path(source_id: int) -> str | None:
+    return _source_icon_paths.get(source_id)
 
 
 def control4_queue_rooms(queue: dict[str, Any]) -> list[int]:

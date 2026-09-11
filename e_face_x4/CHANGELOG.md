@@ -1,5 +1,12 @@
 # Changelog
 
+## 2.4.1 — 2026-09-11
+
+- Corretto il caricamento delle icone native dei device e delle sorgenti Control4 usando la mappa già acquisita dal Director.
+- Le sessioni Control4 non mostrano più stanze rimaste accese soltanto per uno stato obsoleto senza esperienza audio/video attiva.
+- Il selettore `+` limita le stanze a quelle sulle quali Control4 espone realmente la sorgente della sessione.
+- Aggiornato il logo orizzontale e-Face X4.
+
 ## 2.4.0 — 2026-09-11
 
 - Caricate dal Director le icone native dei singoli device e servizi Control4.
