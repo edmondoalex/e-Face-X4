@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.3.4 — 2026-09-11
+
+- Rimossi i testi `AUDIO ON` e `VIDEO ON` dalle tessere.
+- Audio attivo indicato in verde e video attivo in azzurro tramite bordo, icona e punto luminoso.
+
 ## 2.3.3 — 2026-09-11
 
 - Evidenziate le stanze operative con indicatori distinti `AUDIO ON` e `VIDEO ON` basati sullo stato reale Control4.
