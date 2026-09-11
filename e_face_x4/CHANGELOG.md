@@ -287,6 +287,11 @@
 - Architettura modulare dei connettori.
 - Primo connettore in sola lettura per e-HDL BusPro MQTT.
 - Endpoint di salute e test contro l'esposizione delle credenziali.
+# 1.7.5
+
+- Esclusi da Guarda e Ascolta i player senza area Home Assistant.
+- Aggiunto cache-busting agli asset frontend per applicare subito menu e stili aggiornati.
+
 # 1.7.4
 
 - Aggiornamenti media mirati senza ricostruzione continua della pagina.

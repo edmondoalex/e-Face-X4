@@ -17,6 +17,7 @@ let avRoom = ''
 let currentMediaGroups = []
 let activeMediaPlayer = null
 let currentRooms = []
+let selectedMediaId = ''
 
 function apiUrl(path) {
   const base = location.pathname.endsWith('/') ? location.pathname : `${location.pathname}/`
@@ -204,6 +205,10 @@ function wheelColor(event) {
 }
 
 function renderDeviceList(devices) {
+  if (devices.length && devices.every((device) => device.kind === 'media_player')) {
+    renderMediaExperience(devices)
+    return
+  }
   const groups = rgbChannels(devices)
   const completeGroups = new Map([...groups].filter(([, channels]) => channels.red && channels.green && channels.blue))
   const groupedIds = new Set([...completeGroups.values()].flatMap((channels) => Object.values(channels).map((device) => String(device.id))))
@@ -214,10 +219,20 @@ function renderDeviceList(devices) {
   $('#device-list').innerHTML = cards.join('') || '<p class="empty-state">Nessun dispositivo disponibile</p>'
 }
 
+function renderMediaExperience(devices) {
+  let selected = devices.find((device) => String(device.id) === selectedMediaId)
+  selected = selected || devices.find((device) => String(device.state).toLowerCase() === 'playing') || devices[0]
+  selectedMediaId = String(selected.id)
+  const players = devices.map((device) => `<button class="media-service-tile ${device.id === selected.id ? 'active' : ''}" data-media-select="${esc(device.id)}"><span class="mdi-mask" style="${mdiStyle(device.icon, 'speaker')}"></span><b>${esc(device.name)}</b><small>${esc(device.room)}</small></button>`).join('')
+  const sources = (selected.source_list || []).map((source) => `<button class="media-service-tile ${source === selected.source ? 'active' : ''}" data-device-id="${esc(selected.id)}" data-media-source="${esc(source)}"><span class="mdi-mask" style="${mdiStyle('mdi:play-box', 'play-box')}"></span><b>${esc(source)}</b><small>Sorgente</small></button>`).join('')
+  $('#device-list').innerHTML = `<article class="media-session ${deviceVisualClass(selected)}" data-device-id="${esc(selected.id)}">${mediaArtwork(selected)}<span class="device-glyph mdi-mask" style="${mdiStyle(selected.icon, 'speaker')}"></span><div class="media-session-info"><strong>${esc(selected.name)}</strong><small>${esc(selected.room)}</small><span class="media-track">${esc(selected.title || 'Nessuna riproduzione')}</span><span class="media-artist">${esc([selected.artist, selected.album].filter(Boolean).join(' · '))}</span></div><em>${esc(stateLabel(selected))}</em>${deviceActions(selected)}</article><div class="media-library"><h3>Dispositivi e servizi</h3><div class="media-service-grid">${players}${sources}</div></div>`
+}
+
 function mediaArtwork(device) {
-  if (device.kind !== 'media_player' || !device.content_fingerprint) return ''
+  if (device.kind !== 'media_player') return ''
+  if (!device.content_fingerprint) return '<span class="media-artwork missing" aria-hidden="true"></span>'
   const source = apiUrl(`api/media/${encodeURIComponent(device.registry_id)}/artwork?fingerprint=${encodeURIComponent(device.content_fingerprint)}`)
-  return `<img class="media-artwork" src="${esc(source)}" alt="" loading="lazy" onerror="this.hidden=true">`
+  return `<img class="media-artwork" src="${esc(source)}" alt="" loading="lazy" onerror="this.classList.add('missing');this.removeAttribute('src')">`
 }
 
 function lightIsOn(device) {
@@ -683,6 +698,12 @@ $('#device-list').addEventListener('click', (event) => {
   if (mediaButton && mediaCard) return sendDeviceCommand(mediaCard.dataset.deviceId, mediaButton.dataset.mediaAction, mediaButton)
   const sourceButton = event.target.closest('button[data-media-source]')
   if (sourceButton && mediaCard) return sendDeviceCommand(mediaCard.dataset.deviceId, 'select_source', sourceButton, sourceButton.dataset.mediaSource)
+  const playerButton = event.target.closest('[data-media-select]')
+  if (playerButton) {
+    selectedMediaId = playerButton.dataset.mediaSelect
+    renderActiveDeviceList()
+    return
+  }
   const button = event.target.closest('[data-action]')
   const card = event.target.closest('[data-device-id]')
   if (button && card) sendDeviceCommand(card.dataset.deviceId, button.dataset.action, button)

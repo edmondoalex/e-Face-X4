@@ -72,6 +72,7 @@ def test_x4_shell_and_brand_assets_are_served() -> None:
     assert client.get("/assets/brand-icon.png").status_code == 200
     assert client.get("/assets/app.css").status_code == 200
     assert client.get("/assets/media.css").status_code == 200
+    assert client.get("/assets/media-x4.css").status_code == 200
     css = client.get("/assets/app.css").text
     assert ".layout>main,.detail-view,.scenario-panel,.scenario-list{min-width:0;max-width:100%}" in css
     assert ".scenario-list{display:grid" in css
@@ -247,6 +248,7 @@ def test_media_ui_has_room_selection_and_typed_controls() -> None:
     assert "data-media-volume" in script
     assert "data-media-source" in script
     assert "media_changed" in script
+    assert "renderMediaExperience" in script
     assert 'id="media-zones-dialog"' in page
     assert "currentRooms" in script
 
@@ -266,10 +268,9 @@ def test_local_home_assistant_media_snapshot_is_normalized() -> None:
     assert HA_WEBSOCKET_MAX_BYTES == 16 * 1024 * 1024
 
 
-def test_dynamic_media_player_without_registry_entry_is_visible() -> None:
+def test_media_player_without_room_is_excluded() -> None:
     players, _ = normalize_local_snapshot({
         "areas": [], "devices": [], "entities": [],
         "states": [{"entity_id": "media_player.ufficio_alex", "state": "playing", "last_updated": "2026-09-11T10:00:00Z", "attributes": {"friendly_name": "Ufficio Alex", "supported_features": 16384}}],
     })
-    assert players[0]["name"] == "Ufficio Alex"
-    assert players[0]["registry_id"] == "entity:media_player.ufficio_alex"
+    assert players == []
