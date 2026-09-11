@@ -60,7 +60,7 @@ def test_x4_shell_and_brand_assets_are_served() -> None:
     assert "now-playing" in page.text
     assert 'id="detail-view"' in page.text
     assert 'id="detail-back"' in page.text
-    assert page.text.count('<dialog') == 2
+    assert page.text.count('<dialog') == 3
     assert 'id="rgb-dialog"' in page.text
     assert 'id="show-all-devices"' in page.text
     assert 'id="scenario-panel"' in page.text
@@ -397,6 +397,9 @@ def test_media_ui_has_room_selection_and_typed_controls() -> None:
     assert "postDeviceCommand(player.id, 'media_unjoin'" in script
     assert "updateGlobalMediaSession()" in script
     assert 'id="global-media-session"' in page
+    assert 'id="media-sessions-dialog"' in page
+    assert "activeMediaSessions()" in script
+    assert "data-session-device" in script
 
 
 def test_control4_digital_media_queue_becomes_canonical_group() -> None:

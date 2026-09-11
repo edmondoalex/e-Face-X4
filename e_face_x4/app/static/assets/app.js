@@ -276,14 +276,34 @@ function renderMediaExperience(devices) {
 
 function updateGlobalMediaSession() {
   const button = $('#global-media-session')
+  const sessions = activeMediaSessions()
+  button.hidden = sessions.length === 0
+  button.querySelector('b').textContent = sessions.length
+}
+
+function activeMediaSessions() {
   const active = currentDevices.filter((item) => item.kind === 'media_player' && item.capabilities?.grouping && item.availability === 'available' && item.connection_status !== 'offline' && !['off', 'unavailable', 'unknown'].includes(String(item.state).toLowerCase()))
-  const selected = active.find((item) => String(item.state).toLowerCase() === 'playing') || active[0]
-  button.hidden = !selected
-  button.dataset.deviceId = selected?.id || ''
-  if (!selected) return
-  const group = mediaGroupFor(selected)
-  const count = (group?.member_registry_ids || [selected.registry_id]).filter((registryId) => active.some((item) => item.registry_id === registryId)).length || 1
-  button.querySelector('b').textContent = count
+  const sessions = []
+  const consumed = new Set()
+  for (const player of active) {
+    if (consumed.has(player.registry_id)) continue
+    const group = mediaGroupFor(player)
+    const members = group ? active.filter((item) => group.member_registry_ids.includes(item.registry_id)) : [player]
+    members.forEach((item) => consumed.add(item.registry_id))
+    const owner = members.find((item) => item.registry_id === group?.owner_registry_id) || members.find((item) => String(item.state).toLowerCase() === 'playing') || player
+    sessions.push({ player: owner, group, members })
+  }
+  return sessions
+}
+
+function openMediaSessions() {
+  const sessions = activeMediaSessions()
+  $('#media-sessions-list').innerHTML = sessions.map(({ player, members }) => {
+    const volumes = members.map((item) => Number(item.volume)).filter(Number.isFinite)
+    const volume = volumes.length ? Math.round(volumes.reduce((sum, value) => sum + value, 0) / volumes.length) : 0
+    return `<button class="media-session-row" data-session-device="${esc(player.id)}">${mediaArtwork(player)}<span class="mdi-mask media-session-row-source" style="${mdiStyle(mediaSourceIcon(player.source), 'music-circle')}"></span><span class="media-session-row-info"><strong>${esc(player.title || player.source || player.name)}</strong><small>${esc(player.artist || player.source || '')}</small></span><span class="media-session-row-volume"><span class="mdi-mask" style="${mdiStyle('mdi:volume-high', 'volume-high')}"></span><i><u style="width:${volume}%"></u></i><b>${volume}%</b></span><span class="media-session-row-rooms"><span class="mdi-mask" style="${mdiStyle(members.length > 1 ? 'mdi:home-group' : 'mdi:plus-box-outline', 'plus-box-outline')}"></span><b>${esc(members.map((item) => item.room).join(', '))}</b></span><em>⌄</em></button>`
+  }).join('') || '<p class="empty-state">Nessuna sessione attiva</p>'
+  $('#media-sessions-dialog').showModal()
 }
 
 function mediaArtwork(device) {
@@ -428,7 +448,7 @@ function renderMediaZones() {
     const locked = player.registry_id === selected.registry_id || player.registry_id === group?.owner_registry_id || unavailable
     return `<label class="media-zone-choice ${checked ? 'active' : ''} ${unavailable ? 'unavailable' : ''}"><span><b>${esc(player.room)}</b><small>${checked ? 'In riproduzione' : 'Disponibile'}</small></span><input type="checkbox" value="${esc(player.registry_id)}" ${checked ? 'checked' : ''} ${locked ? 'disabled' : ''}><i></i></label>`
   }).join('')
-  $('#media-zones-list').innerHTML = `<h3>Stanze in riproduzione</h3>${activeRows}<button class="media-zone-add" data-zone-picker-toggle><span>＋</span> Aggiungi o rimuovi stanze</button><div class="media-zone-picker" hidden>${choices}</div>`
+  $('#media-zones-list').innerHTML = `<h3>Stanze in riproduzione</h3>${activeRows}<button class="media-zone-add" data-zone-picker-toggle aria-label="Aggiungi o rimuovi stanze" title="Aggiungi o rimuovi stanze"><span class="mdi-mask" style="${mdiStyle('mdi:plus-box-outline', 'plus-box-outline')}"></span></button><div class="media-zone-picker" hidden>${choices}</div>`
 }
 
 async function saveMediaZones(button) {
@@ -825,7 +845,9 @@ $('#device-list').addEventListener('keydown', (event) => {
 $('#rgb-close').addEventListener('click', () => $('#rgb-dialog').close())
 $('#rgb-dialog').addEventListener('click', (event) => { if (event.target === $('#rgb-dialog')) $('#rgb-dialog').close() })
 $('#media-zones-close').addEventListener('click', () => $('#media-zones-dialog').close())
-$('#global-media-session').addEventListener('click', (event) => { const player = currentDevices.find((item) => String(item.id) === event.currentTarget.dataset.deviceId); if (player) openMediaZones(player) })
+$('#global-media-session').addEventListener('click', openMediaSessions)
+$('#media-sessions-close').addEventListener('click', () => $('#media-sessions-dialog').close())
+$('#media-sessions-list').addEventListener('click', (event) => { const row = event.target.closest('[data-session-device]'); if (!row) return; const player = currentDevices.find((item) => String(item.id) === row.dataset.sessionDevice); if (player) { $('#media-sessions-dialog').close(); openMediaZones(player) } })
 $('#media-zones-save').addEventListener('click', (event) => saveMediaZones(event.currentTarget))
 $('#media-zones-list').addEventListener('click', (event) => { const button = event.target.closest('[data-zone-picker-toggle]'); if (button) { const picker = $('.media-zone-picker'); picker.hidden = !picker.hidden; button.classList.toggle('active', !picker.hidden) } })
 $('#media-zones-list').addEventListener('change', (event) => { if (event.target.matches('.media-zone-picker input[type=checkbox]')) { event.target.closest('.media-zone-choice').classList.toggle('active', event.target.checked) } })

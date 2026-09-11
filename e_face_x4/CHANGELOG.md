@@ -1,5 +1,12 @@
 # Changelog
 
+## 2.3.0 — 2026-09-11
+
+- Aggiunta la pagina Sessioni in stile Control4, con una scheda distinta per ogni sessione audio/video attiva.
+- Ogni scheda mostra fonte, contenuto, copertina, volume e stanze associate e apre il relativo gestore.
+- Il contatore in testata indica il numero di sessioni attive.
+- Sostituita la scritta per aggiungere stanze con il solo pulsante `+`.
+
 ## 2.2.4 — 2026-09-11
 
 - Resa sempre visibile l'icona del gestore sessione nella testata usando un simbolo vettoriale incorporato, compatibile con Home Assistant Ingress.
