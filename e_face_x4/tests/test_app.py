@@ -178,9 +178,11 @@ def test_control4_current_media_info_exposes_metadata_and_safe_artwork_fingerpri
     players = normalize_control4_media(
         {"experiences": [{"type": "listen", "room_id": 51, "sources": {"source": []}}]},
         [{"id": 51, "name": "Ufficio Alex"}],
-        [{"id": 51, "varName": "CURRENT MEDIA INFO", "value": {"mediainfo": {
+        [{"id": 51, "varName": "POWER_STATE", "value": 1},
+         {"id": 51, "varName": "CURRENT MEDIA INFO", "value": {"mediainfo": {
             "title": "Brano", "artist": "Artista", "album": "Album",
             "meta": {"audioFormat": "Spotify Connect"},
+            "streamStatus": "status=OK_paused",
             "img": base64.b64encode(cover.encode()).decode(),
         }}}],
     )
@@ -188,8 +190,12 @@ def test_control4_current_media_info_exposes_metadata_and_safe_artwork_fingerpri
     assert players[0]["artist"] == "Artista"
     assert players[0]["album"] == "Album"
     assert players[0]["source"] == "Spotify Connect"
+    assert players[0]["state"] == "paused"
     assert len(players[0]["content_fingerprint"]) == 64
     assert players[0]["capabilities"]["artwork"] is True
+    assert players[0]["capabilities"]["previous"] is True
+    assert players[0]["capabilities"]["next"] is True
+    assert players[0]["capabilities"]["grouping"] is False
 
 
 def test_control4_command_does_not_require_evoice_enabled(monkeypatch, tmp_path) -> None:
@@ -303,6 +309,11 @@ def test_device_commands_are_present_in_frontend() -> None:
     assert "brightness255(device) / 255" in script
     assert "openRgbDialog" in script
     assert "rgb-channel-controls" in script
+    assert "'skip-previous'" in script
+    assert "'skip-next'" in script
+    assert "'volume-high'" in script
+    assert "mediaSourceIcon" in script
+    assert "enabled = false" in script
 
 
 def test_device_command_requires_enabled_connector(monkeypatch, tmp_path) -> None:

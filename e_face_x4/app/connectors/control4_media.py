@@ -13,7 +13,7 @@ from pyControl4.websocket import C4Websocket
 from ..control4 import control4_director
 from .base import Connector
 
-ROOM_VARIABLES = ("POWER_STATE", "CURRENT_VOLUME", "IS_MUTED", "CURRENT_SELECTED_DEVICE", "CURRENT_AUDIO_DEVICE", "CURRENT_VIDEO_DEVICE", "CURRENT MEDIA INFO")
+ROOM_VARIABLES = ("POWER_STATE", "CURRENT_VOLUME", "IS_MUTED", "CURRENT_SELECTED_DEVICE", "CURRENT_AUDIO_DEVICE", "CURRENT_VIDEO_DEVICE", "CURRENT_VOLUME_DEVICE_ID", "PLAYING_AUDIO_DEVICE", "CURRENT MEDIA INFO")
 _artwork_urls: dict[str, tuple[str, str]] = {}
 _ARTWORK_HOSTS = ("i.scdn.co", "mosaic.scdn.co", "spotifycdn.com", "mzstatic.com", "media-amazon.com", "tunein.com")
 
@@ -24,6 +24,7 @@ class Control4MediaConnector(Connector):
 
     def __init__(self, config: dict[str, str]) -> None:
         self.config = config
+        self._event_ids: set[int] = set()
 
     async def snapshot(self) -> dict[str, Any]:
         try:
@@ -33,6 +34,14 @@ class Control4MediaConnector(Connector):
                 director.get_all_item_variable_value(ROOM_VARIABLES),
             )
             items = normalize_control4_media(ui, all_items, variables)
+            room_ids = {int(str(item["registry_id"]).removeprefix("c4room:")) for item in items}
+            related = {
+                int(item.get("value")) for item in variables
+                if isinstance(item, dict) and str(item.get("id")) in {str(value) for value in room_ids}
+                and item.get("varName") in {"CURRENT_AUDIO_DEVICE", "CURRENT_VIDEO_DEVICE", "CURRENT_VOLUME_DEVICE_ID", "PLAYING_AUDIO_DEVICE"}
+                and str(item.get("value") or "0").isdigit() and int(item.get("value") or 0) > 0
+            }
+            self._event_ids = room_ids | related
             return {"id": self.id, "label": self.label, "status": "online", "connection_status": "online", "items": items, "groups": [], "rooms": [item["room"] for item in items]}
         except Exception as exc:
             return {"id": self.id, "label": self.label, "status": "offline", "reason": f"{type(exc).__name__}", "items": [], "groups": [], "rooms": []}
@@ -44,6 +53,8 @@ class Control4MediaConnector(Connector):
         if operation == "media_play": await room.set_play()
         elif operation == "media_pause": await room.set_pause()
         elif operation == "media_stop": await room.set_stop()
+        elif operation == "media_previous": await director.send_post_request(f"/api/v1/items/{room_id}/commands", "SKIP_REV", {})
+        elif operation == "media_next": await director.send_post_request(f"/api/v1/items/{room_id}/commands", "SKIP_FWD", {})
         elif operation == "volume_mute": await room.set_mute_on()
         elif operation == "volume_unmute": await room.set_mute_off()
         elif operation == "set_volume": await room.set_volume(max(0, min(100, int(value))))
@@ -70,7 +81,7 @@ class Control4MediaConnector(Connector):
 
     async def events(self) -> AsyncIterator[dict[str, Any]]:
         snapshot = await self.snapshot()
-        room_ids = [int(str(item["registry_id"]).removeprefix("c4room:")) for item in snapshot.get("items", [])]
+        event_ids = self._event_ids or {int(str(item["registry_id"]).removeprefix("c4room:")) for item in snapshot.get("items", [])}
         _, token = await control4_director(self.config)
         queue: asyncio.Queue[dict[str, Any]] = asyncio.Queue(maxsize=200)
         websocket = C4Websocket(self.config["host"])
@@ -80,8 +91,8 @@ class Control4MediaConnector(Connector):
                 queue.get_nowait()
             await queue.put({"type": "control4.media_updated", "data": {"room_id": room_id}})
 
-        for room_id in room_ids:
-            websocket.add_item_callback(room_id, changed)
+        for item_id in event_ids:
+            websocket.add_item_callback(item_id, changed)
         await websocket.sio_connect(token)
         try:
             while True:
@@ -130,9 +141,12 @@ def normalize_control4_media(ui: Any, all_items: Any, variables: Any) -> list[di
         else:
             _artwork_urls.pop(registry_id, None)
         powered = str(values.get("POWER_STATE")) in {"1", "True", "true"}
+        stream_status = str(media.get("streamStatus") or "").lower()
+        playback_state = "playing" if "playing" in stream_status else "paused" if "pause" in stream_status else "idle" if any(value in stream_status for value in ("stop", "idle")) else "playing"
+        state_name = playback_state if powered else "off"
         name = names.get(room_id, f"Room {room_id}")
         icon = "mdi:television-speaker" if "watch" in data["experiences"] else "mdi:speaker"
-        result.append({"id": f"c4media:{room_id}", "registry_id": registry_id, "entity_id": f"control4.room.{room_id}", "provider": "control4", "kind": "media_player", "icon": icon, "name": name, "room": name, "state": "playing" if powered else "off", "availability": "available", "connection_status": "online", "volume": volume, "muted": str(values.get("IS_MUTED")) in {"1", "True", "true"}, "source": str(media.get("meta", {}).get("audioFormat") or active_source or "") if isinstance(media.get("meta"), dict) else active_source, "title": media.get("title"), "artist": media.get("artist"), "album": media.get("album"), "content_fingerprint": fingerprint, "source_options": data["source_options"], "source_list": [source["label"] for source in data["source_options"]], "experiences": data["experiences"], "capabilities": {"play": True, "pause": True, "stop": True, "turn_off": True, "set_volume": volume is not None, "mute": True, "select_source": bool(data["source_options"]), "artwork": bool(fingerprint)}})
+        result.append({"id": f"c4media:{room_id}", "registry_id": registry_id, "entity_id": f"control4.room.{room_id}", "provider": "control4", "kind": "media_player", "icon": icon, "name": name, "room": name, "state": state_name, "availability": "available", "connection_status": "online", "volume": volume, "muted": str(values.get("IS_MUTED")) in {"1", "True", "true"}, "source": str(media.get("meta", {}).get("audioFormat") or active_source or "") if isinstance(media.get("meta"), dict) else active_source, "title": media.get("title"), "artist": media.get("artist"), "album": media.get("album"), "content_fingerprint": fingerprint, "source_options": data["source_options"], "source_list": [source["label"] for source in data["source_options"]], "experiences": data["experiences"], "capabilities": {"play": True, "pause": True, "stop": True, "previous": True, "next": True, "turn_off": True, "set_volume": volume is not None, "mute": True, "select_source": bool(data["source_options"]), "grouping": False, "artwork": bool(fingerprint)}})
     return result
 
 

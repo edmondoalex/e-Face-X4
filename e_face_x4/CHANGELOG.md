@@ -1,5 +1,15 @@
 # Changelog
 
+## 2.0.2 — 2026-09-11
+
+- Collegati i comandi Control4 nativi precedente e successivo (`SKIP_REV`/`SKIP_FWD`).
+- Corretto il frontend affinché mostri soltanto i controlli dichiarati realmente dal connettore.
+- Nascosto il comando zone quando il Director non espone il relativo controllo sicuro.
+- Distinto lo stato pausa dallo stato acceso quando il servizio pubblica lo stato di trasporto.
+- Resi immediati nell'interfaccia mute, volume, play, pausa, stop e spegnimento, con successiva conferma realtime.
+- Estesa la sottoscrizione WebSocket ai dispositivi audio e volume effettivamente collegati alla stanza.
+- Sostituiti i simboli testuali con icone vettoriali in stile Control4, senza riquadri sui trasporti.
+
 ## 2.0.1 — 2026-09-11
 
 - Ridisegnato il player Ascolta come barra Control4 a tutta larghezza e responsive.
