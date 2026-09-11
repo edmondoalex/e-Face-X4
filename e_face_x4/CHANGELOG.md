@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.2.4 — 2026-09-11
+
+- Applicato il marchio orizzontale ufficiale fornito dall'utente.
+- Rimossa la ricostruzione HTML del wordmark.
+- Mantenuto il nome configurabile dell'abitazione subito dopo il logo.
+
 ## 0.2.3 — 2026-09-11
 
 - Separati simbolo, wordmark e nome dell'abitazione nella testata.
