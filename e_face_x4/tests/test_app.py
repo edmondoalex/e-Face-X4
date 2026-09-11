@@ -4,6 +4,7 @@ from app.main import create_app
 from app.connectors.buspro import normalize_snapshot
 from app.connectors.etherm import normalize_thermostats
 from app.connectors.media import normalize_player
+from app.connectors.local_media import normalize_local_snapshot
 from app.connectors.supervisor import find_addon_url
 
 
@@ -55,7 +56,7 @@ def test_x4_shell_and_brand_assets_are_served() -> None:
     assert "now-playing" in page.text
     assert 'id="detail-view"' in page.text
     assert 'id="detail-back"' in page.text
-    assert page.text.count('<dialog') == 1
+    assert page.text.count('<dialog') == 2
     assert 'id="rgb-dialog"' in page.text
     assert 'id="show-all-devices"' in page.text
     assert 'id="scenario-panel"' in page.text
@@ -245,3 +246,18 @@ def test_media_ui_has_room_selection_and_typed_controls() -> None:
     assert "data-media-volume" in script
     assert "data-media-source" in script
     assert "media_changed" in script
+    assert 'id="media-zones-dialog"' in page
+
+
+def test_local_home_assistant_media_snapshot_is_normalized() -> None:
+    players, groups = normalize_local_snapshot({
+        "areas": [{"area_id": "living", "name": "Soggiorno"}],
+        "devices": [{"id": "device-1", "area_id": "living"}],
+        "entities": [{"id": "registry-1", "entity_id": "media_player.sala", "device_id": "device-1", "disabled_by": None}],
+        "states": [{"entity_id": "media_player.sala", "state": "playing", "last_updated": "2026-09-11T10:00:00Z", "attributes": {"friendly_name": "Sala", "volume_level": 0.4, "supported_features": 16397, "source_list": ["Spotify"]}}],
+    })
+    assert groups == []
+    assert players[0]["id"] == "media:registry-1"
+    assert players[0]["room"] == "Soggiorno"
+    assert players[0]["volume"] == 40
+    assert players[0]["capabilities"]["play"] is True

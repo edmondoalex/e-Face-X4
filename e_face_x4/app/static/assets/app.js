@@ -14,6 +14,8 @@ let lightFilterActive = false
 let lightFilterRoom = ''
 let devicePointerGesture = null
 let avRoom = ''
+let currentMediaGroups = []
+let activeMediaPlayer = null
 
 function apiUrl(path) {
   const base = location.pathname.endsWith('/') ? location.pathname : `${location.pathname}/`
@@ -47,6 +49,7 @@ function render(data) {
   const home = dashboard.home || {}
   const widgets = dashboard.widgets || []
   const providers = data.providers || []
+  currentMediaGroups = providers.find((provider) => provider.id === 'evoice')?.groups || []
   const navIcons = data.nav_icons || {}
   currentDevices = Array.isArray(dashboard.devices) ? dashboard.devices : []
   updateNavigationStates()
@@ -300,7 +303,7 @@ function deviceActions(device) {
     const caps = device.capabilities || {}
     const disabled = device.connection_status === 'offline' || device.availability !== 'available'
     const button = (operation, icon, label, enabled = true) => enabled ? `<button data-media-action="${operation}" aria-label="${label}" ${disabled ? 'disabled' : ''}>${icon}</button>` : ''
-    const controls = [button('media_previous', '◀', 'Precedente', caps.previous), String(device.state).toLowerCase() === 'playing' ? button('media_pause', 'Ⅱ', 'Pausa', caps.pause) : button('media_play', '▶', 'Riproduci', caps.play), button('media_stop', '■', 'Stop', caps.stop), button('media_next', '▶|', 'Successivo', caps.next), device.muted ? button('volume_unmute', '🔇', 'Riattiva audio', caps.mute) : button('volume_mute', '🔊', 'Disattiva audio', caps.mute)].join('')
+    const controls = [button('media_previous', '◀', 'Precedente', caps.previous), String(device.state).toLowerCase() === 'playing' ? button('media_pause', 'Ⅱ', 'Pausa', caps.pause) : button('media_play', '▶', 'Riproduci', caps.play), button('media_stop', '■', 'Stop', caps.stop), button('media_next', '▶|', 'Successivo', caps.next), device.muted ? button('volume_unmute', '🔇', 'Riattiva audio', caps.mute) : button('volume_mute', '🔊', 'Disattiva audio', caps.mute), button('media_zones', '▣+', 'Aggiungi stanze', caps.grouping)].join('')
     const volume = caps.set_volume ? `<label class="media-volume"><input type="range" min="0" max="100" value="${Number(device.volume) || 0}" data-media-volume ${disabled ? 'disabled' : ''}><output>${Number(device.volume) || 0}%</output></label>` : ''
     const sources = caps.select_source && Array.isArray(device.source_list) && device.source_list.length ? `<div class="media-sources">${device.source_list.map((source) => `<button data-media-source="${esc(source)}" class="${source === device.source ? 'active' : ''}" ${disabled ? 'disabled' : ''}><span class="mdi-mask" style="${mdiStyle('mdi:play-box', 'play-box')}"></span><b>${esc(source)}</b></button>`).join('')}</div>` : ''
     return `<div class="media-controls">${controls}</div>${volume}${sources}`
@@ -308,11 +311,68 @@ function deviceActions(device) {
   return ''
 }
 
-async function postDeviceCommand(deviceId, action, value) {
+async function postDeviceCommand(deviceId, action, value, resourceRevision = null) {
   const response = await fetch(apiUrl(`api/devices/${encodeURIComponent(deviceId)}/command`), {
-    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action, value })
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action, value, resource_revision: resourceRevision })
   })
   if (!response.ok) throw new Error((await response.json().catch(() => ({}))).detail || `HTTP ${response.status}`)
+}
+
+function openMediaZones(device) {
+  activeMediaPlayer = device
+  renderMediaZones()
+  $('#media-zones-dialog').showModal()
+}
+
+function mediaGroupFor(device) {
+  const groupId = device?.group?.group_id
+  return currentMediaGroups.find((group) => group.group_id === groupId) || device?.group || null
+}
+
+function renderMediaZones() {
+  const selected = activeMediaPlayer
+  if (!selected) return
+  const group = mediaGroupFor(selected)
+  const members = new Set(group?.member_registry_ids || [selected.registry_id])
+  const players = currentDevices.filter((item) => item.kind === 'media_player')
+  const volumes = players.filter((item) => members.has(item.registry_id) && Number.isFinite(Number(item.volume))).map((item) => Number(item.volume))
+  const average = volumes.length ? Math.round(volumes.reduce((sum, value) => sum + value, 0) / volumes.length) : 0
+  $('#zones-master').innerHTML = group?.group_id ? `<label><span class="mdi-mask" style="${mdiStyle(selected.muted ? 'mdi:volume-off' : 'mdi:volume-high', 'volume-high')}"></span><input type="range" min="0" max="100" value="${average}" data-group-volume ${group.completeness !== 'complete' ? 'disabled' : ''}><output>${average}%</output></label>${group.completeness !== 'complete' ? `<small>Gruppo ${esc(group.completeness)}</small>` : ''}` : '<small>Seleziona una o più stanze per creare la sessione.</small>'
+  $('#media-zones-list').innerHTML = players.map((player) => {
+    const checked = members.has(player.registry_id)
+    const unavailable = player.connection_status === 'offline' || player.availability !== 'available'
+    return `<label class="media-zone ${checked ? 'active' : ''} ${unavailable ? 'unavailable' : ''}"><span><b>${esc(player.room)}</b><small>${esc(player.name)}</small></span><em>${Number.isFinite(Number(player.volume)) ? `${Number(player.volume)}%` : '—'}</em><input type="checkbox" value="${esc(player.registry_id)}" ${checked ? 'checked' : ''} ${player.registry_id === selected.registry_id || unavailable ? 'disabled' : ''}><i></i></label>`
+  }).join('')
+}
+
+async function saveMediaZones(button) {
+  if (!activeMediaPlayer) return
+  button.disabled = true
+  const group = mediaGroupFor(activeMediaPlayer)
+  const current = new Set(group?.member_registry_ids || [activeMediaPlayer.registry_id])
+  const desired = new Set([...document.querySelectorAll('#media-zones-list input:checked')].map((input) => input.value))
+  const additions = [...desired].filter((id) => !current.has(id))
+  const removals = [...current].filter((id) => !desired.has(id) && id !== activeMediaPlayer.registry_id)
+  try {
+    for (const registryId of removals) {
+      const player = currentDevices.find((item) => item.registry_id === registryId)
+      await postDeviceCommand(`media:${registryId}`, 'media_unjoin', null, player?.resource_revision)
+    }
+    if (additions.length) await postDeviceCommand(activeMediaPlayer.id, 'media_join', additions, activeMediaPlayer.resource_revision)
+    $('#media-zones-dialog').close()
+    await refresh()
+  } catch (error) { fail(error) } finally { button.disabled = false }
+}
+
+async function setMediaGroupVolume(input) {
+  const group = mediaGroupFor(activeMediaPlayer)
+  if (!group?.group_id) return
+  input.disabled = true
+  try {
+    const response = await fetch(apiUrl(`api/media/groups/${encodeURIComponent(group.group_id)}/command`), {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({action:'set_group_volume', value:Number(input.value), resource_revision:group.resource_revision})})
+    if (!response.ok) throw new Error((await response.json().catch(() => ({}))).detail || `HTTP ${response.status}`)
+    await refresh()
+  } catch (error) { fail(error) } finally { input.disabled = false }
 }
 
 async function sendDeviceCommand(deviceId, action, button, value) {
@@ -598,6 +658,7 @@ $('#device-list').addEventListener('click', (event) => {
   if (climateButton && climateCard) return sendDeviceCommand(climateCard.dataset.deviceId, 'set_target', climateButton, climateButton.dataset.climateTarget)
   const mediaButton = event.target.closest('[data-media-action]')
   const mediaCard = event.target.closest('[data-device-id]')
+  if (mediaButton?.dataset.mediaAction === 'media_zones' && mediaCard) return openMediaZones(currentDevices.find((item) => String(item.id) === mediaCard.dataset.deviceId))
   if (mediaButton && mediaCard) return sendDeviceCommand(mediaCard.dataset.deviceId, mediaButton.dataset.mediaAction, mediaButton)
   const sourceButton = event.target.closest('button[data-media-source]')
   if (sourceButton && mediaCard) return sendDeviceCommand(mediaCard.dataset.deviceId, 'select_source', sourceButton, sourceButton.dataset.mediaSource)
@@ -633,6 +694,11 @@ $('#device-list').addEventListener('keydown', (event) => {
 })
 $('#rgb-close').addEventListener('click', () => $('#rgb-dialog').close())
 $('#rgb-dialog').addEventListener('click', (event) => { if (event.target === $('#rgb-dialog')) $('#rgb-dialog').close() })
+$('#media-zones-close').addEventListener('click', () => $('#media-zones-dialog').close())
+$('#media-zones-save').addEventListener('click', (event) => saveMediaZones(event.currentTarget))
+$('#media-zones-list').addEventListener('change', (event) => { if (event.target.matches('input[type=checkbox]')) { event.target.closest('.media-zone').classList.toggle('active', event.target.checked) } })
+$('#zones-master').addEventListener('input', (event) => { if (event.target.matches('[data-group-volume]')) event.target.nextElementSibling.textContent = `${event.target.value}%` })
+$('#zones-master').addEventListener('change', (event) => { if (event.target.matches('[data-group-volume]')) setMediaGroupVolume(event.target) })
 $('#rgb-palette').addEventListener('click', (event) => { const button = event.target.closest('[data-palette]'); if (button) sendRgbCommand(activeRgbGroup, 'color', button.dataset.palette, button) })
 $('#rgb-master').addEventListener('input', (event) => { $('#rgb-master-value').textContent = `${Math.round(Number(event.target.value) / 255 * 100)}%` })
 $('#rgb-master').addEventListener('change', (event) => sendRgbCommand(activeRgbGroup, 'brightness', event.target.value, event.target))

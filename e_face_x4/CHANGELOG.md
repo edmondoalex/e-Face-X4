@@ -287,6 +287,12 @@
 - Architettura modulare dei connettori.
 - Primo connettore in sola lettura per e-HDL BusPro MQTT.
 - Endpoint di salute e test contro l'esposizione delle credenziali.
+# 1.7.1
+
+- Collegamento multimediale locale automatico tramite Home Assistant e Supervisor.
+- Aggiunta gestione stanze/sessioni con join, unjoin e volume relativo di gruppo.
+- Backend cloud Ekonex Media mantenuto come opzione, non più obbligatorio.
+
 # 1.7.0
 
 - Prima integrazione Ekonex Media con player, controlli, sorgenti, artwork e realtime SSE.

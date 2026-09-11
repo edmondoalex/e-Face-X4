@@ -35,12 +35,16 @@ Il token resta nel file delle opzioni dell'add-on e non viene restituito al brow
 
 ## Collegamento Ekonex Media
 
-Per abilitare le pagine **Guarda** e **Ascolta** configurare:
+Per abilitare le pagine **Guarda** e **Ascolta** in locale configurare soltanto:
 
 - `evoice.enabled`: abilita il collegamento;
-- `evoice.base_url`: indirizzo del backend Ekonex Media, senza il suffisso `/api/media/v1`;
-- `evoice.installation_id`: identificativo dell'impianto autorizzato;
-- `evoice.token`: token Bearer del backend, se richiesto.
+
+Lasciare vuoti `evoice.base_url`, `evoice.installation_id` ed `evoice.token`. e-Face usa
+automaticamente il collegamento interno protetto di Home Assistant/Supervisor; non servono IP,
+porte o credenziali manuali.
+
+I tre campi opzionali permettono in futuro di usare il backend cloud Ekonex Media. In quel caso
+`base_url` è l'indirizzo del backend senza il suffisso `/api/media/v1`.
 
 Le credenziali restano nell'add-on. Il browser comunica esclusivamente con e-Face X4. Gli
 aggiornamenti arrivano dallo stream realtime; lo snapshot periodico viene usato come recupero.

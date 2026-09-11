@@ -42,6 +42,7 @@ class EkonexMediaConnector(Connector):
                 "installation_revision": payload.get("installation_revision", 0),
                 "connection_status": payload.get("connection_status", "unknown"),
                 "items": [normalize_player(item) for item in players if isinstance(item, dict)],
+                "groups": payload.get("groups", []) if isinstance(payload.get("groups"), list) else [],
             }
         except (httpx.HTTPError, ValueError, TypeError, AttributeError) as exc:
             return {"id": self.id, "label": self.label, "status": "offline", "reason": _reason(exc), "items": []}
@@ -54,6 +55,16 @@ class EkonexMediaConnector(Connector):
         result = response.json()
         if not isinstance(result, dict):
             raise ValueError("risposta comando non valida")
+        return result
+
+    async def group_command(self, group_id: str, payload: dict[str, Any]) -> dict[str, Any]:
+        resource = quote(group_id, safe="")
+        async with httpx.AsyncClient(timeout=self.timeout, follow_redirects=False) as client:
+            response = await client.post(self._url(f"/groups/{resource}/commands"), headers=self.headers(), json=payload)
+            response.raise_for_status()
+        result = response.json()
+        if not isinstance(result, dict):
+            raise ValueError("risposta comando gruppo non valida")
         return result
 
     async def artwork(self, registry_id: str, fingerprint: str, etag: str | None = None) -> httpx.Response:

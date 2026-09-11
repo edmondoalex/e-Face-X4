@@ -16,11 +16,11 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
 from .config import load_settings
-from .connectors import BusproConnector, EThermConnector, EkonexMediaConnector
+from .connectors import BusproConnector, EThermConnector, EkonexMediaConnector, LocalMediaConnector
 from .connectors.supervisor import discover_addon_url
 from .demo import dashboard as demo_dashboard
 
-VERSION = "1.7.0"
+VERSION = "1.7.1"
 STATIC = Path(__file__).parent / "static"
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s [e-face-x4] %(message)s")
 
@@ -36,6 +36,13 @@ def create_app() -> FastAPI:
         discovered = await discover_addon_url(slug, port, timeout)
         return replace(config, base_url=discovered) if discovered else config
 
+    def media_connector(settings):
+        if settings.evoice.enabled and settings.evoice.base_url and settings.evoice.installation_id:
+            return EkonexMediaConnector(settings.evoice, settings.request_timeout_s)
+        if settings.evoice.enabled:
+            return LocalMediaConnector(settings.request_timeout_s)
+        return EkonexMediaConnector(settings.evoice, settings.request_timeout_s)
+
     @app.get("/health")
     async def health() -> dict:
         return {"ok": True, "version": VERSION}
@@ -50,7 +57,7 @@ def create_app() -> FastAPI:
         connectors = [
             BusproConnector(buspro_config, settings.request_timeout_s),
             EThermConnector(etherm_config, settings.request_timeout_s),
-            EkonexMediaConnector(settings.evoice, settings.request_timeout_s),
+            media_connector(settings),
         ]
         providers = await asyncio.gather(*(connector.snapshot() for connector in connectors))
         dashboard = demo_dashboard() if settings.demo_mode else {"rooms": [], "widgets": [], "media": None}
@@ -130,10 +137,10 @@ def create_app() -> FastAPI:
         settings = load_settings()
         if device_id.startswith("media:"):
             config = settings.evoice
-            if not config.enabled or not config.base_url or not config.installation_id:
+            if not config.enabled:
                 raise HTTPException(status_code=503, detail="Ekonex Media non disponibile")
             operation = str(payload.get("action") or "")
-            allowed = {"media_play", "media_pause", "media_stop", "media_next", "media_previous", "set_volume", "volume_mute", "volume_unmute", "select_source", "media_unjoin"}
+            allowed = {"media_play", "media_pause", "media_stop", "media_next", "media_previous", "set_volume", "volume_mute", "volume_unmute", "select_source", "media_join", "media_unjoin"}
             if operation not in allowed:
                 raise HTTPException(status_code=400, detail="Comando multimedia non valido")
             arguments = {}
@@ -141,9 +148,14 @@ def create_app() -> FastAPI:
                 arguments["volume_percent"] = int(payload.get("value"))
             elif operation == "select_source":
                 arguments["source"] = str(payload.get("value") or "")
-            command = {"request_id": str(uuid.uuid4()), "operation": operation, "arguments": arguments, "expected_resource_revision": payload.get("resource_revision") if operation == "media_unjoin" else None}
+            elif operation == "media_join":
+                arguments["member_registry_ids"] = payload.get("value")
+            command = {"request_id": str(uuid.uuid4()), "operation": operation, "arguments": arguments, "expected_resource_revision": payload.get("resource_revision") if operation in {"media_join", "media_unjoin"} else None}
             try:
-                return await EkonexMediaConnector(config, settings.request_timeout_s).command(device_id.split(":", 1)[1], command)
+                connector = media_connector(settings)
+                if isinstance(connector, LocalMediaConnector):
+                    return await connector.command(device_id.split(":", 1)[1], operation, payload.get("value"))
+                return await connector.command(device_id.split(":", 1)[1], command)
             except httpx.HTTPStatusError as exc:
                 detail = None
                 if exc.response.headers.get("content-type", "").startswith("application/json"):
@@ -183,10 +195,11 @@ def create_app() -> FastAPI:
     async def media_artwork(registry_id: str, fingerprint: str = Query(..., min_length=8, max_length=256), if_none_match: str | None = Header(None)) -> Response:
         settings = load_settings()
         config = settings.evoice
-        if not config.enabled or not config.base_url or not config.installation_id:
+        if not config.enabled:
             raise HTTPException(status_code=503, detail="Ekonex Media non disponibile")
         try:
-            upstream = await EkonexMediaConnector(config, settings.request_timeout_s).artwork(registry_id, fingerprint, if_none_match)
+            connector = media_connector(settings)
+            upstream = await connector.artwork(registry_id) if isinstance(connector, LocalMediaConnector) else await connector.artwork(registry_id, fingerprint, if_none_match)
         except httpx.HTTPError:
             raise HTTPException(status_code=502, detail="Ekonex Media non raggiungibile")
         if upstream.status_code == 304:
@@ -200,6 +213,26 @@ def create_app() -> FastAPI:
         if upstream.headers.get("etag"):
             headers["ETag"] = upstream.headers["etag"]
         return Response(upstream.content, media_type=media_type, headers=headers)
+
+    @app.post("/api/media/groups/{group_id}/command")
+    async def media_group_command(group_id: str, payload: dict) -> dict:
+        settings = load_settings()
+        config = settings.evoice
+        if not config.enabled or not config.base_url or not config.installation_id:
+            raise HTTPException(status_code=503, detail="Ekonex Media non disponibile")
+        operation = str(payload.get("action") or "")
+        if operation != "set_group_volume":
+            raise HTTPException(status_code=400, detail="Comando gruppo non valido")
+        command = {"request_id": str(uuid.uuid4()), "operation": operation, "arguments": {"volume_percent": int(payload.get("value"))}, "expected_resource_revision": payload.get("resource_revision")}
+        try:
+            connector = media_connector(settings)
+            if isinstance(connector, LocalMediaConnector):
+                return await connector.group_volume(group_id, int(payload.get("value")))
+            return await connector.group_command(group_id, command)
+        except httpx.HTTPStatusError as exc:
+            raise HTTPException(status_code=exc.response.status_code, detail="Comando gruppo Ekonex Media rifiutato")
+        except httpx.HTTPError:
+            raise HTTPException(status_code=502, detail="Ekonex Media non raggiungibile")
 
     @app.websocket("/api/realtime")
     async def realtime(websocket: WebSocket) -> None:
@@ -240,7 +273,7 @@ def create_app() -> FastAPI:
                             await queue.put({"type": "thermostats_changed"})
 
         async def media_events() -> None:
-            connector = EkonexMediaConnector(settings.evoice, settings.request_timeout_s)
+            connector = media_connector(settings)
             while True:
                 try:
                     async for event in connector.events():
@@ -258,7 +291,7 @@ def create_app() -> FastAPI:
             tasks.append(asyncio.create_task(buspro_events()))
         if etherm.enabled and etherm.base_url:
             tasks.append(asyncio.create_task(etherm_events()))
-        if settings.evoice.enabled and settings.evoice.base_url and settings.evoice.installation_id:
+        if settings.evoice.enabled:
             tasks.append(asyncio.create_task(media_events()))
         if not tasks:
             await websocket.close(code=1013, reason="Nessun connettore realtime disponibile")

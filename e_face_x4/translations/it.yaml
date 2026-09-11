@@ -41,16 +41,16 @@ configuration:
         name: Token
   evoice:
     name: Ekonex Media
-    description: Collegamento al backend multimediale con stati e comandi in tempo reale.
+    description: Collegamento locale ai media player di Home Assistant. Indirizzo, token e ID impianto servono soltanto per l'uso cloud opzionale.
     fields:
       enabled:
         name: Abilitato
       base_url:
-        name: Indirizzo API
+        name: Indirizzo cloud opzionale
       token:
-        name: Token
+        name: Token cloud opzionale
       installation_id:
-        name: ID impianto
+        name: ID impianto cloud opzionale
         description: Identificativo dell'impianto autorizzato nel backend Ekonex Media.
   etherm:
     name: e-Therm Plus KS
