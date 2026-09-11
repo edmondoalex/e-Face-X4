@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.6.1 — 2026-09-11
+
+- Eliminata la dipendenza dalla cache icone del BusPro.
+- Aggiunta una cache MDI autonoma e persistente in e-Face X4.
+- Scaricati gli SVG solo dalla sorgente ufficiale MDI con nomi validati.
+- Evitata la lampadina segnaposto identica per tutte le categorie.
+- Invalidata automaticamente la vecchia cache del browser a ogni versione dell'add-on.
+
 ## 0.6.0 — 2026-09-11
 
 - Aggiunta la sezione `Icone navigazione` nella configurazione dell'add-on.

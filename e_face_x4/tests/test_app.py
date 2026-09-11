@@ -105,3 +105,16 @@ def test_navigation_icons_have_defaults(monkeypatch, tmp_path) -> None:
     data = TestClient(create_app()).get("/api/bootstrap").json()
     assert data["nav_icons"]["watch"] == "mdi:television-play"
     assert data["nav_icons"]["security"] == "mdi:shield-home"
+
+
+def test_invalid_mdi_icon_name_returns_safe_fallback() -> None:
+    response = TestClient(create_app()).get("/api/icons/mdi/not!valid.svg")
+    assert response.status_code == 200
+    assert response.headers["content-type"].startswith("image/svg+xml")
+    assert "M12 2 22 12 12 22 2 12Z" in response.text
+
+
+def test_icon_urls_are_invalidated_by_addon_version() -> None:
+    script = TestClient(create_app()).get("/assets/app.js")
+    assert script.status_code == 200
+    assert "encodeURIComponent(appVersion)" in script.text

@@ -2,6 +2,7 @@ const $ = (selector) => document.querySelector(selector)
 const glyph = { light: '✦', climate: '❄', shield: '⬡', energy: 'ϟ', cover: '▤', sensor: '◌' }
 let refreshRunning = false
 let currentDevices = []
+let appVersion = '0'
 
 function apiUrl(path) {
   const base = location.pathname.endsWith('/') ? location.pathname : `${location.pathname}/`
@@ -20,7 +21,7 @@ function mdiName(value, fallback = 'shape') {
 }
 
 function mdiStyle(value, fallback) {
-  return `--icon:url('${apiUrl(`api/icons/mdi/${mdiName(value, fallback)}.svg`)}')`
+  return `--icon:url('${apiUrl(`api/icons/mdi/${mdiName(value, fallback)}.svg`)}?v=${encodeURIComponent(appVersion)}')`
 }
 
 function tick() {
@@ -30,6 +31,7 @@ function tick() {
 }
 
 function render(data) {
+  appVersion = data.version || appVersion
   const dashboard = data.dashboard || {}
   const home = dashboard.home || {}
   const widgets = dashboard.widgets || []
