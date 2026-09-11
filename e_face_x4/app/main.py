@@ -17,13 +17,14 @@ from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from .config import load_settings
+from .control4 import public_control4_config, save_control4_config, test_control4_connection
 from .installer_auth import COOKIE, create_session, valid_session
 from .media_preferences import apply_preferences, load_preferences, save_preferences
 from .connectors import BusproConnector, EThermConnector, EkonexMediaConnector, LocalMediaConnector
 from .connectors.supervisor import discover_addon_url
 from .demo import dashboard as demo_dashboard
 
-VERSION = "1.8.1"
+VERSION = "1.9.0"
 STATIC = Path(__file__).parent / "static"
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s [e-face-x4] %(message)s")
 
@@ -170,6 +171,32 @@ def create_app() -> FastAPI:
         except (OSError, ValueError) as exc:
             raise HTTPException(status_code=400, detail=str(exc))
         return {"ok": True, "players": len(saved)}
+
+    @app.get("/api/installer/control4")
+    async def installer_control4(request: Request) -> dict:
+        require_installer(request)
+        return public_control4_config()
+
+    @app.put("/api/installer/control4")
+    async def installer_save_control4(request: Request, payload: dict) -> dict:
+        require_installer(request)
+        try:
+            value = save_control4_config(payload)
+        except (OSError, ValueError) as exc:
+            raise HTTPException(status_code=400, detail=str(exc))
+        return {"ok": True, "host": value["host"], "username": value["username"]}
+
+    @app.post("/api/installer/control4/test")
+    async def installer_test_control4(request: Request, payload: dict) -> dict:
+        require_installer(request)
+        try:
+            config = save_control4_config(payload)
+            return await test_control4_connection(config)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc))
+        except Exception as exc:
+            logging.warning("Control4 connection test failed: %s", type(exc).__name__)
+            raise HTTPException(status_code=502, detail=f"Test Control4 fallito ({type(exc).__name__})")
 
     @app.get("/api/icons/mdi/{icon_name}.svg", include_in_schema=False)
     async def mdi_icon(icon_name: str) -> Response:

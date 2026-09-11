@@ -1,0 +1,94 @@
+from __future__ import annotations
+
+import ipaddress
+import json
+import os
+from pathlib import Path
+from typing import Any
+
+
+def _path() -> Path:
+    return Path(os.environ.get("EFACE_CONTROL4_CONFIG", "/data/control4.json"))
+
+
+def load_control4_config() -> dict[str, str]:
+    try:
+        raw = json.loads(_path().read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return {"host": "192.168.3.10", "username": "", "password": ""}
+    return {key: str(raw.get(key) or "") for key in ("host", "username", "password")}
+
+
+def public_control4_config() -> dict[str, Any]:
+    value = load_control4_config()
+    return {"host": value["host"], "username": value["username"], "password_configured": bool(value["password"])}
+
+
+def save_control4_config(raw: Any) -> dict[str, str]:
+    if not isinstance(raw, dict):
+        raise ValueError("Configurazione Control4 non valida")
+    host = str(raw.get("host") or "").strip()
+    try:
+        ipaddress.ip_address(host)
+    except ValueError as exc:
+        raise ValueError("Indirizzo IP Control4 non valido") from exc
+    username = str(raw.get("username") or "").strip()
+    password = str(raw.get("password") or "")
+    previous = load_control4_config()
+    if not password:
+        password = previous["password"]
+    if not username or not password or len(username) > 254 or len(password) > 512:
+        raise ValueError("Email e password Control4 obbligatorie")
+    value = {"host": host, "username": username, "password": password}
+    path = _path()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temporary = path.with_suffix(".tmp")
+    temporary.write_text(json.dumps(value), encoding="utf-8")
+    os.chmod(temporary, 0o600)
+    temporary.replace(path)
+    return value
+
+
+def _find_first(value: Any, key: str) -> Any:
+    if isinstance(value, dict):
+        if value.get(key):
+            return value[key]
+        for child in value.values():
+            found = _find_first(child, key)
+            if found:
+                return found
+    elif isinstance(value, list):
+        for child in value:
+            found = _find_first(child, key)
+            if found:
+                return found
+    return None
+
+
+async def test_control4_connection(config: dict[str, str]) -> dict[str, Any]:
+    from pyControl4.account import C4Account
+    from pyControl4.director import C4Director
+
+    account = C4Account(config["username"], config["password"])
+    await account.get_account_bearer_token()
+    controllers = await account.get_account_controllers()
+    common_name = _find_first(controllers, "controllerCommonName")
+    controller_data = controllers.get("controller") if isinstance(controllers, dict) else None
+    controller_href = controller_data.get("href") if isinstance(controller_data, dict) else None
+    if not common_name:
+        raise RuntimeError("Nessun controller associato all'account")
+    token_payload = await account.get_director_bearer_token(str(common_name))
+    token = token_payload.get("token") if isinstance(token_payload, dict) else None
+    if not token:
+        raise RuntimeError("Token Director non disponibile")
+    director = C4Director(config["host"], str(token))
+    rooms = await director.get_all_items_by_category("room")
+    os_version = await account.get_controller_os_version(str(controller_href)) if controller_href else ""
+    return {
+        "ok": True,
+        "controller": str(common_name),
+        "os_version": str(os_version),
+        "rooms": len(rooms) if isinstance(rooms, list) else 0,
+        "room_names": [str(item.get("name")) for item in rooms[:30] if isinstance(item, dict) and item.get("name")],
+        "local_host": config["host"],
+    }

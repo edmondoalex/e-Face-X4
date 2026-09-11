@@ -8,6 +8,7 @@ from app.connectors.local_media import normalize_local_snapshot
 from app.connectors.local_media import HA_WEBSOCKET_MAX_BYTES
 from app.connectors.supervisor import find_addon_url
 from app.media_preferences import apply_preferences, load_preferences, save_preferences
+from app.control4 import load_control4_config, public_control4_config, save_control4_config
 
 
 def test_health() -> None:
@@ -109,6 +110,18 @@ def test_installer_login_is_protected(monkeypatch, tmp_path) -> None:
     response = client.post("/api/installer/login", json={"password": "segreta"})
     assert response.status_code == 200
     assert "httponly" in response.headers["set-cookie"].lower()
+
+
+def test_control4_credentials_are_local_and_never_returned(monkeypatch, tmp_path) -> None:
+    path = tmp_path / "control4.json"
+    monkeypatch.setenv("EFACE_CONTROL4_CONFIG", str(path))
+    save_control4_config({"host": "192.168.3.10", "username": "user@example.com", "password": "secret"})
+    assert load_control4_config()["password"] == "secret"
+    public = public_control4_config()
+    assert public == {"host": "192.168.3.10", "username": "user@example.com", "password_configured": True}
+    assert "secret" not in str(public)
+    save_control4_config({"host": "192.168.3.10", "username": "user@example.com", "password": ""})
+    assert load_control4_config()["password"] == "secret"
 
 
 def test_configured_home_name_is_shown_in_bootstrap(monkeypatch, tmp_path) -> None:

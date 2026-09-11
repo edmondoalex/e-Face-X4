@@ -287,6 +287,12 @@
 - Architettura modulare dei connettori.
 - Primo connettore in sola lettura per e-HDL BusPro MQTT.
 - Endpoint di salute e test contro l'esposizione delle credenziali.
+# 1.9.0
+
+- Aggiunta in Strumenti Admin la configurazione protetta dell'integrazione Control4 nativa.
+- Aggiunto test reale con autenticazione account, token Director e lettura locale delle stanze.
+- Le credenziali Control4 sono conservate solo localmente con permessi file restrittivi e non vengono mai restituite al browser.
+
 # 1.8.1
 
 - Aggiunto il riordino verticale dei player tramite trascinamento nell'area Admin multimediale.
