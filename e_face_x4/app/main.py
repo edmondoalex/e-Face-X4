@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import logging
 from pathlib import Path
+from dataclasses import replace
 
 import uvicorn
 from fastapi import FastAPI
@@ -11,9 +12,10 @@ from fastapi.staticfiles import StaticFiles
 
 from .config import load_settings
 from .connectors import BusproConnector
+from .connectors.supervisor import discover_addon_url
 from .demo import dashboard as demo_dashboard
 
-VERSION = "0.3.1"
+VERSION = "0.3.2"
 STATIC = Path(__file__).parent / "static"
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s [e-face-x4] %(message)s")
 
@@ -29,7 +31,9 @@ def create_app() -> FastAPI:
     @app.get("/api/bootstrap")
     async def bootstrap() -> dict:
         settings = load_settings()
-        connectors = [BusproConnector(settings.buspro, settings.request_timeout_s)]
+        internal_buspro_url = await discover_addon_url("e_hdl_buspro_mqtt", 8124, settings.request_timeout_s)
+        buspro_config = replace(settings.buspro, base_url=internal_buspro_url) if internal_buspro_url else settings.buspro
+        connectors = [BusproConnector(buspro_config, settings.request_timeout_s)]
         providers = await asyncio.gather(*(connector.snapshot() for connector in connectors))
         dashboard = demo_dashboard() if settings.demo_mode else {"rooms": [], "widgets": [], "media": None}
         dashboard.setdefault("home", {})["name"] = settings.home_name

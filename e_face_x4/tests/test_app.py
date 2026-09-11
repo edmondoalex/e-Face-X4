@@ -2,6 +2,7 @@ from fastapi.testclient import TestClient
 
 from app.main import create_app
 from app.connectors.buspro import normalize_snapshot
+from app.connectors.supervisor import find_addon_url
 
 
 def test_health() -> None:
@@ -82,3 +83,8 @@ def test_buspro_snapshot_is_normalized_by_room_and_kind() -> None:
         {"id": "room-1", "name": "Sala", "devices": 3},
     ]
     assert normalized["mqtt_connected"] is True
+
+
+def test_supervisor_addon_slug_becomes_internal_dns_name() -> None:
+    payload = {"data": {"addons": [{"slug": "a59e0dbb_e_hdl_buspro_mqtt"}]}}
+    assert find_addon_url(payload, "e_hdl_buspro_mqtt", 8124) == "http://a59e0dbb-e-hdl-buspro-mqtt:8124"

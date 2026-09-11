@@ -16,6 +16,7 @@ configuration:
         name: Abilitato
       base_url:
         name: Indirizzo locale
+        description: Indirizzo manuale di riserva; normalmente e-Face X4 rileva automaticamente l'add-on.
       token:
         name: Token
   evoice:

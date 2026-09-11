@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.3.2 — 2026-09-11
+
+- Aggiunto il rilevamento automatico di e-HDL BusPro MQTT tramite Supervisor.
+- Usato il DNS interno dell'add-on per evitare rifiuti di connessione sulla rete host.
+- Mantenuto l'indirizzo configurato dall'utente come fallback.
+
 ## 0.3.1 — 2026-09-11
 
 - Mostrato nella UI il motivo per cui un connettore è offline.
