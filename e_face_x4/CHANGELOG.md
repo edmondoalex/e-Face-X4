@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.4.0 — 2026-09-11
+
+- Rimossi i conteggi dall'intestazione delle pagine dispositivo.
+- Aggiunti nella pagina Luci i filtri Control4: Stanza, Solo accesi e Tutto.
+
 ## 1.3.4 — 2026-09-11
 
 - Uniformato il bordo delle schede RGB a quello delle altre luci, eliminando bordo e alone colorati.

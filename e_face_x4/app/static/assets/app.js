@@ -10,6 +10,8 @@ let detailRenderQueued = false
 let snapshotRefreshTimer = null
 let currentScenarios = []
 let activeRgbGroup = null
+let lightFilterActive = false
+let lightFilterRoom = ''
 
 function apiUrl(path) {
   const base = location.pathname.endsWith('/') ? location.pathname : `${location.pathname}/`
@@ -46,7 +48,7 @@ function render(data) {
   const navIcons = data.nav_icons || {}
   currentDevices = Array.isArray(dashboard.devices) ? dashboard.devices : []
   if (activeDetailIds && !$('#detail-view').hidden) {
-    renderDeviceList(currentDevices.filter((device) => activeDetailIds.has(String(device.id))))
+    renderActiveDeviceList()
   }
   const online = providers.filter((provider) => provider.status === 'online').length
   const enabled = providers.filter((provider) => provider.status !== 'disabled').length
@@ -171,8 +173,29 @@ function renderDeviceList(devices) {
     <article class="${deviceVisualClass(device)}" style="${deviceCardStyle(device)}" data-device-id="${esc(device.id)}" ${['light','switch'].includes(device.kind) ? 'data-device-toggle tabindex="0"' : ''}><span class="device-glyph mdi-mask" style="${mdiStyle(device.icon, device.kind === 'cover' ? 'blinds-horizontal' : device.kind === 'lock' ? 'lock' : 'lightbulb')}"></span><div><strong>${esc(device.name)}</strong><small>${esc(device.room)}</small></div><em>${esc(stateLabel(device))}</em>${deviceActions(device)}</article>
   `)
   completeGroups.forEach((channels, group) => cards.push(renderRgbCard(group, channels)))
-  $('#detail-kicker').textContent = `${cards.length} dispositivi`
   $('#device-list').innerHTML = cards.join('') || '<p class="empty-state">Nessun dispositivo disponibile</p>'
+}
+
+function lightIsOn(device) {
+  const state = String(device.state ?? '').trim().toUpperCase()
+  if (['ON','1','TRUE'].includes(state)) return true
+  if (['OFF','0','FALSE'].includes(state)) return false
+  return Number(device.brightness) > 0
+}
+
+function renderActiveDeviceList() {
+  let devices = currentDevices.filter((device) => activeDetailIds?.has(String(device.id)))
+  if (!$('#light-filters').hidden) {
+    if (lightFilterRoom) devices = devices.filter((device) => device.room === lightFilterRoom)
+    if (lightFilterActive) devices = devices.filter(lightIsOn)
+  }
+  renderDeviceList(devices)
+}
+
+function configureLightFilters(devices) {
+  const rooms = [...new Set(devices.map((device) => device.room).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'it'))
+  $('#light-room').innerHTML = '<option value="">Stanza</option>' + rooms.map((room) => `<option value="${esc(room)}">${esc(room)}</option>`).join('')
+  $('#light-room').value = lightFilterRoom
 }
 
 function deviceCardStyle(device) {
@@ -267,10 +290,12 @@ async function sendRgbCommand(group, action, value, control) {
   } catch (error) { fail(error) } finally { if (control) control.disabled = false }
 }
 
-function openDevices(title, devices) {
+function openDevices(title, devices, options = {}) {
   activeDetailIds = new Set(devices.map((device) => String(device.id)))
   $('#detail-title').textContent = title
-  renderDeviceList(devices)
+  $('#light-filters').hidden = !options.lights
+  if (options.lights) configureLightFilters(devices)
+  renderActiveDeviceList()
   $('#scenario-panel').hidden = true
   $('#device-list').hidden = false
   $('#home-view').hidden = true
@@ -281,7 +306,7 @@ function openDevices(title, devices) {
 function openScenariosPage() {
   activeDetailIds = null
   $('#detail-title').textContent = 'Scenari'
-  $('#detail-kicker').textContent = 'Automazioni e-HDL'
+  $('#light-filters').hidden = true
   $('#device-list').hidden = true
   $('#scenario-panel').hidden = false
   $('#home-view').hidden = true
@@ -324,6 +349,7 @@ function showHome() {
   $('#home-view').hidden = false
   $('#scenario-panel').hidden = true
   $('#device-list').hidden = false
+  $('#light-filters').hidden = true
   document.querySelectorAll('.rail button').forEach((item) => item.classList.remove('active'))
 }
 
@@ -395,7 +421,7 @@ function applyRealtimeEvent(event) {
   if (!detailRenderQueued && activeDetailIds && !$('#detail-view').hidden) {
     detailRenderQueued = true
     requestAnimationFrame(() => {
-      renderDeviceList(currentDevices.filter((item) => activeDetailIds.has(String(item.id))))
+      renderActiveDeviceList()
       detailRenderQueued = false
     })
   }
@@ -408,7 +434,7 @@ document.querySelectorAll('.rail button').forEach((button) => button.addEventLis
   requestAnimationFrame(() => document.querySelector('main').classList.add('app-view'))
   if (button.dataset.view === 'watch') openDevices('Guarda', currentDevices.filter((device) => ['camera', 'doorbell'].includes(device.kind)))
   if (button.dataset.view === 'listen') openDevices('Ascolta', currentDevices.filter((device) => ['media_player', 'media'].includes(device.kind)))
-  if (button.dataset.view === 'lights') openDevices('Luci', currentDevices.filter((device) => device.kind === 'light'))
+  if (button.dataset.view === 'lights') openDevices('Luci', currentDevices.filter((device) => device.kind === 'light'), { lights: true })
   if (button.dataset.view === 'extra') openDevices('Extra', currentDevices.filter((device) => device.kind === 'switch'))
   if (button.dataset.view === 'scenarios') openScenariosPage()
   if (button.dataset.view === 'covers') openDevices('Oscuranti', currentDevices.filter((device) => device.kind === 'cover'))
@@ -428,6 +454,22 @@ $('#rooms').addEventListener('click', (event) => {
   openDevices(button.dataset.room, currentDevices.filter((device) => device.room.toLocaleLowerCase('it') === button.dataset.room.toLocaleLowerCase('it')))
 })
 $('#detail-back').addEventListener('click', showHome)
+$('#light-room').addEventListener('change', (event) => { lightFilterRoom = event.target.value; $('#light-room-label').textContent = lightFilterRoom || 'Stanza'; renderActiveDeviceList() })
+$('#light-on-filter').addEventListener('click', (event) => {
+  lightFilterActive = !lightFilterActive
+  event.currentTarget.setAttribute('aria-pressed', String(lightFilterActive))
+  event.currentTarget.classList.toggle('active', lightFilterActive)
+  renderActiveDeviceList()
+})
+$('#light-all-filter').addEventListener('click', () => {
+  lightFilterRoom = ''
+  lightFilterActive = false
+  $('#light-room').value = ''
+  $('#light-room-label').textContent = 'Stanza'
+  $('#light-on-filter').classList.remove('active')
+  $('#light-on-filter').setAttribute('aria-pressed', 'false')
+  renderActiveDeviceList()
+})
 $('#scenario-refresh').addEventListener('click', loadScenarios)
 $('#scenario-list').addEventListener('click', (event) => {
   const button = event.target.closest('[data-scenario-action]')
