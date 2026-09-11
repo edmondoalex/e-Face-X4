@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.2.1 — 2026-09-11
+
+- Aggiunto in alto a destra il pulsante della sessione multiroom con il numero di stanze.
+- Il pulsante apre il gestore generale audio/video: volume generale, volumi indipendenti, aggiunta e rimozione stanze.
+
 ## 2.2.0 — 2026-09-11
 
 - Ripristinato Aggiungi stanza con i comandi nativi Digital Media `ADD_ROOMS_TO_SESSION` e `REMOVE_ROOMS_FROM_SESSION`.
