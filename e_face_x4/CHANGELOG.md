@@ -287,6 +287,11 @@
 - Architettura modulare dei connettori.
 - Primo connettore in sola lettura per e-HDL BusPro MQTT.
 - Endpoint di salute e test contro l'esposizione delle credenziali.
+# 1.9.1
+
+- Corretto il test Control4: le stanze sono lette dalla configurazione UI Director anziché da una categoria inesistente.
+- Il risultato mostra stanze, sorgenti ed esperienze Control4 (`watch`, `listen`, ecc.).
+
 # 1.9.0
 
 - Aggiunta in Strumenti Admin la configurazione protetta dell'integrazione Control4 nativa.

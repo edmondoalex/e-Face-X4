@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import ipaddress
+import asyncio
 import json
 import os
 from pathlib import Path
@@ -82,13 +83,40 @@ async def test_control4_connection(config: dict[str, str]) -> dict[str, Any]:
     if not token:
         raise RuntimeError("Token Director non disponibile")
     director = C4Director(config["host"], str(token))
-    rooms = await director.get_all_items_by_category("room")
+    ui_configuration, all_items = await asyncio.gather(
+        director.get_ui_configuration(), director.get_all_item_info()
+    )
+    summary = summarize_ui_configuration(ui_configuration, all_items)
     os_version = await account.get_controller_os_version(str(controller_href)) if controller_href else ""
     return {
         "ok": True,
         "controller": str(common_name),
         "os_version": str(os_version),
-        "rooms": len(rooms) if isinstance(rooms, list) else 0,
-        "room_names": [str(item.get("name")) for item in rooms[:30] if isinstance(item, dict) and item.get("name")],
+        **summary,
         "local_host": config["host"],
+    }
+
+
+def summarize_ui_configuration(ui: Any, all_items: Any) -> dict[str, Any]:
+    experiences = ui.get("experiences", []) if isinstance(ui, dict) else []
+    if isinstance(experiences, dict):
+        experiences = experiences.get("experience", [])
+    experiences = experiences if isinstance(experiences, list) else []
+    room_ids = {str(item.get("room_id")) for item in experiences if isinstance(item, dict) and item.get("room_id") is not None}
+    item_names = {
+        str(item.get("id")): str(item.get("name"))
+        for item in (all_items if isinstance(all_items, list) else [])
+        if isinstance(item, dict) and item.get("id") is not None and item.get("name")
+    }
+    types = sorted({str(item.get("type")) for item in experiences if isinstance(item, dict) and item.get("type")})
+    sources = 0
+    for item in experiences:
+        raw_sources = item.get("sources", {}) if isinstance(item, dict) else {}
+        values = raw_sources.get("source", []) if isinstance(raw_sources, dict) else []
+        sources += len(values) if isinstance(values, list) else int(bool(values))
+    return {
+        "rooms": len(room_ids),
+        "room_names": [item_names.get(room_id, f"Room {room_id}") for room_id in sorted(room_ids)][:30],
+        "experiences": types,
+        "sources": sources,
     }

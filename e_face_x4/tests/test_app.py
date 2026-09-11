@@ -8,7 +8,7 @@ from app.connectors.local_media import normalize_local_snapshot
 from app.connectors.local_media import HA_WEBSOCKET_MAX_BYTES
 from app.connectors.supervisor import find_addon_url
 from app.media_preferences import apply_preferences, load_preferences, save_preferences
-from app.control4 import load_control4_config, public_control4_config, save_control4_config
+from app.control4 import load_control4_config, public_control4_config, save_control4_config, summarize_ui_configuration
 
 
 def test_health() -> None:
@@ -122,6 +122,15 @@ def test_control4_credentials_are_local_and_never_returned(monkeypatch, tmp_path
     assert "secret" not in str(public)
     save_control4_config({"host": "192.168.3.10", "username": "user@example.com", "password": ""})
     assert load_control4_config()["password"] == "secret"
+
+
+def test_control4_ui_configuration_provides_rooms_and_sources() -> None:
+    result = summarize_ui_configuration({"experiences": [
+        {"type": "watch", "room_id": 9, "sources": {"source": [{"id": 1}, {"id": 2}]}},
+        {"type": "listen", "room_id": 9, "sources": {"source": [{"id": 3}]}},
+        {"type": "listen", "room_id": 12, "sources": {"source": []}},
+    ]}, [{"id": 9, "name": "Sala"}, {"id": 12, "name": "Studio"}])
+    assert result == {"rooms": 2, "room_names": ["Studio", "Sala"], "experiences": ["listen", "watch"], "sources": 3}
 
 
 def test_configured_home_name_is_shown_in_bootstrap(monkeypatch, tmp_path) -> None:

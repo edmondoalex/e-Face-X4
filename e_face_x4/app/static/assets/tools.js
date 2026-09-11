@@ -34,7 +34,7 @@ async function sendControl4(path, button) {
     if (!response.ok) throw new Error(data.detail || `HTTP ${response.status}`)
     $('#control4-password').value = ''
     if (path) {
-      $('#control4-result').innerHTML = `<b>Connessione riuscita</b><span>Controller: ${esc(data.controller)}</span><span>OS: ${esc(data.os_version || 'non rilevata')}</span><span>Director locale: ${esc(data.local_host)}</span><span>Stanze rilevate: ${Number(data.rooms) || 0}</span>${data.room_names?.length ? `<span>${data.room_names.map(esc).join(' · ')}</span>` : ''}`
+      $('#control4-result').innerHTML = `<b>Connessione riuscita</b><span>Controller: ${esc(data.controller)}</span><span>OS: ${esc(data.os_version || 'non rilevata')}</span><span>Director locale: ${esc(data.local_host)}</span><span>Stanze rilevate: ${Number(data.rooms) || 0}</span><span>Sorgenti rilevate: ${Number(data.sources) || 0}</span><span>Esperienze: ${(data.experiences || []).map(esc).join(' · ') || '—'}</span>${data.room_names?.length ? `<span>${data.room_names.map(esc).join(' · ')}</span>` : ''}`
       $('#control4-result').hidden = false
     } else notice('Configurazione Control4 salvata')
   } catch (error) { notice(error.message) } finally { button.disabled = false }
