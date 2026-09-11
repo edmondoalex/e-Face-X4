@@ -157,11 +157,22 @@ function openDevices(title, devices) {
   activeDetailIds = new Set(devices.map((device) => String(device.id)))
   $('#detail-title').textContent = title
   renderDeviceList(devices)
-  const showScenarios = title === 'Luci'
-  $('#scenario-panel').hidden = !showScenarios
-  if (showScenarios) loadScenarios()
+  $('#scenario-panel').hidden = true
+  $('#device-list').hidden = false
   $('#home-view').hidden = true
   $('#detail-view').hidden = false
+  window.scrollTo({ top: 0, behavior: 'smooth' })
+}
+
+function openScenariosPage() {
+  activeDetailIds = null
+  $('#detail-title').textContent = 'Scenari'
+  $('#detail-kicker').textContent = 'Automazioni e-HDL'
+  $('#device-list').hidden = true
+  $('#scenario-panel').hidden = false
+  $('#home-view').hidden = true
+  $('#detail-view').hidden = false
+  loadScenarios()
   window.scrollTo({ top: 0, behavior: 'smooth' })
 }
 
@@ -198,6 +209,7 @@ function showHome() {
   $('#detail-view').hidden = true
   $('#home-view').hidden = false
   $('#scenario-panel').hidden = true
+  $('#device-list').hidden = false
   document.querySelectorAll('.rail button').forEach((item) => item.classList.remove('active'))
 }
 
@@ -282,6 +294,7 @@ document.querySelectorAll('.rail button').forEach((button) => button.addEventLis
   if (button.dataset.view === 'listen') openDevices('Ascolta', currentDevices.filter((device) => ['media_player', 'media'].includes(device.kind)))
   if (button.dataset.view === 'lights') openDevices('Luci', currentDevices.filter((device) => device.kind === 'light'))
   if (button.dataset.view === 'extra') openDevices('Extra', currentDevices.filter((device) => device.kind === 'switch'))
+  if (button.dataset.view === 'scenarios') openScenariosPage()
   if (button.dataset.view === 'covers') openDevices('Oscuranti', currentDevices.filter((device) => device.kind === 'cover'))
   if (button.dataset.view === 'comfort') openDevices('Comfort', currentDevices.filter((device) => ['climate', 'temp', 'temperature', 'humidity', 'air', 'air_quality'].includes(device.kind)))
   if (button.dataset.view === 'security') openDevices('Sicurezza', currentDevices.filter((device) => device.kind === 'lock'))

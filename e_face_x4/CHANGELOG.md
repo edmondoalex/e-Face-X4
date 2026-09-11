@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.1.0 — 2026-09-11
+
+- Rimossi gli scenari dalla pagina Luci.
+- Aggiunta una categoria Scenari autonoma nella navigazione principale.
+- Disposti gli scenari in una griglia senza scorrimento: 3 colonne desktop, 2 tablet e 1 cellulare.
+- Aggiunta l'icona Scenari configurabile nelle opzioni.
+
 ## 1.0.2 — 2026-09-11
 
 - Impedito alla fascia Scenari di allargare orizzontalmente l'intera interfaccia.

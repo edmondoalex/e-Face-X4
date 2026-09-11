@@ -20,6 +20,8 @@ configuration:
         name: Luci
       extra:
         name: Extra
+      scenarios:
+        name: Scenari
       covers:
         name: Oscuranti
       comfort:

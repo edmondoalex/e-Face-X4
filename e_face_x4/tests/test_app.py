@@ -58,7 +58,7 @@ def test_x4_shell_and_brand_assets_are_served() -> None:
     assert 'id="scenario-panel"' in page.text
     assert 'id="scenario-list"' in page.text
     assert '<iframe' not in page.text
-    for label in ("Guarda", "Ascolta", "Luci", "Extra", "Oscuranti", "Comfort", "Sicurezza"):
+    for label in ("Guarda", "Ascolta", "Luci", "Extra", "Scenari", "Oscuranti", "Comfort", "Sicurezza"):
         assert f'title="{label}"' in page.text
     assert 'src="assets/brand-horizontal.png?v=0.7.5"' in page.text
     assert 'alt="EKONEX e-Face X4"' in page.text
@@ -68,9 +68,9 @@ def test_x4_shell_and_brand_assets_are_served() -> None:
     assert client.get("/assets/app.css").status_code == 200
     css = client.get("/assets/app.css").text
     assert ".layout>main,.detail-view,.scenario-panel,.scenario-list{min-width:0;max-width:100%}" in css
-    assert "overscroll-behavior-x:contain" in css
+    assert ".scenario-list{display:grid" in css
     assert "@media(min-width:701px) and (max-width:1024px)" in css
-    assert "flex-basis:min(82vw,260px)" in css
+    assert ".scenario-list{grid-template-columns:1fr}" in css
 
 
 def test_configured_home_name_is_shown_in_bootstrap(monkeypatch, tmp_path) -> None:
@@ -123,6 +123,7 @@ def test_navigation_icons_have_defaults(monkeypatch, tmp_path) -> None:
     assert data["nav_icons"]["watch"] == "mdi:television-play"
     assert data["nav_icons"]["security"] == "mdi:shield-home"
     assert data["nav_icons"]["extra"] == "mdi:shape"
+    assert data["nav_icons"]["scenarios"] == "mdi:creation"
 
 
 def test_invalid_mdi_icon_name_returns_safe_fallback() -> None:
