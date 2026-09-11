@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.2.1 — 2026-09-11
+
+- Resa l'intensità luminosa dell'icona proporzionale alla percentuale reale del dimmer.
+
 ## 1.2.0 — 2026-09-11
 
 - Riconosciute le luci dimmerabili e aggiunto il controllo luminosità live.

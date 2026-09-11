@@ -160,6 +160,8 @@ def test_device_commands_are_present_in_frontend() -> None:
     assert "data-rgb-brightness" in script
     assert "data-brightness" in script
     assert "data.brightness" in script
+    assert "--light-glow:" in script
+    assert "brightness255(device) / 255" in script
 
 
 def test_device_command_requires_enabled_connector(monkeypatch, tmp_path) -> None:

@@ -143,8 +143,16 @@ function renderDeviceList(devices) {
 }
 
 function deviceCardStyle(device) {
-  if (device.kind !== 'cover') return ''
   const state = String(device.state).trim().toUpperCase()
+  if (device.kind === 'light' && device.dimmable) {
+    const active = ['ON', '1', 'TRUE'].includes(state)
+    const mix = active ? brightness255(device) / 255 : 0
+    const from = [151, 160, 163]
+    const to = [255, 211, 78]
+    const color = from.map((channel, index) => Math.round(channel + (to[index] - channel) * mix))
+    return `--light-color:rgb(${color.join(',')});--light-glow:${(1 + 11 * mix).toFixed(1)}px;--light-alpha:${(.08 + .72 * mix).toFixed(2)}`
+  }
+  if (device.kind !== 'cover') return ''
   const hasPosition = device.position !== null && device.position !== undefined && device.position !== '' && Number.isFinite(Number(device.position))
   const percent = Math.max(0, Math.min(100, hasPosition ? Number(device.position) : ['OPEN', 'OPENING'].includes(state) ? 100 : 0))
   const mix = percent / 100
