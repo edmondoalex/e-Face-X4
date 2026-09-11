@@ -12,6 +12,7 @@ let currentScenarios = []
 let activeRgbGroup = null
 let lightFilterActive = false
 let lightFilterRoom = ''
+let devicePointerGesture = null
 
 function apiUrl(path) {
   const base = location.pathname.endsWith('/') ? location.pathname : `${location.pathname}/`
@@ -498,6 +499,7 @@ $('#scenario-list').addEventListener('click', (event) => {
   if (button && card) sendScenarioCommand(card.dataset.scenarioId, button.dataset.scenarioAction, button)
 })
 $('#device-list').addEventListener('click', (event) => {
+  if (devicePointerGesture?.moved) { devicePointerGesture = null; return }
   const rgbOpen = event.target.closest('[data-rgb-open]')
   if (rgbOpen) return openRgbDialog(rgbOpen.closest('[data-rgb-group]').dataset.rgbGroup)
   const rgbButton = event.target.closest('[data-rgb-action]')
@@ -517,7 +519,17 @@ $('#device-list').addEventListener('click', (event) => {
     const active = channels && Math.max(...Object.values(channels).map(brightness255)) > 0
     sendRgbCommand(rgbToggle.dataset.rgbGroup, active ? 'off' : 'on', null, rgbToggle)
   }
+  devicePointerGesture = null
 })
+$('#device-list').addEventListener('pointerdown', (event) => {
+  if (!event.target.closest('[data-device-toggle],[data-rgb-toggle]')) return
+  devicePointerGesture = { x: event.clientX, y: event.clientY, moved: false }
+}, { passive: true })
+$('#device-list').addEventListener('pointermove', (event) => {
+  if (!devicePointerGesture) return
+  if (Math.hypot(event.clientX - devicePointerGesture.x, event.clientY - devicePointerGesture.y) > 7) devicePointerGesture.moved = true
+}, { passive: true })
+$('#device-list').addEventListener('pointercancel', () => { devicePointerGesture = { moved: true } }, { passive: true })
 $('#device-list').addEventListener('keydown', (event) => {
   if (!['Enter',' '].includes(event.key) || !event.target.matches('[data-device-toggle],[data-rgb-toggle]')) return
   event.preventDefault()

@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.4.2 — 2026-09-11
+
+- Impediti i comandi involontari durante lo scorrimento touch delle schede.
+- Eliminati i bordi di stato acceso da tutte le luci, incluse RGB.
+
 ## 1.4.1 — 2026-09-11
 
 - Sostituito il menu stanza nativo con un selettore personalizzato in stile e-Face, responsive e touch-friendly.
