@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.3.2 — 2026-09-11
+
+- Spostato il master RGB sulla scheda e riservata l'apertura della tavola colori alla sola icona quadrata.
+- Rimossi invito testuale e codice HEX; il tocco sulla scheda esegue ON/OFF.
+
 ## 1.3.1 — 2026-09-11
 
 - Rimossi i pulsanti ON/OFF dalle schede luci e switch: il comando ora avviene toccando la scheda.

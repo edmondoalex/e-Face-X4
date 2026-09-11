@@ -122,11 +122,11 @@ function renderRgbCard(group, channels) {
   const color = rgbHex(channels)
   const master = Math.max(...Object.values(channels).map(brightness255))
   const representative = channels.red
-  return `<article class="rgb-device ${master ? 'rgb-device-on' : ''}" style="--rgb-color:${color}" data-rgb-group="${esc(group)}" data-rgb-open tabindex="0">
-    <span class="device-glyph mdi-mask" style="${mdiStyle(representative.icon, 'palette')}"></span>
+  return `<article class="rgb-device ${master ? 'rgb-device-on' : ''}" style="--rgb-color:${color}" data-rgb-group="${esc(group)}" data-rgb-toggle tabindex="0">
+    <button class="rgb-palette-open" data-rgb-open aria-label="Apri tavola colori"><span class="device-glyph mdi-mask" style="${mdiStyle(representative.icon, 'palette')}"></span></button>
     <div><strong>${esc(group)}</strong><small>${esc(representative.room)} · RGB</small></div>
-    <em><i class="rgb-swatch"></i>${color}</em>
-    <small class="rgb-open-label">Tocca per regolare</small>
+    <em><i class="rgb-swatch"></i>${master ? 'ON' : 'OFF'}</em>
+    <div class="rgb-card-master"><input type="range" min="1" max="255" value="${Math.max(1, master)}" data-rgb-brightness aria-label="Luminosità ${esc(group)}"><output>${Math.round(master / 255 * 100)}%</output></div>
   </article>`
 }
 
@@ -148,8 +148,6 @@ function renderRgbDialog() {
   $('#rgb-master').value = Math.max(1, master)
   $('#rgb-master-value').textContent = `${Math.round(master / 255 * 100)}%`
   $('#rgb-preview').style.setProperty('--rgb-color', color)
-  $('#rgb-hex-swatch').style.background = color
-  $('#rgb-hex-value').textContent = color
   $('#rgb-palette').innerHTML = rgbPalette.map((item) => `<button style="--swatch:${item}" data-palette="${item}" aria-label="Colore ${item}"></button>`).join('')
   const labels = { red: 'Rosso', green: 'Verde', blue: 'Blu' }
   $('#rgb-channel-controls').innerHTML = ['red','green','blue'].map((name) => `<label class="rgb-channel ${name}"><span><i></i>${labels[name]}</span><output>${values[name]}</output><input type="range" min="0" max="255" value="${values[name]}" data-rgb-channel="${name}"></label>`).join('')
@@ -435,7 +433,7 @@ $('#scenario-list').addEventListener('click', (event) => {
 })
 $('#device-list').addEventListener('click', (event) => {
   const rgbOpen = event.target.closest('[data-rgb-open]')
-  if (rgbOpen) return openRgbDialog(rgbOpen.dataset.rgbGroup)
+  if (rgbOpen) return openRgbDialog(rgbOpen.closest('[data-rgb-group]').dataset.rgbGroup)
   const rgbButton = event.target.closest('[data-rgb-action]')
   const rgbCard = event.target.closest('[data-rgb-group]')
   if (rgbButton && rgbCard) return sendRgbCommand(rgbCard.dataset.rgbGroup, rgbButton.dataset.rgbAction, null, rgbButton)
@@ -447,9 +445,15 @@ $('#device-list').addEventListener('click', (event) => {
     const active = ['ON','1','TRUE'].includes(String(device?.state).trim().toUpperCase())
     sendDeviceCommand(card.dataset.deviceId, active ? 'off' : 'on', card)
   }
+  const rgbToggle = event.target.closest('[data-rgb-toggle]')
+  if (rgbToggle && !event.target.closest('button,input,label')) {
+    const channels = rgbChannels(currentDevices).get(rgbToggle.dataset.rgbGroup)
+    const active = channels && Math.max(...Object.values(channels).map(brightness255)) > 0
+    sendRgbCommand(rgbToggle.dataset.rgbGroup, active ? 'off' : 'on', null, rgbToggle)
+  }
 })
 $('#device-list').addEventListener('keydown', (event) => {
-  if (!['Enter',' '].includes(event.key) || !event.target.matches('[data-device-toggle]')) return
+  if (!['Enter',' '].includes(event.key) || !event.target.matches('[data-device-toggle],[data-rgb-toggle]')) return
   event.preventDefault()
   event.target.click()
 })
