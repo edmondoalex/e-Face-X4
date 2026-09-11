@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.8.0 — 2026-09-11
+
+- Collegato il canale WebSocket realtime di e-HDL tramite un ponte interno sicuro.
+- Aggiornato direttamente il singolo dispositivo alla ricezione di eventi BusPro, senza richiedere snapshot.
+- Attivato il polling di riserva ogni 30 secondi soltanto quando il WebSocket non è disponibile.
+
 ## 0.7.5 — 2026-09-11
 
 - Sostituito il logo della testata con il marchio orizzontale `EKONEX e-Face X4`.

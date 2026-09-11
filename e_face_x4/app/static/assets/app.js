@@ -4,6 +4,10 @@ let refreshRunning = false
 let currentDevices = []
 let appVersion = '0'
 let activeDetailIds = null
+let realtimeSocket = null
+let realtimeRetry = null
+let detailRenderQueued = false
+let snapshotRefreshTimer = null
 
 function apiUrl(path) {
   const base = location.pathname.endsWith('/') ? location.pathname : `${location.pathname}/`
@@ -185,6 +189,48 @@ async function refresh() {
   }
 }
 
+function realtimeUrl() {
+  const url = new URL(apiUrl('api/realtime'))
+  url.protocol = location.protocol === 'https:' ? 'wss:' : 'ws:'
+  return url.toString()
+}
+
+function connectRealtime() {
+  if (realtimeSocket && [WebSocket.OPEN, WebSocket.CONNECTING].includes(realtimeSocket.readyState)) return
+  realtimeSocket = new WebSocket(realtimeUrl())
+  realtimeSocket.onmessage = (message) => {
+    try { applyRealtimeEvent(JSON.parse(message.data)) } catch (_) {}
+  }
+  realtimeSocket.onclose = () => {
+    realtimeSocket = null
+    clearTimeout(realtimeRetry)
+    realtimeRetry = setTimeout(connectRealtime, 1500)
+  }
+  realtimeSocket.onerror = () => realtimeSocket.close()
+}
+
+function applyRealtimeEvent(event) {
+  if (event.type === 'devices_changed') {
+    clearTimeout(snapshotRefreshTimer)
+    snapshotRefreshTimer = setTimeout(refresh, 500)
+    return
+  }
+  const data = event.data || {}
+  const key = data.entity_id || [data.subnet_id, data.device_id, data.channel].join('.')
+  const device = currentDevices.find((item) => item.state_key === key)
+  if (!device) return
+  if (data.state !== undefined) device.state = data.state
+  if (data.value !== undefined) device.state = data.value
+  if (data.position !== undefined) device.position = data.position
+  if (!detailRenderQueued && activeDetailIds && !$('#detail-view').hidden) {
+    detailRenderQueued = true
+    requestAnimationFrame(() => {
+      renderDeviceList(currentDevices.filter((item) => activeDetailIds.has(String(item.id))))
+      detailRenderQueued = false
+    })
+  }
+}
+
 document.querySelectorAll('.rail button').forEach((button) => button.addEventListener('click', () => {
   document.querySelectorAll('.rail button').forEach((item) => item.classList.remove('active'))
   button.classList.add('active')
@@ -218,8 +264,11 @@ $('#device-list').addEventListener('click', (event) => {
 $('.home-title').addEventListener('click', showHome)
 $('#show-all-devices').addEventListener('click', () => openDevices('Tutti i dispositivi', currentDevices))
 $('#volume').addEventListener('input', (event) => { $('#volume-value').textContent = `${event.target.value}%` })
-document.addEventListener('visibilitychange', () => { if (!document.hidden) refresh() })
+document.addEventListener('visibilitychange', () => { if (!document.hidden) { refresh(); connectRealtime() } })
 tick()
 setInterval(tick, 30000)
-setInterval(refresh, 10000)
+setInterval(() => {
+  if (!realtimeSocket || realtimeSocket.readyState !== WebSocket.OPEN) refresh()
+}, 30000)
 refresh()
+connectRealtime()

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 import re
 from pathlib import Path
@@ -8,7 +9,8 @@ from dataclasses import replace
 
 import httpx
 import uvicorn
-from fastapi import FastAPI, HTTPException, Response
+import websockets
+from fastapi import FastAPI, HTTPException, Response, WebSocket
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
@@ -17,7 +19,7 @@ from .connectors import BusproConnector
 from .connectors.supervisor import discover_addon_url
 from .demo import dashboard as demo_dashboard
 
-VERSION = "0.7.5"
+VERSION = "0.8.0"
 STATIC = Path(__file__).parent / "static"
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s [e-face-x4] %(message)s")
 
@@ -99,6 +101,44 @@ def create_app() -> FastAPI:
             raise HTTPException(status_code=502, detail="e-HDL non raggiungibile")
         except ValueError as exc:
             raise HTTPException(status_code=400, detail=str(exc))
+
+    @app.websocket("/api/realtime")
+    async def realtime(websocket: WebSocket) -> None:
+        await websocket.accept()
+        settings = load_settings()
+        internal_url = await discover_addon_url("e_hdl_buspro_mqtt", 8124, settings.request_timeout_s)
+        config = replace(settings.buspro, base_url=internal_url) if internal_url else settings.buspro
+        if not config.enabled or not config.base_url:
+            await websocket.close(code=1013, reason="Connettore e-HDL non disponibile")
+            return
+        ws_url = re.sub(r"^http", "ws", config.base_url.rstrip("/"), count=1) + "/ws"
+        headers = {"Authorization": f"Bearer {config.token}"} if config.token else None
+        try:
+            async with websockets.connect(ws_url, additional_headers=headers, open_timeout=settings.request_timeout_s) as upstream:
+                async for message in upstream:
+                    try:
+                        event = json.loads(message)
+                    except (TypeError, json.JSONDecodeError):
+                        continue
+                    event_type = str(event.get("type") or "") if isinstance(event, dict) else ""
+                    if event_type == "devices":
+                        await websocket.send_json({"type": "devices_changed"})
+                        continue
+                    allowed = {
+                        "light_state", "cover_state", "temp_value", "humidity_value", "illuminance_value",
+                        "air_quality", "gas_percent", "pir_state", "ultrasonic_state", "dry_contact_state",
+                        "ha_light_state", "ha_switch_state", "ha_cover_state", "ha_lock_state",
+                    }
+                    data = event.get("data") if isinstance(event, dict) else None
+                    if event_type in allowed and isinstance(data, dict):
+                        safe = {key: data.get(key) for key in ("subnet_id", "device_id", "channel", "entity_id", "state", "value", "position") if key in data}
+                        await websocket.send_json({"type": event_type, "data": safe})
+        except Exception as exc:
+            logging.warning("Realtime BusPro bridge closed: %s", type(exc).__name__)
+            try:
+                await websocket.close(code=1011)
+            except RuntimeError:
+                pass
 
     @app.get("/{path:path}", include_in_schema=False)
     async def frontend(path: str) -> FileResponse:

@@ -97,6 +97,7 @@ def test_buspro_snapshot_is_normalized_by_room_and_kind() -> None:
     temperature = next(device for device in normalized["devices"] if device["kind"] == "temperature")
     assert temperature["state"] == 28.0
     assert temperature["unit"] == "°C"
+    assert temperature["state_key"] == "1.61.1"
     assert normalized["devices"][-1]["kind"] == "light"
 
 
@@ -138,6 +139,9 @@ def test_device_commands_are_present_in_frontend() -> None:
     assert "device-lock-closed" in script
     assert "deviceCardStyle(device)" in script
     assert "--cover-color:rgb" in script
+    assert "new WebSocket(realtimeUrl())" in script
+    assert "applyRealtimeEvent(JSON.parse(message.data))" in script
+    assert "realtimeSocket.readyState !== WebSocket.OPEN" in script
 
 
 def test_device_command_requires_enabled_connector(monkeypatch, tmp_path) -> None:

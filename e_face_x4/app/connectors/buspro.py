@@ -55,6 +55,7 @@ def normalize_snapshot(payload: dict[str, Any]) -> dict[str, Any]:
         room_entry = rooms.setdefault(room_key, {"name": room, "devices": 0})
         room_entry["devices"] += 1
         device_id = str(raw.get("entity_id") or raw.get("id") or index)
+        address = ".".join(str(raw.get(key)) for key in ("subnet_id", "device_id", "channel") if raw.get(key) is not None)
         state: Any = None
         unit = ""
         position: Any = None
@@ -66,7 +67,6 @@ def normalize_snapshot(payload: dict[str, Any]) -> dict[str, Any]:
             unit = str(attributes.get("unit_of_measurement") or "")
             position = attributes.get("current_position")
         if state is None:
-            address = ".".join(str(raw.get(key)) for key in ("subnet_id", "device_id", "channel") if raw.get(key) is not None)
             source = cover_states if kind == "cover" else light_states
             if kind in sensor_sources:
                 source_name, default_unit = sensor_sources[kind]
@@ -83,6 +83,7 @@ def normalize_snapshot(payload: dict[str, Any]) -> dict[str, Any]:
             "id": device_id, "name": name, "kind": kind, "room": room_entry["name"], "state": state,
             "unit": unit, "position": position, "icon": str(raw.get("icon") or "").strip(),
             "category": str(raw.get("category") or raw.get("page") or "").strip(),
+            "state_key": entity_id or address,
         })
     mqtt = payload.get("mqtt") if isinstance(payload.get("mqtt"), dict) else {}
     return {
