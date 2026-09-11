@@ -196,7 +196,8 @@ function renderActiveDeviceList() {
 function configureLightFilters(devices) {
   const rooms = [...new Set(devices.map((device) => device.room).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'it'))
   $('#light-room-menu').innerHTML = rooms.map((room) => `<button data-light-room="${esc(room)}" class="${room === lightFilterRoom ? 'active' : ''}">${esc(room)}</button>`).join('')
-  $('#light-room-toggle').textContent = lightFilterRoom || 'Stanza'
+  $('#light-room-toggle').classList.toggle('active', Boolean(lightFilterRoom))
+  $('#light-all-filter').classList.toggle('active', !lightFilterRoom)
 }
 
 function deviceCardStyle(device) {
@@ -464,7 +465,8 @@ $('#light-room-menu').addEventListener('click', (event) => {
   const button = event.target.closest('[data-light-room]')
   if (!button) return
   lightFilterRoom = button.dataset.lightRoom
-  $('#light-room-toggle').textContent = lightFilterRoom
+  $('#light-room-toggle').classList.add('active')
+  $('#light-all-filter').classList.remove('active')
   $('#light-room-toggle').setAttribute('aria-expanded', 'false')
   $('#light-room-menu').hidden = true
   configureLightFilters(currentDevices.filter((device) => device.kind === 'light'))
@@ -479,7 +481,8 @@ $('#light-on-filter').addEventListener('click', (event) => {
 $('#light-all-filter').addEventListener('click', () => {
   lightFilterRoom = ''
   lightFilterActive = false
-  $('#light-room-toggle').textContent = 'Stanza'
+  $('#light-room-toggle').classList.remove('active')
+  $('#light-all-filter').classList.add('active')
   $('#light-room-toggle').setAttribute('aria-expanded', 'false')
   $('#light-room-menu').hidden = true
   $('#light-on-filter').classList.remove('active')

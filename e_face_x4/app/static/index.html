@@ -40,7 +40,7 @@
       </div>
       <section id="detail-view" class="detail-view" hidden>
         <header class="detail-header"><button id="detail-back" aria-label="Torna alla home">‹</button><div><h2 id="detail-title">Sezione</h2></div></header>
-        <nav id="light-filters" class="light-filters" aria-label="Filtri luci" hidden><div class="room-filter"><button id="light-room-toggle" aria-expanded="false">Stanza</button><div id="light-room-menu" class="light-room-menu" hidden></div></div><button id="light-on-filter" aria-pressed="false"><span class="mdi-mask" style="--icon:url('api/icons/mdi/filter-variant.svg')"></span>Solo accesi</button><button id="light-all-filter">Tutto</button></nav>
+        <nav id="light-filters" class="light-filters" aria-label="Filtri luci" hidden><div class="room-filter"><button id="light-room-toggle" aria-expanded="false">Stanza</button><div id="light-room-menu" class="light-room-menu" hidden></div></div><button id="light-on-filter" class="light-state-filter" aria-label="Mostra solo le luci accese" title="Solo accesi" aria-pressed="false"><span></span></button><button id="light-all-filter" class="active">Tutto</button></nav>
         <section id="scenario-panel" class="scenario-panel" hidden><div class="scenario-heading"><div><strong>Scenari</strong><span>Richiami rapidi</span></div><button id="scenario-refresh">Aggiorna</button></div><div id="scenario-list" class="scenario-list"><span class="empty-state">Caricamento scenari…</span></div></section>
         <div id="device-list" class="device-list page-device-list"></div>
       </section>

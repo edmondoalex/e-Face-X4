@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.4.3 — 2026-09-11
+
+- Ridisegnata la barra filtri Luci come Control4: Stanza, icona circolare solo accesi e Tutto.
+- Aggiunti gli stati visivi chiaro/scuro per ambito e filtro selezionati.
+
 ## 1.4.2 — 2026-09-11
 
 - Impediti i comandi involontari durante lo scorrimento touch delle schede.
