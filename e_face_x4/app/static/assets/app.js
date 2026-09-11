@@ -402,16 +402,23 @@ function renderMediaZones() {
   const group = mediaGroupFor(selected)
   const members = new Set(group?.member_registry_ids || [selected.registry_id])
   const players = currentDevices.filter((item) => item.kind === 'media_player')
+  const playing = players.filter((item) => members.has(item.registry_id))
   const volumes = players.filter((item) => members.has(item.registry_id) && Number.isFinite(Number(item.volume))).map((item) => Number(item.volume))
   const average = volumes.length ? Math.round(volumes.reduce((sum, value) => sum + value, 0) / volumes.length) : 0
-  $('#zones-master').innerHTML = group?.group_id ? `<label><span class="mdi-mask" style="${mdiStyle(selected.muted ? 'mdi:volume-off' : 'mdi:volume-high', 'volume-high')}"></span><input type="range" min="0" max="100" value="${average}" data-group-volume ${group.completeness !== 'complete' ? 'disabled' : ''}><output>${average}%</output></label>${group.completeness !== 'complete' ? `<small>Gruppo ${esc(group.completeness)}</small>` : ''}` : '<small>Seleziona una o più stanze per creare la sessione.</small>'
-  $('#media-zones-list').innerHTML = players.map((player) => {
+  const source = `<div class="media-session-source"><span class="mdi-mask" style="${mdiStyle(mediaSourceIcon(selected.source), 'music-circle')}"></span><div><strong>${esc(selected.source || 'Fonte audio')}</strong><b>${esc(selected.title || selected.name)}</b><small>${esc(selected.artist || selected.album || '')}</small></div></div>`
+  const master = group?.group_id ? `<div class="media-session-master"><small>VOLUME GENERALE</small><label><span class="mdi-mask" style="${mdiStyle(selected.muted ? 'mdi:volume-off' : 'mdi:volume-high', 'volume-high')}"></span><input type="range" min="0" max="100" value="${average}" data-group-volume ${group.completeness !== 'complete' ? 'disabled' : ''}><output>${average}%</output></label></div>` : ''
+  $('#zones-master').innerHTML = source + master
+  const activeRows = playing.map((player) => {
+    const volume = Number.isFinite(Number(player.volume)) ? Number(player.volume) : 0
+    return `<div class="media-zone media-zone-playing"><div class="media-zone-name"><b>${esc(player.room)}</b><small>${esc(player.name)}</small></div><label class="media-zone-level"><span class="mdi-mask" style="${mdiStyle(player.muted ? 'mdi:volume-off' : 'mdi:volume-high', 'volume-high')}"></span><input type="range" min="0" max="100" value="${volume}" data-zone-volume data-device-id="${esc(player.id)}" ${!player.capabilities?.set_volume ? 'disabled' : ''}><output>${volume}%</output></label></div>`
+  }).join('')
+  const choices = players.map((player) => {
     const checked = members.has(player.registry_id)
     const unavailable = player.connection_status === 'offline' || player.availability !== 'available'
-    const volume = Number.isFinite(Number(player.volume)) ? Number(player.volume) : 0
     const locked = player.registry_id === selected.registry_id || player.registry_id === group?.owner_registry_id || unavailable
-    return `<div class="media-zone ${checked ? 'active' : ''} ${unavailable ? 'unavailable' : ''}"><label class="media-zone-select"><span><b>${esc(player.room)}</b><small>${esc(player.name)}</small></span><input type="checkbox" value="${esc(player.registry_id)}" ${checked ? 'checked' : ''} ${locked ? 'disabled' : ''}><i></i></label><label class="media-zone-level"><span class="mdi-mask" style="${mdiStyle(player.muted ? 'mdi:volume-off' : 'mdi:volume-high', 'volume-high')}"></span><input type="range" min="0" max="100" value="${volume}" data-zone-volume data-device-id="${esc(player.id)}" ${unavailable || !player.capabilities?.set_volume ? 'disabled' : ''}><output>${volume}%</output></label></div>`
+    return `<label class="media-zone-choice ${checked ? 'active' : ''} ${unavailable ? 'unavailable' : ''}"><span><b>${esc(player.room)}</b><small>${checked ? 'In riproduzione' : 'Disponibile'}</small></span><input type="checkbox" value="${esc(player.registry_id)}" ${checked ? 'checked' : ''} ${locked ? 'disabled' : ''}><i></i></label>`
   }).join('')
+  $('#media-zones-list').innerHTML = `<h3>Stanze in riproduzione</h3>${activeRows}<button class="media-zone-add" data-zone-picker-toggle><span>＋</span> Aggiungi o rimuovi stanze</button><div class="media-zone-picker" hidden>${choices}</div>`
 }
 
 async function saveMediaZones(button) {
@@ -419,7 +426,7 @@ async function saveMediaZones(button) {
   button.disabled = true
   const group = mediaGroupFor(activeMediaPlayer)
   const current = new Set(group?.member_registry_ids || [activeMediaPlayer.registry_id])
-  const desired = new Set([...document.querySelectorAll('#media-zones-list input:checked')].map((input) => input.value))
+  const desired = new Set([...document.querySelectorAll('.media-zone-picker input:checked')].map((input) => input.value))
   const additions = [...desired].filter((id) => !current.has(id))
   const removals = [...current].filter((id) => !desired.has(id) && id !== activeMediaPlayer.registry_id)
   try {
@@ -809,7 +816,8 @@ $('#rgb-close').addEventListener('click', () => $('#rgb-dialog').close())
 $('#rgb-dialog').addEventListener('click', (event) => { if (event.target === $('#rgb-dialog')) $('#rgb-dialog').close() })
 $('#media-zones-close').addEventListener('click', () => $('#media-zones-dialog').close())
 $('#media-zones-save').addEventListener('click', (event) => saveMediaZones(event.currentTarget))
-$('#media-zones-list').addEventListener('change', (event) => { if (event.target.matches('input[type=checkbox]')) { event.target.closest('.media-zone').classList.toggle('active', event.target.checked) } })
+$('#media-zones-list').addEventListener('click', (event) => { const button = event.target.closest('[data-zone-picker-toggle]'); if (button) { const picker = $('.media-zone-picker'); picker.hidden = !picker.hidden; button.classList.toggle('active', !picker.hidden) } })
+$('#media-zones-list').addEventListener('change', (event) => { if (event.target.matches('.media-zone-picker input[type=checkbox]')) { event.target.closest('.media-zone-choice').classList.toggle('active', event.target.checked) } })
 $('#media-zones-list').addEventListener('input', (event) => { if (event.target.matches('[data-zone-volume]')) event.target.closest('.media-zone-level').querySelector('output').textContent = `${event.target.value}%` })
 $('#media-zones-list').addEventListener('change', (event) => { if (event.target.matches('[data-zone-volume]')) sendDeviceCommand(event.target.dataset.deviceId, 'set_volume', event.target, event.target.value) })
 $('#zones-master').addEventListener('input', (event) => { if (event.target.matches('[data-group-volume]')) event.target.nextElementSibling.textContent = `${event.target.value}%` })

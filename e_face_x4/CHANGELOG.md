@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.2.2 — 2026-09-11
+
+- Il gestore sessione mostra fonte audio, contenuto e stanze attualmente in riproduzione.
+- I volumi delle stanze attive sono sempre visibili.
+- Il pulsante `+ Aggiungi o rimuovi stanze` apre la selezione delle zone come in Control4.
+
 ## 2.2.1 — 2026-09-11
 
 - Aggiunto in alto a destra il pulsante della sessione multiroom con il numero di stanze.
