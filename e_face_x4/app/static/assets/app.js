@@ -170,7 +170,7 @@ function renderDeviceList(devices) {
   const completeGroups = new Map([...groups].filter(([, channels]) => channels.red && channels.green && channels.blue))
   const groupedIds = new Set([...completeGroups.values()].flatMap((channels) => Object.values(channels).map((device) => String(device.id))))
   const cards = devices.filter((device) => !groupedIds.has(String(device.id))).map((device) => `
-    <article class="${deviceVisualClass(device)}" style="${deviceCardStyle(device)}" data-device-id="${esc(device.id)}"><span class="device-glyph mdi-mask" style="${mdiStyle(device.icon, device.kind === 'cover' ? 'blinds-horizontal' : device.kind === 'lock' ? 'lock' : 'lightbulb')}"></span><div><strong>${esc(device.name)}</strong><small>${esc(device.room)}</small></div><em>${esc(stateLabel(device))}</em>${deviceActions(device)}</article>
+    <article class="${deviceVisualClass(device)}" style="${deviceCardStyle(device)}" data-device-id="${esc(device.id)}" ${['light','switch'].includes(device.kind) ? 'data-device-toggle tabindex="0"' : ''}><span class="device-glyph mdi-mask" style="${mdiStyle(device.icon, device.kind === 'cover' ? 'blinds-horizontal' : device.kind === 'lock' ? 'lock' : 'lightbulb')}"></span><div><strong>${esc(device.name)}</strong><small>${esc(device.room)}</small></div><em>${esc(stateLabel(device))}</em>${deviceActions(device)}</article>
   `)
   completeGroups.forEach((channels, group) => cards.push(renderRgbCard(group, channels)))
   $('#detail-kicker').textContent = `${cards.length} dispositivi`
@@ -213,7 +213,7 @@ function deviceVisualClass(device) {
 function deviceActions(device) {
   if (['light', 'switch'].includes(device.kind)) {
     const dimmer = device.kind === 'light' && device.dimmable ? `<label class="dimmer-control"><input type="range" min="1" max="255" value="${Math.max(1, brightness255(device))}" data-brightness><output>${Math.round(brightness255(device) / 255 * 100)}%</output></label>` : ''
-    return `${dimmer}<div class="device-actions"><button data-action="on">ON</button><button data-action="off">OFF</button></div>`
+    return dimmer
   }
   if (device.kind === 'cover') return '<div class="device-actions"><button data-action="open">SU</button><button data-action="stop">STOP</button><button data-action="close">GIÙ</button></div>'
   if (device.kind === 'lock') return '<div class="device-actions"><button data-action="unlock">SBLOCCA</button><button data-action="lock">BLOCCA</button></div>'
@@ -442,6 +442,16 @@ $('#device-list').addEventListener('click', (event) => {
   const button = event.target.closest('[data-action]')
   const card = event.target.closest('[data-device-id]')
   if (button && card) sendDeviceCommand(card.dataset.deviceId, button.dataset.action, button)
+  if (!button && card?.matches('[data-device-toggle]') && !event.target.closest('input,label')) {
+    const device = currentDevices.find((item) => String(item.id) === card.dataset.deviceId)
+    const active = ['ON','1','TRUE'].includes(String(device?.state).trim().toUpperCase())
+    sendDeviceCommand(card.dataset.deviceId, active ? 'off' : 'on', card)
+  }
+})
+$('#device-list').addEventListener('keydown', (event) => {
+  if (!['Enter',' '].includes(event.key) || !event.target.matches('[data-device-toggle]')) return
+  event.preventDefault()
+  event.target.click()
 })
 $('#rgb-close').addEventListener('click', () => $('#rgb-dialog').close())
 $('#rgb-dialog').addEventListener('click', (event) => { if (event.target === $('#rgb-dialog')) $('#rgb-dialog').close() })

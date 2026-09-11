@@ -145,7 +145,8 @@ def test_icon_urls_are_invalidated_by_addon_version() -> None:
 
 def test_device_commands_are_present_in_frontend() -> None:
     script = TestClient(create_app()).get("/assets/app.js").text
-    assert 'data-action="on"' in script
+    assert 'data-device-toggle tabindex="0"' in script
+    assert "active ? 'off' : 'on'" in script
     assert 'data-action="open"' in script
     assert "api/devices/${encodeURIComponent(deviceId)}/command" in script
     assert "deviceVisualClass(device)" in script

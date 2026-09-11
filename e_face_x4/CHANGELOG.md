@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.3.1 — 2026-09-11
+
+- Rimossi i pulsanti ON/OFF dalle schede luci e switch: il comando ora avviene toccando la scheda.
+
 ## 1.3.0 — 2026-09-11
 
 - Aggiunto pannello popup RGB con master, ruota colore, palette, HEX e controllo separato dei tre canali.
