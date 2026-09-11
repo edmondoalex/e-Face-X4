@@ -16,7 +16,6 @@ let devicePointerGesture = null
 let avRoom = ''
 let currentMediaGroups = []
 let activeMediaPlayer = null
-let currentRooms = []
 let selectedMediaId = ''
 
 function apiUrl(path) {
@@ -54,7 +53,6 @@ function render(data) {
   currentMediaGroups = providers.find((provider) => provider.id === 'evoice')?.groups || []
   const navIcons = data.nav_icons || {}
   currentDevices = Array.isArray(dashboard.devices) ? dashboard.devices : []
-  currentRooms = Array.isArray(dashboard.rooms) ? dashboard.rooms.map((room) => room.name).filter(Boolean) : []
   updateNavigationStates()
   if (activeDetailIds && !$('#detail-view').hidden) {
     renderActiveDeviceList()
@@ -253,7 +251,7 @@ function renderActiveDeviceList() {
 }
 
 function configureAvRooms(devices) {
-  const rooms = [...new Set([...currentRooms, ...devices.map((device) => device.room)].filter(Boolean))].sort((a, b) => a.localeCompare(b, 'it'))
+  const rooms = [...new Set(devices.map((device) => device.room).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'it'))
   if (avRoom && !rooms.includes(avRoom)) avRoom = ''
   $('#av-room-label').textContent = avRoom || 'Tutte le stanze'
   $('#av-room-menu').innerHTML = `<button data-av-room="" class="${avRoom ? '' : 'active'}">Tutte le stanze</button>${rooms.map((room) => `<button data-av-room="${esc(room)}" class="${room === avRoom ? 'active' : ''}">${esc(room)}</button>`).join('')}`
@@ -601,7 +599,7 @@ document.querySelectorAll('.rail button').forEach((button) => button.addEventLis
   button.classList.add('active')
   document.querySelector('main').classList.remove('app-view')
   requestAnimationFrame(() => document.querySelector('main').classList.add('app-view'))
-  if (button.dataset.view === 'watch') openDevices('Guarda', currentDevices.filter((device) => ['camera', 'doorbell'].includes(device.kind) || (device.kind === 'media_player' && (!device.experiences?.length || device.experiences.includes('watch')))), { av: true })
+  if (button.dataset.view === 'watch') openDevices('Guarda', currentDevices.filter((device) => ['camera', 'doorbell'].includes(device.kind) || (device.kind === 'media_player' && (!device.experiences?.length || device.experiences.some((experience) => ['watch', 'listen'].includes(experience))))), { av: true })
   if (button.dataset.view === 'listen') openDevices('Ascolta', currentDevices.filter((device) => ['media_player', 'media'].includes(device.kind) && (!device.experiences?.length || device.experiences.includes('listen'))), { av: true })
   if (button.dataset.view === 'lights') openDevices('Luci', currentDevices.filter((device) => device.kind === 'light'), { lights: true })
   if (button.dataset.view === 'extra') openDevices('Extra', currentDevices.filter((device) => device.kind === 'switch'))

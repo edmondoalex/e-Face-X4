@@ -250,7 +250,8 @@ def test_media_ui_has_room_selection_and_typed_controls() -> None:
     assert "media_changed" in script
     assert "renderMediaExperience" in script
     assert 'id="media-zones-dialog"' in page
-    assert "currentRooms" in script
+    assert "[...currentRooms" not in script
+    assert "device.experiences.some" in script
 
 
 def test_local_home_assistant_media_snapshot_is_normalized() -> None:
