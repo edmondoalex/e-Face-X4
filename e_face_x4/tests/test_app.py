@@ -28,3 +28,16 @@ def test_starts_with_empty_options(monkeypatch, tmp_path) -> None:
     response = TestClient(create_app()).get("/api/bootstrap")
     assert response.status_code == 200
     assert response.json()["mode"] == "demo"
+
+
+def test_starts_with_empty_connector_urls(monkeypatch, tmp_path) -> None:
+    options = tmp_path / "options.json"
+    options.write_text(
+        '{"demo_mode":true,"buspro":{"enabled":false,"base_url":"","token":""},'
+        '"evoice":{"enabled":false,"base_url":"","token":""}}',
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("EFACE_OPTIONS", str(options))
+    response = TestClient(create_app()).get("/api/bootstrap")
+    assert response.status_code == 200
+    assert response.json()["mode"] == "demo"

@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.3 — 2026-09-11
+
+- Corretto il blocco `expected a URL` con indirizzi dei connettori vuoti.
+- Gli indirizzi vengono accettati vuoti finché il relativo connettore è disabilitato.
+
 ## 0.1.2 — 2026-09-11
 
 - Resi opzionali tutti i parametri della configurazione iniziale.
