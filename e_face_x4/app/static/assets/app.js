@@ -507,7 +507,7 @@ function activeMediaSessions() {
   for (const player of active) {
     if (consumed.has(player.registry_id)) continue
     const group = mediaGroupFor(player)
-    const members = group ? active.filter((item) => group.member_registry_ids.includes(item.registry_id)) : [player]
+    const members = group ? active.filter((item) => item.provider === player.provider && group.member_registry_ids.includes(item.registry_id)) : [player]
     members.forEach((item) => consumed.add(item.registry_id))
     const owner = members.find((item) => item.registry_id === group?.owner_registry_id) || members.find((item) => String(item.state).toLowerCase() === 'playing') || player
     sessions.push({ player: owner, group, members })
@@ -530,7 +530,7 @@ function openMediaSessions() {
 function openMediaRoomControl(player) {
   if (!player) return
   const room = player.room || player.name
-  const devices = currentDevices.filter((item) => item.kind === 'media_player' && item.room === player.room)
+  const devices = currentDevices.filter((item) => item.kind === 'media_player' && item.provider === player.provider && item.room === player.room)
   openDevices(room, devices.length ? devices : [player], { room, experience: player.active_experience || '' })
 }
 
@@ -755,7 +755,7 @@ function openMediaZones(device) {
 
 function mediaGroupFor(device) {
   const groupId = device?.group?.group_id
-  return currentMediaGroups.find((group) => group.group_id === groupId) || device?.group || null
+  return currentMediaGroups.find((group) => group.group_id === groupId && group.member_registry_ids?.includes(device?.registry_id)) || device?.group || null
 }
 
 function renderMediaZones() {
@@ -763,7 +763,7 @@ function renderMediaZones() {
   if (!selected) return
   const group = mediaGroupFor(selected)
   const members = new Set(group?.member_registry_ids || [selected.registry_id])
-  const allPlayers = currentDevices.filter((item) => item.kind === 'media_player')
+  const allPlayers = currentDevices.filter((item) => item.kind === 'media_player' && item.provider === selected.provider)
   const sourceId = Number(selected.active_source_id)
   const experience = selected.active_experience
   $('#media-zones-dialog').classList.toggle('media-zones-watch', experience === 'watch')

@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.19.3 — 2026-09-12
+
+- Separate rigorosamente le sessioni e-Voice dalle sessioni Control4.
+- Filtrate per provider le stanze aggiungibili, i membri e i comandi di gruppo.
+- Rifiutati dal backend tentativi di unire player appartenenti a provider diversi.
+
 ## 2.19.2 — 2026-09-12
 
 - Usata la stanza e-Voice configurata prima di costruire le card Ambienti.

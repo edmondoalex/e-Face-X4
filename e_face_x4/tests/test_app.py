@@ -126,7 +126,7 @@ def test_x4_shell_and_brand_assets_are_served() -> None:
     assert 'evoice.css' in page.text
     for label in ("Guarda", "Ascolta", "Luci", "Extra", "Scenari", "Oscuranti", "Comfort", "Sicurezza"):
         assert f'title="{label}"' in page.text
-    assert 'src="assets/brand-horizontal.png?v=2.19.2"' in page.text
+    assert 'src="assets/brand-horizontal.png?v=2.19.3"' in page.text
     assert 'alt="e-Face X4"' in page.text
     assert 'class="header-wordmark"' not in page.text
     assert client.get("/assets/brand-horizontal.png").status_code == 200
@@ -669,6 +669,8 @@ def test_media_ui_has_room_selection_and_typed_controls() -> None:
     assert "device.experiences?.includes('listen') || device.tts_enabled" in script
     assert "data-tts-send" in script
     assert "data-dnd-device" in script
+    assert "item.provider === selected.provider" in script
+    assert "item.provider === player.provider" in script
     assert "data-zone-volume" in script
     assert "postDeviceCommand(player.id, 'media_unjoin'" in script
     assert "updateGlobalMediaSession()" in script

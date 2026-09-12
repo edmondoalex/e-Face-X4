@@ -28,7 +28,7 @@ from .connectors.control4_media import cached_control4_icon, cached_control4_ico
 from .connectors.supervisor import discover_addon_url, discover_host_url
 from .demo import dashboard as demo_dashboard
 
-VERSION = "2.19.2"
+VERSION = "2.19.3"
 STATIC = Path(__file__).parent / "static"
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s [e-face-x4] %(message)s")
 
@@ -407,6 +407,12 @@ def create_app() -> FastAPI:
             command = {"request_id": str(uuid.uuid4()), "operation": operation, "arguments": arguments, "expected_resource_revision": payload.get("resource_revision") if operation in {"media_join", "media_unjoin"} else None}
             try:
                 connector = media_connector(settings, device_id)
+                if operation == "media_join":
+                    snapshot = await connector.snapshot()
+                    valid_members = {str(item.get("registry_id")) for item in snapshot.get("items", []) if item.get("registry_id")}
+                    requested_members = arguments.get("member_registry_ids")
+                    if not isinstance(requested_members, list) or not set(map(str, requested_members)).issubset(valid_members):
+                        raise ValueError("I player della sessione devono appartenere allo stesso provider")
                 if isinstance(connector, Control4MediaConnector):
                     return await connector.command(f"c4room:{device_id.split(':', 1)[1]}", operation, payload.get("value"))
                 if isinstance(connector, LocalMediaConnector):
