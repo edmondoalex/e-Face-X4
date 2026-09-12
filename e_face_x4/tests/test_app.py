@@ -126,9 +126,9 @@ def test_x4_shell_and_brand_assets_are_served() -> None:
     assert 'evoice.css' in page.text
     for label in ("Guarda", "Ascolta", "Luci", "Extra", "Scenari", "Oscuranti", "Comfort", "Sicurezza"):
         assert f'title="{label}"' in page.text
-    assert 'src="assets/brand-horizontal.png?v=2.20.19"' in page.text
+    assert 'src="assets/brand-horizontal.png?v=2.20.20"' in page.text
     assert 'id="startup-splash"' in page.text
-    assert 'src="assets/startup-splash.png?v=2.20.19"' in page.text
+    assert 'src="assets/startup-splash.png?v=2.20.20"' in page.text
     assert client.get("/assets/splash.css").status_code == 200
     assert "--splash-shift-x:1.6vw" in client.get("/assets/splash.css").text
     assert client.get("/assets/startup-splash.png").status_code == 200
@@ -178,6 +178,8 @@ def test_x4_shell_and_brand_assets_are_served() -> None:
     assert "function renderHomeMediaSessions()" in app_js
     assert "function renderHomeStatusCounters()" in app_js
     assert "function renderHomeComfort()" in app_js
+    assert "{ kind: 'comfort', label: 'Comfort'" not in app_js
+    assert "grid-template-columns:repeat(4" in client.get("/assets/home-status.css").text
     assert "event.target !== dialog" in app_js
     assert client.get("/tools").status_code == 200
     assert "Admin / Installatore" in client.get("/tools").text

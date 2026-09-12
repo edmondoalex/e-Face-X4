@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.20.20 — 2026-09-12
+
+- Rimossa la scheda Comfort dalla barra dei contatori Home, lasciando la sezione Comfort principale invariata.
+- Ridistribuite le quattro schede rimanenti su tutta la larghezza.
+
 ## 2.20.19 — 2026-09-12
 
 - Centrato otticamente lo splash screen sui telefoni compensando il margine interno del PNG.
