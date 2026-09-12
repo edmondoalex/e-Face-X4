@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.19.1 — 2026-09-12
+
+- Caricati contemporaneamente Control4 ed e-Voice senza priorità esclusiva.
+- Mantenuti separati comandi, artwork, gruppi e realtime dei due provider.
+- Mostrati nell'Admin anche gli Echo e i media player esposti da e-Voice quando Control4 è configurato.
+
 ## 2.19.0 — 2026-09-12
 
 - Aggiunta configurazione Admin dei dispositivi e-Voice ed Echo.

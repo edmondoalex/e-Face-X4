@@ -121,7 +121,7 @@ function render(data) {
   const dashboard = data.dashboard || {}
   const home = dashboard.home || {}
   const providers = data.providers || []
-  currentMediaGroups = providers.find((provider) => ['control4','evoice'].includes(provider.id))?.groups || []
+  currentMediaGroups = providers.filter((provider) => ['control4','evoice'].includes(provider.id)).flatMap((provider) => provider.groups || [])
   const navIcons = data.nav_icons || {}
   currentDevices = Array.isArray(dashboard.devices) ? dashboard.devices : []
   currentDevices.forEach((device) => {

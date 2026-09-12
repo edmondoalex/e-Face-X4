@@ -28,7 +28,7 @@ from .connectors.control4_media import cached_control4_icon, cached_control4_ico
 from .connectors.supervisor import discover_addon_url, discover_host_url
 from .demo import dashboard as demo_dashboard
 
-VERSION = "2.19.0"
+VERSION = "2.19.1"
 STATIC = Path(__file__).parent / "static"
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s [e-face-x4] %(message)s")
 
@@ -44,15 +44,28 @@ def create_app() -> FastAPI:
         discovered = await discover_addon_url(slug, port, timeout)
         return replace(config, base_url=discovered) if discovered else config
 
-    def media_connector(settings):
-        control4 = load_control4_config()
-        if control4.get("username") and control4.get("password"):
-            return Control4MediaConnector(control4)
+    def evoice_connector(settings):
         if settings.evoice.enabled and settings.evoice.base_url and settings.evoice.installation_id:
             return EkonexMediaConnector(settings.evoice, settings.request_timeout_s)
+        return LocalMediaConnector(settings.request_timeout_s)
+
+    def media_connectors(settings):
+        result = []
+        control4 = load_control4_config()
+        if control4.get("username") and control4.get("password"):
+            result.append(Control4MediaConnector(control4))
         if settings.evoice.enabled:
-            return LocalMediaConnector(settings.request_timeout_s)
-        return EkonexMediaConnector(settings.evoice, settings.request_timeout_s)
+            result.append(evoice_connector(settings))
+        return result or [EkonexMediaConnector(settings.evoice, settings.request_timeout_s)]
+
+    def media_connector(settings, resource_id: str = ""):
+        if str(resource_id).startswith(("c4", "c4room:")):
+            control4 = load_control4_config()
+            if control4.get("username") and control4.get("password"):
+                return Control4MediaConnector(control4)
+        if settings.evoice.enabled:
+            return evoice_connector(settings)
+        return media_connectors(settings)[0]
 
     @app.get("/health")
     async def health() -> dict:
@@ -108,7 +121,7 @@ def create_app() -> FastAPI:
             BusproConnector(buspro_config, settings.request_timeout_s),
             EThermConnector(etherm_config, settings.request_timeout_s),
             KseniaConnector(ksenia_config, settings.request_timeout_s),
-            media_connector(settings),
+            *media_connectors(settings),
         ]
         providers = list(await asyncio.gather(*(connector.snapshot() for connector in connectors)))
         providers = [apply_preferences(provider) if provider.get("id") in {"evoice", "control4"} else provider for provider in providers]
@@ -126,8 +139,7 @@ def create_app() -> FastAPI:
             ksenia = next((item for item in providers if item.get("id") == "ksenia" and item.get("status") in {"online", "stale"}), None)
             if isinstance(ksenia, dict):
                 dashboard["devices"].extend(ksenia.get("items", []))
-            media = next((item for item in providers if item.get("id") in {"control4", "evoice"} and item.get("status") == "online"), None)
-            if isinstance(media, dict):
+            for media in (item for item in providers if item.get("id") in {"control4", "evoice"} and item.get("status") == "online"):
                 media_items = media.get("items", [])
                 dashboard["devices"].extend(media_items)
                 known_rooms = {str(item.get("name", "")).casefold() for item in dashboard["rooms"] if isinstance(item, dict)}
@@ -234,12 +246,14 @@ def create_app() -> FastAPI:
     async def installer_media_players(request: Request) -> dict:
         require_installer(request)
         settings = load_settings()
-        snapshot = await media_connector(settings).snapshot()
-        if snapshot.get("status") != "online":
-            raise HTTPException(status_code=503, detail=snapshot.get("reason") or "Player non disponibili")
+        snapshots = await asyncio.gather(*(connector.snapshot() for connector in media_connectors(settings)))
+        online = [snapshot for snapshot in snapshots if snapshot.get("status") == "online"]
+        if not online:
+            raise HTTPException(status_code=503, detail=next((snapshot.get("reason") for snapshot in snapshots if snapshot.get("reason")), "Player non disponibili"))
         saved = load_preferences()
         items = []
-        for index, player in enumerate(snapshot.get("items", [])):
+        all_players = [player for snapshot in online for player in snapshot.get("items", [])]
+        for index, player in enumerate(all_players):
             registry_id = str(player.get("registry_id") or "")
             inferred = set(player.get("experiences") or [])
             selected = saved.get(registry_id, {"visible": True, "audio": "listen" in inferred, "video": "watch" in inferred, "tts": bool(player.get("tts_available")), "order": index, "name": "", "room": ""})
@@ -260,8 +274,8 @@ def create_app() -> FastAPI:
     async def installer_save_media_players(request: Request, payload: dict) -> dict:
         require_installer(request)
         settings = load_settings()
-        snapshot = await media_connector(settings).snapshot()
-        valid_ids = {str(item.get("registry_id")) for item in snapshot.get("items", []) if item.get("registry_id")}
+        snapshots = await asyncio.gather(*(connector.snapshot() for connector in media_connectors(settings)))
+        valid_ids = {str(item.get("registry_id")) for snapshot in snapshots for item in snapshot.get("items", []) if item.get("registry_id")}
         try:
             saved = save_preferences(payload.get("players"), valid_ids)
         except (OSError, ValueError) as exc:
@@ -271,9 +285,9 @@ def create_app() -> FastAPI:
     @app.get("/api/installer/media-source-icons")
     async def installer_media_source_icons(request: Request) -> dict:
         require_installer(request)
-        snapshot = await media_connector(load_settings()).snapshot()
+        snapshots = await asyncio.gather(*(connector.snapshot() for connector in media_connectors(load_settings())))
         sources: dict[int, dict] = {}
-        for player in snapshot.get("items", []):
+        for player in (player for snapshot in snapshots for player in snapshot.get("items", [])):
             for source in player.get("source_options", []):
                 source_id = int(source.get("source_id") or 0)
                 if source_id > 0:
@@ -391,7 +405,7 @@ def create_app() -> FastAPI:
                 arguments["enabled"] = bool(payload.get("value"))
             command = {"request_id": str(uuid.uuid4()), "operation": operation, "arguments": arguments, "expected_resource_revision": payload.get("resource_revision") if operation in {"media_join", "media_unjoin"} else None}
             try:
-                connector = media_connector(settings)
+                connector = media_connector(settings, device_id)
                 if isinstance(connector, Control4MediaConnector):
                     return await connector.command(f"c4room:{device_id.split(':', 1)[1]}", operation, payload.get("value"))
                 if isinstance(connector, LocalMediaConnector):
@@ -438,7 +452,7 @@ def create_app() -> FastAPI:
     async def media_artwork(registry_id: str, fingerprint: str = Query(..., min_length=8, max_length=256), if_none_match: str | None = Header(None)) -> Response:
         settings = load_settings()
         config = settings.evoice
-        connector = media_connector(settings)
+        connector = media_connector(settings, registry_id)
         if not config.enabled and not isinstance(connector, Control4MediaConnector):
             raise HTTPException(status_code=503, detail="Ekonex Media non disponibile")
         try:
@@ -523,7 +537,7 @@ def create_app() -> FastAPI:
     @app.post("/api/media/groups/{group_id}/command")
     async def media_group_command(group_id: str, payload: dict) -> dict:
         settings = load_settings()
-        connector = media_connector(settings)
+        connector = media_connector(settings, group_id)
         config = settings.evoice
         if not isinstance(connector, (Control4MediaConnector, LocalMediaConnector)) and (not config.enabled or not config.base_url or not config.installation_id):
             raise HTTPException(status_code=503, detail="Ekonex Media non disponibile")
@@ -605,8 +619,7 @@ def create_app() -> FastAPI:
                     logging.warning("Ksenia realtime disconnected; retrying")
                     await asyncio.sleep(1)
 
-        async def media_events() -> None:
-            connector = media_connector(settings)
+        async def media_events(connector) -> None:
             while True:
                 try:
                     async for event in connector.events():
@@ -619,7 +632,7 @@ def create_app() -> FastAPI:
                 except asyncio.CancelledError:
                     raise
                 except Exception:
-                    logging.warning("Ekonex Media realtime disconnected; retrying")
+                    logging.warning("%s realtime disconnected; retrying", connector.id)
                     await asyncio.sleep(2)
 
         tasks = []
@@ -629,9 +642,9 @@ def create_app() -> FastAPI:
             tasks.append(asyncio.create_task(etherm_events()))
         if ksenia.enabled and ksenia.base_url:
             tasks.append(asyncio.create_task(ksenia_events()))
-        control4_config = load_control4_config()
-        if settings.evoice.enabled or (control4_config.get("username") and control4_config.get("password")):
-            tasks.append(asyncio.create_task(media_events()))
+        for connector in media_connectors(settings):
+            if connector.id == "control4" or settings.evoice.enabled:
+                tasks.append(asyncio.create_task(media_events(connector)))
         if not tasks:
             await websocket.close(code=1013, reason="Nessun connettore realtime disponibile")
             return
