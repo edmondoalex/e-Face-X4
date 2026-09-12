@@ -167,7 +167,7 @@ function renderHomeStatusCounters() {
     { kind: 'extra', label: 'Extra', icon: 'mdi:power-socket-eu', color: 'red', devices: currentDevices.filter((device) => device.kind === 'switch'), active: stateIsActive },
     { kind: 'covers', label: 'Oscuranti', icon: 'mdi:blinds-horizontal', color: 'cyan', devices: currentDevices.filter((device) => device.kind === 'cover'), active: (device) => stateIsActive(device) || Number(device.position) > 0 },
     { kind: 'security', label: 'Sicurezza', icon: 'mdi:shield-home', color: 'red', devices: currentDevices.filter((device) => device.kind === 'lock'), active: (device) => ['OPEN','OPENING','UNLOCKED'].includes(String(device.state ?? '').trim().toUpperCase()) },
-    { kind: 'comfort', label: 'Comfort', icon: 'mdi:thermostat', color: 'blue', devices: currentDevices.filter((device) => ['climate', 'temp', 'temperature', 'humidity', 'air', 'air_quality'].includes(device.kind)), active: (device) => device.kind === 'climate' && String(device.mode || '').toUpperCase() !== 'OFF' },
+    { kind: 'comfort', label: 'Comfort', icon: 'mdi:thermostat', color: 'blue', devices: currentDevices.filter((device) => ['climate', 'temp', 'temperature', 'humidity', 'air', 'air_quality'].includes(device.kind)), active: (device) => device.kind === 'climate' && !device.read_only && ['HEATING','COOLING'].includes(String(device.state).toUpperCase()) },
   ]
   $('#widgets').innerHTML = statusCounters.map((counter) => {
     const count = counter.devices.filter(counter.active).length
@@ -183,6 +183,7 @@ function stateLabel(device) {
   if (device.kind === 'climate') {
     const current = Number(device.temperature)
     const target = Number(device.target_temperature)
+    if (device.read_only) return Number.isFinite(current) ? `${current.toFixed(1)}°` : '--'
     return `${Number.isFinite(current) ? current.toFixed(1) + '°' : '--'} → ${Number.isFinite(target) ? target.toFixed(1) + '°' : '--'}`
   }
   const value = device.state
@@ -211,7 +212,7 @@ function updateNavigationStates() {
   setState('security', 'status-red', currentDevices.some((device) => device.kind === 'lock' && ['OPEN','OPENING','UNLOCKED'].includes(String(device.state ?? '').trim().toUpperCase())))
   setState('watch', 'status-cyan', currentDevices.some((device) => ['media','media_player'].includes(device.kind) && device.active_experience === 'watch' && stateIsActive(device)))
   setState('listen', 'status-green', currentDevices.some((device) => ['media','media_player'].includes(device.kind) && device.active_experience === 'listen' && stateIsActive(device)))
-  setState('comfort', 'status-cyan', currentDevices.some((device) => device.kind === 'climate' && String(device.mode || '').toUpperCase() !== 'OFF'))
+  setState('comfort', 'status-cyan', currentDevices.some((device) => device.kind === 'climate' && !device.read_only && ['HEATING','COOLING'].includes(String(device.state).toUpperCase())))
   setState('scenarios', 'status-yellow', currentScenarios.some((scenario) => scenario.running || ['ON','1','TRUE'].includes(String(scenario.state ?? '').toUpperCase())))
 }
 
@@ -414,13 +415,15 @@ function renderHomeMediaSessions() {
   $('#home-live-media-count').textContent = `${sessions.length} ${sessions.length === 1 ? 'SESSIONE' : 'SESSIONI'}`
   list.innerHTML = sessions.map(({ player, members }) => {
     const video = player.active_experience === 'watch'
-    const artwork = video && player.active_source_id
-      ? `<span class="home-live-art source"><img src="${apiUrl(`api/control4/source-icon/${player.active_source_id}?v=${encodeURIComponent(appVersion)}`)}" alt="" onerror="this.hidden=true"><span class="mdi-mask" style="${mdiStyle('mdi:television', 'television')}"></span></span>`
+    const activeSource = (player.source_options || []).find((source) => Number(source.source_id) === Number(player.active_source_id) || source.label === player.source)
+    const sourceId = Number(player.active_source_id || activeSource?.source_id || 0)
+    const artwork = !player.content_fingerprint && player.provider === 'control4' && sourceId
+      ? `<span class="home-live-art source"><img src="${apiUrl(`api/control4/source-icon/${sourceId}?v=${encodeURIComponent(appVersion)}`)}" alt="" onload="this.parentElement.classList.add('loaded')" onerror="this.hidden=true"><span class="mdi-mask" style="${mdiStyle(video ? 'mdi:television' : mediaSourceIcon(player.source), video ? 'television' : 'music-circle')}"></span></span>`
       : player.content_fingerprint
         ? `<span class="home-live-art"><img src="${apiUrl(`api/media/${encodeURIComponent(player.registry_id)}/artwork?fingerprint=${encodeURIComponent(player.content_fingerprint)}`)}" alt="" loading="lazy" onerror="this.hidden=true"></span>`
         : `<span class="home-live-art fallback"><span class="mdi-mask" style="${mdiStyle(video ? 'mdi:television' : mediaSourceIcon(player.source), video ? 'television' : 'music-circle')}"></span></span>`
     const rooms = members.map((item) => item.room).filter(Boolean).join(' · ')
-    return `<button class="home-live-session ${video ? 'video' : 'audio'}" data-home-session="${esc(player.id)}">${artwork}<span class="home-live-info"><small>${video ? 'VIDEO' : 'AUDIO'} IN RIPRODUZIONE</small><strong>${esc(player.title || player.source || player.name)}</strong><span>${esc([player.artist || player.source, rooms].filter(Boolean).join(' · '))}</span></span><i class="home-live-eq"><b></b><b></b><b></b><b></b></i><span class="home-live-open">›</span></button>`
+    return `<button class="home-live-session ${video ? 'video' : 'audio'}" data-home-session="${esc(player.id)}">${artwork}<span class="home-live-info"><small>${video ? 'VIDEO' : 'AUDIO'} IN RIPRODUZIONE</small><strong>${esc(player.title || player.source || player.name)}</strong><span>${esc([player.artist || player.source, rooms].filter(Boolean).join(' · '))}</span></span><i class="home-live-eq"><b></b><b></b><b></b><b></b></i></button>`
   }).join('')
 }
 
@@ -442,13 +445,22 @@ function renderActiveDeviceList() {
   let devices = currentDevices.filter((device) => activeDetailIds?.has(String(device.id)))
   if (!$('#light-filters').hidden) {
     if (lightFilterRoom) devices = devices.filter((device) => device.room === lightFilterRoom)
-    if (lightFilterActive) devices = devices.filter(lightIsOn)
+    if (lightFilterActive) devices = devices.filter(deviceIsActiveForFilter)
   }
   if (!$('#av-filters').hidden && avRoom) devices = devices.filter((device) => device.room === avRoom)
   const signature = JSON.stringify({devices, selectedMediaId, currentMediaExperience, activeMediaRoom, avRoom, lightFilterRoom, lightFilterActive, sectionFilterMode})
   if (signature === lastDetailSignature && $('#device-list').childElementCount) return
   lastDetailSignature = signature
   renderDeviceList(devices)
+}
+
+function deviceIsActiveForFilter(device) {
+  if (device.kind === 'light') return lightIsOn(device)
+  if (device.kind === 'switch') return stateIsActive(device)
+  if (device.kind === 'cover') return stateIsActive(device) || Number(device.position) > 0
+  if (device.kind === 'lock') return ['OPEN','OPENING','UNLOCKED'].includes(String(device.state ?? '').trim().toUpperCase())
+  if (device.kind === 'climate') return !device.read_only && ['HEATING','COOLING'].includes(String(device.state).toUpperCase())
+  return stateIsActive(device)
 }
 
 function configureAvRooms(devices) {
@@ -495,7 +507,7 @@ function deviceVisualClass(device) {
   if (device.kind === 'switch') return active ? 'device-switch-on' : 'device-switch-off'
   if (device.kind === 'cover') return ['OPEN', 'OPENING'].includes(state) || Number(device.position) > 0 ? 'device-cover-open' : 'device-cover-closed'
   if (device.kind === 'lock') return ['UNLOCKED', 'OPEN', 'OPENING'].includes(state) ? 'device-lock-open' : 'device-lock-closed'
-  if (device.kind === 'climate') return String(device.mode || '').toUpperCase() === 'OFF' ? 'device-climate-off' : device.season === 'SUM' ? 'device-climate-cool' : 'device-climate-heat'
+  if (device.kind === 'climate') return device.read_only ? 'device-climate-off' : state === 'HEATING' ? 'device-climate-heat' : state === 'COOLING' ? 'device-climate-cool' : 'device-climate-off'
   if (device.kind === 'media_player') return state === 'PLAYING' ? 'device-media-playing' : ''
   return ''
 }
@@ -513,10 +525,10 @@ function deviceActions(device, options = {}) {
   if (device.kind === 'climate') {
     const target = Number(device.target_temperature)
     const value = Number.isFinite(target) ? target : 20
-    const enabled = String(device.mode || '').toUpperCase() !== 'OFF'
-    const heat = enabled && device.season !== 'SUM'
-    const cool = enabled && device.season === 'SUM'
-    return `<div class="climate-summary"><span>UR ${device.humidity ?? '--'}%</span><span>${device.season === 'SUM' ? 'ESTATE' : 'INVERNO'}</span><span>PWM ${device.pwm ?? 0}%</span></div><div class="climate-mode-actions"><button class="heat ${heat ? 'active' : ''}" data-climate-season="WIN">HEAT</button><button class="cool ${cool ? 'active' : ''}" data-climate-season="SUM">COOL</button><button class="off ${!enabled ? 'active' : ''}" data-climate-mode="OFF">OFF</button></div><div class="device-actions"><button data-climate-target="${(value - .5).toFixed(1)}">−</button><strong>${value.toFixed(1)}°</strong><button data-climate-target="${(value + .5).toFixed(1)}">＋</button></div>`
+    if (device.read_only) return `<div class="climate-summary climate-read-only"><span>UR ${device.humidity ?? '--'}%</span><span>SONDA ESTERNA</span></div>`
+    const heat = String(device.state).toUpperCase() === 'HEATING'
+    const cool = String(device.state).toUpperCase() === 'COOLING'
+    return `<div class="climate-summary"><span>UR ${device.humidity ?? '--'}%</span><span>${device.season === 'SUM' ? 'ESTATE' : 'INVERNO'}</span><span>PWM ${device.pwm ?? 0}%</span></div><div class="climate-mode-actions"><button class="heat ${heat ? 'active' : ''}" data-climate-season="WIN">HEAT</button><button class="cool ${cool ? 'active' : ''}" data-climate-season="SUM">COOL</button><button class="off ${!heat && !cool ? 'active' : ''}" data-climate-mode="OFF">OFF</button></div><div class="device-actions"><button data-climate-target="${(value - .5).toFixed(1)}">−</button><strong>${value.toFixed(1)}°</strong><button data-climate-target="${(value + .5).toFixed(1)}">＋</button></div>`
   }
   if (device.kind === 'media_player') {
     const caps = device.capabilities || {}
@@ -568,7 +580,8 @@ function renderMediaZones() {
   $('#zones-master').innerHTML = source + master
   const activeRows = playing.map((player) => {
     const volume = Number.isFinite(Number(player.volume)) ? Number(player.volume) : 0
-    return `<div class="media-zone media-zone-playing"><div class="media-zone-name"><b>${esc(player.room)}</b><small>${esc(player.name)}</small></div><label class="media-zone-level"><span class="mdi-mask" style="${mdiStyle(player.muted ? 'mdi:volume-off' : 'mdi:volume-high', 'volume-high')}"></span><input type="range" min="0" max="100" value="${volume}" data-zone-volume data-device-id="${esc(player.id)}" ${!player.capabilities?.set_volume ? 'disabled' : ''}><output>${volume}%</output></label></div>`
+    const power = player.capabilities?.turn_off ? `<button class="media-zone-power" data-zone-power="${esc(player.id)}" aria-label="Spegni ${esc(player.room)}" title="Spegni ${esc(player.room)}"><span class="mdi-mask" style="${mdiStyle('mdi:power', 'power')}"></span></button>` : ''
+    return `<div class="media-zone media-zone-playing"><div class="media-zone-name"><b>${esc(player.room)}</b><small>${esc(player.name)}</small></div>${power}<label class="media-zone-level"><span class="mdi-mask" style="${mdiStyle(player.muted ? 'mdi:volume-off' : 'mdi:volume-high', 'volume-high')}"></span><input type="range" min="0" max="100" value="${volume}" data-zone-volume data-device-id="${esc(player.id)}" ${!player.capabilities?.set_volume ? 'disabled' : ''}><output>${volume}%</output></label></div>`
   }).join('')
   const choices = players.map((player) => {
     const checked = members.has(player.registry_id)
@@ -594,6 +607,20 @@ async function saveMediaZones(button) {
     }
     if (additions.length) await postDeviceCommand(activeMediaPlayer.id, 'media_join', additions, activeMediaPlayer.resource_revision)
     $('#media-zones-dialog').close()
+    await refresh()
+  } catch (error) { fail(error) } finally { button.disabled = false }
+}
+
+async function powerOffMediaSession(button, deviceIds) {
+  const ids = [...new Set(deviceIds.filter(Boolean))]
+  if (!ids.length) return
+  button.disabled = true
+  try {
+    const results = await Promise.allSettled(ids.map((id) => postDeviceCommand(id, 'turn_off')))
+    const failed = results.find((result) => result.status === 'rejected')
+    if (failed) throw failed.reason
+    $('#media-zones-dialog').close()
+    await new Promise((resolve) => setTimeout(resolve, 450))
     await refresh()
   } catch (error) { fail(error) } finally { button.disabled = false }
 }
@@ -919,7 +946,7 @@ $('#widgets').addEventListener('click', (event) => {
   if (!button) return
   const map = { lights: ['light'], extra: ['switch'], covers: ['cover'], security: ['lock'], comfort: ['climate', 'temp', 'temperature', 'humidity', 'air', 'air_quality'] }
   const kinds = map[button.dataset.kind] || []
-  openDevices(button.dataset.label || 'Dispositivi', currentDevices.filter((device) => kinds.includes(device.kind)))
+  openDevices(button.dataset.label || 'Dispositivi', currentDevices.filter((device) => kinds.includes(device.kind)), { filters: true, lights: button.dataset.kind === 'lights' })
 })
 $('#rooms').addEventListener('click', (event) => {
   const button = event.target.closest('[data-room]')
@@ -1059,6 +1086,8 @@ $('#media-sessions-close').addEventListener('click', () => $('#media-sessions-di
 $('#media-sessions-list').addEventListener('click', (event) => { const row = event.target.closest('[data-session-device]'); if (!row) return; const player = currentDevices.find((item) => String(item.id) === row.dataset.sessionDevice); if (player) { $('#media-sessions-dialog').close(); player.active_experience === 'watch' ? openVideoRemote(player) : openMediaZones(player) } })
 $('#media-zones-save').addEventListener('click', (event) => saveMediaZones(event.currentTarget))
 $('#media-zones-list').addEventListener('click', (event) => { const button = event.target.closest('[data-zone-picker-toggle]'); if (button) { const picker = $('.media-zone-picker'); picker.hidden = !picker.hidden; button.classList.toggle('active', !picker.hidden) } })
+$('#media-zones-list').addEventListener('click', (event) => { const button = event.target.closest('[data-zone-power]'); if (button) powerOffMediaSession(button, [button.dataset.zonePower]) })
+$('#media-zones-power-all').addEventListener('click', (event) => { const ids = [...document.querySelectorAll('[data-zone-power]')].map((button) => button.dataset.zonePower); powerOffMediaSession(event.currentTarget, ids) })
 $('#video-remote-close').addEventListener('click', () => $('#video-remote-dialog').close())
 $('#video-remote-dialog').addEventListener('click', (event) => {
   if (event.target === $('#video-remote-dialog')) return $('#video-remote-dialog').close()

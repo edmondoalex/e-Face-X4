@@ -22,17 +22,19 @@ def normalize_thermostats(payload: dict[str, Any]) -> list[dict[str, Any]]:
         therm = realtime.get("THERM") if isinstance(realtime.get("THERM"), dict) else {}
         threshold = therm.get("TEMP_THR") if isinstance(therm.get("TEMP_THR"), dict) else {}
         cfg = configured.get(source_id, {})
+        name = str(entity.get("name") or static.get("DES") or f"Termostato {source_id}")
+        read_only = bool(cfg.get("read_only")) or any(marker in name.casefold() for marker in ("temperatura esterna", "temp esterna", "external temperature"))
         season = str(therm.get("ACT_SEA") or "WIN").upper()
         demand = str(therm.get("DEMAND_ON") or therm.get("OUT_STATUS") or "OFF").upper() == "ON"
         mode = str(therm.get("ACT_MODEL") or therm.get("ACT_MODE") or "OFF").upper()
-        state = ("COOLING" if season == "SUM" else "HEATING") if demand and mode != "OFF" else "OFF"
+        state = ("COOLING" if season == "SUM" else "HEATING") if demand and mode != "OFF" and not read_only else "OFF"
         result.append({
             "id": f"therm:{source_id}", "source_id": source_id, "provider": "etherm",
-            "name": str(entity.get("name") or static.get("DES") or f"Termostato {source_id}"),
+            "name": name,
             "kind": "climate", "room": str(cfg.get("room") or cfg.get("group") or cfg.get("floor") or "Clima"),
             "state": state, "temperature": realtime.get("TEMP"), "value": realtime.get("TEMP"),
             "target_temperature": threshold.get("VAL"), "humidity": realtime.get("RH"),
-            "season": season, "mode": mode, "pwm": therm.get("PWM"), "unit": "°C",
+            "season": season, "mode": mode, "pwm": therm.get("PWM"), "read_only": read_only, "unit": "°C",
             "icon": "mdi:thermostat", "state_key": f"therm:{source_id}",
         })
     return result

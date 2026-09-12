@@ -70,7 +70,7 @@ def test_x4_shell_and_brand_assets_are_served() -> None:
     assert '<iframe' not in page.text
     for label in ("Guarda", "Ascolta", "Luci", "Extra", "Scenari", "Oscuranti", "Comfort", "Sicurezza"):
         assert f'title="{label}"' in page.text
-    assert 'src="assets/brand-horizontal.png?v=2.7.17"' in page.text
+    assert 'src="assets/brand-horizontal.png?v=2.7.18"' in page.text
     assert 'alt="e-Face X4"' in page.text
     assert 'class="header-wordmark"' not in page.text
     assert client.get("/assets/brand-horizontal.png").status_code == 200
@@ -85,6 +85,7 @@ def test_x4_shell_and_brand_assets_are_served() -> None:
     assert client.get("/assets/device-icons.css").status_code == 200
     assert client.get("/assets/home-status.css").status_code == 200
     assert client.get("/assets/home-live-media.css").status_code == 200
+    assert client.get("/assets/media-session-power.css").status_code == 200
     assert client.get("/assets/control4-icons/thermostat.svg").status_code == 200
     app_js = client.get("/assets/app.js").text
     assert "let activeBackgroundRoom = ''" in app_js
@@ -442,6 +443,12 @@ def test_etherm_thermostat_is_normalized() -> None:
     assert items[0]["room"] == "Piano terra"
 
 
+def test_etherm_external_temperature_is_read_only() -> None:
+    items = normalize_thermostats({"entities": [{"type": "thermostats", "id": 8, "name": "Temperatura Esterna", "realtime": {"TEMP": 17.6, "THERM": {"ACT_SEA": "WIN", "ACT_MODEL": "MAN", "DEMAND_ON": "ON", "TEMP_THR": {"VAL": 21}}}}]})
+    assert items[0]["read_only"] is True
+    assert items[0]["state"] == "OFF"
+
+
 def test_etherm_basic_auth_header() -> None:
     from app.config import ProviderConfig
     from app.connectors.etherm import EThermConnector
@@ -494,6 +501,7 @@ def test_media_ui_has_room_selection_and_typed_controls() -> None:
     assert "media_changed" in script
     assert "renderMediaExperience" in script
     assert 'id="media-zones-dialog"' in page
+    assert 'id="media-zones-power-all"' in page
     assert "[...currentRooms" not in script
     assert "device.experiences?.includes('watch')" in script
     assert "['listen', 'watch'].includes(experience)" in script
