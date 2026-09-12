@@ -564,7 +564,7 @@ function renderActiveDeviceList() {
     if (lightFilterActive) devices = devices.filter(deviceIsActiveForFilter)
   }
   if (!$('#av-filters').hidden && avRoom) devices = devices.filter((device) => device.room === avRoom)
-  const signature = JSON.stringify({devices, selectedMediaId, currentMediaExperience, activeMediaRoom, avRoom, lightFilterRoom, lightFilterActive, sectionFilterMode, securitySections})
+  const signature = JSON.stringify({devices, selectedMediaId, currentMediaExperience, activeMediaRoom, avRoom, lightFilterRoom, lightFilterActive, sectionFilterMode, securitySections, mediaSections})
   if (signature === lastDetailSignature && $('#device-list').childElementCount) return
   lastDetailSignature = signature
   renderDeviceList(devices)

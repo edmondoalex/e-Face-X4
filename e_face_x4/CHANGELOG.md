@@ -679,3 +679,7 @@
 
 - Corretto il controllo HEAT/COOL/OFF: lo stato dei pulsanti segue modalità e stagione impostate, non la sola richiesta termica istantanea.
 - Aggiunto l'aggiornamento immediato della card dopo i comandi clima, in attesa della conferma del dispositivo.
+
+# 2.16.9
+
+- Corretto il pulsante Stanze: lo stato aperto/chiuso ora forza il ridisegno immediato della sezione.
