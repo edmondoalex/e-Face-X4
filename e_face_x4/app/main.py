@@ -28,7 +28,7 @@ from .connectors.control4_media import cached_control4_icon, cached_control4_ico
 from .connectors.supervisor import discover_addon_url, discover_host_url
 from .demo import dashboard as demo_dashboard
 
-VERSION = "2.19.3"
+VERSION = "2.19.4"
 STATIC = Path(__file__).parent / "static"
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s [e-face-x4] %(message)s")
 
@@ -143,11 +143,6 @@ def create_app() -> FastAPI:
                 media = apply_preferences(media)
                 media_items = media.get("items", [])
                 dashboard["devices"].extend(media_items)
-                known_rooms = {str(item.get("name", "")).casefold() for item in dashboard["rooms"] if isinstance(item, dict)}
-                for room_name in media.get("rooms", []):
-                    if str(room_name).casefold() not in known_rooms:
-                        dashboard["rooms"].append({"id": f"ha-area-{len(dashboard['rooms'])}", "name": str(room_name), "devices": 0})
-                        known_rooms.add(str(room_name).casefold())
                 playing = next((item for item in media_items if str(item.get("state", "")).lower() == "playing"), None)
                 selected = playing or next(iter(media_items), None)
                 if isinstance(selected, dict):
@@ -161,6 +156,8 @@ def create_app() -> FastAPI:
                 room = str(device.get("room") or "Clima")
                 key = room.casefold()
                 if key not in room_map:
+                    if device.get("kind") == "media_player":
+                        continue
                     entry = {"id": f"room-{len(room_map)}", "name": room, "devices": 0}
                     room_map[key] = entry
                     dashboard["rooms"].append(entry)

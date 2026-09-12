@@ -501,7 +501,11 @@ function updateGlobalMediaSession() {
 }
 
 function activeMediaSessions() {
-  const active = currentDevices.filter((item) => item.kind === 'media_player' && item.availability === 'available' && item.connection_status !== 'offline' && !['off', 'unavailable', 'unknown'].includes(String(item.state).toLowerCase()) && (item.provider !== 'control4' || Boolean(item.active_experience)))
+  const active = currentDevices.filter((item) => {
+    if (item.kind !== 'media_player' || item.availability !== 'available' || item.connection_status === 'offline') return false
+    const state = String(item.state).toLowerCase()
+    return item.provider === 'control4' ? !['off','unavailable','unknown'].includes(state) && Boolean(item.active_experience) : ['playing','paused','buffering'].includes(state)
+  })
   const sessions = []
   const consumed = new Set()
   for (const player of active) {

@@ -126,7 +126,7 @@ def test_x4_shell_and_brand_assets_are_served() -> None:
     assert 'evoice.css' in page.text
     for label in ("Guarda", "Ascolta", "Luci", "Extra", "Scenari", "Oscuranti", "Comfort", "Sicurezza"):
         assert f'title="{label}"' in page.text
-    assert 'src="assets/brand-horizontal.png?v=2.19.3"' in page.text
+    assert 'src="assets/brand-horizontal.png?v=2.19.4"' in page.text
     assert 'alt="e-Face X4"' in page.text
     assert 'class="header-wordmark"' not in page.text
     assert client.get("/assets/brand-horizontal.png").status_code == 200
@@ -418,6 +418,7 @@ def test_control4_and_evoice_are_loaded_together(monkeypatch, tmp_path) -> None:
     payload = TestClient(main_module.create_app()).get("/api/bootstrap").json()
     assert {provider["id"] for provider in payload["providers"]} >= {"control4", "evoice"}
     assert {item["id"] for item in payload["dashboard"]["devices"]} >= {"c4media:1", "media:echo-1"}
+    assert "Cucina" not in {room["name"] for room in payload["dashboard"]["rooms"]}
 
 
 def test_ksenia_security_command_requires_central_pin(monkeypatch, tmp_path) -> None:
@@ -671,6 +672,7 @@ def test_media_ui_has_room_selection_and_typed_controls() -> None:
     assert "data-dnd-device" in script
     assert "item.provider === selected.provider" in script
     assert "item.provider === player.provider" in script
+    assert "['playing','paused','buffering'].includes(state)" in script
     assert "data-zone-volume" in script
     assert "postDeviceCommand(player.id, 'media_unjoin'" in script
     assert "updateGlobalMediaSession()" in script

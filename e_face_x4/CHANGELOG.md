@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.19.4 — 2026-09-12
+
+- Impedito ai media player e-Voice di creare card Ambiente autonome.
+- Mostrati gli Echo soltanto all'interno delle stanze domotiche già esistenti.
+- Esclusi gli stati Alexa idle e standby dal conteggio delle sessioni attive.
+
 ## 2.19.3 — 2026-09-12
 
 - Separate rigorosamente le sessioni e-Voice dalle sessioni Control4.
