@@ -26,6 +26,7 @@ let activeMediaRoom = ''
 let currentBackgrounds = {global:{mode:'preset',preset:'teal'},rooms:{}}
 let activeBackgroundRoom = ''
 const securitySections = { areas: false, zones: false }
+const mediaSections = { rooms: true, playing: true }
 const mediaTransportOverrides = new Map()
 const recentCache = new Map()
 const recentPending = new Map()
@@ -431,7 +432,7 @@ function renderMediaExperience(devices) {
   const recentContent = cachedRecent ? recentlyPlayedHtml(cachedRecent.items, recentRoomId) : '<span class="empty-state">Caricamento…</span>'
   const showRecent = selected.provider === 'control4' && (currentMediaExperience === 'listen' || (activeMediaRoom && selected.active_experience !== 'watch'))
   const recent = showRecent ? `<div class="media-recent" data-recently-played data-recent-scope="${recentScope}" ${cachedRecent && !cachedRecent.items.length ? 'hidden' : ''}><h3>Ascoltati di recente</h3><div class="media-recent-strip">${recentContent}</div></div>` : ''
-  $('#device-list').innerHTML = `<article class="media-session ${experienceClass} ${deviceVisualClass(selected)}" data-device-id="${esc(selected.id)}">${mainArtwork}<span class="device-glyph mdi-mask" style="${mdiStyle(mainIcon, selected.active_experience === 'watch' ? 'video' : 'music-circle')}"></span><div class="media-session-info"><strong>${esc(selected.title || selected.source || selected.name)}</strong><small>${esc(selected.artist || selected.source || selected.room)}</small><span class="media-track">${esc(selected.album || selected.name)}</span></div>${power}${deviceActions(selected, { hidePower: true })}</article>${recent}<div class="media-library media-room-library"><h3>Stanze</h3><div class="media-service-grid">${players}</div></div><div class="media-library media-source-library"><h3>Sorgenti e servizi</h3><div class="media-service-grid">${sources || '<span class="empty-state">Nessuna sorgente disponibile</span>'}</div></div>`
+  $('#device-list').innerHTML = `<article class="media-session ${experienceClass} ${deviceVisualClass(selected)}" data-device-id="${esc(selected.id)}">${mainArtwork}<span class="device-glyph mdi-mask" style="${mdiStyle(mainIcon, selected.active_experience === 'watch' ? 'video' : 'music-circle')}"></span><div class="media-session-info"><strong>${esc(selected.title || selected.source || selected.name)}</strong><small>${esc(selected.artist || selected.source || selected.room)}</small><span class="media-track">${esc(selected.album || selected.name)}</span></div>${power}${deviceActions(selected, { hidePower: true })}</article>${recent}<div class="media-library media-room-library"><button class="media-library-toggle" data-media-section-toggle="rooms" aria-expanded="${mediaSections.rooms}"><strong>Stanze</strong><span class="mdi-mask" style="${mdiStyle(mediaSections.rooms ? 'mdi:chevron-up' : 'mdi:chevron-down', 'chevron-down')}"></span></button><div class="media-service-grid" ${mediaSections.rooms ? '' : 'hidden'}>${players}</div></div><div class="media-library media-source-library"><h3>Sorgenti e servizi</h3><div class="media-service-grid">${sources || '<span class="empty-state">Nessuna sorgente disponibile</span>'}</div></div>`
   if (recent) loadRecentlyPlayed(selected)
 }
 
@@ -774,7 +775,7 @@ function renderMediaZones() {
     const locked = player.registry_id === selected.registry_id || player.registry_id === group?.owner_registry_id || unavailable
     return `<label class="media-zone-choice ${checked ? 'active' : ''} ${unavailable ? 'unavailable' : ''}"><span><b>${esc(player.room)}</b><small>${checked ? 'In riproduzione' : 'Disponibile'}</small></span><input type="checkbox" value="${esc(player.registry_id)}" ${checked ? 'checked' : ''} ${locked ? 'disabled' : ''}><i></i></label>`
   }).join('')
-  $('#media-zones-list').innerHTML = `<h3>Stanze in riproduzione</h3>${activeRows}<button class="media-zone-add" data-zone-picker-toggle aria-label="Aggiungi o rimuovi stanze" title="Aggiungi o rimuovi stanze"><span class="mdi-mask" style="${mdiStyle('mdi:plus-box-outline', 'plus-box-outline')}"></span></button><div class="media-zone-picker" hidden>${choices}</div>`
+  $('#media-zones-list').innerHTML = `<button class="media-library-toggle media-zones-toggle" data-media-zones-toggle="playing" aria-expanded="${mediaSections.playing}"><strong>Stanze in riproduzione</strong><span class="mdi-mask" style="${mdiStyle(mediaSections.playing ? 'mdi:chevron-up' : 'mdi:chevron-down', 'chevron-down')}"></span></button><div class="media-playing-list" ${mediaSections.playing ? '' : 'hidden'}>${activeRows}</div><button class="media-zone-add" data-zone-picker-toggle aria-label="Aggiungi o rimuovi stanze" title="Aggiungi o rimuovi stanze"><span class="mdi-mask" style="${mdiStyle('mdi:plus-box-outline', 'plus-box-outline')}"></span></button><div class="media-zone-picker" hidden>${choices}</div>`
 }
 
 async function saveMediaZones(button) {
@@ -1277,6 +1278,12 @@ $('#scenario-list').addEventListener('click', (event) => {
 })
 $('#device-list').addEventListener('click', (event) => {
   if (devicePointerGesture?.moved) { devicePointerGesture = null; return }
+  const mediaSectionToggle = event.target.closest('[data-media-section-toggle]')
+  if (mediaSectionToggle) {
+    const key = mediaSectionToggle.dataset.mediaSectionToggle
+    mediaSections[key] = !mediaSections[key]
+    return renderActiveDeviceList()
+  }
   const recentButton = event.target.closest('[data-recent-key]')
   if (recentButton) return selectRecentlyPlayed(recentButton)
   const rgbOpen = event.target.closest('[data-rgb-open]')
@@ -1414,6 +1421,15 @@ $('#zones-master').addEventListener('pointerdown', stepSessionRangeClick, { capt
 $('#media-zones-list').addEventListener('pointerdown', stepSessionRangeClick, { capture: true })
 $('#media-zones-save').addEventListener('click', (event) => saveMediaZones(event.currentTarget))
 $('#media-zones-list').addEventListener('click', (event) => { const button = event.target.closest('[data-zone-picker-toggle]'); if (button) { const picker = $('.media-zone-picker'); picker.hidden = !picker.hidden; button.classList.toggle('active', !picker.hidden) } })
+$('#media-zones-list').addEventListener('click', (event) => {
+  const button = event.target.closest('[data-media-zones-toggle]')
+  if (!button) return
+  const key = button.dataset.mediaZonesToggle
+  mediaSections[key] = !mediaSections[key]
+  button.setAttribute('aria-expanded', String(mediaSections[key]))
+  button.querySelector('.mdi-mask').setAttribute('style', mdiStyle(mediaSections[key] ? 'mdi:chevron-up' : 'mdi:chevron-down', 'chevron-down'))
+  button.nextElementSibling.hidden = !mediaSections[key]
+})
 $('#media-zones-list').addEventListener('click', (event) => { const button = event.target.closest('[data-zone-power]'); if (button) powerOffMediaSession(button, [button.dataset.zonePower]) })
 $('#zones-master').addEventListener('click', (event) => { const button = event.target.closest('[data-session-power-all]'); if (button) { const ids = [...document.querySelectorAll('[data-zone-power]')].map((item) => item.dataset.zonePower); powerOffMediaSession(button, ids) } })
 $('#video-remote-close').addEventListener('click', () => $('#video-remote-dialog').close())

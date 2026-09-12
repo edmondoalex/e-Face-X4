@@ -669,3 +669,8 @@
 # 2.16.6
 
 - Logo e-Face leggermente ingrandito e testata riallineata verticalmente tra marchio, nome casa, stato LIVE, orologio e comandi.
+
+# 2.16.7
+
+- Tutte le intestazioni Stanze dei controlli media, compresa `Stanze in riproduzione`, aprono e chiudono gli elementi successivi mantenendo lo stato durante gli aggiornamenti.
+- Rimossa la freccia dal riepilogo Sicurezza per lasciare alla modalità tutto lo spazio necessario senza ritagli.
