@@ -1,5 +1,9 @@
 # Changelog
 
+## 2.20.10 — 2026-09-12
+
+- Aggiunto il comando Seleziona tutti nella scelta degli Echo per i messaggi TTS.
+
 ## 2.20.9 — 2026-09-12
 
 - Evidenziati e animati anche gli Echo e-Voice quando sono in riproduzione o buffering.
