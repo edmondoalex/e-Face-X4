@@ -48,10 +48,15 @@ class Control4MediaConnector(Connector):
     async def snapshot(self) -> dict[str, Any]:
         try:
             director, _ = await control4_director(self.config)
-            ui, all_items, variables = await asyncio.gather(
+            ui, all_items, variables, queue_value = await asyncio.gather(
                 director.get_ui_configuration(), director.get_all_item_info(),
                 director.get_all_item_variable_value(ROOM_VARIABLES),
+                director.get_item_variable_value(100002, "QUEUE_STATUS_V2"),
             )
+            if not isinstance(variables, list):
+                variables = []
+            if control4_queues(queue_value):
+                variables.append({"id": 100002, "varName": "QUEUE_STATUS_V2", "value": queue_value})
             items = normalize_control4_media(ui, all_items, variables)
             try:
                 await cache_control4_source_icons(director)
@@ -422,7 +427,10 @@ def control4_queue_rooms(queue: dict[str, Any]) -> list[int]:
 
 def normalize_control4_groups(items: list[dict[str, Any]], variables: Any) -> list[dict[str, Any]]:
     player_ids = {str(item.get("registry_id")) for item in items}
-    queue_value = next((item.get("value") for item in (variables if isinstance(variables, list) else []) if isinstance(item, dict) and item.get("varName") == "QUEUE_STATUS_V2"), None)
+    queue_value = next((
+        item.get("value") for item in (variables if isinstance(variables, list) else [])
+        if isinstance(item, dict) and item.get("varName") == "QUEUE_STATUS_V2" and control4_queues(item.get("value"))
+    ), None)
     groups = []
     for queue in control4_queues(queue_value):
         members = [f"c4room:{room_id}" for room_id in control4_queue_rooms(queue) if f"c4room:{room_id}" in player_ids]

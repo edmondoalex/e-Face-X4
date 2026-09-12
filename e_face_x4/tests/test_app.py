@@ -126,7 +126,7 @@ def test_x4_shell_and_brand_assets_are_served() -> None:
     assert 'evoice.css' in page.text
     for label in ("Guarda", "Ascolta", "Luci", "Extra", "Scenari", "Oscuranti", "Comfort", "Sicurezza"):
         assert f'title="{label}"' in page.text
-    assert 'src="assets/brand-horizontal.png?v=2.20.12"' in page.text
+    assert 'src="assets/brand-horizontal.png?v=2.20.13"' in page.text
     assert 'alt="e-Face X4"' in page.text
     assert 'class="header-wordmark"' not in page.text
     assert client.get("/assets/brand-horizontal.png").status_code == 200
@@ -886,7 +886,7 @@ def test_control4_digital_media_queue_becomes_canonical_group() -> None:
         {"registry_id": "c4room:50", "name": "Ufficio Contabilità"},
         {"registry_id": "c4room:51", "name": "Ufficio Alex"},
     ]
-    variables = [{
+    variables = [{"varName": "QUEUE_STATUS_V2", "value": {"queues": ""}}, {
         "varName": "QUEUE_STATUS_V2",
         "value": {"queues": {"queue": {"id": 10015, "owner": 51, "rooms": {"id": [50, 51]}}}},
     }]

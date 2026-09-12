@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.20.13 — 2026-09-12
+
+- Recuperato direttamente `QUEUE_STATUS_V2` dal Digital Media client Control4.
+- Ignorati i valori queue vuoti per ricomporre correttamente le sessioni multi-stanza.
+
 ## 2.20.12 — 2026-09-12
 
 - Mantenuto l'ultimo snapshot e-Voice valido durante i timeout transitori del proxy Supervisor.
