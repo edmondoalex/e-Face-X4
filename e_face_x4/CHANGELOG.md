@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.17.4 — 2026-09-12
+
+- Le card Energia aggiornano automaticamente valori, icone e direzioni ogni 2 secondi.
+- L'aggiornamento si arresta quando si apre una dashboard o si lascia la pagina, senza lampeggiamenti.
+
 ## 2.17.3 — 2026-09-12
 
 - Aggiunta la percentuale di carica accanto alla potenza istantanea della batteria.

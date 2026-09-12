@@ -26,6 +26,8 @@ let activeMediaRoom = ''
 let currentBackgrounds = {global:{mode:'preset',preset:'teal'},rooms:{}}
 let activeBackgroundRoom = ''
 let activeEnergyDashboard = null
+let energyRefreshTimer = null
+let energyRefreshRunning = false
 const securitySections = { areas: false, zones: false }
 const mediaSections = { rooms: true, playing: true }
 const mediaTransportOverrides = new Map()
@@ -1064,6 +1066,7 @@ async function sendScenarioCommand(id, action, button) {
 }
 
 function showHome() {
+  stopEnergyRefresh()
   applyBackground('')
   activeDetailIds = null
   $('#detail-view').hidden = true
@@ -1085,7 +1088,6 @@ function openEnergy() {
   $('#detail-view').hidden = true
   $('#energy-view').hidden = false
   showEnergyPicker()
-  loadEnergyDashboards()
   window.scrollTo({ top: 0, behavior: 'smooth' })
 }
 
@@ -1095,11 +1097,28 @@ function showEnergyPicker() {
   $('#energy-picker').hidden = false
   $('#energy-frame-shell').hidden = true
   $('#energy-reload').hidden = true
+  startEnergyRefresh()
 }
 
-async function loadEnergyDashboards() {
+function stopEnergyRefresh() {
+  clearInterval(energyRefreshTimer)
+  energyRefreshTimer = null
+}
+
+function startEnergyRefresh() {
+  stopEnergyRefresh()
+  loadEnergyDashboards(true)
+  energyRefreshTimer = setInterval(() => {
+    if ($('#energy-view').hidden || activeEnergyDashboard) return stopEnergyRefresh()
+    loadEnergyDashboards(false)
+  }, 2000)
+}
+
+async function loadEnergyDashboards(showLoading = true) {
+  if (energyRefreshRunning) return
+  energyRefreshRunning = true
   const picker = $('#energy-dashboard-grid')
-  picker.innerHTML = '<span class="empty-state">Caricamento dashboard…</span>'
+  if (showLoading) picker.innerHTML = '<span class="empty-state">Caricamento dashboard…</span>'
   try {
     const response = await fetch(apiUrl('api/sunmind/api/data'), { cache: 'no-store' })
     if (!response.ok) throw new Error(`HTTP ${response.status}`)
@@ -1139,11 +1158,12 @@ async function loadEnergyDashboards() {
       return `<button class="energy-dashboard-card energy-flow-${flow.key}" data-energy-dashboard="${esc(id)}" data-energy-name="${esc(name)}" title="${esc(flow.label)}"><span class="energy-main-icon mdi-mask" style="${mdiStyle(flow.icon, 'home-outline')}"></span><strong class="energy-dashboard-name">${esc(name)}</strong><span class="energy-flow-metrics"><span class="solar"><i class="mdi-mask" style="${mdiStyle('mdi:solar-power-variant', 'solar-power-variant')}"></i><small>FV</small><b>${power(live.pv_power_w)}</b></span><span class="battery ${batteryFlow.key}"><i class="mdi-mask" style="${mdiStyle(batteryFlow.icon, 'battery-outline')}"></i><small>${batteryFlow.label}</small><b>${power(Math.abs(battery))}${socLabel}</b></span><span class="home"><i class="mdi-mask" style="${mdiStyle('mdi:home-outline', 'home-outline')}"></i><small>CASA</small><b>${power(live.home_power_w)}</b></span><span class="grid ${gridFlow.key}"><i class="mdi-mask" style="${mdiStyle(gridFlow.icon, 'transmission-tower')}"></i><small>${gridFlow.label}</small><b>${power(Math.abs(grid))}</b></span></span></button>`
     }).join('')
   } catch (error) {
-    picker.innerHTML = `<span class="empty-state">e-SunMind non disponibile: ${esc(error.message)}</span>`
-  }
+    if (showLoading) picker.innerHTML = `<span class="empty-state">e-SunMind non disponibile: ${esc(error.message)}</span>`
+  } finally { energyRefreshRunning = false }
 }
 
 function openEnergyDashboard(id, name) {
+  stopEnergyRefresh()
   activeEnergyDashboard = { id, name }
   $('#energy-title').textContent = name
   $('#energy-picker').hidden = true

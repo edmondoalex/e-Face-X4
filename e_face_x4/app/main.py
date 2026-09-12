@@ -28,7 +28,7 @@ from .connectors.control4_media import cached_control4_icon, cached_control4_ico
 from .connectors.supervisor import discover_addon_url, discover_host_url
 from .demo import dashboard as demo_dashboard
 
-VERSION = "2.17.3"
+VERSION = "2.17.4"
 STATIC = Path(__file__).parent / "static"
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s [e-face-x4] %(message)s")
 
@@ -71,11 +71,12 @@ def create_app() -> FastAPI:
         candidates = []
         if manual and "127.0.0.1" not in manual and "localhost" not in manual:
             candidates.append(config.base_url)
-        discovered, host_url = await asyncio.gather(
-            discover_addon_url("e_sunmind", 1980, settings.request_timeout_s),
-            discover_host_url(1980, settings.request_timeout_s),
-        )
-        candidates.extend(value for value in (discovered, host_url, config.base_url) if value and value not in candidates)
+        else:
+            discovered, host_url = await asyncio.gather(
+                discover_addon_url("e_sunmind", 1980, settings.request_timeout_s),
+                discover_host_url(1980, settings.request_timeout_s),
+            )
+            candidates.extend(value for value in (discovered, host_url, config.base_url) if value and value not in candidates)
         upstream = None
         timeout = httpx.Timeout(max(20.0, settings.request_timeout_s), connect=min(3.0, settings.request_timeout_s))
         async with httpx.AsyncClient(timeout=timeout, follow_redirects=True) as client:

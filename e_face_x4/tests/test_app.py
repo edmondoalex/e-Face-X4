@@ -121,7 +121,7 @@ def test_x4_shell_and_brand_assets_are_served() -> None:
     assert 'data-view="energy"' in page.text
     for label in ("Guarda", "Ascolta", "Luci", "Extra", "Scenari", "Oscuranti", "Comfort", "Sicurezza"):
         assert f'title="{label}"' in page.text
-    assert 'src="assets/brand-horizontal.png?v=2.17.3"' in page.text
+    assert 'src="assets/brand-horizontal.png?v=2.17.4"' in page.text
     assert 'alt="e-Face X4"' in page.text
     assert 'class="header-wordmark"' not in page.text
     assert client.get("/assets/brand-horizontal.png").status_code == 200
@@ -460,6 +460,8 @@ def test_energy_cards_expose_dynamic_flow_states() -> None:
     assert "gridFlow" in script
     assert "PRELIEVO" in script
     assert "IMMISSIONE" in script
+    assert "loadEnergyDashboards(false)" in script
+    assert "energyRefreshRunning" in script
 
 
 def test_invalid_mdi_icon_name_returns_safe_fallback() -> None:
