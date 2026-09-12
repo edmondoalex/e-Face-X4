@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.18.3 — 2026-09-12
+
+- Allineate su smartphone le card Sicurezza e Comfort in due metà identiche.
+- Uniformate le cinque card riepilogo e le righe degli ambienti.
+- Regolarizzata la barra mobile in gruppi esatti da cinque icone, senza elementi tagliati.
+
 ## 2.18.2 — 2026-09-12
 
 - Rimossa la dicitura ridondante `SESSIONE AUDIO/VIDEO` dalla finestra Gestione stanze.

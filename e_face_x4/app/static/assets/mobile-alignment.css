@@ -1,0 +1,11 @@
+@media(max-width:700px){
+  .home-overview-summary{grid-template-columns:repeat(2,minmax(0,1fr))!important}
+  .home-overview-summary>.home-security-summary,.home-overview-summary>.home-comfort-summary{min-width:0;min-height:78px!important;padding-inline:10px!important}
+  .home-security-mode{min-width:0;justify-content:center!important}.home-security-mode strong{max-width:100%!important;text-align:center}
+  .comfort-readings{grid-template-columns:minmax(0,1fr) 1px minmax(0,1fr)!important}
+  #widgets.state-summary-grid{width:100%;grid-template-columns:repeat(5,minmax(0,1fr))}
+  .quick-card.status-counter{width:100%;min-width:0}
+  .room-grid{align-items:stretch}.room-card{height:100%}
+  .rail{gap:0!important;padding-left:0!important;padding-right:0!important;scroll-snap-type:x mandatory;scrollbar-width:none}
+  .rail::-webkit-scrollbar{display:none}.rail button{flex:0 0 20vw!important;width:20vw!important;scroll-snap-align:start}
+}
