@@ -447,16 +447,16 @@ def normalize_control4_groups(items: list[dict[str, Any]], variables: Any) -> li
         if player.get("group") or player.get("active_experience") != "listen":
             continue
         route_id = int(player.get("active_source_id") or 0)
-        fingerprint = str(player.get("content_fingerprint") or "")
-        if route_id > 0 and fingerprint:
-            routed.setdefault((route_id, fingerprint), []).append(player)
-    for (route_id, fingerprint), players in routed.items():
+        playback_identity = "\x1f".join(str(player.get(key) or "").strip().casefold() for key in ("title", "artist", "album"))
+        if route_id > 0 and playback_identity.replace("\x1f", ""):
+            routed.setdefault((route_id, playback_identity), []).append(player)
+    for (route_id, playback_identity), players in routed.items():
         if len(players) < 2:
             continue
         members = [str(player["registry_id"]) for player in players]
         owner = members[0]
         group = {
-            "group_id": f"c4route:{route_id}:{fingerprint[:12]}",
+            "group_id": f"c4route:{route_id}:{hashlib.sha256(playback_identity.encode()).hexdigest()[:12]}",
             "name": "Sessione audio",
             "owner_registry_id": owner,
             "member_registry_ids": members,

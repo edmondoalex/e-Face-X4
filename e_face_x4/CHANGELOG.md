@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.20.15 — 2026-09-12
+
+- Ricomposte le sessioni Wireless Music Bridge anche quando Control4 non fornisce una cover e il fingerprint artwork è assente.
+- Separata l'identità del flusso audio dal fingerprint usato esclusivamente per le copertine.
+
 ## 2.20.14 — 2026-09-12
 
 - Ricomposte le sessioni Control4 multi-stanza prive di queue tramite route audio e fingerprint del flusso.
