@@ -527,3 +527,6 @@
 - Stati ON/OFF e card dispositivi adattivi senza interruzioni di testo sui tablet.
 - Telecomando rifinito con icone centrate e layout responsive.
 - Slider sessione comandabile direttamente e sincronizzato con le singole zone.
+# 2.8.2
+
+- Il comando `+` delle sessioni video apre nuovamente Gestione stanze per aggiungere o rimuovere ambienti, senza aprire il telecomando.
