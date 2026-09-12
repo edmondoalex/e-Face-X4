@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.18.1 — 2026-09-12
+
+- La palette scelta viene applicata anche alle card riepilogo Sicurezza e Comfort della Home.
+- Logo Strumenti ampliato e affiancato a un titolo più discreto.
+- Rimossi i cerchi decorativi da tutte le frecce di navigazione.
+
 ## 2.18.0 — 2026-09-12
 
 - Aggiunta in `Strumenti → Utente` la scelta persistente del colore delle card.
