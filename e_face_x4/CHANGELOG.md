@@ -1,5 +1,12 @@
 # Changelog
 
+## 2.18.4 — 2026-09-12
+
+- Estesa la palette delle card a popup PIN, sicurezza, RGB, sessioni, stanze e telecomando.
+- Uniformati filtri, menu, campi e controlli interni alla palette selezionata.
+- Applicata la palette anche alla pagina Strumenti fin dal caricamento.
+- Conservati i colori semantici degli stati e dei dispositivi.
+
 ## 2.18.3 — 2026-09-12
 
 - Allineate su smartphone le card Sicurezza e Comfort in due metà identiche.

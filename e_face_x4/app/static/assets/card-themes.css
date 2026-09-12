@@ -1,8 +1,33 @@
-:root{--user-card:rgba(25,32,36,.94);--user-card-soft:rgba(31,40,44,.91);--user-card-cell:rgba(255,255,255,.028)}
-body[data-card-theme="petrol"]{--user-card:rgba(8,34,38,.94);--user-card-soft:rgba(12,43,47,.91);--user-card-cell:rgba(72,155,151,.065)}
-body[data-card-theme="midnight"]{--user-card:rgba(12,22,37,.95);--user-card-soft:rgba(17,30,49,.92);--user-card-cell:rgba(88,132,190,.065)}
-body[data-card-theme="slate"]{--user-card:rgba(35,44,51,.94);--user-card-soft:rgba(44,55,63,.91);--user-card-cell:rgba(152,177,190,.06)}
-body[data-card-theme="warm"]{--user-card:rgba(43,34,32,.95);--user-card-soft:rgba(54,42,38,.92);--user-card-cell:rgba(194,145,112,.06)}
+:root{--user-card:rgba(25,32,36,.94);--user-card-soft:rgba(31,40,44,.96);--user-card-cell:rgba(255,255,255,.045);--user-card-field:rgba(10,14,17,.48)}
+body[data-card-theme="petrol"]{--user-card:rgba(8,34,38,.94);--user-card-soft:rgba(12,43,47,.96);--user-card-cell:rgba(72,155,151,.09);--user-card-field:rgba(3,25,29,.78)}
+body[data-card-theme="midnight"]{--user-card:rgba(12,22,37,.95);--user-card-soft:rgba(17,30,49,.96);--user-card-cell:rgba(88,132,190,.09);--user-card-field:rgba(6,14,27,.78)}
+body[data-card-theme="slate"]{--user-card:rgba(35,44,51,.94);--user-card-soft:rgba(44,55,63,.96);--user-card-cell:rgba(152,177,190,.085);--user-card-field:rgba(23,31,37,.78)}
+body[data-card-theme="warm"]{--user-card:rgba(43,34,32,.95);--user-card-soft:rgba(54,42,38,.96);--user-card-cell:rgba(194,145,112,.085);--user-card-field:rgba(31,23,22,.78)}
 .home-security-summary,.home-comfort-summary,.quick-card,.room-panel,.home-live-media,.media-player-card,.media-room-tile,.security-summary,.security-area,.security-zone,.security-scenario,.security-lock,.energy-dashboard-card,.device-list article{background:var(--user-card)!important}
 .energy-flow-metrics>span,.room-card{background:var(--user-card-cell)!important}
 .home-live-media-list>*{background:var(--user-card-soft)!important}
+
+/* La palette utente deve seguire ogni superficie dell'app, inclusi popup e controlli. */
+.home-overview-summary,.detail-header,.page-device-list article,.scenario-panel,.scenario-card,.av-filters>button,.av-room-menu,
+.media-sessions-dialog,.media-zones-dialog,.video-remote-dialog,.security-area-dialog,.security-pin-dialog,.rgb-dialog{
+  background:var(--user-card)!important
+}
+dialog header,.media-sessions-dialog header,.media-zones-dialog footer{
+  background:var(--user-card-soft)!important
+}
+.security-pin-body input,.rgb-popup-body input,.light-room-menu{
+  background:var(--user-card-field)!important
+}
+.security-pin-keys button,.security-pin-dialog header button,.security-pin-dialog footer button,
+.security-area-dialog header button,.security-area-popup-actions button,.media-zone,.media-zone-choice,
+.media-session-row,.media-service-tile,.media-sources button,.av-room-menu button,#video-remote-body button,
+.security-actions button,.security-zone button,.security-lock>.device-actions button,.scenario-heading button,
+.scenario-actions button,.rgb-popup-actions button,.remote-volume-side,.remote-channel-side,.remote-volume-slider{
+  background:var(--user-card-cell)!important
+}
+.security-pin-dialog footer #security-pin-confirm,.zones-master{
+  background:var(--user-card-soft)!important
+}
+.media-sources,.remote-console .remote-nav{
+  background-color:var(--user-card-field)!important
+}

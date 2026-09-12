@@ -124,7 +124,7 @@ def test_x4_shell_and_brand_assets_are_served() -> None:
     assert 'mobile-alignment.css' in page.text
     for label in ("Guarda", "Ascolta", "Luci", "Extra", "Scenari", "Oscuranti", "Comfort", "Sicurezza"):
         assert f'title="{label}"' in page.text
-    assert 'src="assets/brand-horizontal.png?v=2.18.3"' in page.text
+    assert 'src="assets/brand-horizontal.png?v=2.18.4"' in page.text
     assert 'alt="e-Face X4"' in page.text
     assert 'class="header-wordmark"' not in page.text
     assert client.get("/assets/brand-horizontal.png").status_code == 200
@@ -133,6 +133,14 @@ def test_x4_shell_and_brand_assets_are_served() -> None:
     assert client.get("/assets/media.css").status_code == 200
     assert client.get("/assets/media-x4.css").status_code == 200
     assert client.get("/assets/media-remote-colors.css").status_code == 200
+    card_theme_css = client.get("/assets/card-themes.css")
+    assert card_theme_css.status_code == 200
+    assert ".security-pin-dialog" in card_theme_css.text
+    assert ".media-zones-dialog" in card_theme_css.text
+    assert ".video-remote-dialog" in card_theme_css.text
+    assert ".home-overview-summary" in card_theme_css.text
+    assert ".remote-volume-side" in card_theme_css.text
+    assert "SESSIONE AUDIO/VIDEO" not in page.text
     assert client.get("/assets/borderless.css").status_code == 200
     assert client.get("/assets/tools-global-background.css").status_code == 200
     assert client.get("/assets/header-responsive.css").status_code == 200
