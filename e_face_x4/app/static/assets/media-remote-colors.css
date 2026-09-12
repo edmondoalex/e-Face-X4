@@ -1,0 +1,32 @@
+.remote-custom .remote-color {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.remote-color span {
+  width: 62%;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--remote-color);
+  box-shadow: 0 0 10px color-mix(in srgb, var(--remote-color) 65%, transparent);
+}
+
+.remote-color.remote-red { --remote-color: #ff243f; }
+.remote-color.remote-green { --remote-color: #38d42f; }
+.remote-color.remote-yellow { --remote-color: #ffd21f; }
+.remote-color.remote-blue { --remote-color: #21aef2; }
+
+.remote-custom .remote-color:active {
+  color: inherit;
+  background: color-mix(in srgb, var(--remote-color) 28%, #15191b);
+}
+
+.remote-custom .remote-color:active span {
+  transform: scale(.94);
+  box-shadow: 0 0 18px var(--remote-color);
+}
+
+.media-session-row-watch .media-session-row-source {
+  color: #61d8f2;
+}

@@ -70,7 +70,7 @@ def test_x4_shell_and_brand_assets_are_served() -> None:
     assert '<iframe' not in page.text
     for label in ("Guarda", "Ascolta", "Luci", "Extra", "Scenari", "Oscuranti", "Comfort", "Sicurezza"):
         assert f'title="{label}"' in page.text
-    assert 'src="assets/brand-horizontal.png?v=2.7.5"' in page.text
+    assert 'src="assets/brand-horizontal.png?v=2.7.6"' in page.text
     assert 'alt="e-Face X4"' in page.text
     assert 'class="header-wordmark"' not in page.text
     assert client.get("/assets/brand-horizontal.png").status_code == 200
@@ -78,6 +78,7 @@ def test_x4_shell_and_brand_assets_are_served() -> None:
     assert client.get("/assets/app.css").status_code == 200
     assert client.get("/assets/media.css").status_code == 200
     assert client.get("/assets/media-x4.css").status_code == 200
+    assert client.get("/assets/media-remote-colors.css").status_code == 200
     app_js = client.get("/assets/app.js").text
     assert "let activeBackgroundRoom = ''" in app_js
     assert "function applyBackground(room = activeBackgroundRoom)" in app_js
@@ -490,6 +491,10 @@ def test_media_ui_has_room_selection_and_typed_controls() -> None:
     assert 'id="media-sessions-dialog"' in page
     assert "activeMediaSessions()" in script
     assert "data-session-device" in script
+    assert "['custom:PROGRAM_A','red','Rosso']" in script
+    assert 'class="remote-color remote-${color}"' in script
+    assert "media-session-row-watch" in script
+    assert "activeMediaRoom && selected.active_experience !== 'watch'" in script
     assert "Ascoltati di recente" in script
     assert "api/control4/recently-played" in script
     assert "const recentCache = new Map()" in script

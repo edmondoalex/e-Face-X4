@@ -21,6 +21,7 @@ let currentMediaExperience = ''
 let activeMediaPlayer = null
 let activeVideoRemote = null
 let selectedMediaId = ''
+let activeMediaRoom = ''
 let currentBackgrounds = {global:{mode:'preset',preset:'teal'},rooms:{}}
 let activeBackgroundRoom = ''
 const mediaTransportOverrides = new Map()
@@ -290,18 +291,19 @@ function renderMediaExperience(devices) {
   const mainIcon = selected.active_experience === 'watch' ? 'mdi:video' : mediaSourceIcon(selected.source)
   const mainArtwork = selected.active_experience === 'watch' && !selected.content_fingerprint && selected.active_source_id ? `<span class="media-artwork media-video-source"><img src="${apiUrl(`api/control4/source-icon/${selected.active_source_id}?v=${encodeURIComponent(appVersion)}`)}" alt="${esc(selected.source || '')}" onerror="this.hidden=true"></span>` : mediaArtwork(selected)
   const recentRoomId = Number(String(selected.registry_id || '').replace('c4room:', ''))
-  const recentScope = avRoom && recentRoomId ? `room-${recentRoomId}` : 'global'
+  const recentScope = (avRoom || activeMediaRoom) && recentRoomId ? `room-${recentRoomId}` : 'global'
   const cachedRecent = recentCache.get(recentScope)
   const recentContent = cachedRecent ? recentlyPlayedHtml(cachedRecent.items, recentRoomId) : '<span class="empty-state">Caricamento…</span>'
-  const recent = currentMediaExperience === 'listen' && selected.provider === 'control4' ? `<div class="media-recent" data-recently-played data-recent-scope="${recentScope}" ${cachedRecent && !cachedRecent.items.length ? 'hidden' : ''}><h3>Ascoltati di recente</h3><div class="media-recent-strip">${recentContent}</div></div>` : ''
+  const showRecent = selected.provider === 'control4' && (currentMediaExperience === 'listen' || (activeMediaRoom && selected.active_experience !== 'watch'))
+  const recent = showRecent ? `<div class="media-recent" data-recently-played data-recent-scope="${recentScope}" ${cachedRecent && !cachedRecent.items.length ? 'hidden' : ''}><h3>Ascoltati di recente</h3><div class="media-recent-strip">${recentContent}</div></div>` : ''
   $('#device-list').innerHTML = `<article class="media-session ${experienceClass} ${deviceVisualClass(selected)}" data-device-id="${esc(selected.id)}">${mainArtwork}<span class="device-glyph mdi-mask" style="${mdiStyle(mainIcon, selected.active_experience === 'watch' ? 'video' : 'music-circle')}"></span><div class="media-session-info"><strong>${esc(selected.title || selected.source || selected.name)}</strong><small>${esc(selected.artist || selected.source || selected.room)}</small><span class="media-track">${esc(selected.album || selected.name)}</span></div>${power}${deviceActions(selected, { hidePower: true })}</article>${recent}<div class="media-library media-room-library"><h3>Stanze</h3><div class="media-service-grid">${players}</div></div><div class="media-library media-source-library"><h3>Sorgenti e servizi</h3><div class="media-service-grid">${sources || '<span class="empty-state">Nessuna sorgente disponibile</span>'}</div></div>`
   if (recent) loadRecentlyPlayed(selected)
 }
 
 async function loadRecentlyPlayed(selected) {
   const roomId = Number(String(selected.registry_id || '').replace('c4room:', ''))
-  const scope = avRoom && roomId ? `room-${roomId}` : 'global'
-  const params = avRoom && roomId ? `?room_id=${roomId}` : ''
+  const scope = (avRoom || activeMediaRoom) && roomId ? `room-${roomId}` : 'global'
+  const params = (avRoom || activeMediaRoom) && roomId ? `?room_id=${roomId}` : ''
   const cached = recentCache.get(scope)
   if (cached && Date.now() - cached.updated < 30000) return
   if (recentPending.has(scope)) return recentPending.get(scope)
@@ -370,7 +372,9 @@ function openMediaSessions() {
   $('#media-sessions-list').innerHTML = sessions.map(({ player, members }) => {
     const volumes = members.map((item) => Number(item.volume)).filter(Number.isFinite)
     const volume = volumes.length ? Math.round(volumes.reduce((sum, value) => sum + value, 0) / volumes.length) : 0
-    return `<button class="media-session-row" data-session-device="${esc(player.id)}">${mediaArtwork(player)}<span class="mdi-mask media-session-row-source" style="${mdiStyle(mediaSourceIcon(player.source), 'music-circle')}"></span><span class="media-session-row-info"><strong>${esc(player.title || player.source || player.name)}</strong><small>${esc(player.artist || player.source || '')}</small></span><span class="media-session-row-volume"><span class="mdi-mask" style="${mdiStyle('mdi:volume-high', 'volume-high')}"></span><i><u style="width:${volume}%"></u></i><b>${volume}%</b></span><span class="media-session-row-rooms"><span class="mdi-mask" style="${mdiStyle(members.length > 1 ? 'mdi:home-group' : 'mdi:plus-box-outline', 'plus-box-outline')}"></span><b>${esc(members.map((item) => item.room).join(', '))}</b></span><em>⌄</em></button>`
+    const isVideo = player.active_experience === 'watch'
+    const artwork = isVideo && !player.content_fingerprint && player.active_source_id ? `<span class="media-artwork media-video-source"><img src="${apiUrl(`api/control4/source-icon/${player.active_source_id}?v=${encodeURIComponent(appVersion)}`)}" alt="${esc(player.source || '')}" onerror="this.hidden=true"></span>` : mediaArtwork(player)
+    return `<button class="media-session-row ${isVideo ? 'media-session-row-watch' : ''}" data-session-device="${esc(player.id)}">${artwork}<span class="mdi-mask media-session-row-source" style="${mdiStyle(isVideo ? 'mdi:video' : mediaSourceIcon(player.source), isVideo ? 'video' : 'music-circle')}"></span><span class="media-session-row-info"><strong>${esc(player.title || player.source || player.name)}</strong><small>${esc(player.artist || player.source || '')}</small></span><span class="media-session-row-volume"><span class="mdi-mask" style="${mdiStyle('mdi:volume-high', 'volume-high')}"></span><i><u style="width:${volume}%"></u></i><b>${volume}%</b></span><span class="media-session-row-rooms"><span class="mdi-mask" style="${mdiStyle(members.length > 1 ? 'mdi:home-group' : 'mdi:plus-box-outline', 'plus-box-outline')}"></span><b>${esc(members.map((item) => item.room).join(', '))}</b></span><em>⌄</em></button>`
   }).join('') || '<p class="empty-state">Nessuna sessione attiva</p>'
   $('#media-sessions-dialog').showModal()
 }
@@ -553,7 +557,7 @@ function openVideoRemote(device) {
   const nav = [['up','▲'],['left','◀'],['enter','SELEZIONA'],['right','▶'],['down','▼']].map(([a,l]) => make(a,l)).join('')
   const digits = ['1','2','3','4','5','6','7','8','9','star','0','pound'].map((key) => make(key.length === 1 ? `digit_${key}` : key, key === 'star' ? '*' : key === 'pound' ? '#' : key)).join('')
   const transport = [['scan_rev','⏪'],['skip_rev','|◀'],['play','▶'],['pause','Ⅱ'],['stop','■'],['skip_fwd','▶|'],['scan_fwd','⏩'],['record','●'],['page_up','PG ▲'],['page_down','PG ▼'],['channel_up','CH ▲'],['channel_down','CH ▼']].map(([a,l]) => make(a,l)).join('')
-  const custom = [['custom:PROGRAM_A','●'],['custom:PROGRAM_B','●'],['custom:PROGRAM_C','●'],['custom:PROGRAM_D','●']].map(([a,l]) => make(a,l)).join('')
+  const custom = [['custom:PROGRAM_A','red','Rosso'],['custom:PROGRAM_B','green','Verde'],['custom:PROGRAM_C','yellow','Giallo'],['custom:PROGRAM_D','blue','Blu']].filter(([action]) => actions.has(action)).map(([action,color,label]) => `<button class="remote-color remote-${color}" data-remote-command="${action}" aria-label="${label}" title="${label}"><span></span></button>`).join('')
   $('#video-remote-title').textContent = `${source.label} · ${device.room}`
   $('#video-remote-body').innerHTML = quick || nav || digits || transport ? `<div class="remote-quick">${quick}</div><div class="remote-layout"><div class="remote-nav">${nav}</div><div class="remote-keypad">${digits}</div></div><div class="remote-transport">${transport}</div>${custom ? `<div class="remote-custom">${custom}</div>` : ''}` : '<p class="remote-empty">Questo apparato non espone comandi telecomando.</p>'
   $('#video-remote-dialog').showModal()
@@ -639,6 +643,7 @@ async function sendRgbCommand(group, action, value, control) {
 
 function openDevices(title, devices, options = {}) {
   const mediaOnly = devices.length > 0 && devices.every((device) => device.kind === 'media_player')
+  activeMediaRoom = options.room && mediaOnly ? options.room : ''
   currentMediaExperience = options.experience || ''
   const backgroundRooms = [...new Set(devices.map((device)=>device.room).filter(Boolean))]
   applyBackground(options.room || (backgroundRooms.length === 1 ? backgroundRooms[0] : ''))
