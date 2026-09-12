@@ -10,7 +10,7 @@ from app.connectors.control4_media import control4_icon_path, control4_queues, c
 from app.connectors.supervisor import find_addon_url
 from app.media_preferences import apply_preferences, load_preferences, save_preferences
 from app.control4 import load_control4_config, public_control4_config, save_control4_config, summarize_ui_configuration
-from app.source_icons import delete_source_icon, load_source_icon, save_source_icon
+from app.source_icons import delete_source_icon, load_builtin_source_icon, load_source_icon, save_source_icon
 from app.backgrounds import load_background, load_background_image, load_backgrounds, save_background_image, save_inherit, save_preset
 
 
@@ -70,7 +70,7 @@ def test_x4_shell_and_brand_assets_are_served() -> None:
     assert '<iframe' not in page.text
     for label in ("Guarda", "Ascolta", "Luci", "Extra", "Scenari", "Oscuranti", "Comfort", "Sicurezza"):
         assert f'title="{label}"' in page.text
-    assert 'src="assets/brand-horizontal.png?v=2.7.0"' in page.text
+    assert 'src="assets/brand-horizontal.png?v=2.7.1"' in page.text
     assert 'alt="e-Face X4"' in page.text
     assert 'class="header-wordmark"' not in page.text
     assert client.get("/assets/brand-horizontal.png").status_code == 200
@@ -78,6 +78,9 @@ def test_x4_shell_and_brand_assets_are_served() -> None:
     assert client.get("/assets/app.css").status_code == 200
     assert client.get("/assets/media.css").status_code == 200
     assert client.get("/assets/media-x4.css").status_code == 200
+    app_js = client.get("/assets/app.js").text
+    assert "let activeBackgroundRoom = ''" in app_js
+    assert "function applyBackground(room = activeBackgroundRoom)" in app_js
     assert client.get("/tools").status_code == 200
     assert "Admin / Installatore" in client.get("/tools").text
     css = client.get("/assets/app.css").text
@@ -125,6 +128,15 @@ def test_custom_source_icon_is_persisted_and_removed(monkeypatch, tmp_path) -> N
     assert (tmp_path / "source-icons" / "244.png").is_file()
     assert delete_source_icon(244) is True
     assert load_source_icon(244) is None
+
+
+def test_builtin_control4_source_icons_are_packaged() -> None:
+    for label in ("Sonos", "Stations", "VIDAA", "Apps", "DLNA", "Spotify Connect", "Manage Music", "Digital Media", "AM/FM Tuner", "Wireless Music Bridge"):
+        icon = load_builtin_source_icon(label)
+        assert icon is not None
+        assert icon[0] == "image/png"
+        assert icon[1].startswith(b"\x89PNG\r\n\x1a\n")
+    assert load_builtin_source_icon("Sorgente sconosciuta") is None
 
 
 def test_backgrounds_are_persistent_globally_and_per_room(monkeypatch, tmp_path) -> None:

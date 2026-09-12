@@ -3,9 +3,28 @@ from __future__ import annotations
 import base64
 import binascii
 import os
+import re
 from pathlib import Path
 
 MIME_SUFFIX = {"image/png": ".png", "image/jpeg": ".jpg", "image/webp": ".webp", "image/gif": ".gif"}
+BUILTIN_DIRECTORY = Path(__file__).parent / "static" / "assets" / "control4-icons"
+BUILTIN_ICONS = {
+    "sonos": "sonos.png",
+    "stations": "stations.png",
+    "vidaa": "vidaa.png",
+    "hisense vidaa smart tv": "vidaa.png",
+    "apps": "apps.png",
+    "custom app": "apps.png",
+    "dlna": "dlna.png",
+    "spotify connect": "spotify-connect.png",
+    "manage music": "manage-music.png",
+    "digital media": "digital-media.png",
+    "my music": "digital-media.png",
+    "am fm": "am-fm-tuner.png",
+    "am fm tuner": "am-fm-tuner.png",
+    "am fm radio": "am-fm-tuner.png",
+    "wireless music bridge": "wireless-music-bridge.png",
+}
 
 
 def _directory() -> Path:
@@ -22,6 +41,19 @@ def load_source_icon(source_id: int) -> tuple[str, bytes] | None:
         if content and len(content) <= 500_000:
             return mime, content
     return None
+
+
+def load_builtin_source_icon(label: str | None) -> tuple[str, bytes] | None:
+    """Return an icon shipped with the add-on, without network dependencies."""
+    normalized = re.sub(r"[^a-z0-9]+", " ", str(label or "").casefold()).strip()
+    filename = BUILTIN_ICONS.get(normalized)
+    if not filename:
+        return None
+    try:
+        content = (BUILTIN_DIRECTORY / filename).read_bytes()
+    except OSError:
+        return None
+    return ("image/png", content) if content else None
 
 
 def save_source_icon(source_id: int, mime: str, encoded: str) -> None:

@@ -12,6 +12,8 @@ let currentScenarios = []
 let activeRgbGroup = null
 let lightFilterActive = false
 let lightFilterRoom = ''
+let sectionFilterDevices = []
+let sectionFilterMode = 'devices'
 let devicePointerGesture = null
 let avRoom = ''
 let currentMediaGroups = []
@@ -20,6 +22,7 @@ let activeMediaPlayer = null
 let activeVideoRemote = null
 let selectedMediaId = ''
 let currentBackgrounds = {global:{mode:'preset',preset:'teal'},rooms:{}}
+let activeBackgroundRoom = ''
 const mediaTransportOverrides = new Map()
 
 function setMediaOverride(deviceId, values) {
@@ -580,33 +583,55 @@ async function sendRgbCommand(group, action, value, control) {
 }
 
 function openDevices(title, devices, options = {}) {
+  const mediaOnly = devices.length > 0 && devices.every((device) => device.kind === 'media_player')
   currentMediaExperience = options.experience || ''
   const backgroundRooms = [...new Set(devices.map((device)=>device.room).filter(Boolean))]
   applyBackground(options.room || (backgroundRooms.length === 1 ? backgroundRooms[0] : ''))
   activeDetailIds = new Set(devices.map((device) => String(device.id)))
   $('#detail-title').textContent = title
-  $('#light-filters').hidden = !options.lights
+  sectionFilterMode = 'devices'
+  sectionFilterDevices = devices
+  lightFilterRoom = ''
+  lightFilterActive = false
+  $('#light-room-toggle').classList.remove('active')
+  $('#light-room-toggle').setAttribute('aria-expanded', 'false')
+  $('#light-room-menu').hidden = true
+  $('#light-all-filter').classList.add('active')
+  $('#light-on-filter').classList.remove('active')
+  $('#light-on-filter').setAttribute('aria-pressed', 'false')
+  $('#light-filters').hidden = !options.filters
   $('#av-filters').hidden = true
-  if (options.lights) configureLightFilters(devices)
+  if (options.filters) configureLightFilters(devices)
   renderActiveDeviceList()
   $('#scenario-panel').hidden = true
   $('#device-list').hidden = false
   $('#home-view').hidden = true
   $('#detail-view').hidden = false
   $('#detail-view').classList.toggle('av-view', Boolean(options.av))
+  $('#detail-view').classList.toggle('media-room-view', Boolean(options.room && mediaOnly))
   window.scrollTo({ top: 0, behavior: 'smooth' })
 }
 
 function openScenariosPage() {
+  applyBackground('')
   activeDetailIds = null
   $('#detail-title').textContent = 'Scenari'
-  $('#light-filters').hidden = true
+  sectionFilterMode = 'scenarios'
+  sectionFilterDevices = []
+  lightFilterRoom = ''
+  lightFilterActive = false
+  $('#light-room-toggle').classList.remove('active')
+  $('#light-all-filter').classList.add('active')
+  $('#light-on-filter').classList.remove('active')
+  $('#light-on-filter').setAttribute('aria-pressed', 'false')
+  $('#light-filters').hidden = false
   $('#av-filters').hidden = true
   $('#device-list').hidden = true
   $('#scenario-panel').hidden = false
   $('#home-view').hidden = true
   $('#detail-view').hidden = false
   $('#detail-view').classList.remove('av-view')
+  $('#detail-view').classList.remove('media-room-view')
   loadScenarios()
   window.scrollTo({ top: 0, behavior: 'smooth' })
 }
@@ -616,13 +641,17 @@ async function loadScenarios() {
     const response = await fetch(apiUrl('api/scenarios'), { cache: 'no-store' })
     if (!response.ok) throw new Error(`HTTP ${response.status}`)
     currentScenarios = (await response.json()).items || []
+    configureLightFilters(currentScenarios)
     renderScenarios()
   } catch (error) { fail(error) }
 }
 
 function renderScenarios() {
   updateNavigationStates()
-  $('#scenario-list').innerHTML = currentScenarios.map((scenario) => {
+  let scenarios = currentScenarios
+  if (lightFilterRoom) scenarios = scenarios.filter((scenario) => scenario.room === lightFilterRoom)
+  if (lightFilterActive) scenarios = scenarios.filter((scenario) => scenario.running || ['ON','1','TRUE'].includes(String(scenario.state ?? '').toUpperCase()))
+  $('#scenario-list').innerHTML = scenarios.map((scenario) => {
     const active = String(scenario.state).toUpperCase() === 'ON'
     const controls = []
     if (scenario.run_enabled) controls.push(`<button data-scenario-action="${scenario.running ? 'stop' : 'run'}">${scenario.running ? 'STOP' : 'ESEGUI'}</button>`)
@@ -641,10 +670,11 @@ async function sendScenarioCommand(id, action, button) {
 }
 
 function showHome() {
-  applyBackground()
+  applyBackground('')
   activeDetailIds = null
   $('#detail-view').hidden = true
   $('#detail-view').classList.remove('av-view')
+  $('#detail-view').classList.remove('media-room-view')
   $('#home-view').hidden = false
   $('#scenario-panel').hidden = true
   $('#device-list').hidden = false
@@ -653,7 +683,8 @@ function showHome() {
   document.querySelectorAll('.rail button').forEach((item) => item.classList.remove('active'))
 }
 
-function applyBackground(room = '') {
+function applyBackground(room = activeBackgroundRoom) {
+  activeBackgroundRoom=room
   let selected=room?currentBackgrounds.rooms?.[room]:currentBackgrounds.global
   if(!selected||selected.mode==='inherit'){selected=currentBackgrounds.global||{mode:'preset',preset:'teal'};room=''}
   document.body.dataset.background=selected.mode==='custom'?'custom':selected.preset||'teal'
@@ -762,12 +793,12 @@ document.querySelectorAll('.rail button').forEach((button) => button.addEventLis
   requestAnimationFrame(() => document.querySelector('main').classList.add('app-view'))
   if (button.dataset.view === 'watch') openDevices('Guarda', currentDevices.filter((device) => ['camera', 'doorbell'].includes(device.kind) || (device.kind === 'media_player' && device.experiences?.includes('watch'))), { av: true, experience: 'watch' })
   if (button.dataset.view === 'listen') openDevices('Ascolta', currentDevices.filter((device) => ['media_player', 'media'].includes(device.kind) && (!device.experiences?.length || device.experiences.some((experience) => ['listen', 'watch'].includes(experience)))), { av: true, experience: 'listen' })
-  if (button.dataset.view === 'lights') openDevices('Luci', currentDevices.filter((device) => device.kind === 'light'), { lights: true })
-  if (button.dataset.view === 'extra') openDevices('Extra', currentDevices.filter((device) => device.kind === 'switch'))
+  if (button.dataset.view === 'lights') openDevices('Luci', currentDevices.filter((device) => device.kind === 'light'), { lights: true, filters: true })
+  if (button.dataset.view === 'extra') openDevices('Extra', currentDevices.filter((device) => device.kind === 'switch'), { filters: true })
   if (button.dataset.view === 'scenarios') openScenariosPage()
-  if (button.dataset.view === 'covers') openDevices('Oscuranti', currentDevices.filter((device) => device.kind === 'cover'))
-  if (button.dataset.view === 'comfort') openDevices('Comfort', currentDevices.filter((device) => ['climate', 'temp', 'temperature', 'humidity', 'air', 'air_quality'].includes(device.kind)))
-  if (button.dataset.view === 'security') openDevices('Sicurezza', currentDevices.filter((device) => device.kind === 'lock'))
+  if (button.dataset.view === 'covers') openDevices('Oscuranti', currentDevices.filter((device) => device.kind === 'cover'), { filters: true })
+  if (button.dataset.view === 'comfort') openDevices('Comfort', currentDevices.filter((device) => ['climate', 'temp', 'temperature', 'humidity', 'air', 'air_quality'].includes(device.kind)), { filters: true })
+  if (button.dataset.view === 'security') openDevices('Sicurezza', currentDevices.filter((device) => device.kind === 'lock'), { filters: true })
 }))
 $('#widgets').addEventListener('click', (event) => {
   const button = event.target.closest('[data-kind]')
@@ -795,14 +826,14 @@ $('#light-room-menu').addEventListener('click', (event) => {
   $('#light-all-filter').classList.remove('active')
   $('#light-room-toggle').setAttribute('aria-expanded', 'false')
   $('#light-room-menu').hidden = true
-  configureLightFilters(currentDevices.filter((device) => device.kind === 'light'))
-  renderActiveDeviceList()
+  configureLightFilters(sectionFilterMode === 'scenarios' ? currentScenarios : sectionFilterDevices)
+  sectionFilterMode === 'scenarios' ? renderScenarios() : renderActiveDeviceList()
 })
 $('#light-on-filter').addEventListener('click', (event) => {
   lightFilterActive = !lightFilterActive
   event.currentTarget.setAttribute('aria-pressed', String(lightFilterActive))
   event.currentTarget.classList.toggle('active', lightFilterActive)
-  renderActiveDeviceList()
+  sectionFilterMode === 'scenarios' ? renderScenarios() : renderActiveDeviceList()
 })
 $('#light-all-filter').addEventListener('click', () => {
   lightFilterRoom = ''
@@ -813,7 +844,7 @@ $('#light-all-filter').addEventListener('click', () => {
   $('#light-room-menu').hidden = true
   $('#light-on-filter').classList.remove('active')
   $('#light-on-filter').setAttribute('aria-pressed', 'false')
-  renderActiveDeviceList()
+  sectionFilterMode === 'scenarios' ? renderScenarios() : renderActiveDeviceList()
 })
 $('#av-room-toggle').addEventListener('click', (event) => {
   const open = $('#av-room-menu').hidden

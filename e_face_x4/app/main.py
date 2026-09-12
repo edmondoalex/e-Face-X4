@@ -20,14 +20,14 @@ from .config import load_settings
 from .control4 import load_control4_config, public_control4_config, save_control4_config, test_control4_connection
 from .installer_auth import COOKIE, create_session, valid_session
 from .media_preferences import apply_preferences, load_preferences, save_preferences
-from .source_icons import delete_source_icon, load_source_icon, save_source_icon
+from .source_icons import delete_source_icon, load_builtin_source_icon, load_source_icon, save_source_icon
 from .backgrounds import PRESETS, load_background, load_background_image, load_backgrounds, save_background_image, save_inherit, save_preset
 from .connectors import BusproConnector, Control4MediaConnector, EThermConnector, EkonexMediaConnector, LocalMediaConnector
-from .connectors.control4_media import cached_control4_icon, cached_control4_icon_path, control4_icon_path
+from .connectors.control4_media import cached_control4_icon, cached_control4_icon_path, cached_control4_source_label, control4_icon_path
 from .connectors.supervisor import discover_addon_url
 from .demo import dashboard as demo_dashboard
 
-VERSION = "2.7.0"
+VERSION = "2.7.1"
 STATIC = Path(__file__).parent / "static"
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s [e-face-x4] %(message)s")
 
@@ -376,6 +376,9 @@ def create_app() -> FastAPI:
         custom = load_source_icon(source_id)
         if custom:
             return Response(custom[1], media_type=custom[0], headers={"Cache-Control": "no-cache", "X-Content-Type-Options": "nosniff"})
+        builtin = load_builtin_source_icon(cached_control4_source_label(source_id))
+        if builtin:
+            return Response(builtin[1], media_type=builtin[0], headers={"Cache-Control": "public, max-age=86400", "X-Content-Type-Options": "nosniff"})
         cached = cached_control4_icon(source_id)
         if cached:
             return Response(cached[1], media_type=cached[0], headers={"Cache-Control": "private, no-cache", "X-Content-Type-Options": "nosniff"})
@@ -535,6 +538,7 @@ def create_app() -> FastAPI:
         return {"items": [
             {
                 "id": str(item.get("id") or ""), "name": str(item.get("name") or "Scenario"),
+                "room": str(item.get("room") or item.get("room_name") or item.get("area") or ""),
                 "lights": len(item.get("items") or []), "covers": len(item.get("covers") or []),
                 "run_enabled": bool(item.get("run_enabled")),
                 "onoff_enabled": bool(item.get("onoff_enabled", True)),

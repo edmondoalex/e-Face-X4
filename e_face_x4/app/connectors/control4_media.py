@@ -18,6 +18,7 @@ ROOM_VARIABLES = ("POWER_STATE", "CURRENT_VOLUME", "IS_MUTED", "CURRENT_SELECTED
 _artwork_urls: dict[str, tuple[str, str]] = {}
 _source_icon_paths: dict[int, str] = {}
 _source_icon_content: dict[int, tuple[str, bytes]] = {}
+_source_labels: dict[int, str] = {}
 _source_remote_actions: dict[int, set[str]] = {}
 _source_custom_buttons: dict[int, tuple[int, set[str]]] = {}
 _ARTWORK_HOSTS = ("i.scdn.co", "mosaic.scdn.co", "spotifycdn.com", "mzstatic.com", "media-amazon.com", "tunein.com")
@@ -211,6 +212,7 @@ def normalize_control4_media(ui: Any, all_items: Any, variables: Any) -> list[di
             label = source.get("name") or names.get(str(source.get("id")))
             if label:
                 source_id = int(source["id"])
+                _source_labels[source_id] = str(label)
                 icon_path = control4_icon_path(item_info.get(str(source_id)))
                 if icon_path:
                     _source_icon_paths[source_id] = icon_path
@@ -284,6 +286,10 @@ def cached_control4_icon_path(source_id: int) -> str | None:
 
 def cached_control4_icon(source_id: int) -> tuple[str, bytes] | None:
     return _source_icon_content.get(source_id)
+
+
+def cached_control4_source_label(source_id: int) -> str | None:
+    return _source_labels.get(source_id)
 
 
 def control4_remote_actions(item: Any) -> list[str]:
