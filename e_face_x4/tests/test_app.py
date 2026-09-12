@@ -97,7 +97,8 @@ def test_x4_shell_and_brand_assets_are_served() -> None:
     assert "now-playing" not in page.text
     assert 'id="detail-view"' in page.text
     assert 'id="detail-back"' in page.text
-    assert page.text.count('<dialog') == 4
+    assert page.text.count('<dialog') == 5
+    assert 'id="security-pin-dialog"' in page.text
     assert 'id="rgb-dialog"' in page.text
     assert 'id="show-all-devices"' in page.text
     assert 'id="scenario-panel"' in page.text
@@ -105,7 +106,7 @@ def test_x4_shell_and_brand_assets_are_served() -> None:
     assert '<iframe' not in page.text
     for label in ("Guarda", "Ascolta", "Luci", "Extra", "Scenari", "Oscuranti", "Comfort", "Sicurezza"):
         assert f'title="{label}"' in page.text
-    assert 'src="assets/brand-horizontal.png?v=2.9.1"' in page.text
+    assert 'src="assets/brand-horizontal.png?v=2.10.0"' in page.text
     assert 'alt="e-Face X4"' in page.text
     assert 'class="header-wordmark"' not in page.text
     assert client.get("/assets/brand-horizontal.png").status_code == 200
@@ -356,6 +357,19 @@ def test_control4_command_does_not_require_evoice_enabled(monkeypatch, tmp_path)
     response = TestClient(main_module.create_app()).post("/api/devices/c4media:51/command", json={"action": "turn_off"})
     assert response.status_code == 200
     assert response.json() == {"status": "success", "registry_id": "c4room:51", "operation": "turn_off"}
+
+
+def test_ksenia_security_command_requires_central_pin(monkeypatch, tmp_path) -> None:
+    import app.main as main_module
+
+    options = tmp_path / "options.json"
+    options.write_text('{"ksenia":{"enabled":true,"base_url":"http://127.0.0.1:18888","token":""}}', encoding="utf-8")
+    monkeypatch.setenv("EFACE_OPTIONS", str(options))
+    response = TestClient(main_module.create_app()).post(
+        "/api/devices/ksenia-partition:1/command", json={"action": "arm_delay"}
+    )
+    assert response.status_code == 400
+    assert response.json()["detail"] == "Inserisci il codice Ksenia"
 
 
 def test_configured_home_name_is_shown_in_bootstrap(monkeypatch, tmp_path) -> None:

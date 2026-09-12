@@ -27,7 +27,7 @@ from .connectors.control4_media import cached_control4_icon, cached_control4_ico
 from .connectors.supervisor import discover_addon_url
 from .demo import dashboard as demo_dashboard
 
-VERSION = "2.9.1"
+VERSION = "2.10.0"
 STATIC = Path(__file__).parent / "static"
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s [e-face-x4] %(message)s")
 
@@ -296,9 +296,11 @@ def create_app() -> FastAPI:
             kind = "partition" if device_id.startswith("ksenia-partition:") else "scenario" if device_id.startswith("ksenia-scenario:") else "zone"
             source_id = device_id.split(":", 1)[1]
             try:
-                return await KseniaConnector(config, settings.request_timeout_s).command(kind, source_id, str(payload.get("action") or ""))
-            except httpx.HTTPError:
-                raise HTTPException(status_code=502, detail="Ksenia lares non raggiungibile")
+                return await KseniaConnector(config, settings.request_timeout_s).command(kind, source_id, str(payload.get("action") or ""), str(payload.get("pin") or ""))
+            except (httpx.ConnectError, httpx.ConnectTimeout, httpx.ReadTimeout):
+                raise HTTPException(status_code=502, detail="Centrale Ksenia non raggiungibile")
+            except httpx.HTTPStatusError as exc:
+                raise HTTPException(status_code=502, detail=f"Ksenia ha risposto con errore HTTP {exc.response.status_code}")
             except (ValueError, TypeError) as exc:
                 raise HTTPException(status_code=400, detail=str(exc))
         if device_id.startswith(("media:", "c4media:")):

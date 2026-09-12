@@ -85,19 +85,45 @@ class KseniaConnector(Connector):
                 return {"id": self.id, "label": self.label, "status": "stale", "reason": "ultimo stato Ksenia disponibile", "items": cached}
             return {"id": self.id, "label": self.label, "status": "offline", "reason": f"Ksenia non raggiungibile ({type(exc).__name__})", "items": []}
 
-    async def command(self, kind: str, source_id: str, action: str) -> dict[str, Any]:
+    @staticmethod
+    def _parse(response: httpx.Response) -> dict[str, Any]:
+        response.raise_for_status()
+        result = response.json()
+        if not isinstance(result, dict):
+            raise ValueError("Risposta non valida dalla centrale Ksenia")
+        return result
+
+    @staticmethod
+    def _command_error(error: Any) -> str:
+        raw = str(error or "").strip()
+        lowered = raw.lower()
+        if any(word in lowered for word in ("pin", "login", "credential", "auth", "denied")):
+            return "Codice Ksenia errato o non autorizzato"
+        if "timeout" in lowered:
+            return "La centrale Ksenia non risponde"
+        return raw or "Comando rifiutato dalla centrale Ksenia"
+
+    async def command(self, kind: str, source_id: str, action: str, pin: str) -> dict[str, Any]:
         allowed = {"partition": {"arm_delay", "arm_instant", "disarm"}, "zone": {"bypass_on", "bypass_off"}, "scenario": {"execute"}}
         if action not in allowed.get(kind, set()):
             raise ValueError("comando Ksenia non valido")
+        pin = str(pin or "").strip()
+        if not pin:
+            raise ValueError("Inserisci il codice Ksenia")
         entity_type = {"partition": "partitions", "zone": "zones", "scenario": "scenarios"}[kind]
-        body = {"type": entity_type, "id": int(source_id), "action": action}
         async with httpx.AsyncClient(timeout=max(12.0, self.timeout_s), follow_redirects=False) as client:
-            response = await client.post(f"{self.config.base_url}/api/cmd", json=body)
-            response.raise_for_status()
-            result = response.json()
-        if not isinstance(result, dict) or not result.get("ok"):
-            error = str(result.get("error") if isinstance(result, dict) else "comando fallito")
-            if error == "pin_session_required":
-                raise ValueError("Il pannello Ksenia richiede una sessione PIN")
-            raise ValueError(error)
+            session = self._parse(await client.post(f"{self.config.base_url}/api/cmd", json={"type": "session", "action": "start", "value": {"pin": pin, "minutes": 1}}))
+            if not session.get("ok") or not session.get("token"):
+                raise ValueError(self._command_error(session.get("error")))
+            token = str(session["token"])
+            try:
+                body = {"type": entity_type, "id": int(source_id), "action": action, "token": token}
+                result = self._parse(await client.post(f"{self.config.base_url}/api/cmd", json=body))
+                if not result.get("ok"):
+                    raise ValueError(self._command_error(result.get("error")))
+            finally:
+                try:
+                    await client.post(f"{self.config.base_url}/api/cmd", json={"type": "session", "action": "end", "token": token})
+                except httpx.HTTPError:
+                    pass
         return {"ok": True}

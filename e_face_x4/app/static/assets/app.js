@@ -601,11 +601,64 @@ function deviceActions(device, options = {}) {
   return ''
 }
 
-async function postDeviceCommand(deviceId, action, value, resourceRevision = null) {
+async function postDeviceCommand(deviceId, action, value, resourceRevision = null, pin = null) {
+  const payload = { action, value, resource_revision: resourceRevision }
+  if (pin !== null) payload.pin = pin
   const response = await fetch(apiUrl(`api/devices/${encodeURIComponent(deviceId)}/command`), {
-    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action, value, resource_revision: resourceRevision })
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload)
   })
   if (!response.ok) throw new Error((await response.json().catch(() => ({}))).detail || `HTTP ${response.status}`)
+}
+
+let pendingSecurityCommand = null
+
+function requestSecurityPin(deviceId, action, button) {
+  const device = currentDevices.find((item) => String(item.id) === String(deviceId))
+  const operation = action === 'execute' ? 'Esegui scenario' : action === 'disarm' ? 'Disinserisci area' : action.startsWith('arm_') ? 'Inserisci area' : action === 'bypass_on' ? 'Escludi zona' : 'Includi zona'
+  pendingSecurityCommand = { deviceId, action, button }
+  $('#security-pin-operation').textContent = `${device?.name || 'Sicurezza'} · ${operation}`
+  $('#security-pin-error').textContent = ''
+  $('#security-pin-input').value = ''
+  $('#security-pin-dialog').showModal()
+  requestAnimationFrame(() => $('#security-pin-input').focus())
+}
+
+function applySecurityCommandState(deviceId, action) {
+  const device = currentDevices.find((item) => String(item.id) === String(deviceId))
+  if (!device) return
+  if (device.kind === 'alarm_partition') {
+    if (action === 'disarm') Object.assign(device, { state: 'DISARMED', arm_state: 'D', arm_mode: 'off', alarm: false })
+    if (action === 'arm_delay') Object.assign(device, { state: 'ARMED', arm_state: 'A', arm_mode: 'delayed' })
+    if (action === 'arm_instant') Object.assign(device, { state: 'ARMED', arm_state: 'IA', arm_mode: 'instant' })
+  }
+  if (device.kind === 'alarm_zone') {
+    if (action === 'bypass_on') Object.assign(device, { state: 'BYPASSED', bypassed: true })
+    if (action === 'bypass_off') Object.assign(device, { state: device.active ? 'ACTIVE' : 'CLOSED', bypassed: false })
+  }
+  renderActiveDeviceList()
+}
+
+async function submitSecurityPin(event) {
+  event.preventDefault()
+  if (!pendingSecurityCommand) return
+  const pin = $('#security-pin-input').value.trim()
+  const confirmButton = $('#security-pin-confirm')
+  if (!pin) { $('#security-pin-error').textContent = 'Inserisci il codice della centrale Ksenia'; return }
+  confirmButton.disabled = true
+  try {
+    await postDeviceCommand(pendingSecurityCommand.deviceId, pendingSecurityCommand.action, null, null, pin)
+    applySecurityCommandState(pendingSecurityCommand.deviceId, pendingSecurityCommand.action)
+    $('#security-pin-input').value = ''
+    $('#security-pin-dialog').close()
+    pendingSecurityCommand = null
+    await refresh()
+    setTimeout(refresh, 700)
+    setTimeout(refresh, 1800)
+  } catch (error) {
+    $('#security-pin-input').value = ''
+    $('#security-pin-error').textContent = error.message || 'Operazione non riuscita'
+    $('#security-pin-input').focus()
+  } finally { confirmButton.disabled = false }
 }
 
 function openMediaZones(device) {
@@ -1162,7 +1215,7 @@ $('#device-list').addEventListener('click', (event) => {
   }
   const button = event.target.closest('[data-action]')
   const card = event.target.closest('[data-device-id]')
-  if (button?.matches('[data-security-scenario]') && card && !window.confirm(`Eseguire lo scenario "${card.querySelector('strong')?.textContent || ''}"?`)) return
+  if (button && card && card.dataset.deviceId?.startsWith('ksenia-')) return requestSecurityPin(card.dataset.deviceId, button.dataset.action, button)
   if (button && card) sendDeviceCommand(card.dataset.deviceId, button.dataset.action, button)
   if (!button && card?.classList.contains('media-player-card') && !event.target.closest('input,label')) {
     const device = currentDevices.find((item) => String(item.id) === card.dataset.deviceId)
@@ -1196,6 +1249,11 @@ $('#device-list').addEventListener('keydown', (event) => {
   event.target.click()
 })
 $('#rgb-close').addEventListener('click', () => $('#rgb-dialog').close())
+$('#security-pin-form').addEventListener('submit', submitSecurityPin)
+function closeSecurityPin() { $('#security-pin-input').value = ''; $('#security-pin-dialog').close(); pendingSecurityCommand = null }
+$('#security-pin-close').addEventListener('click', closeSecurityPin)
+$('#security-pin-cancel').addEventListener('click', closeSecurityPin)
+$('#security-pin-dialog').addEventListener('click', (event) => { if (event.target === $('#security-pin-dialog')) closeSecurityPin() })
 $('#rgb-dialog').addEventListener('click', (event) => { if (event.target === $('#rgb-dialog')) $('#rgb-dialog').close() })
 $('#media-zones-close').addEventListener('click', () => $('#media-zones-dialog').close())
 $('#global-media-session').addEventListener('click', openMediaSessions)

@@ -542,3 +542,10 @@
 # 2.9.1
 
 - Clic fuori dal pallino su tutti gli slider Sessioni: variazione protetta di ±2%; il trascinamento mantiene l'impostazione diretta.
+
+# 2.10.0
+
+- Ogni comando Ksenia richiede il PIN reale della centrale: scenari, aree e inclusione/esclusione zone.
+- Il PIN non viene salvato: apre una sessione temporanea, esegue il comando e la chiude.
+- Errori distinti per codice errato, centrale non raggiungibile e risposta HTTP non valida.
+- Stato sicurezza aggiornato subito dopo il comando e ricontrollato a intervalli ravvicinati.
