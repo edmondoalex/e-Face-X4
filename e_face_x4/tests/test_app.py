@@ -70,7 +70,7 @@ def test_x4_shell_and_brand_assets_are_served() -> None:
     assert '<iframe' not in page.text
     for label in ("Guarda", "Ascolta", "Luci", "Extra", "Scenari", "Oscuranti", "Comfort", "Sicurezza"):
         assert f'title="{label}"' in page.text
-    assert 'src="assets/brand-horizontal.png?v=2.7.14"' in page.text
+    assert 'src="assets/brand-horizontal.png?v=2.7.15"' in page.text
     assert 'alt="e-Face X4"' in page.text
     assert 'class="header-wordmark"' not in page.text
     assert client.get("/assets/brand-horizontal.png").status_code == 200
@@ -82,10 +82,13 @@ def test_x4_shell_and_brand_assets_are_served() -> None:
     assert client.get("/assets/tools-global-background.css").status_code == 200
     assert client.get("/assets/header-responsive.css").status_code == 200
     assert client.get("/assets/home-rooms.css").status_code == 200
+    assert client.get("/assets/device-icons.css").status_code == 200
+    assert client.get("/assets/control4-icons/thermostat.svg").status_code == 200
     app_js = client.get("/assets/app.js").text
     assert "let activeBackgroundRoom = ''" in app_js
     assert "function applyBackground(room = activeBackgroundRoom)" in app_js
     assert "function roomFeatureIcons(roomName)" in app_js
+    assert "function mediaSourceMarkup(source, provider = '')" in app_js
     assert client.get("/tools").status_code == 200
     assert "Admin / Installatore" in client.get("/tools").text
     css = client.get("/assets/app.css").text

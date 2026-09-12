@@ -66,6 +66,18 @@ function mediaSourceIcon(source) {
   return 'mdi:music-circle'
 }
 
+function mediaSourceMarkup(source, provider = '') {
+  const fallback = `<span class="mdi-mask" style="${mdiStyle(source.icon, 'play-box')}"></span>`
+  if (provider !== 'control4' || !source.source_id) return fallback
+  return `<span class="media-source-native">${fallback}<img src="${apiUrl(`api/control4/source-icon/${source.source_id}?v=${encodeURIComponent(appVersion)}`)}" alt="" loading="eager" onload="this.parentElement.classList.add('loaded')" onerror="this.parentElement.classList.add('failed');this.hidden=true"></span>`
+}
+
+function deviceGlyph(device) {
+  if (device.kind === 'climate') return `<span class="device-glyph control4-thermostat-icon" aria-label="Termostato"></span>`
+  const fallback = device.kind === 'cover' ? 'blinds-horizontal' : device.kind === 'lock' ? 'lock' : device.kind === 'media_player' ? 'speaker' : 'lightbulb'
+  return `<span class="device-glyph mdi-mask" style="${mdiStyle(device.icon, fallback)}"></span>`
+}
+
 const roomFeatureDefinitions = [
   { id: 'audio', label: 'Audio', icon: 'mdi:music-note', matches: (device) => ['media', 'media_player'].includes(device.kind) && (!device.experiences?.length || device.experiences.includes('listen')) },
   { id: 'video', label: 'Video', icon: 'mdi:television', matches: (device) => ['camera', 'doorbell'].includes(device.kind) || (['media', 'media_player'].includes(device.kind) && device.experiences?.includes('watch')) },
@@ -284,7 +296,7 @@ function renderDeviceList(devices) {
   const completeGroups = new Map([...groups].filter(([, channels]) => channels.red && channels.green && channels.blue))
   const groupedIds = new Set([...completeGroups.values()].flatMap((channels) => Object.values(channels).map((device) => String(device.id))))
   const cards = devices.filter((device) => !groupedIds.has(String(device.id))).map((device) => `
-    <article class="${deviceVisualClass(device)} ${device.kind === 'media_player' ? 'media-player-card' : ''}" style="${deviceCardStyle(device)}" data-device-id="${esc(device.id)}" ${['light','switch'].includes(device.kind) ? 'data-device-toggle tabindex="0"' : ''}>${mediaArtwork(device)}<span class="device-glyph mdi-mask" style="${mdiStyle(device.icon, device.kind === 'cover' ? 'blinds-horizontal' : device.kind === 'lock' ? 'lock' : device.kind === 'media_player' ? 'speaker' : 'lightbulb')}"></span><div><strong>${esc(device.name)}</strong><small>${esc(device.room)}</small>${device.kind === 'media_player' ? `<span class="media-track">${esc(device.title || 'Nessuna riproduzione')}</span><span class="media-artist">${esc([device.artist, device.album].filter(Boolean).join(' · '))}</span>` : ''}</div><em>${esc(stateLabel(device))}</em>${deviceActions(device)}</article>
+    <article class="${deviceVisualClass(device)} ${device.kind === 'media_player' ? 'media-player-card' : ''}" style="${deviceCardStyle(device)}" data-device-id="${esc(device.id)}" ${['light','switch'].includes(device.kind) ? 'data-device-toggle tabindex="0"' : ''}>${mediaArtwork(device)}${deviceGlyph(device)}<div><strong>${esc(device.name)}</strong><small>${esc(device.room)}</small>${device.kind === 'media_player' ? `<span class="media-track">${esc(device.title || 'Nessuna riproduzione')}</span><span class="media-artist">${esc([device.artist, device.album].filter(Boolean).join(' · '))}</span>` : ''}</div><em>${esc(stateLabel(device))}</em>${deviceActions(device)}</article>
   `)
   completeGroups.forEach((channels, group) => cards.push(renderRgbCard(group, channels)))
   $('#device-list').innerHTML = cards.join('') || '<p class="empty-state">Nessun dispositivo disponibile</p>'
@@ -301,8 +313,7 @@ function renderMediaExperience(devices) {
   }).join('')
   const options = selected.source_options?.length ? selected.source_options.filter((source) => !currentMediaExperience || source.experience === currentMediaExperience) : (selected.source_list || []).map((source) => ({key:source,label:source}))
   const sources = options.map((source) => {
-    const native = selected.provider === 'control4' && source.source_id ? `<span class="media-source-native"><span class="mdi-mask" style="${mdiStyle(source.icon, 'play-box')}"></span><img src="${apiUrl(`api/control4/source-icon/${source.source_id}?v=${encodeURIComponent(appVersion)}`)}" alt="" loading="eager" onload="this.parentElement.classList.add('loaded')" onerror="this.parentElement.classList.add('failed');this.hidden=true"></span>` : `<span class="mdi-mask" style="${mdiStyle(source.icon, 'play-box')}"></span>`
-    return `<button class="media-service-tile ${source.label === selected.source ? 'active' : ''}" data-device-id="${esc(selected.id)}" data-media-source="${esc(source.key)}">${native}<b>${esc(source.label)}</b></button>`
+    return `<button class="media-service-tile ${source.label === selected.source ? 'active' : ''}" data-device-id="${esc(selected.id)}" data-media-source="${esc(source.key)}">${mediaSourceMarkup(source, selected.provider)}<b>${esc(source.label)}</b></button>`
   }).join('')
   const caps = selected.capabilities || {}
   const disabled = selected.connection_status === 'offline' || selected.availability !== 'available'
@@ -498,7 +509,7 @@ function deviceActions(device, options = {}) {
     const mute = caps.mute ? button(device.muted ? 'volume_unmute' : 'volume_mute', device.muted ? 'volume-off' : 'volume-high', device.muted ? 'Riattiva audio' : 'Disattiva audio', true, 'media-volume-mute') : '<span></span>'
     const volume = caps.set_volume ? `<label class="media-volume">${mute}<input type="range" min="0" max="100" step="1" value="${Number(device.volume) || 0}" data-media-volume ${disabled ? 'disabled' : ''}><output>${Number(device.volume) || 0}%</output></label>` : ''
     const sourceOptions = device.source_options?.length ? device.source_options.filter((source) => !currentMediaExperience || source.experience === currentMediaExperience) : (device.source_list || []).map((source) => ({key:source,label:source}))
-    const sources = caps.select_source && sourceOptions.length ? `<div class="media-sources">${sourceOptions.map((source) => `<button data-media-source="${esc(source.key)}" class="${source.label === device.source ? 'active' : ''}" ${disabled ? 'disabled' : ''}><span class="mdi-mask" style="${mdiStyle('mdi:play-box', 'play-box')}"></span><b>${esc(source.label)}</b></button>`).join('')}</div>` : ''
+    const sources = caps.select_source && sourceOptions.length ? `<div class="media-sources">${sourceOptions.map((source) => `<button data-media-source="${esc(source.key)}" class="${source.label === device.source ? 'active' : ''}" ${disabled ? 'disabled' : ''}>${mediaSourceMarkup(source, device.provider)}<b>${esc(source.label)}</b></button>`).join('')}</div>` : ''
     return `<div class="media-controls">${controls}</div>${volume}${sources}`
   }
   return ''
