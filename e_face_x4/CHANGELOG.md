@@ -575,3 +575,8 @@
 
 - Modalità di inserimento letta direttamente dal campo reale Ksenia `systems.ARM.D` (per esempio `SOLO ESTERNO`).
 - Rimossa la deduzione locale `Personalizzata`: il riepilogo segue ora la descrizione trasmessa dalla centrale, anche in realtime.
+
+# 2.12.2
+
+- Riepilogo Sicurezza compatto su una sola riga.
+- Rimosse le diciture `Sistema Ksenia lares` e memoria dal riepilogo principale.
