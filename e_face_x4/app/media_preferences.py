@@ -42,8 +42,8 @@ def save_preferences(raw: Any, valid_ids: set[str]) -> dict[str, dict[str, bool 
             "name": str(value.get("name") or "").strip()[:80],
             "room": str(value.get("room") or "").strip()[:80],
         }
-        if selection["visible"] and not (selection["audio"] or selection["video"] or selection["tts"]):
-            raise ValueError("Seleziona Media o TTS per ogni dispositivo visibile")
+        if not (selection["audio"] or selection["video"] or selection["tts"]):
+            selection["visible"] = False
         cleaned[registry_id] = selection
     path = _path()
     path.parent.mkdir(parents=True, exist_ok=True)

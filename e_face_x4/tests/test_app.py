@@ -126,7 +126,7 @@ def test_x4_shell_and_brand_assets_are_served() -> None:
     assert 'evoice.css' in page.text
     for label in ("Guarda", "Ascolta", "Luci", "Extra", "Scenari", "Oscuranti", "Comfort", "Sicurezza"):
         assert f'title="{label}"' in page.text
-    assert 'src="assets/brand-horizontal.png?v=2.20.1"' in page.text
+    assert 'src="assets/brand-horizontal.png?v=2.20.2"' in page.text
     assert 'alt="e-Face X4"' in page.text
     assert 'class="header-wordmark"' not in page.text
     assert client.get("/assets/brand-horizontal.png").status_code == 200
@@ -197,6 +197,12 @@ def test_media_preferences_are_saved_and_applied(monkeypatch, tmp_path) -> None:
     assert filtered["items"][1]["room"] == "Sala"
     assert filtered["items"][1]["tts_enabled"] is True
     assert filtered["rooms"] == ["Sala", "Studio"]
+
+
+def test_player_without_enabled_functions_is_saved_as_hidden(monkeypatch, tmp_path) -> None:
+    monkeypatch.setenv("EFACE_MEDIA_PREFERENCES", str(tmp_path / "media_players.json"))
+    saved = save_preferences({"one": {"visible": True, "audio": False, "video": False, "tts": False}}, {"one"})
+    assert saved["one"]["visible"] is False
 
 
 def test_installer_login_is_protected(monkeypatch, tmp_path) -> None:

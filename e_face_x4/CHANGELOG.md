@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.20.2 — 2026-09-12
+
+- Rimossa la validazione bloccante "Seleziona Media o TTS" dalla configurazione Player.
+- Disattivato automaticamente Mostra quando Audio, Video e TTS sono tutti esclusi.
+- Inclusa la casella TTS nella sincronizzazione automatica delle opzioni del player.
+
 ## 2.20.1 — 2026-09-12
 
 - Limitati TTS e DND esclusivamente ai player provenienti da e-Voice.
