@@ -645,3 +645,7 @@
 # 2.16.1
 
 - Un tocco sulla cover di una sessione LIVE o dell'elenco Sessioni apre direttamente il controllo media della stanza associata.
+
+# 2.16.2
+
+- Riepilogo Home riunito in un'unica barra continua: Sicurezza a sinistra e Comfort a destra, senza impilamento su tablet.
