@@ -1,5 +1,9 @@
 # Changelog
 
+## 2.20.19 — 2026-09-12
+
+- Centrato otticamente lo splash screen sui telefoni compensando il margine interno del PNG.
+
 ## 2.20.18 — 2026-09-12
 
 - Usata l'immagine completa e-Face X4 by Ekonex come splash screen di avvio per 5 secondi.
