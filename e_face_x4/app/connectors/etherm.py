@@ -35,7 +35,7 @@ def normalize_thermostats(payload: dict[str, Any]) -> list[dict[str, Any]]:
             "state": state, "temperature": realtime.get("TEMP"), "value": realtime.get("TEMP"),
             "target_temperature": threshold.get("VAL"), "humidity": realtime.get("RH"),
             "season": season, "mode": mode, "pwm": therm.get("PWM"), "read_only": read_only, "unit": "°C",
-            "icon": "mdi:thermostat", "state_key": f"therm:{source_id}",
+            "icon": "mdi:thermometer" if read_only else "mdi:home-thermometer-outline", "state_key": f"therm:{source_id}",
         })
     return result
 

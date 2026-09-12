@@ -70,7 +70,7 @@ def test_x4_shell_and_brand_assets_are_served() -> None:
     assert '<iframe' not in page.text
     for label in ("Guarda", "Ascolta", "Luci", "Extra", "Scenari", "Oscuranti", "Comfort", "Sicurezza"):
         assert f'title="{label}"' in page.text
-    assert 'src="assets/brand-horizontal.png?v=2.7.21"' in page.text
+    assert 'src="assets/brand-horizontal.png?v=2.7.22"' in page.text
     assert 'alt="e-Face X4"' in page.text
     assert 'class="header-wordmark"' not in page.text
     assert client.get("/assets/brand-horizontal.png").status_code == 200
@@ -442,12 +442,14 @@ def test_etherm_thermostat_is_normalized() -> None:
     assert items[0]["temperature"] == 21.4
     assert items[0]["target_temperature"] == 22.5
     assert items[0]["room"] == "Piano terra"
+    assert items[0]["icon"] == "mdi:home-thermometer-outline"
 
 
 def test_etherm_external_temperature_is_read_only() -> None:
     items = normalize_thermostats({"entities": [{"type": "thermostats", "id": 8, "name": "Temperatura Esterna", "realtime": {"TEMP": 17.6, "THERM": {"ACT_SEA": "WIN", "ACT_MODEL": "MAN", "DEMAND_ON": "ON", "TEMP_THR": {"VAL": 21}}}}]})
     assert items[0]["read_only"] is True
     assert items[0]["state"] == "OFF"
+    assert items[0]["icon"] == "mdi:thermometer"
 
 
 def test_etherm_basic_auth_header() -> None:
