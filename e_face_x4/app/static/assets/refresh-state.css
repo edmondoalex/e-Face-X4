@@ -1,0 +1,10 @@
+body:not([data-background]){
+  background:#15191b;
+}
+body:not([data-background])::before{
+  background:#15191b;
+}
+.app.loading{
+  visibility:hidden;
+  opacity:0;
+}

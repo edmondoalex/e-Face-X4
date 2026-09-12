@@ -122,9 +122,10 @@ def test_x4_shell_and_brand_assets_are_served() -> None:
     assert 'card-themes.css' in page.text
     assert 'header-media-state.css' in page.text
     assert 'mobile-alignment.css' in page.text
+    assert 'refresh-state.css' in page.text
     for label in ("Guarda", "Ascolta", "Luci", "Extra", "Scenari", "Oscuranti", "Comfort", "Sicurezza"):
         assert f'title="{label}"' in page.text
-    assert 'src="assets/brand-horizontal.png?v=2.18.4"' in page.text
+    assert 'src="assets/brand-horizontal.png?v=2.18.5"' in page.text
     assert 'alt="e-Face X4"' in page.text
     assert 'class="header-wordmark"' not in page.text
     assert client.get("/assets/brand-horizontal.png").status_code == 200
@@ -133,6 +134,10 @@ def test_x4_shell_and_brand_assets_are_served() -> None:
     assert client.get("/assets/media.css").status_code == 200
     assert client.get("/assets/media-x4.css").status_code == 200
     assert client.get("/assets/media-remote-colors.css").status_code == 200
+    refresh_css = client.get("/assets/refresh-state.css")
+    assert refresh_css.status_code == 200
+    assert ".app.loading" in refresh_css.text
+    assert "body:not([data-background])" in refresh_css.text
     card_theme_css = client.get("/assets/card-themes.css")
     assert card_theme_css.status_code == 200
     assert ".security-pin-dialog" in card_theme_css.text

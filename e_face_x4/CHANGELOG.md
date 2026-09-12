@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.18.5 — 2026-09-12
+
+- Eliminato il lampo teal e delle card provvisorie durante il refresh.
+- L'interfaccia appare solo dopo l'applicazione di sfondo, palette e dati correnti.
+- Mantenuta visibile la diagnostica quando il caricamento non riesce.
+
 ## 2.18.4 — 2026-09-12
 
 - Estesa la palette delle card a popup PIN, sicurezza, RGB, sessioni, stanze e telecomando.
