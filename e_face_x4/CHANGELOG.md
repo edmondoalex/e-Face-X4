@@ -7,6 +7,8 @@
 - Visualizzato il pannello esclusivamente sul player e-Voice per cui TTS è stato abilitato nell'Admin.
 - Verificate lato server provider e capability TTS prima di salvare le preferenze.
 - Rimossa l'esportazione residua del vecchio connettore diretto a Home Assistant.
+- Selezionato correttamente l'Echo cliccato entrando dalla pagina Ambiente.
+- Reso TTS accessibile sull'Echo abilitato anche entrando dalla stanza, non soltanto dalla pagina Ascolta.
 
 ## 2.20.2 — 2026-09-12
 

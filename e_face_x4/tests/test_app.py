@@ -724,7 +724,8 @@ def test_media_ui_has_room_selection_and_typed_controls() -> None:
     assert "device.experiences?.includes('listen') || device.tts_enabled" in script
     assert "data-tts-send" in script
     assert "data-dnd-device" in script
-    assert "selected.provider === 'evoice' && selected.tts_enabled" in script
+    assert "selected.provider === 'evoice' && selected.tts_enabled && ttsPlayers.length" in script
+    assert "selectedMediaId = String(device.id)" in script
     assert "item.provider === selected.provider" in script
     assert "item.provider === player.provider" in script
     assert "['playing','buffering'].includes(state)" in script
