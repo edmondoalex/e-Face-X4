@@ -66,6 +66,24 @@ function mediaSourceIcon(source) {
   return 'mdi:music-circle'
 }
 
+const roomFeatureDefinitions = [
+  { id: 'audio', label: 'Audio', icon: 'mdi:music-note', matches: (device) => ['media', 'media_player'].includes(device.kind) && (!device.experiences?.length || device.experiences.includes('listen')) },
+  { id: 'video', label: 'Video', icon: 'mdi:television', matches: (device) => ['camera', 'doorbell'].includes(device.kind) || (['media', 'media_player'].includes(device.kind) && device.experiences?.includes('watch')) },
+  { id: 'lights', label: 'Luci', icon: 'mdi:lightbulb', matches: (device) => device.kind === 'light' },
+  { id: 'climate', label: 'Clima', icon: 'mdi:thermometer', matches: (device) => ['climate', 'temp', 'temperature', 'humidity', 'air', 'air_quality'].includes(device.kind) },
+  { id: 'covers', label: 'Oscuranti', icon: 'mdi:blinds-horizontal', matches: (device) => device.kind === 'cover' },
+  { id: 'security', label: 'Sicurezza', icon: 'mdi:shield-home', matches: (device) => ['lock', 'alarm', 'security', 'camera', 'doorbell'].includes(device.kind) },
+  { id: 'extra', label: 'Extra', icon: 'mdi:power-socket-eu', matches: (device) => device.kind === 'switch' },
+]
+
+function roomFeatureIcons(roomName) {
+  const normalizedRoom = String(roomName || '').trim().toLocaleLowerCase('it')
+  const roomDevices = currentDevices.filter((device) => String(device.room || '').trim().toLocaleLowerCase('it') === normalizedRoom)
+  return roomFeatureDefinitions.filter((feature) => roomDevices.some(feature.matches)).map((feature) => `
+    <i class="room-feature room-feature-${feature.id}" title="${feature.label}" aria-label="${feature.label}" style="${mdiStyle(feature.icon, 'shape')}"></i>
+  `).join('')
+}
+
 function tick() {
   const now = new Date()
   $('#clock').textContent = now.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })
@@ -136,7 +154,7 @@ function render(data) {
       <span>${esc(widget.title)}<strong>${esc(widget.value)}</strong><small>${esc(widget.detail)}</small></span>
     </button>`).join('')
   $('#rooms').innerHTML = (dashboard.rooms || []).map((room) => `
-    <button class="room-card" data-room="${esc(room.name)}"><span>${esc(room.name)}</span><small>${Number(room.devices) || 0} dispositivi</small></button>
+    <button class="room-card" data-room="${esc(room.name)}"><span>${esc(room.name)}</span><small class="room-features">${roomFeatureIcons(room.name)}</small></button>
   `).join('') || '<span class="empty-state">Nessun ambiente disponibile</span>'
   const media = dashboard.media
   $('#media').hidden = !media
