@@ -10,6 +10,7 @@ from app.connectors.control4_media import control4_icon_path, control4_queues, c
 from app.connectors.supervisor import find_addon_url
 from app.media_preferences import apply_preferences, load_preferences, save_preferences
 from app.control4 import load_control4_config, public_control4_config, save_control4_config, summarize_ui_configuration
+from app.source_icons import delete_source_icon, load_source_icon, save_source_icon
 
 
 def test_health() -> None:
@@ -68,7 +69,7 @@ def test_x4_shell_and_brand_assets_are_served() -> None:
     assert '<iframe' not in page.text
     for label in ("Guarda", "Ascolta", "Luci", "Extra", "Scenari", "Oscuranti", "Comfort", "Sicurezza"):
         assert f'title="{label}"' in page.text
-    assert 'src="assets/brand-horizontal.png?v=2.5.2"' in page.text
+    assert 'src="assets/brand-horizontal.png?v=2.6.0"' in page.text
     assert 'alt="e-Face X4"' in page.text
     assert 'class="header-wordmark"' not in page.text
     assert client.get("/assets/brand-horizontal.png").status_code == 200
@@ -107,10 +108,22 @@ def test_installer_login_is_protected(monkeypatch, tmp_path) -> None:
     monkeypatch.setenv("EFACE_INSTALLER_SECRET", str(tmp_path / "secret"))
     client = TestClient(create_app())
     assert client.get("/api/installer/media-players").status_code == 401
+    assert client.get("/api/installer/media-source-icons").status_code == 401
     assert client.post("/api/installer/login", json={"password": "errata"}).status_code == 401
     response = client.post("/api/installer/login", json={"password": "segreta"})
     assert response.status_code == 200
     assert "httponly" in response.headers["set-cookie"].lower()
+
+
+def test_custom_source_icon_is_persisted_and_removed(monkeypatch, tmp_path) -> None:
+    monkeypatch.setenv("EFACE_SOURCE_ICONS", str(tmp_path / "source-icons"))
+    content = b"\x89PNG\r\n\x1a\n" + b"persistent-icon"
+    import base64
+    save_source_icon(244, "image/png", base64.b64encode(content).decode())
+    assert load_source_icon(244) == ("image/png", content)
+    assert (tmp_path / "source-icons" / "244.png").is_file()
+    assert delete_source_icon(244) is True
+    assert load_source_icon(244) is None
 
 
 def test_control4_credentials_are_local_and_never_returned(monkeypatch, tmp_path) -> None:

@@ -20,12 +20,13 @@ from .config import load_settings
 from .control4 import load_control4_config, public_control4_config, save_control4_config, test_control4_connection
 from .installer_auth import COOKIE, create_session, valid_session
 from .media_preferences import apply_preferences, load_preferences, save_preferences
+from .source_icons import delete_source_icon, load_source_icon, save_source_icon
 from .connectors import BusproConnector, Control4MediaConnector, EThermConnector, EkonexMediaConnector, LocalMediaConnector
 from .connectors.control4_media import cached_control4_icon, cached_control4_icon_path, control4_icon_path
 from .connectors.supervisor import discover_addon_url
 from .demo import dashboard as demo_dashboard
 
-VERSION = "2.5.2"
+VERSION = "2.6.0"
 STATIC = Path(__file__).parent / "static"
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s [e-face-x4] %(message)s")
 
@@ -176,6 +177,32 @@ def create_app() -> FastAPI:
             raise HTTPException(status_code=400, detail=str(exc))
         return {"ok": True, "players": len(saved)}
 
+    @app.get("/api/installer/media-source-icons")
+    async def installer_media_source_icons(request: Request) -> dict:
+        require_installer(request)
+        snapshot = await media_connector(load_settings()).snapshot()
+        sources: dict[int, dict] = {}
+        for player in snapshot.get("items", []):
+            for source in player.get("source_options", []):
+                source_id = int(source.get("source_id") or 0)
+                if source_id > 0:
+                    sources[source_id] = {"source_id": source_id, "name": str(source.get("label") or source_id), "custom": load_source_icon(source_id) is not None}
+        return {"items": sorted(sources.values(), key=lambda item: item["name"].casefold())}
+
+    @app.put("/api/installer/media-source-icons/{source_id}")
+    async def installer_save_media_source_icon(source_id: int, request: Request, payload: dict) -> dict:
+        require_installer(request)
+        try:
+            save_source_icon(source_id, str(payload.get("mime") or ""), str(payload.get("data") or ""))
+        except (OSError, ValueError) as exc:
+            raise HTTPException(status_code=400, detail=str(exc))
+        return {"ok": True}
+
+    @app.delete("/api/installer/media-source-icons/{source_id}")
+    async def installer_delete_media_source_icon(source_id: int, request: Request) -> dict:
+        require_installer(request)
+        return {"ok": True, "removed": delete_source_icon(source_id)}
+
     @app.get("/api/installer/control4")
     async def installer_control4(request: Request) -> dict:
         require_installer(request)
@@ -319,9 +346,12 @@ def create_app() -> FastAPI:
     async def control4_source_icon(source_id: int) -> Response:
         if source_id <= 0:
             raise HTTPException(status_code=404, detail="Icona Control4 non disponibile")
+        custom = load_source_icon(source_id)
+        if custom:
+            return Response(custom[1], media_type=custom[0], headers={"Cache-Control": "no-cache", "X-Content-Type-Options": "nosniff"})
         cached = cached_control4_icon(source_id)
         if cached:
-            return Response(cached[1], media_type=cached[0], headers={"Cache-Control": "private, max-age=86400", "X-Content-Type-Options": "nosniff"})
+            return Response(cached[1], media_type=cached[0], headers={"Cache-Control": "private, no-cache", "X-Content-Type-Options": "nosniff"})
         config = load_control4_config()
         if not config.get("username") or not config.get("password"):
             raise HTTPException(status_code=404, detail="Control4 non configurato")
@@ -335,7 +365,7 @@ def create_app() -> FastAPI:
             media_type = upstream.headers.get("content-type", "").split(";", 1)[0]
             if upstream.status_code != 200 or media_type not in {"image/png", "image/jpeg", "image/gif", "image/webp"} or len(upstream.content) > 300_000:
                 raise HTTPException(status_code=404, detail="Icona Control4 non disponibile")
-            return Response(upstream.content, media_type=media_type, headers={"Cache-Control": "private, max-age=86400", "X-Content-Type-Options": "nosniff"})
+            return Response(upstream.content, media_type=media_type, headers={"Cache-Control": "private, no-cache", "X-Content-Type-Options": "nosniff"})
         except HTTPException:
             raise
         except Exception:

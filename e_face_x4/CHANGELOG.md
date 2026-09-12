@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.6.0 — 2026-09-12
+
+- Aggiunta in `Strumenti → Admin → Multimediale` la gestione delle icone delle sorgenti.
+- È possibile caricare PNG, JPEG, WebP o GIF fino a 500 KB e ripristinare in ogni momento l'icona Control4/automatica.
+- Le icone personalizzate sono salvate in `/data/source-icons` e hanno priorità su quelle native.
+
 ## 2.5.2 — 2026-09-12
 
 - Aggiunte icone specifiche per tipo di apparato quando il driver Control4 non contiene un file icona nativo.

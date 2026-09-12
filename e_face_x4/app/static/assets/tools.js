@@ -23,6 +23,13 @@ async function loadControl4() {
   $('#control4-password').placeholder = data.password_configured ? 'Password già salvata' : 'Password Control4'
 }
 
+async function loadSourceIcons() {
+  const response = await fetch(apiUrl('../api/installer/media-source-icons'), { cache: 'no-store' })
+  if (!response.ok) throw new Error((await response.json().catch(() => ({}))).detail || `HTTP ${response.status}`)
+  const data = await response.json()
+  $('#source-icon-list').innerHTML = data.items.map((source) => `<div class="source-icon-row" data-source-id="${Number(source.source_id)}"><img src="${apiUrl(`../api/control4/source-icon/${Number(source.source_id)}?admin=${Date.now()}`)}" alt="" onerror="this.classList.add('missing')"><b>${esc(source.name)}</b><label>CAMBIA<input type="file" accept="image/png,image/jpeg,image/webp,image/gif"></label><button type="button" data-source-reset ${source.custom ? '' : 'disabled'}>RIPRISTINA</button></div>`).join('') || '<p>Nessuna sorgente disponibile</p>'
+}
+
 function control4Payload() { return { host: $('#control4-host').value.trim(), username: $('#control4-username').value.trim(), password: $('#control4-password').value } }
 
 async function sendControl4(path, button) {
@@ -41,7 +48,7 @@ async function sendControl4(path, button) {
 }
 
 $('#login-form').addEventListener('submit', async (event) => { event.preventDefault(); try { const response = await fetch(apiUrl('../api/installer/login'), { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({password:$('#installer-password').value}) }); if (!response.ok) throw new Error((await response.json()).detail); $('#installer-password').value=''; await loadPlayers() } catch(error){ notice(error.message) } })
-$('#media-tool').addEventListener('click', async () => { try { if (await loadPlayers()) $('#media-config').hidden = false } catch(error){ notice(error.message) } })
+$('#media-tool').addEventListener('click', async () => { try { if (await loadPlayers()) { await loadSourceIcons(); $('#media-config').hidden = false } } catch(error){ notice(error.message) } })
 $('#control4-tool').addEventListener('click', async () => { try { await loadControl4(); $('#control4-config').hidden=false } catch(error){ notice(error.message) } })
 $('#control4-back').addEventListener('click', () => { $('#control4-config').hidden=true })
 $('#control4-save').addEventListener('click', (event) => sendControl4('', event.currentTarget))
@@ -50,6 +57,8 @@ $('#media-back').addEventListener('click', () => { $('#media-config').hidden = t
 $('#logout').addEventListener('click', async () => { await fetch(apiUrl('../api/installer/logout'), {method:'POST'}); $('#admin-tools').hidden=true; $('#admin-locked').hidden=false })
 $('#save-players').addEventListener('click', async (event) => { event.currentTarget.disabled=true; try { const players={}; document.querySelectorAll('.player-row').forEach((row, order) => { players[row.dataset.player]={...Object.fromEntries([...row.querySelectorAll('input')].map((input)=>[input.dataset.field,input.checked])),order} }); const response=await fetch(apiUrl('../api/installer/media-players'),{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({players})}); if(!response.ok) throw new Error((await response.json()).detail); notice('Configurazione salvata'); setTimeout(()=>location.href='./',700) } catch(error){notice(error.message)} finally{event.currentTarget.disabled=false} })
 $('#player-list').addEventListener('change',(event)=>{const row=event.target.closest('.player-row');if(!row)return;const visible=row.querySelector('[data-field=visible]');const audio=row.querySelector('[data-field=audio]');const video=row.querySelector('[data-field=video]');if(event.target===visible&&!visible.checked){audio.checked=false;video.checked=false}if((event.target===audio||event.target===video)&&event.target.checked)visible.checked=true})
+$('#source-icon-list').addEventListener('change', async (event) => { const input=event.target.closest('input[type=file]');if(!input?.files[0])return;const file=input.files[0];if(file.size>500000)return notice('Icona superiore a 500 KB');const row=input.closest('[data-source-id]');const data=await new Promise((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve(String(reader.result).split(',',2)[1]);reader.onerror=reject;reader.readAsDataURL(file)});try{const response=await fetch(apiUrl(`../api/installer/media-source-icons/${row.dataset.sourceId}`),{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({mime:file.type,data})});if(!response.ok)throw new Error((await response.json()).detail);notice('Icona sostituita');await loadSourceIcons()}catch(error){notice(error.message)} })
+$('#source-icon-list').addEventListener('click', async (event) => { const button=event.target.closest('[data-source-reset]');if(!button)return;const row=button.closest('[data-source-id]');try{const response=await fetch(apiUrl(`../api/installer/media-source-icons/${row.dataset.sourceId}`),{method:'DELETE'});if(!response.ok)throw new Error((await response.json()).detail);notice('Icona ripristinata');await loadSourceIcons()}catch(error){notice(error.message)} })
 let draggedRow = null
 $('#player-list').addEventListener('pointerdown', (event) => { const handle=event.target.closest('.drag-handle'); if(!handle)return; draggedRow=handle.closest('.player-row'); draggedRow.classList.add('dragging'); handle.setPointerCapture(event.pointerId); event.preventDefault() })
 $('#player-list').addEventListener('pointermove', (event) => { if(!draggedRow)return; const target=document.elementFromPoint(event.clientX,event.clientY)?.closest('.player-row'); if(!target||target===draggedRow)return; const rect=target.getBoundingClientRect(); $('#player-list').insertBefore(draggedRow,event.clientY<rect.top+rect.height/2?target:target.nextSibling) })
