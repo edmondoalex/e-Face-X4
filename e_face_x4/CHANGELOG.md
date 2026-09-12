@@ -549,3 +549,7 @@
 - Il PIN non viene salvato: apre una sessione temporanea, esegue il comando e la chiude.
 - Errori distinti per codice errato, centrale non raggiungibile e risposta HTTP non valida.
 - Stato sicurezza aggiornato subito dopo il comando e ricontrollato a intervalli ravvicinati.
+
+# 2.10.1
+
+- La finestra del codice Ksenia si chiude immediatamente premendo Conferma; eventuali errori vengono mostrati nell'interfaccia principale.

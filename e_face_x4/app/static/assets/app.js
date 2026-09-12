@@ -644,20 +644,19 @@ async function submitSecurityPin(event) {
   const pin = $('#security-pin-input').value.trim()
   const confirmButton = $('#security-pin-confirm')
   if (!pin) { $('#security-pin-error').textContent = 'Inserisci il codice della centrale Ksenia'; return }
+  const command = pendingSecurityCommand
   confirmButton.disabled = true
+  $('#security-pin-input').value = ''
+  $('#security-pin-dialog').close()
+  pendingSecurityCommand = null
   try {
-    await postDeviceCommand(pendingSecurityCommand.deviceId, pendingSecurityCommand.action, null, null, pin)
-    applySecurityCommandState(pendingSecurityCommand.deviceId, pendingSecurityCommand.action)
-    $('#security-pin-input').value = ''
-    $('#security-pin-dialog').close()
-    pendingSecurityCommand = null
+    await postDeviceCommand(command.deviceId, command.action, null, null, pin)
+    applySecurityCommandState(command.deviceId, command.action)
     await refresh()
     setTimeout(refresh, 700)
     setTimeout(refresh, 1800)
   } catch (error) {
-    $('#security-pin-input').value = ''
-    $('#security-pin-error').textContent = error.message || 'Operazione non riuscita'
-    $('#security-pin-input').focus()
+    fail(new Error(`Sicurezza: ${error.message || 'operazione non riuscita'}`))
   } finally { confirmButton.disabled = false }
 }
 
