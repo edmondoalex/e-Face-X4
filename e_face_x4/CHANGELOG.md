@@ -653,3 +653,7 @@
 # 2.16.3
 
 - Corretto il conflitto della griglia che disponeva Comfort sotto Sicurezza e limitava il riepilogo a metà larghezza.
+
+# 2.16.4
+
+- Centrato il separatore tra temperatura interna ed esterna con due colonne simmetriche e spaziature uniformi su desktop, tablet e smartphone.
