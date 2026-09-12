@@ -68,7 +68,7 @@ def test_x4_shell_and_brand_assets_are_served() -> None:
     assert '<iframe' not in page.text
     for label in ("Guarda", "Ascolta", "Luci", "Extra", "Scenari", "Oscuranti", "Comfort", "Sicurezza"):
         assert f'title="{label}"' in page.text
-    assert 'src="assets/brand-horizontal.png?v=2.5.1"' in page.text
+    assert 'src="assets/brand-horizontal.png?v=2.5.2"' in page.text
     assert 'alt="e-Face X4"' in page.text
     assert 'class="header-wordmark"' not in page.text
     assert client.get("/assets/brand-horizontal.png").status_code == 200
@@ -155,8 +155,8 @@ def test_control4_media_uses_only_listen_watch_rooms_and_native_sources() -> Non
     assert player["volume"] == 64
     assert player["source"] == "Spotify Connect"
     assert player["source_options"] == [
-            {"key": "watch:809", "label": "Samsung TV", "experience": "watch", "type": "", "source_id": 809, "remote_actions": []},
-            {"key": "listen:100002", "label": "Spotify Connect", "experience": "listen", "type": "", "source_id": 100002, "remote_actions": []},
+            {"key": "watch:809", "label": "Samsung TV", "experience": "watch", "type": "", "source_id": 809, "icon": "mdi:play-box", "remote_actions": []},
+            {"key": "listen:100002", "label": "Spotify Connect", "experience": "listen", "type": "", "source_id": 100002, "icon": "mdi:play-box", "remote_actions": []},
     ]
     assert player["capabilities"]["turn_off"] is True
     assert player["active_experience"] == "listen"

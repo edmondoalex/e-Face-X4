@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.5.2 — 2026-09-12
+
+- Aggiunte icone specifiche per tipo di apparato quando il driver Control4 non contiene un file icona nativo.
+- Eliminato il simbolo di immagine rotta quando la libreria Composer indicata dal driver non è esposta dal Director.
+
 ## 2.5.1 — 2026-09-12
 
 - Corretto `AttributeError` con driver Control4 che espongono `display_icons` in un formato non strutturato.

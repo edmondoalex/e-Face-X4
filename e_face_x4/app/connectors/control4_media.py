@@ -215,7 +215,7 @@ def normalize_control4_media(ui: Any, all_items: Any, variables: Any) -> list[di
                 if icon_path:
                     _source_icon_paths[source_id] = icon_path
                 remote_actions = control4_remote_actions(item_info.get(str(source_id))) if experience["type"] == "watch" else []
-                room["source_options"].append({"key": f"{experience['type']}:{source_id}", "label": str(label), "experience": str(experience["type"]), "type": str(source.get("type") or ""), "source_id": source_id, "remote_actions": remote_actions})
+                room["source_options"].append({"key": f"{experience['type']}:{source_id}", "label": str(label), "experience": str(experience["type"]), "type": str(source.get("type") or ""), "source_id": source_id, "icon": control4_source_fallback_icon(item_info.get(str(source_id))), "remote_actions": remote_actions})
     result = []
     for room_id, data in rooms.items():
         values = state.get(room_id, {})
@@ -305,6 +305,33 @@ def control4_remote_actions(item: Any) -> list[str]:
             _source_custom_buttons[source_id] = (protocol_id, {"PROGRAM_A", "PROGRAM_B", "PROGRAM_C", "PROGRAM_D"})
             actions.extend(["custom:PROGRAM_A", "custom:PROGRAM_B", "custom:PROGRAM_C", "custom:PROGRAM_D"])
     return actions
+
+
+def control4_source_fallback_icon(item: Any) -> str:
+    if isinstance(item, list):
+        item = item[0] if item else None
+    if not isinstance(item, dict):
+        return "mdi:play-box"
+    identity = " ".join(str(item.get(key) or "") for key in ("name", "proxy", "filename", "protocolFilename")).casefold()
+    if "xbox" in identity or "game" in identity:
+        return "mdi:microsoft-xbox-controller"
+    if "apple" in identity:
+        return "mdi:apple"
+    if "dlna" in identity:
+        return "mdi:cast-audio"
+    if "pc" in identity or "computer" in identity:
+        return "mdi:monitor"
+    if "media_service" in identity or " app" in f" {identity}":
+        return "mdi:apps"
+    if "receiver" in identity or "onkyo" in identity or "integra" in identity:
+        return "mdi:audio-video"
+    if "tv" in identity or "television" in identity:
+        return "mdi:television"
+    if "satellite" in identity or "sky" in identity:
+        return "mdi:satellite-variant"
+    if "media_player" in identity:
+        return "mdi:multimedia"
+    return "mdi:play-box"
 
 
 async def cache_control4_source_icons(director: Any) -> None:
