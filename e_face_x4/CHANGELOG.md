@@ -649,3 +649,7 @@
 # 2.16.2
 
 - Riepilogo Home riunito in un'unica barra continua: Sicurezza a sinistra e Comfort a destra, senza impilamento su tablet.
+
+# 2.16.3
+
+- Corretto il conflitto della griglia che disponeva Comfort sotto Sicurezza e limitava il riepilogo a metà larghezza.
