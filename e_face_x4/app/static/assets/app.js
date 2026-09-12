@@ -33,6 +33,7 @@ const mediaSections = { rooms: true, playing: true }
 const mediaTransportOverrides = new Map()
 const recentCache = new Map()
 const recentPending = new Map()
+const ttsVolumeRestores = new Map()
 
 function setMediaOverride(deviceId, values) {
   const key = String(deviceId)
@@ -1458,11 +1459,25 @@ $('#device-list').addEventListener('click', (event) => {
     const volume = Math.max(0, Math.min(100, Number($('[data-tts-volume]')?.value ?? 50)))
     if (!message || !targets.length) return fail(new Error(!message ? 'Scrivi un messaggio' : 'Seleziona almeno un Echo'))
     localStorage.setItem('eface-tts-volume', String(volume))
+    const restoreDelay = 10000
     ttsSend.disabled = true
     return Promise.all(targets.map(async (deviceId) => {
       const device = currentDevices.find((item) => String(item.id) === String(deviceId))
-      if (device?.capabilities?.set_volume) await postDeviceCommand(deviceId, 'set_volume', volume)
-      await postDeviceCommand(deviceId, 'tts', message)
+      try {
+        if (device?.capabilities?.set_volume && Number.isFinite(Number(device.volume))) {
+          const pending = ttsVolumeRestores.get(String(deviceId))
+          if (pending?.timer) clearTimeout(pending.timer)
+          ttsVolumeRestores.set(String(deviceId), { volume: pending?.volume ?? Number(device.volume), timer: null })
+          await postDeviceCommand(deviceId, 'set_volume', volume)
+        }
+        await postDeviceCommand(deviceId, 'tts', message)
+      } finally {
+        const pending = ttsVolumeRestores.get(String(deviceId))
+        if (pending) pending.timer = setTimeout(async () => {
+          try { await postDeviceCommand(deviceId, 'set_volume', pending.volume) } catch (error) { fail(error) }
+          finally { ttsVolumeRestores.delete(String(deviceId)) }
+        }, restoreDelay)
+      }
     })).then(() => {
       $('#evoice-tts-message').value = ''
       const notice = $('#notice'); notice.textContent = 'Messaggio inviato'; notice.hidden = false

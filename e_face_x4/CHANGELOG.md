@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.20.6 — 2026-09-12
+
+- Salvato il volume originale di ogni Echo prima del messaggio TTS.
+- Ripristinato automaticamente il volume 10 secondi dopo l'invio del messaggio.
+- Protetto il volume originale anche in caso di più messaggi consecutivi.
+
 ## 2.20.5 — 2026-09-12
 
 - Aggiunto il volume comune del messaggio nella sezione TTS.
