@@ -657,3 +657,11 @@
 # 2.16.4
 
 - Centrato il separatore tra temperatura interna ed esterna con due colonne simmetriche e spaziature uniformi su desktop, tablet e smartphone.
+
+# 2.16.5
+
+- La modalità di sicurezza dispone ora di spazio prioritario e non viene abbreviata sui display larghi.
+- Su smartphone il riepilogo mostra scudetto e modalità, compattando il conteggio delle aree.
+- Rimossa l'etichetta ridondante `SICUREZZA` dal riepilogo Home.
+- Scudetto rosso per inserimenti immediati o allarmi, giallo per inserimenti ritardati e verde a sistema disinserito.
+- Lo scudetto Sicurezza del menu verticale usa esattamente lo stesso colore del riepilogo Home.

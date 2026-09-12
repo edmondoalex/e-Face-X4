@@ -216,9 +216,11 @@ function renderHomeSecurity() {
   const system = currentDevices.find((device) => device.kind === 'alarm_system')
   const issues = partitions.filter((device) => device.alarm || device.tamper || ['ALARM', 'TAMPER'].includes(String(device.state || '').toUpperCase())).length
   const armed = partitions.filter((device) => String(device.state || '').toUpperCase() === 'ARMED').length
+  const hasInstant = partitions.some((device) => String(device.state || '').toUpperCase() === 'ARMED' && device.arm_mode === 'instant')
+  const hasDelayed = partitions.some((device) => String(device.state || '').toUpperCase() === 'ARMED' && device.arm_mode !== 'instant')
   const state = issues ? `${issues} ${issues === 1 ? 'allarme attivo' : 'allarmi attivi'}` : armed ? `${armed} ${armed === 1 ? 'area inserita' : 'aree inserite'}` : 'Tutto sotto controllo'
   const mode = system?.arm_description || (armed ? 'Inserimento attivo' : 'Disinserito')
-  const visual = issues ? 'alarm' : armed ? 'armed' : 'safe'
+  const visual = issues || hasInstant ? 'alarm' : hasDelayed ? 'armed' : 'safe'
   const icon = issues ? 'mdi:shield-alert' : armed ? 'mdi:shield-lock' : 'mdi:shield-check'
   card.className = `home-security-summary security-${visual}`
   $('#home-security-icon').setAttribute('style', mdiStyle(icon, 'shield-home'))
@@ -260,7 +262,11 @@ function updateNavigationStates() {
   setState('lights', 'status-yellow', currentDevices.some((device) => device.kind === 'light' && lightIsOn(device)))
   setState('extra', 'status-red', currentDevices.some((device) => device.kind === 'switch' && stateIsActive(device)))
   setState('covers', 'status-cyan', currentDevices.some((device) => device.kind === 'cover' && (stateIsActive(device) || Number(device.position) > 0)))
-  setState('security', 'status-red', currentDevices.some((device) => ['lock','alarm_partition','alarm_zone'].includes(device.kind) && ['OPEN','OPENING','UNLOCKED','ARMED','ALARM','TAMPER'].includes(String(device.state ?? '').trim().toUpperCase())))
+  const securityPartitions = currentDevices.filter((device) => device.kind === 'alarm_partition')
+  const securityAlarm = securityPartitions.some((device) => device.alarm || device.tamper || ['ALARM','TAMPER'].includes(String(device.state || '').toUpperCase()))
+  const securityInstant = securityPartitions.some((device) => String(device.state || '').toUpperCase() === 'ARMED' && device.arm_mode === 'instant')
+  const securityDelayed = securityPartitions.some((device) => String(device.state || '').toUpperCase() === 'ARMED' && device.arm_mode !== 'instant')
+  setState('security', securityAlarm || securityInstant ? 'status-red' : securityDelayed ? 'status-yellow' : 'status-green', securityPartitions.length > 0)
   setState('watch', 'status-cyan', currentDevices.some((device) => ['media','media_player'].includes(device.kind) && device.active_experience === 'watch' && stateIsActive(device)))
   setState('listen', 'status-green', currentDevices.some((device) => ['media','media_player'].includes(device.kind) && device.active_experience === 'listen' && stateIsActive(device)))
   setState('comfort', 'status-cyan', currentDevices.some((device) => device.kind === 'climate' && !device.read_only && ['HEATING','COOLING'].includes(String(device.state).toUpperCase())))
