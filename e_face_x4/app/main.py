@@ -28,7 +28,7 @@ from .connectors.control4_media import cached_control4_icon, cached_control4_ico
 from .connectors.supervisor import discover_addon_url, discover_host_url
 from .demo import dashboard as demo_dashboard
 
-VERSION = "2.19.1"
+VERSION = "2.19.2"
 STATIC = Path(__file__).parent / "static"
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s [e-face-x4] %(message)s")
 
@@ -140,6 +140,7 @@ def create_app() -> FastAPI:
             if isinstance(ksenia, dict):
                 dashboard["devices"].extend(ksenia.get("items", []))
             for media in (item for item in providers if item.get("id") in {"control4", "evoice"} and item.get("status") == "online"):
+                media = apply_preferences(media)
                 media_items = media.get("items", [])
                 dashboard["devices"].extend(media_items)
                 known_rooms = {str(item.get("name", "")).casefold() for item in dashboard["rooms"] if isinstance(item, dict)}

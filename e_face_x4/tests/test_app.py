@@ -126,7 +126,7 @@ def test_x4_shell_and_brand_assets_are_served() -> None:
     assert 'evoice.css' in page.text
     for label in ("Guarda", "Ascolta", "Luci", "Extra", "Scenari", "Oscuranti", "Comfort", "Sicurezza"):
         assert f'title="{label}"' in page.text
-    assert 'src="assets/brand-horizontal.png?v=2.19.1"' in page.text
+    assert 'src="assets/brand-horizontal.png?v=2.19.2"' in page.text
     assert 'alt="e-Face X4"' in page.text
     assert 'class="header-wordmark"' not in page.text
     assert client.get("/assets/brand-horizontal.png").status_code == 200
@@ -194,6 +194,7 @@ def test_media_preferences_are_saved_and_applied(monkeypatch, tmp_path) -> None:
     assert [item["registry_id"] for item in filtered["items"]] == ["two", "one"]
     assert filtered["items"][1]["experiences"] == ["listen"]
     assert filtered["items"][1]["name"] == "Echo Sala"
+    assert filtered["items"][1]["room"] == "Sala"
     assert filtered["items"][1]["tts_enabled"] is True
     assert filtered["rooms"] == ["Sala", "Studio"]
 
@@ -746,7 +747,7 @@ def test_local_home_assistant_media_snapshot_is_normalized() -> None:
     })
     assert groups == []
     assert players[0]["id"] == "media:registry-1"
-    assert players[0]["room"] == "Sala"
+    assert players[0]["room"] == "Soggiorno"
     assert players[0]["volume"] == 40
     assert players[0]["capabilities"]["play"] is True
     assert players[0]["experiences"] == ["watch"]

@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.19.2 — 2026-09-12
+
+- Usata la stanza e-Voice configurata prima di costruire le card Ambienti.
+- Evitata la creazione di ambienti separati con il nome tecnico degli Echo.
+- Usata come valore iniziale l'area Home Assistant reale, quando disponibile.
+
 ## 2.19.1 — 2026-09-12
 
 - Caricati contemporaneamente Control4 ed e-Voice senza priorità esclusiva.

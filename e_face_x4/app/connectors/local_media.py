@@ -219,7 +219,7 @@ def normalize_local_snapshot(raw: dict[str, Any]) -> tuple[list[dict[str, Any]],
         item = {
             "id": f"media:{entry['id']}", "registry_id": str(entry["id"]), "entity_id": entity_id,
             "provider": "evoice", "kind": "media_player", "icon": str(attrs.get("icon") or "mdi:speaker"),
-            "name": player_name, "room": player_name,
+            "name": player_name, "room": areas.get(str(area_id)) or player_name,
             "state": state.get("state"), "availability": "unavailable" if state.get("state") == "unavailable" else "available",
             "connection_status": "online", "title": attrs.get("media_title"), "artist": attrs.get("media_artist"),
             "album": attrs.get("media_album_name"), "duration_seconds": attrs.get("media_duration"),
