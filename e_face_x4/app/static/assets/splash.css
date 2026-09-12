@@ -1,6 +1,5 @@
-.startup-splash{position:fixed;z-index:10000;inset:0;display:grid;place-items:center;padding:28px;background:rgba(18,28,32,.96);opacity:1;visibility:visible;transition:opacity .6s ease,visibility 0s linear .6s}
-.startup-splash:before{content:"";position:absolute;inset:0;background:radial-gradient(circle at 50% 48%,rgba(97,216,242,.12),transparent 42%)}
-.startup-splash img{position:relative;width:min(520px,76vw);height:auto;object-fit:contain;filter:drop-shadow(0 16px 34px rgba(0,0,0,.32));animation:splash-logo-in .7s ease-out both}
+.startup-splash{position:fixed;z-index:10000;inset:0;display:grid;place-items:center;padding:18px;background:#000;opacity:1;visibility:visible;transition:opacity .6s ease,visibility 0s linear .6s}
+.startup-splash img{position:relative;width:min(1280px,96vw);height:min(92vh,900px);object-fit:contain;filter:drop-shadow(0 16px 34px rgba(0,0,0,.32));animation:splash-logo-in .7s ease-out both}
 .startup-splash.closing{opacity:0;visibility:hidden;pointer-events:none}
 @keyframes splash-logo-in{from{opacity:0;transform:scale(.94)}to{opacity:1;transform:scale(1)}}
 @media(prefers-reduced-motion:reduce){.startup-splash,.startup-splash img{animation:none;transition:none}}

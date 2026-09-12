@@ -1,5 +1,9 @@
 # Changelog
 
+## 2.20.18 — 2026-09-12
+
+- Usata l'immagine completa e-Face X4 by Ekonex come splash screen di avvio per 5 secondi.
+
 ## 2.20.17 — 2026-09-12
 
 - Centralizzato nel backend il volume generale relativo delle sessioni Control4.
