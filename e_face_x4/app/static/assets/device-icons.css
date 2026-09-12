@@ -1,3 +1,8 @@
 .control4-thermostat-icon{background:currentColor;mask:url('control4-icons/thermostat.svg') center/contain no-repeat;-webkit-mask:url('control4-icons/thermostat.svg') center/contain no-repeat}
 .media-sources .media-source-native{width:42px;height:42px;margin:0 auto 5px}
 .media-sources .media-source-native>img{object-fit:contain}
+.page-device-list article.device-climate-heat{border-color:rgba(255,166,67,.7);background:linear-gradient(135deg,rgba(171,89,18,.32),rgba(8,30,34,.9) 62%);box-shadow:inset 0 0 24px rgba(255,154,55,.08)}
+.page-device-list article.device-climate-cool{border-color:rgba(97,216,242,.72);background:linear-gradient(135deg,rgba(26,126,155,.3),rgba(8,30,34,.9) 62%);box-shadow:inset 0 0 24px rgba(97,216,242,.09)}
+.climate-mode-actions{grid-column:1/-1;display:grid;grid-template-columns:repeat(3,1fr);gap:5px}
+.climate-mode-actions button{min-height:29px;border:1px solid rgba(255,255,255,.14);border-radius:6px;color:#96a4a8;background:rgba(0,0,0,.2);font-size:10px;font-weight:700}
+.climate-mode-actions .heat.active{border-color:#ffa643;color:#fff;background:#b96119}.climate-mode-actions .cool.active{border-color:#61d8f2;color:#fff;background:#247e98}.climate-mode-actions .off.active{border-color:#9ba8ab;color:#fff;background:#4d595c}

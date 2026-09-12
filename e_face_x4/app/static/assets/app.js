@@ -73,8 +73,7 @@ function mediaSourceMarkup(source, provider = '') {
 }
 
 function deviceGlyph(device) {
-  if (device.kind === 'climate') return `<span class="device-glyph control4-thermostat-icon" aria-label="Termostato"></span>`
-  const fallback = device.kind === 'cover' ? 'blinds-horizontal' : device.kind === 'lock' ? 'lock' : device.kind === 'media_player' ? 'speaker' : 'lightbulb'
+  const fallback = device.kind === 'climate' ? 'thermostat' : device.kind === 'cover' ? 'blinds-horizontal' : device.kind === 'lock' ? 'lock' : device.kind === 'media_player' ? 'speaker' : 'lightbulb'
   return `<span class="device-glyph mdi-mask" style="${mdiStyle(device.icon, fallback)}"></span>`
 }
 
@@ -108,7 +107,6 @@ function render(data) {
   applyBackground()
   const dashboard = data.dashboard || {}
   const home = dashboard.home || {}
-  const widgets = dashboard.widgets || []
   const providers = data.providers || []
   currentMediaGroups = providers.find((provider) => ['control4','evoice'].includes(provider.id))?.groups || []
   const navIcons = data.nav_icons || {}
@@ -141,15 +139,9 @@ function render(data) {
   if (activeDetailIds && !$('#detail-view').hidden) {
     renderActiveDeviceList()
   }
-  const online = providers.filter((provider) => provider.status === 'online').length
-  const enabled = providers.filter((provider) => provider.status !== 'disabled').length
   $('#home-name').textContent = home.name || 'Casa'
   $('#mode').textContent = data.mode === 'demo' ? 'ANTEPRIMA DEMO' : 'LIVE'
-  $('#weather').textContent = home.temperature ? `${home.temperature}° · ${home.weather || 'Comfort'}` : 'Comfort'
   $('#temperature').textContent = `${home.temperature || 22}°`
-  $('#lights-count').textContent = widgets.find((widget) => widget.id === 'lights')?.value || '0'
-  $('#provider-state strong').textContent = enabled ? `${online}/${enabled}` : 'OFF'
-  $('#provider-state').classList.toggle('provider-online', enabled > 0 && online === enabled)
   document.querySelectorAll('.nav-icon').forEach((node) => {
     node.setAttribute('style', mdiStyle(navIcons[node.dataset.icon], 'shape'))
   })
@@ -160,11 +152,17 @@ function render(data) {
     notice.textContent = `${failedProvider.label}: ${failedProvider.reason || 'connettore non disponibile'}. Controlla indirizzo, porta e autenticazione.`
     notice.hidden = false
   }
-  $('#widgets').innerHTML = widgets.slice(0, 4).map((widget) => `
-    <button class="quick-card" data-kind="${esc(widget.id)}">
-      <span class="qicon">${glyph[widget.icon] || '◇'}</span>
-      <span>${esc(widget.title)}<strong>${esc(widget.value)}</strong><small>${esc(widget.detail)}</small></span>
-    </button>`).join('')
+  const statusCounters = [
+    { kind: 'lights', label: 'Luci', icon: 'mdi:lightbulb', color: 'yellow', devices: currentDevices.filter((device) => device.kind === 'light'), active: (device) => lightIsOn(device) },
+    { kind: 'extra', label: 'Extra', icon: 'mdi:power-socket-eu', color: 'red', devices: currentDevices.filter((device) => device.kind === 'switch'), active: stateIsActive },
+    { kind: 'covers', label: 'Oscuranti', icon: 'mdi:blinds-horizontal', color: 'cyan', devices: currentDevices.filter((device) => device.kind === 'cover'), active: (device) => stateIsActive(device) || Number(device.position) > 0 },
+    { kind: 'security', label: 'Sicurezza', icon: 'mdi:shield-home', color: 'red', devices: currentDevices.filter((device) => device.kind === 'lock'), active: (device) => ['OPEN','OPENING','UNLOCKED'].includes(String(device.state ?? '').trim().toUpperCase()) },
+    { kind: 'comfort', label: 'Comfort', icon: 'mdi:thermostat', color: 'blue', devices: currentDevices.filter((device) => ['climate', 'temp', 'temperature', 'humidity', 'air', 'air_quality'].includes(device.kind)), active: (device) => device.kind === 'climate' && String(device.mode || '').toUpperCase() !== 'OFF' },
+  ]
+  $('#widgets').innerHTML = statusCounters.map((counter) => {
+    const count = counter.devices.filter(counter.active).length
+    return `<button class="quick-card status-counter ${count ? `active status-counter-${counter.color}` : ''}" data-kind="${counter.kind}" data-label="${counter.label}" aria-label="${counter.label}: ${count}"><span class="qicon mdi-mask" style="${mdiStyle(counter.icon, 'shape')}"></span><strong>${count}</strong></button>`
+  }).join('')
   $('#rooms').innerHTML = (dashboard.rooms || []).map((room) => `
     <button class="room-card" data-room="${esc(room.name)}"><span>${esc(room.name)}</span><small class="room-features">${roomFeatureIcons(room.name)}</small></button>
   `).join('') || '<span class="empty-state">Nessun ambiente disponibile</span>'
@@ -216,7 +214,7 @@ function updateNavigationStates() {
   setState('security', 'status-red', currentDevices.some((device) => device.kind === 'lock' && ['OPEN','OPENING','UNLOCKED'].includes(String(device.state ?? '').trim().toUpperCase())))
   setState('watch', 'status-cyan', currentDevices.some((device) => ['media','media_player'].includes(device.kind) && device.active_experience === 'watch' && stateIsActive(device)))
   setState('listen', 'status-green', currentDevices.some((device) => ['media','media_player'].includes(device.kind) && device.active_experience === 'listen' && stateIsActive(device)))
-  setState('comfort', 'status-cyan', currentDevices.some((device) => device.kind === 'climate' && stateIsActive(device)))
+  setState('comfort', 'status-cyan', currentDevices.some((device) => device.kind === 'climate' && String(device.mode || '').toUpperCase() !== 'OFF'))
   setState('scenarios', 'status-yellow', currentScenarios.some((scenario) => scenario.running || ['ON','1','TRUE'].includes(String(scenario.state ?? '').toUpperCase())))
 }
 
@@ -481,7 +479,7 @@ function deviceVisualClass(device) {
   if (device.kind === 'switch') return active ? 'device-switch-on' : 'device-switch-off'
   if (device.kind === 'cover') return ['OPEN', 'OPENING'].includes(state) || Number(device.position) > 0 ? 'device-cover-open' : 'device-cover-closed'
   if (device.kind === 'lock') return ['UNLOCKED', 'OPEN', 'OPENING'].includes(state) ? 'device-lock-open' : 'device-lock-closed'
-  if (device.kind === 'climate') return state === 'HEATING' ? 'device-climate-heat' : state === 'COOLING' ? 'device-climate-cool' : 'device-climate-off'
+  if (device.kind === 'climate') return String(device.mode || '').toUpperCase() === 'OFF' ? 'device-climate-off' : device.season === 'SUM' ? 'device-climate-cool' : 'device-climate-heat'
   if (device.kind === 'media_player') return state === 'PLAYING' ? 'device-media-playing' : ''
   return ''
 }
@@ -499,7 +497,10 @@ function deviceActions(device, options = {}) {
   if (device.kind === 'climate') {
     const target = Number(device.target_temperature)
     const value = Number.isFinite(target) ? target : 20
-    return `<div class="climate-summary"><span>UR ${device.humidity ?? '--'}%</span><span>${device.season === 'SUM' ? 'ESTATE' : 'INVERNO'}</span><span>PWM ${device.pwm ?? 0}%</span></div><div class="device-actions"><button data-climate-target="${(value - .5).toFixed(1)}">−</button><strong>${value.toFixed(1)}°</strong><button data-climate-target="${(value + .5).toFixed(1)}">＋</button></div>`
+    const enabled = String(device.mode || '').toUpperCase() !== 'OFF'
+    const heat = enabled && device.season !== 'SUM'
+    const cool = enabled && device.season === 'SUM'
+    return `<div class="climate-summary"><span>UR ${device.humidity ?? '--'}%</span><span>${device.season === 'SUM' ? 'ESTATE' : 'INVERNO'}</span><span>PWM ${device.pwm ?? 0}%</span></div><div class="climate-mode-actions"><button class="heat ${heat ? 'active' : ''}" data-climate-season="WIN">HEAT</button><button class="cool ${cool ? 'active' : ''}" data-climate-season="SUM">COOL</button><button class="off ${!enabled ? 'active' : ''}" data-climate-mode="OFF">OFF</button></div><div class="device-actions"><button data-climate-target="${(value - .5).toFixed(1)}">−</button><strong>${value.toFixed(1)}°</strong><button data-climate-target="${(value + .5).toFixed(1)}">＋</button></div>`
   }
   if (device.kind === 'media_player') {
     const caps = device.capabilities || {}
@@ -898,9 +899,9 @@ document.querySelectorAll('.rail button').forEach((button) => button.addEventLis
 $('#widgets').addEventListener('click', (event) => {
   const button = event.target.closest('[data-kind]')
   if (!button) return
-  const map = { lights: ['light'], extra: ['switch'], covers: ['cover'], locks: ['lock'], sensors: ['temp', 'temperature', 'humidity', 'illuminance', 'pir', 'ultrasonic', 'dry_contact', 'air', 'air_quality', 'gas_percent'] }
+  const map = { lights: ['light'], extra: ['switch'], covers: ['cover'], security: ['lock'], comfort: ['climate', 'temp', 'temperature', 'humidity', 'air', 'air_quality'] }
   const kinds = map[button.dataset.kind] || []
-  openDevices(button.textContent.trim(), currentDevices.filter((device) => kinds.includes(device.kind)))
+  openDevices(button.dataset.label || 'Dispositivi', currentDevices.filter((device) => kinds.includes(device.kind)))
 })
 $('#rooms').addEventListener('click', (event) => {
   const button = event.target.closest('[data-room]')
@@ -979,6 +980,10 @@ $('#device-list').addEventListener('click', (event) => {
   const climateButton = event.target.closest('[data-climate-target]')
   const climateCard = event.target.closest('[data-device-id]')
   if (climateButton && climateCard) return sendDeviceCommand(climateCard.dataset.deviceId, 'set_target', climateButton, climateButton.dataset.climateTarget)
+  const climateSeasonButton = event.target.closest('[data-climate-season]')
+  if (climateSeasonButton && climateCard) return sendDeviceCommand(climateCard.dataset.deviceId, 'set_season', climateSeasonButton, climateSeasonButton.dataset.climateSeason)
+  const climateModeButton = event.target.closest('[data-climate-mode]')
+  if (climateModeButton && climateCard) return sendDeviceCommand(climateCard.dataset.deviceId, 'set_mode', climateModeButton, climateModeButton.dataset.climateMode)
   const mediaButton = event.target.closest('[data-media-action]')
   const mediaCard = event.target.closest('[data-device-id]')
   if (mediaButton?.dataset.mediaAction === 'media_zones' && mediaCard) return openMediaZones(currentDevices.find((item) => String(item.id) === mediaCard.dataset.deviceId))
