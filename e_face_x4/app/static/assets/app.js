@@ -7,6 +7,7 @@ let activeDetailIds = null
 let realtimeSocket = null
 let realtimeRetry = null
 let detailRenderQueued = false
+let lastDetailSignature = ''
 let snapshotRefreshTimer = null
 let currentScenarios = []
 let activeRgbGroup = null
@@ -401,6 +402,9 @@ function renderActiveDeviceList() {
     if (lightFilterActive) devices = devices.filter(lightIsOn)
   }
   if (!$('#av-filters').hidden && avRoom) devices = devices.filter((device) => device.room === avRoom)
+  const signature = JSON.stringify({devices, selectedMediaId, currentMediaExperience, activeMediaRoom, avRoom, lightFilterRoom, lightFilterActive, sectionFilterMode})
+  if (signature === lastDetailSignature && $('#device-list').childElementCount) return
+  lastDetailSignature = signature
   renderDeviceList(devices)
 }
 
@@ -649,6 +653,7 @@ function openDevices(title, devices, options = {}) {
   const backgroundRooms = [...new Set(devices.map((device)=>device.room).filter(Boolean))]
   applyBackground(options.room || (backgroundRooms.length === 1 ? backgroundRooms[0] : ''))
   activeDetailIds = new Set(devices.map((device) => String(device.id)))
+  lastDetailSignature = ''
   $('#detail-title').textContent = title
   sectionFilterMode = 'devices'
   sectionFilterDevices = devices

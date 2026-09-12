@@ -27,7 +27,7 @@ from .connectors.control4_media import cached_control4_icon, cached_control4_ico
 from .connectors.supervisor import discover_addon_url
 from .demo import dashboard as demo_dashboard
 
-VERSION = "2.7.12"
+VERSION = "2.7.13"
 STATIC = Path(__file__).parent / "static"
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s [e-face-x4] %(message)s")
 
@@ -406,13 +406,13 @@ def create_app() -> FastAPI:
             raise HTTPException(status_code=404, detail="Icona Control4 non disponibile")
         custom = load_source_icon(source_id)
         if custom:
-            return Response(custom[1], media_type=custom[0], headers={"Cache-Control": "no-cache", "X-Content-Type-Options": "nosniff"})
+            return Response(custom[1], media_type=custom[0], headers={"Cache-Control": "private, max-age=86400", "X-Content-Type-Options": "nosniff"})
         builtin = load_builtin_source_icon(cached_control4_source_label(source_id))
         if builtin:
             return Response(builtin[1], media_type=builtin[0], headers={"Cache-Control": "public, max-age=86400", "X-Content-Type-Options": "nosniff"})
         cached = cached_control4_icon(source_id)
         if cached:
-            return Response(cached[1], media_type=cached[0], headers={"Cache-Control": "private, no-cache", "X-Content-Type-Options": "nosniff"})
+            return Response(cached[1], media_type=cached[0], headers={"Cache-Control": "private, max-age=86400", "X-Content-Type-Options": "nosniff"})
         config = load_control4_config()
         if not config.get("username") or not config.get("password"):
             raise HTTPException(status_code=404, detail="Control4 non configurato")
@@ -426,7 +426,7 @@ def create_app() -> FastAPI:
             media_type = upstream.headers.get("content-type", "").split(";", 1)[0]
             if upstream.status_code != 200 or media_type not in {"image/png", "image/jpeg", "image/gif", "image/webp"} or len(upstream.content) > 300_000:
                 raise HTTPException(status_code=404, detail="Icona Control4 non disponibile")
-            return Response(upstream.content, media_type=media_type, headers={"Cache-Control": "private, no-cache", "X-Content-Type-Options": "nosniff"})
+            return Response(upstream.content, media_type=media_type, headers={"Cache-Control": "private, max-age=86400", "X-Content-Type-Options": "nosniff"})
         except HTTPException:
             raise
         except Exception:
