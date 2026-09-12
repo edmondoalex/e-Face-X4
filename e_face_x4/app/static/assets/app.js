@@ -642,8 +642,9 @@ function deviceActions(device, options = {}) {
     const target = Number(device.target_temperature)
     const value = Number.isFinite(target) ? target : 20
     if (device.read_only) return `<div class="climate-summary climate-read-only"><span>UR ${device.humidity ?? '--'}%</span><span>SONDA ESTERNA</span></div>`
-    const heat = String(device.state).toUpperCase() === 'HEATING'
-    const cool = String(device.state).toUpperCase() === 'COOLING'
+    const enabled = !['', 'OFF', 'NONE'].includes(String(device.mode || '').toUpperCase())
+    const heat = enabled && String(device.season || '').toUpperCase() === 'WIN'
+    const cool = enabled && String(device.season || '').toUpperCase() === 'SUM'
     return `<div class="climate-summary"><span>UR ${device.humidity ?? '--'}%</span><span>${device.season === 'SUM' ? 'ESTATE' : 'INVERNO'}</span><span>PWM ${device.pwm ?? 0}%</span></div><div class="climate-mode-actions"><button class="heat ${heat ? 'active' : ''}" data-climate-season="WIN">HEAT</button><button class="cool ${cool ? 'active' : ''}" data-climate-season="SUM">COOL</button><button class="off ${!heat && !cool ? 'active' : ''}" data-climate-mode="OFF">OFF</button></div><div class="device-actions"><button data-climate-target="${(value - .5).toFixed(1)}">−</button><strong>${value.toFixed(1)}°</strong><button data-climate-target="${(value + .5).toFixed(1)}">＋</button></div>`
   }
   if (device.kind === 'media_player') {
@@ -902,6 +903,20 @@ async function sendDeviceCommand(deviceId, action, button, value) {
   if (button) button.disabled = true
   try {
     await postDeviceCommand(deviceId, action, value)
+    const climate = currentDevices.find((item) => String(item.id) === String(deviceId) && item.kind === 'climate')
+    if (climate) {
+      if (action === 'set_season') {
+        climate.season = String(value).toUpperCase()
+        if (['', 'OFF', 'NONE'].includes(String(climate.mode || '').toUpperCase())) climate.mode = 'MAN'
+      }
+      if (action === 'set_mode' && String(value).toUpperCase() === 'OFF') {
+        climate.mode = 'OFF'
+        climate.state = 'OFF'
+      }
+      if (action === 'set_target') climate.target_temperature = Number(value)
+      renderActiveDeviceList()
+      updateNavigationStates()
+    }
     const media = currentDevices.find((item) => String(item.id) === String(deviceId) && item.kind === 'media_player')
     if (media) {
       if (action === 'volume_mute') media.muted = true
@@ -921,7 +936,8 @@ async function sendDeviceCommand(deviceId, action, button, value) {
       renderActiveDeviceList()
       updateNavigationStates()
     }
-    window.setTimeout(refresh, ['media_next','media_previous','select_source'].includes(action) ? 900 : 250)
+    const refreshDelay = ['set_season', 'set_mode'].includes(action) ? 1200 : ['media_next','media_previous','select_source'].includes(action) ? 900 : 250
+    window.setTimeout(refresh, refreshDelay)
   } catch (error) {
     fail(error)
   } finally {

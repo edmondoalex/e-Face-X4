@@ -674,3 +674,8 @@
 
 - Tutte le intestazioni Stanze dei controlli media, compresa `Stanze in riproduzione`, aprono e chiudono gli elementi successivi mantenendo lo stato durante gli aggiornamenti.
 - Rimossa la freccia dal riepilogo Sicurezza per lasciare alla modalità tutto lo spazio necessario senza ritagli.
+
+# 2.16.8
+
+- Corretto il controllo HEAT/COOL/OFF: lo stato dei pulsanti segue modalità e stagione impostate, non la sola richiesta termica istantanea.
+- Aggiunto l'aggiornamento immediato della card dopo i comandi clima, in attesa della conferma del dispositivo.
