@@ -553,3 +553,10 @@
 # 2.10.1
 
 - La finestra del codice Ksenia si chiude immediatamente premendo Conferma; eventuali errori vengono mostrati nell'interfaccia principale.
+
+# 2.11.0
+
+- Zone Ksenia ridisegnate in formato slim senza etichette testuali di stato.
+- Icone dinamiche per porte, finestre, tapparelle, movimento interno/esterno e altri sensori.
+- Sensore a riposo verde e sensore attivo/aperto rosso, con icona coerente allo stato.
+- Zone escluse attenuate e contrassegnate graficamente con `!` color ambra.

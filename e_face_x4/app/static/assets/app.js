@@ -345,10 +345,21 @@ function renderSecurityDevices(devices) {
     const state = alarm ? 'ALLARME ATTIVO' : tamper ? 'SABOTAGGIO ATTIVO' : armed ? device.arm_mode === 'instant' ? 'INSERITA IMMEDIATA' : `INSERITA RITARDATA${delay}` : memory ? device.alarm_memory ? 'DISINSERITA · MEMORIA ALLARME' : 'DISINSERITA · MEMORIA SABOTAGGIO' : 'DISINSERITA'
     return `<article class="security-area ${alarm || tamper ? 'alarm' : armed ? 'armed' : memory ? 'memory' : 'ready'}" data-device-id="${esc(device.id)}"><span class="mdi-mask" style="${mdiStyle(alarm || tamper ? 'mdi:shield-alert' : armed ? 'mdi:shield-lock' : memory ? 'mdi:history' : 'mdi:shield-check', 'shield-home')}"></span><div><small>AREA</small><strong>${esc(device.name)}</strong><b>${esc(state)}</b></div><div class="security-actions">${actions}</div></article>`
   }).join('')
+  const zoneIcon = (device) => {
+    const active = device.state === 'ACTIVE'
+    if (device.sensor_type === 'door') return active ? 'mdi:door-open' : 'mdi:door-closed'
+    if (device.sensor_type === 'window') return active ? 'mdi:window-open-variant' : 'mdi:window-closed-variant'
+    if (device.sensor_type === 'shutter') return active ? 'mdi:window-shutter-open' : 'mdi:window-shutter'
+    if (device.sensor_type === 'motion_outdoor') return active ? 'mdi:cctv' : 'mdi:cctv-off'
+    if (device.sensor_type === 'motion_indoor') return active ? 'mdi:motion-sensor' : 'mdi:motion-sensor-off'
+    return device.icon || 'mdi:access-point'
+  }
   const zoneCards = zones.map((device) => {
     const bad = device.state === 'TAMPER'
-    const label = device.state === 'TAMPER' ? 'SABOTAGGIO ATTIVO' : device.state === 'ACTIVE' ? 'APERTA / ATTIVA' : device.state === 'MASKED' ? 'MASCHERATA' : device.bypassed ? 'ESCLUSA' : device.memory ? 'MEMORIA' : 'OK'
-    return `<article class="security-zone ${bad ? 'warning' : ''} ${device.bypassed ? 'bypassed' : ''}" data-device-id="${esc(device.id)}"><span class="mdi-mask" style="${mdiStyle(bad ? 'mdi:alert-circle-outline' : 'mdi:checkbox-marked-circle-outline', 'shield-outline')}"></span><div><strong>${esc(device.name)}</strong><small>${esc(device.room)}</small></div><b>${label}</b><button data-action="${device.bypassed ? 'bypass_off' : 'bypass_on'}">${device.bypassed ? 'INCLUDI' : 'ESCLUDI'}</button></article>`
+    const visualState = bad ? 'tamper' : device.bypassed ? 'bypassed' : device.state === 'MASKED' ? 'masked' : device.memory ? 'memory' : device.state === 'ACTIVE' ? 'active' : 'ready'
+    const stateTitle = bad ? 'Sabotaggio' : device.bypassed ? 'Zona esclusa' : device.state === 'MASKED' ? 'Zona mascherata' : device.memory ? 'Memoria presente' : device.state === 'ACTIVE' ? 'Sensore attivo' : 'Zona a riposo'
+    const actionTitle = device.bypassed ? 'Includi zona' : 'Escludi zona'
+    return `<article class="security-zone zone-${visualState}" data-device-id="${esc(device.id)}"><span class="security-zone-sensor mdi-mask" style="${mdiStyle(zoneIcon(device), 'access-point')}" role="img" aria-label="${stateTitle}" title="${stateTitle}"></span><strong>${esc(device.name)}</strong><i class="security-zone-state" aria-hidden="true">${device.bypassed ? '!' : ''}</i><button data-action="${device.bypassed ? 'bypass_off' : 'bypass_on'}" aria-label="${actionTitle}" title="${actionTitle}"><span class="mdi-mask" style="${mdiStyle(device.bypassed ? 'mdi:eye-outline' : 'mdi:eye-off-outline', 'eye-off-outline')}"></span></button></article>`
   }).join('')
   const lockCards = locks.map((device) => `<article class="security-zone" data-device-id="${esc(device.id)}">${deviceGlyph(device)}<div><strong>${esc(device.name)}</strong><small>${esc(device.room)}</small></div><b>${esc(stateLabel(device))}</b>${deviceActions(device)}</article>`).join('')
   const scenarioCards = scenarios.map((device) => { const disarm = device.category === 'DISARM'; const partial = device.category === 'PARTIAL'; return `<button class="security-scenario ${disarm ? 'disarm' : partial ? 'partial' : 'arm'}" data-security-scenario data-device-id="${esc(device.id)}" data-action="execute"><span class="mdi-mask" style="${mdiStyle(disarm ? 'mdi:shield-off-outline' : partial ? 'mdi:shield-half-full' : 'mdi:shield-lock-outline', 'shield-key-outline')}"></span><span><strong>${esc(device.name)}</strong><small>${disarm ? 'DISINSERIMENTO' : partial ? 'INSERIMENTO PARZIALE' : 'INSERIMENTO TOTALE'}</small></span></button>` }).join('')

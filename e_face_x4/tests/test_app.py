@@ -31,6 +31,8 @@ def test_ksenia_normalizes_partitions_and_zones() -> None:
     assert items[0]["state"] == "ARMED"
     assert items[1]["id"] == "ksenia-zone:7"
     assert items[1]["state"] == "ACTIVE"
+    assert items[1]["sensor_type"] == "door"
+    assert items[1]["room"] == ""
     assert items[2]["id"] == "ksenia-scenario:2"
     assert items[2]["category"] == "ARM"
 
@@ -106,7 +108,7 @@ def test_x4_shell_and_brand_assets_are_served() -> None:
     assert '<iframe' not in page.text
     for label in ("Guarda", "Ascolta", "Luci", "Extra", "Scenari", "Oscuranti", "Comfort", "Sicurezza"):
         assert f'title="{label}"' in page.text
-    assert 'src="assets/brand-horizontal.png?v=2.10.1"' in page.text
+    assert 'src="assets/brand-horizontal.png?v=2.11.0"' in page.text
     assert 'alt="e-Face X4"' in page.text
     assert 'class="header-wordmark"' not in page.text
     assert client.get("/assets/brand-horizontal.png").status_code == 200

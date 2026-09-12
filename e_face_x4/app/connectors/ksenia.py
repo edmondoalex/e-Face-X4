@@ -15,6 +15,27 @@ def _on(value: Any) -> bool:
     return str(value or "").strip().upper() in {"1", "ON", "YES", "TRUE", "AL", "ALARM", "AUTO"}
 
 
+def _zone_sensor(name: str, category: str) -> tuple[str, str]:
+    label = name.upper()
+    if any(word in label for word in ("FUMO", "SMOKE")):
+        return "smoke", "mdi:smoke-detector-variant"
+    if any(word in label for word in ("ACQUA", "ALLAG", "WATER")):
+        return "water", "mdi:water-alert-outline"
+    if "TAPPARELLA" in label:
+        return "shutter", "mdi:window-shutter"
+    if any(word in label for word in ("PORTA", "PORTONE", "CANCELLO", "PORTONCINO")):
+        return "door", "mdi:door-closed"
+    if any(word in label for word in ("FIN", "FINESTRA")):
+        return "window", "mdi:window-closed-variant"
+    if category == "CMD" or any(word in label for word in ("SOCCORSO", "PANICO", "CMD")):
+        return "button", "mdi:gesture-tap-button"
+    if category == "EMOV" or any(word in label for word in ("SPY OUT", "WATCH OUT", "IPC ", "EXT ")):
+        return "motion_outdoor", "mdi:cctv"
+    if category == "IMOV" or any(word in label for word in ("IR ", "SPIDER", "BX80")):
+        return "motion_indoor", "mdi:motion-sensor"
+    return "contact", "mdi:access-point"
+
+
 def normalize_ksenia(payload: dict[str, Any]) -> list[dict[str, Any]]:
     items: list[dict[str, Any]] = []
     for entity in payload.get("entities", []) if isinstance(payload, dict) else []:
@@ -40,6 +61,8 @@ def normalize_ksenia(payload: dict[str, Any]) -> list[dict[str, Any]]:
             mode = "instant" if arm in {"IA", "I"} or arm.startswith("IA") else "delayed" if armed else "off"
             items.append({"id": f"ksenia-partition:{source_id}", "source_id": source_id, "provider": "ksenia", "kind": "alarm_partition", "name": name, "room": name, "state": state, "arm_state": arm, "arm_mode": mode, "alarm": alarm, "alarm_memory": alarm_memory, "tamper": tamper, "tamper_memory": tamper_memory, "countdown": realtime.get("T") or realtime.get("TIME"), "entry_delay": realtime.get("ENTRY_DELAY") or 0, "exit_delay": realtime.get("EXIT_DELAY") or 0, "test_state": tst, "icon": "mdi:shield-home-outline"})
         elif entity_type == "zones":
+            category = str(static.get("CAT") or "").strip().upper()
+            sensor_type, sensor_icon = _zone_sensor(name, category)
             zone_status = str(realtime.get("STA") or "").strip().upper()
             active = zone_status == "A"
             memory_raw = str(realtime.get("T") or "").strip().upper()
@@ -50,7 +73,7 @@ def normalize_ksenia(payload: dict[str, Any]) -> list[dict[str, Any]]:
             mask_raw = str(realtime.get("VAS") or "").strip().upper()
             masked = zone_status == "FM" or bool(mask_raw and mask_raw not in {"0", "F", "N", "NO", "OK"})
             state = "TAMPER" if tamper else "ACTIVE" if active else "MASKED" if masked else "BYPASSED" if bypassed else "CLOSED"
-            items.append({"id": f"ksenia-zone:{source_id}", "source_id": source_id, "provider": "ksenia", "kind": "alarm_zone", "name": name, "room": str(static.get("LOC") or "Sicurezza"), "state": state, "active": active, "alarm": False, "tamper": tamper, "memory": zone_memory, "masked": masked, "bypassed": bypassed, "partitions": static.get("PRT"), "icon": "mdi:shield-outline"})
+            items.append({"id": f"ksenia-zone:{source_id}", "source_id": source_id, "provider": "ksenia", "kind": "alarm_zone", "name": name, "room": str(static.get("LOC") or ""), "state": state, "active": active, "alarm": False, "tamper": tamper, "memory": zone_memory, "masked": masked, "bypassed": bypassed, "partitions": static.get("PRT"), "sensor_type": sensor_type, "icon": sensor_icon})
         else:
             category = str(static.get("CAT") or "").strip().upper()
             if category not in {"ARM", "DISARM", "PARTIAL"}:
