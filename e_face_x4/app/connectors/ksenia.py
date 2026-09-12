@@ -8,6 +8,9 @@ from ..config import ProviderConfig
 from .base import Connector
 
 
+_snapshot_cache: dict[str, list[dict[str, Any]]] = {}
+
+
 def _on(value: Any) -> bool:
     return str(value or "").strip().upper() in {"1", "ON", "YES", "TRUE", "AL", "ALARM", "AUTO"}
 
@@ -56,12 +59,18 @@ class KseniaConnector(Connector):
         if not self.config.enabled:
             return {"id": self.id, "label": self.label, "status": "disabled", "items": []}
         try:
-            async with httpx.AsyncClient(timeout=self.timeout_s, follow_redirects=False) as client:
+            async with httpx.AsyncClient(timeout=max(12.0, self.timeout_s), follow_redirects=False) as client:
                 response = await client.get(f"{self.config.base_url}/api/entities")
                 response.raise_for_status()
                 items = normalize_ksenia(response.json())
+            if not items:
+                raise ValueError("nessuna area o zona ricevuta")
+            _snapshot_cache[self.config.base_url] = items
             return {"id": self.id, "label": self.label, "status": "online", "items": items}
         except (httpx.HTTPError, ValueError, TypeError) as exc:
+            cached = _snapshot_cache.get(self.config.base_url)
+            if cached:
+                return {"id": self.id, "label": self.label, "status": "stale", "reason": "ultimo stato Ksenia disponibile", "items": cached}
             return {"id": self.id, "label": self.label, "status": "offline", "reason": f"Ksenia non raggiungibile ({type(exc).__name__})", "items": []}
 
     async def command(self, kind: str, source_id: str, action: str) -> dict[str, Any]:
@@ -69,7 +78,7 @@ class KseniaConnector(Connector):
         if action not in allowed.get(kind, set()):
             raise ValueError("comando Ksenia non valido")
         body = {"type": "partitions" if kind == "partition" else "zones", "id": int(source_id), "action": action}
-        async with httpx.AsyncClient(timeout=self.timeout_s, follow_redirects=False) as client:
+        async with httpx.AsyncClient(timeout=max(12.0, self.timeout_s), follow_redirects=False) as client:
             response = await client.post(f"{self.config.base_url}/api/cmd", json=body)
             response.raise_for_status()
             result = response.json()

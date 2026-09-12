@@ -530,3 +530,7 @@
 # 2.8.2
 
 - Il comando `+` delle sessioni video apre nuovamente Gestione stanze per aggiungere o rimuovere ambienti, senza aprire il telecomando.
+# 2.8.3
+
+- Connettore Ksenia più resiliente: timeout dedicato e conservazione dell'ultimo stato valido durante rallentamenti temporanei.
+- Le 21 aree e 102 zone non scompaiono più per un singolo timeout dell'API Ksenia.

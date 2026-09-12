@@ -27,7 +27,7 @@ from .connectors.control4_media import cached_control4_icon, cached_control4_ico
 from .connectors.supervisor import discover_addon_url
 from .demo import dashboard as demo_dashboard
 
-VERSION = "2.8.2"
+VERSION = "2.8.3"
 STATIC = Path(__file__).parent / "static"
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s [e-face-x4] %(message)s")
 
@@ -84,7 +84,7 @@ def create_app() -> FastAPI:
             etherm = next((item for item in providers if item.get("id") == "etherm" and item.get("status") == "online"), None)
             if isinstance(etherm, dict):
                 dashboard["devices"].extend(etherm.get("items", []))
-            ksenia = next((item for item in providers if item.get("id") == "ksenia" and item.get("status") == "online"), None)
+            ksenia = next((item for item in providers if item.get("id") == "ksenia" and item.get("status") in {"online", "stale"}), None)
             if isinstance(ksenia, dict):
                 dashboard["devices"].extend(ksenia.get("items", []))
             media = next((item for item in providers if item.get("id") in {"control4", "evoice"} and item.get("status") == "online"), None)
