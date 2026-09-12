@@ -19,6 +19,7 @@ let currentMediaExperience = ''
 let activeMediaPlayer = null
 let activeVideoRemote = null
 let selectedMediaId = ''
+let currentBackgrounds = {global:{mode:'preset',preset:'teal'},rooms:{}}
 const mediaTransportOverrides = new Map()
 
 function setMediaOverride(deviceId, values) {
@@ -66,6 +67,8 @@ function tick() {
 
 function render(data) {
   appVersion = data.version || appVersion
+  currentBackgrounds = data.backgrounds || currentBackgrounds
+  applyBackground()
   const dashboard = data.dashboard || {}
   const home = dashboard.home || {}
   const widgets = dashboard.widgets || []
@@ -578,6 +581,8 @@ async function sendRgbCommand(group, action, value, control) {
 
 function openDevices(title, devices, options = {}) {
   currentMediaExperience = options.experience || ''
+  const backgroundRooms = [...new Set(devices.map((device)=>device.room).filter(Boolean))]
+  applyBackground(options.room || (backgroundRooms.length === 1 ? backgroundRooms[0] : ''))
   activeDetailIds = new Set(devices.map((device) => String(device.id)))
   $('#detail-title').textContent = title
   $('#light-filters').hidden = !options.lights
@@ -636,6 +641,7 @@ async function sendScenarioCommand(id, action, button) {
 }
 
 function showHome() {
+  applyBackground()
   activeDetailIds = null
   $('#detail-view').hidden = true
   $('#detail-view').classList.remove('av-view')
@@ -645,6 +651,14 @@ function showHome() {
   $('#light-filters').hidden = true
   $('#av-filters').hidden = true
   document.querySelectorAll('.rail button').forEach((item) => item.classList.remove('active'))
+}
+
+function applyBackground(room = '') {
+  let selected=room?currentBackgrounds.rooms?.[room]:currentBackgrounds.global
+  if(!selected||selected.mode==='inherit'){selected=currentBackgrounds.global||{mode:'preset',preset:'teal'};room=''}
+  document.body.dataset.background=selected.mode==='custom'?'custom':selected.preset||'teal'
+  const query=room?`?room=${encodeURIComponent(room)}`:''
+  document.body.style.setProperty('--custom-background',selected.mode==='custom'?`url("${apiUrl(`api/user/background/image${query}`)}")`:'none')
 }
 
 function fail(error) {
@@ -765,7 +779,7 @@ $('#widgets').addEventListener('click', (event) => {
 $('#rooms').addEventListener('click', (event) => {
   const button = event.target.closest('[data-room]')
   if (!button) return
-  openDevices(button.dataset.room, currentDevices.filter((device) => device.room.toLocaleLowerCase('it') === button.dataset.room.toLocaleLowerCase('it')))
+  openDevices(button.dataset.room, currentDevices.filter((device) => device.room.toLocaleLowerCase('it') === button.dataset.room.toLocaleLowerCase('it')), {room:button.dataset.room})
 })
 $('#detail-back').addEventListener('click', showHome)
 $('#light-room-toggle').addEventListener('click', (event) => {

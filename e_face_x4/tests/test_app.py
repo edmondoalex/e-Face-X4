@@ -11,6 +11,7 @@ from app.connectors.supervisor import find_addon_url
 from app.media_preferences import apply_preferences, load_preferences, save_preferences
 from app.control4 import load_control4_config, public_control4_config, save_control4_config, summarize_ui_configuration
 from app.source_icons import delete_source_icon, load_source_icon, save_source_icon
+from app.backgrounds import load_background, load_background_image, load_backgrounds, save_background_image, save_inherit, save_preset
 
 
 def test_health() -> None:
@@ -69,7 +70,7 @@ def test_x4_shell_and_brand_assets_are_served() -> None:
     assert '<iframe' not in page.text
     for label in ("Guarda", "Ascolta", "Luci", "Extra", "Scenari", "Oscuranti", "Comfort", "Sicurezza"):
         assert f'title="{label}"' in page.text
-    assert 'src="assets/brand-horizontal.png?v=2.6.0"' in page.text
+    assert 'src="assets/brand-horizontal.png?v=2.7.0"' in page.text
     assert 'alt="e-Face X4"' in page.text
     assert 'class="header-wordmark"' not in page.text
     assert client.get("/assets/brand-horizontal.png").status_code == 200
@@ -124,6 +125,21 @@ def test_custom_source_icon_is_persisted_and_removed(monkeypatch, tmp_path) -> N
     assert (tmp_path / "source-icons" / "244.png").is_file()
     assert delete_source_icon(244) is True
     assert load_source_icon(244) is None
+
+
+def test_backgrounds_are_persistent_globally_and_per_room(monkeypatch, tmp_path) -> None:
+    monkeypatch.setenv("EFACE_BACKGROUNDS", str(tmp_path / "backgrounds"))
+    save_preset("midnight")
+    save_preset("warm", "Sala")
+    assert load_background() == {"mode": "preset", "preset": "midnight"}
+    assert load_background("Sala") == {"mode": "preset", "preset": "warm"}
+    content = b"\x89PNG\r\n\x1a\n" + b"room-background"
+    import base64
+    save_background_image("image/png", base64.b64encode(content).decode(), "Ufficio Alex")
+    assert load_background_image("Ufficio Alex") == ("image/png", content)
+    assert load_backgrounds()["rooms"]["Ufficio Alex"]["mode"] == "custom"
+    save_inherit("Sala")
+    assert load_background("Sala")["mode"] == "inherit"
 
 
 def test_control4_credentials_are_local_and_never_returned(monkeypatch, tmp_path) -> None:

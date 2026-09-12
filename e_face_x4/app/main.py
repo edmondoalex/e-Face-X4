@@ -21,12 +21,13 @@ from .control4 import load_control4_config, public_control4_config, save_control
 from .installer_auth import COOKIE, create_session, valid_session
 from .media_preferences import apply_preferences, load_preferences, save_preferences
 from .source_icons import delete_source_icon, load_source_icon, save_source_icon
+from .backgrounds import PRESETS, load_background, load_background_image, load_backgrounds, save_background_image, save_inherit, save_preset
 from .connectors import BusproConnector, Control4MediaConnector, EThermConnector, EkonexMediaConnector, LocalMediaConnector
 from .connectors.control4_media import cached_control4_icon, cached_control4_icon_path, control4_icon_path
 from .connectors.supervisor import discover_addon_url
 from .demo import dashboard as demo_dashboard
 
-VERSION = "2.6.0"
+VERSION = "2.7.0"
 STATIC = Path(__file__).parent / "static"
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s [e-face-x4] %(message)s")
 
@@ -116,6 +117,7 @@ def create_app() -> FastAPI:
             ]
         return {
             "version": VERSION,
+            "backgrounds": load_backgrounds(),
             "nav_icons": settings.nav_icons,
             "mode": "demo" if settings.demo_mode else "live",
             "dashboard": dashboard,
@@ -147,6 +149,31 @@ def create_app() -> FastAPI:
         response = JSONResponse({"ok": True})
         response.delete_cookie(COOKIE, path="/")
         return response
+
+    @app.get("/api/user/background")
+    async def user_background() -> dict:
+        return {**load_backgrounds(), "presets": sorted(PRESETS)}
+
+    @app.put("/api/user/background")
+    async def user_save_background(payload: dict) -> dict:
+        room = str(payload.get("room") or "").strip() or None
+        try:
+            if payload.get("mode") == "custom":
+                save_background_image(str(payload.get("mime") or ""), str(payload.get("data") or ""), room)
+            elif payload.get("mode") == "inherit" and room:
+                save_inherit(room)
+            else:
+                save_preset(str(payload.get("preset") or ""), room)
+        except (OSError, ValueError) as exc:
+            raise HTTPException(status_code=400, detail=str(exc))
+        return {"ok": True, **load_background(room)}
+
+    @app.get("/api/user/background/image")
+    async def user_background_image(room: str | None = None) -> Response:
+        image = load_background_image(room)
+        if not image:
+            raise HTTPException(status_code=404, detail="Sfondo personalizzato non disponibile")
+        return Response(image[1], media_type=image[0], headers={"Cache-Control": "no-cache", "X-Content-Type-Options": "nosniff"})
 
     @app.get("/api/installer/media-players")
     async def installer_media_players(request: Request) -> dict:

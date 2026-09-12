@@ -1,8 +1,28 @@
 const $ = (selector) => document.querySelector(selector)
 const esc = (value) => { const node = document.createElement('span'); node.textContent = String(value ?? ''); return node.innerHTML }
 const apiUrl = (path) => new URL(path, location.href.endsWith('/') ? location.href : `${location.href}/`).toString()
+let backgroundData = null
 
 function notice(message) { $('#tools-notice').textContent = message; $('#tools-notice').hidden = false; setTimeout(() => { $('#tools-notice').hidden = true }, 3500) }
+
+async function loadBackgrounds() {
+  const activeRoom=$('#background-room')?.value||''
+  const [settingsResponse, bootstrapResponse] = await Promise.all([fetch(apiUrl('../api/user/background'), {cache:'no-store'}), fetch(apiUrl('../api/bootstrap'), {cache:'no-store'})])
+  if (!settingsResponse.ok || !bootstrapResponse.ok) throw new Error('Sfondi non disponibili')
+  backgroundData = await settingsResponse.json(); const bootstrap = await bootstrapResponse.json()
+  const rooms = (bootstrap.dashboard?.rooms || []).map((room) => room.name).filter(Boolean).sort((a,b)=>a.localeCompare(b,'it'))
+  $('#background-room').innerHTML = '<option value="">Globale</option>' + rooms.map((room)=>`<option value="${esc(room)}">${esc(room)}</option>`).join('')
+  if(rooms.includes(activeRoom))$('#background-room').value=activeRoom
+  renderBackgrounds()
+}
+function renderBackgrounds() {
+  const room=$('#background-room').value;const selected=room?(backgroundData.rooms?.[room]||{mode:'inherit'}):backgroundData.global;const names={teal:'E‑Face',midnight:'Notte',graphite:'Grafite',ocean:'Oceano',warm:'Caldo'}
+  $('#background-presets').innerHTML=backgroundData.presets.map((preset)=>`<button data-background-preset="${preset}" class="background-preview background-${preset} ${selected.mode==='preset'&&selected.preset===preset?'active':''}"><b>${names[preset]||preset}</b></button>`).join('')+`<button class="background-preview background-custom ${selected.mode==='custom'?'active':''}" data-background-photo><b>Foto personale</b></button>`
+  $('#background-inherit').hidden=!room
+}
+async function saveBackground(payload) {
+  const response=await fetch(apiUrl('../api/user/background'),{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({...payload,room:$('#background-room').value})});if(!response.ok)throw new Error((await response.json()).detail);await loadBackgrounds();notice('Sfondo salvato')
+}
 
 async function loadPlayers() {
   const response = await fetch(apiUrl('../api/installer/media-players'), { cache: 'no-store' })
@@ -59,6 +79,12 @@ $('#save-players').addEventListener('click', async (event) => { event.currentTar
 $('#player-list').addEventListener('change',(event)=>{const row=event.target.closest('.player-row');if(!row)return;const visible=row.querySelector('[data-field=visible]');const audio=row.querySelector('[data-field=audio]');const video=row.querySelector('[data-field=video]');if(event.target===visible&&!visible.checked){audio.checked=false;video.checked=false}if((event.target===audio||event.target===video)&&event.target.checked)visible.checked=true})
 $('#source-icon-list').addEventListener('change', async (event) => { const input=event.target.closest('input[type=file]');if(!input?.files[0])return;const file=input.files[0];if(file.size>500000)return notice('Icona superiore a 500 KB');const row=input.closest('[data-source-id]');const data=await new Promise((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve(String(reader.result).split(',',2)[1]);reader.onerror=reject;reader.readAsDataURL(file)});try{const response=await fetch(apiUrl(`../api/installer/media-source-icons/${row.dataset.sourceId}`),{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({mime:file.type,data})});if(!response.ok)throw new Error((await response.json()).detail);notice('Icona sostituita');await loadSourceIcons()}catch(error){notice(error.message)} })
 $('#source-icon-list').addEventListener('click', async (event) => { const button=event.target.closest('[data-source-reset]');if(!button)return;const row=button.closest('[data-source-id]');try{const response=await fetch(apiUrl(`../api/installer/media-source-icons/${row.dataset.sourceId}`),{method:'DELETE'});if(!response.ok)throw new Error((await response.json()).detail);notice('Icona ripristinata');await loadSourceIcons()}catch(error){notice(error.message)} })
+$('#background-tool').addEventListener('click',async()=>{try{await loadBackgrounds();$('#background-config').hidden=false}catch(error){notice(error.message)}})
+$('#background-back').addEventListener('click',()=>{$('#background-config').hidden=true})
+$('#background-room').addEventListener('change',renderBackgrounds)
+$('#background-presets').addEventListener('click',async(event)=>{const preset=event.target.closest('[data-background-preset]')?.dataset.backgroundPreset;if(preset)try{await saveBackground({mode:'preset',preset})}catch(error){notice(error.message)};if(event.target.closest('[data-background-photo]'))$('#background-file').click()})
+$('#background-inherit').addEventListener('click',async()=>{try{await saveBackground({mode:'inherit'})}catch(error){notice(error.message)}})
+$('#background-file').addEventListener('change',async(event)=>{const file=event.target.files[0];if(!file)return;if(file.size>4000000)return notice('Foto superiore a 4 MB');const data=await new Promise((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve(String(reader.result).split(',',2)[1]);reader.onerror=reject;reader.readAsDataURL(file)});try{await saveBackground({mode:'custom',mime:file.type,data})}catch(error){notice(error.message)}finally{event.target.value=''}})
 let draggedRow = null
 $('#player-list').addEventListener('pointerdown', (event) => { const handle=event.target.closest('.drag-handle'); if(!handle)return; draggedRow=handle.closest('.player-row'); draggedRow.classList.add('dragging'); handle.setPointerCapture(event.pointerId); event.preventDefault() })
 $('#player-list').addEventListener('pointermove', (event) => { if(!draggedRow)return; const target=document.elementFromPoint(event.clientX,event.clientY)?.closest('.player-row'); if(!target||target===draggedRow)return; const rect=target.getBoundingClientRect(); $('#player-list').insertBefore(draggedRow,event.clientY<rect.top+rect.height/2?target:target.nextSibling) })

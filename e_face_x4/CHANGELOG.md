@@ -1,5 +1,12 @@
 # Changelog
 
+## 2.7.0 — 2026-09-12
+
+- Aggiunta in `Strumenti → Utente` la scelta dello sfondo senza accesso Admin.
+- Disponibili cinque temi integrati oppure una foto personale fino a 4 MB.
+- Lo sfondo può essere globale o specifico per ciascuna stanza, con possibilità di ereditare nuovamente quello globale.
+- Configurazione e immagini sono salvate in modo atomico e persistente in `/data/backgrounds`.
+
 ## 2.6.0 — 2026-09-12
 
 - Aggiunta in `Strumenti → Admin → Multimediale` la gestione delle icone delle sorgenti.
