@@ -126,7 +126,7 @@ def test_x4_shell_and_brand_assets_are_served() -> None:
     assert 'evoice.css' in page.text
     for label in ("Guarda", "Ascolta", "Luci", "Extra", "Scenari", "Oscuranti", "Comfort", "Sicurezza"):
         assert f'title="{label}"' in page.text
-    assert 'src="assets/brand-horizontal.png?v=2.20.11"' in page.text
+    assert 'src="assets/brand-horizontal.png?v=2.20.12"' in page.text
     assert 'alt="e-Face X4"' in page.text
     assert 'class="header-wordmark"' not in page.text
     assert client.get("/assets/brand-horizontal.png").status_code == 200
@@ -411,7 +411,7 @@ def test_control4_rejects_evoice_only_commands(monkeypatch, tmp_path) -> None:
     import app.main as main_module
 
     options = tmp_path / "options.json"
-    options.write_text('{"evoice":{"enabled":true}}', encoding="utf-8")
+    options.write_text('{"demo_mode":false,"evoice":{"enabled":true}}', encoding="utf-8")
     monkeypatch.setenv("EFACE_OPTIONS", str(options))
     monkeypatch.setattr(main_module, "load_control4_config", lambda: {"username": "configured", "password": "configured"})
 
@@ -467,6 +467,67 @@ def test_evoice_local_api_uses_supervisor_proxy(monkeypatch) -> None:
     connector = EvoiceLocalMediaConnector(4)
     assert connector._url("/snapshot") == "http://supervisor/core/api/evoice/media/snapshot"
     assert connector.headers() == {"Authorization": "Bearer supervisor-secret"}
+
+
+def test_evoice_local_snapshot_uses_recent_cache_after_transient_timeout(monkeypatch) -> None:
+    import asyncio
+    import httpx
+    from app.connectors import media as media_module
+
+    class Response:
+        def raise_for_status(self):
+            return None
+
+        def json(self):
+            return {"players": [{"registry_id": "echo-1", "name": "Echo", "is_echo": True}]}
+
+    class Client:
+        calls = 0
+
+        def __init__(self, **kwargs):
+            pass
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *args):
+            return None
+
+        async def get(self, *args, **kwargs):
+            Client.calls += 1
+            if Client.calls > 1:
+                raise httpx.ReadTimeout("temporaneo")
+            return Response()
+
+    monkeypatch.setenv("SUPERVISOR_TOKEN", "supervisor-secret")
+    monkeypatch.setattr(media_module.httpx, "AsyncClient", Client)
+    media_module._LOCAL_SNAPSHOT_CACHE = None
+    media_module._LOCAL_SNAPSHOT_CACHED_AT = 0.0
+    connector = EvoiceLocalMediaConnector(4)
+    assert asyncio.run(connector.snapshot())["status"] == "online"
+    cached = asyncio.run(connector.snapshot())
+    assert cached["status"] == "stale"
+    assert cached["reason"] == "ReadTimeout"
+    assert cached["items"][0]["registry_id"] == "echo-1"
+
+
+def test_bootstrap_keeps_stale_evoice_players(monkeypatch, tmp_path) -> None:
+    import app.main as main_module
+
+    options = tmp_path / "options.json"
+    options.write_text('{"demo_mode":false,"evoice":{"enabled":true}}', encoding="utf-8")
+    monkeypatch.setenv("EFACE_OPTIONS", str(options))
+    monkeypatch.setattr(main_module, "load_control4_config", lambda: {})
+
+    async def stale_snapshot(self):
+        return {"id": "evoice", "label": "Ekonex Voice locale", "status": "stale", "items": [{
+            "id": "media:echo-1", "registry_id": "echo-1", "provider": "evoice",
+            "kind": "media_player", "name": "Echo", "room": "Studio",
+        }]}
+
+    monkeypatch.setattr(main_module.EvoiceLocalMediaConnector, "snapshot", stale_snapshot)
+    payload = TestClient(main_module.create_app()).get("/api/bootstrap").json()
+    assert any(item["id"] == "media:echo-1" for item in payload["dashboard"]["devices"])
 
 
 def test_ksenia_security_command_requires_central_pin(monkeypatch, tmp_path) -> None:

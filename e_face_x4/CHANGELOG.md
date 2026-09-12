@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.20.12 — 2026-09-12
+
+- Mantenuto l'ultimo snapshot e-Voice valido durante i timeout transitori del proxy Supervisor.
+- Evitato il falso avviso di indirizzo o autenticazione quando la richiesta successiva torna regolarmente online.
+
 ## 2.20.11 — 2026-09-12
 
 - Mostrato il tasto Spegni sugli Echo che supportano STOP anche quando Alexa non dichiara TURN_OFF.

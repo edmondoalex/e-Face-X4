@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import time
 from typing import Any, AsyncIterator
 from urllib.parse import quote
 
@@ -10,6 +11,11 @@ import httpx
 
 from ..config import ProviderConfig
 from .base import Connector
+
+
+_LOCAL_SNAPSHOT_CACHE: dict[str, Any] | None = None
+_LOCAL_SNAPSHOT_CACHED_AT = 0.0
+_LOCAL_SNAPSHOT_GRACE_SECONDS = 60.0
 
 
 class EkonexMediaConnector(Connector):
@@ -116,6 +122,7 @@ class EvoiceLocalMediaConnector(EkonexMediaConnector):
         return f"{self.base_url}{suffix}"
 
     async def snapshot(self) -> dict[str, Any]:
+        global _LOCAL_SNAPSHOT_CACHE, _LOCAL_SNAPSHOT_CACHED_AT
         if not self.token:
             return {"id": self.id, "label": self.label, "status": "misconfigured", "reason": "SUPERVISOR_TOKEN non disponibile", "items": []}
         try:
@@ -124,12 +131,17 @@ class EvoiceLocalMediaConnector(EkonexMediaConnector):
                 response.raise_for_status()
             payload = response.json()
             players = payload.get("players", []) if isinstance(payload, dict) else []
-            return {
+            result = {
                 "id": self.id, "label": self.label, "status": "online",
                 "connection_status": "online", "items": [normalize_local_player(item) for item in players if isinstance(item, dict)],
                 "groups": payload.get("groups", []) if isinstance(payload.get("groups"), list) else [],
             }
+            _LOCAL_SNAPSHOT_CACHE = result
+            _LOCAL_SNAPSHOT_CACHED_AT = time.monotonic()
+            return result
         except (httpx.HTTPError, ValueError, TypeError, AttributeError) as exc:
+            if _LOCAL_SNAPSHOT_CACHE is not None and time.monotonic() - _LOCAL_SNAPSHOT_CACHED_AT <= _LOCAL_SNAPSHOT_GRACE_SECONDS:
+                return {**_LOCAL_SNAPSHOT_CACHE, "status": "stale", "reason": _reason(exc)}
             return {"id": self.id, "label": self.label, "status": "offline", "reason": _reason(exc), "items": []}
 
     async def command(self, registry_id: str, payload: dict[str, Any]) -> dict[str, Any]:
