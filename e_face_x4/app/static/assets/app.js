@@ -337,7 +337,10 @@ function renderSecurityDevices(devices) {
   const issueCount = [...partitions, ...zones].filter((item) => ['ALARM','TAMPER'].includes(String(item.state).toUpperCase())).length
   const memoryCount = partitions.filter((area) => area.alarm_memory || area.tamper_memory).length
   const armedCount = partitions.filter((area) => area.state === 'ARMED').length
-  const summary = `<section class="security-summary"><span class="mdi-mask" style="${mdiStyle(issueCount ? 'mdi:shield-alert-outline' : armedCount ? 'mdi:shield-lock-outline' : 'mdi:shield-check-outline', 'shield-home')}"></span><div><small>SISTEMA KSENIA LARES</small><strong>${issueCount ? `${issueCount} ${issueCount === 1 ? 'allarme attivo' : 'allarmi attivi'}` : armedCount ? `${armedCount} ${armedCount === 1 ? 'area inserita' : 'aree inserite'}` : 'Tutto sotto controllo'}</strong>${memoryCount && !issueCount ? `<span class="security-memory">${memoryCount} ${memoryCount === 1 ? 'memoria presente' : 'memorie presenti'}</span>` : ''}</div></section>`
+  let savedMode = ''
+  try { savedMode = localStorage.getItem('eface.ksenia.mode') || '' } catch (_) {}
+  const modeName = armedCount ? savedMode || 'Personalizzata' : 'Disinserito'
+  const summary = `<section class="security-summary"><span class="mdi-mask" style="${mdiStyle(issueCount ? 'mdi:shield-alert-outline' : armedCount ? 'mdi:shield-lock-outline' : 'mdi:shield-check-outline', 'shield-home')}"></span><div class="security-summary-state"><small>SISTEMA KSENIA LARES</small><strong>${issueCount ? `${issueCount} ${issueCount === 1 ? 'allarme attivo' : 'allarmi attivi'}` : armedCount ? `${armedCount} ${armedCount === 1 ? 'area inserita' : 'aree inserite'}` : 'Tutto sotto controllo'}</strong>${memoryCount && !issueCount ? `<span class="security-memory">${memoryCount} ${memoryCount === 1 ? 'memoria presente' : 'memorie presenti'}</span>` : ''}</div><div class="security-summary-mode"><small>MODALITÀ</small><strong>${esc(modeName)}</strong></div></section>`
   const areaCards = partitions.map((device) => {
     const alarm = device.state === 'ALARM'; const tamper = device.state === 'TAMPER'; const armed = device.state === 'ARMED'; const memory = device.alarm_memory || device.tamper_memory
     const actions = alarm || armed ? `<button data-action="disarm">DISINSERISCI</button>` : `<button data-action="arm_delay">INSERISCI</button><button data-action="arm_instant">IMMEDIATO</button>`
@@ -649,6 +652,17 @@ function applySecurityCommandState(deviceId, action) {
   renderActiveDeviceList()
 }
 
+function rememberSecurityMode(deviceId, action) {
+  const device = currentDevices.find((item) => String(item.id) === String(deviceId))
+  let mode = ''
+  if (device?.kind === 'alarm_scenario') mode = device.category === 'DISARM' ? '' : device.name
+  else if (device?.kind === 'alarm_partition') mode = action === 'disarm' ? '' : 'Personalizzata'
+  try {
+    if (mode) localStorage.setItem('eface.ksenia.mode', mode)
+    else localStorage.removeItem('eface.ksenia.mode')
+  } catch (_) {}
+}
+
 async function submitSecurityPin(event) {
   event.preventDefault()
   if (!pendingSecurityCommand) return
@@ -662,6 +676,7 @@ async function submitSecurityPin(event) {
   pendingSecurityCommand = null
   try {
     await postDeviceCommand(command.deviceId, command.action, null, null, pin)
+    rememberSecurityMode(command.deviceId, command.action)
     applySecurityCommandState(command.deviceId, command.action)
     await refresh()
     setTimeout(refresh, 700)

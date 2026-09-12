@@ -565,3 +565,8 @@
 
 - Stati Ksenia ricevuti direttamente dallo stream SSE dell'addon, senza attendere il refresh generale.
 - Aggiornamento incrementale e immediato di aree, zone e scenari nella schermata Sicurezza.
+
+# 2.12.0
+
+- Modalità di inserimento mostrata nel riepilogo Sicurezza accanto allo stato delle aree.
+- Nome dell'ultimo scenario Ksenia eseguito, modalità personalizzata per comandi area e stato disinserito senza aree attive.

@@ -43,6 +43,7 @@ def test_alarm_and_room_media_navigation_are_present() -> None:
     assert "ksenia-partition" not in script
     assert "card?.classList.contains('media-player-card')" in script
     assert "event.type === 'ksenia_state'" in script
+    assert "eface.ksenia.mode" in script
 
 
 def test_ksenia_alarm_memory_is_not_an_active_alarm() -> None:
@@ -109,7 +110,7 @@ def test_x4_shell_and_brand_assets_are_served() -> None:
     assert '<iframe' not in page.text
     for label in ("Guarda", "Ascolta", "Luci", "Extra", "Scenari", "Oscuranti", "Comfort", "Sicurezza"):
         assert f'title="{label}"' in page.text
-    assert 'src="assets/brand-horizontal.png?v=2.11.1"' in page.text
+    assert 'src="assets/brand-horizontal.png?v=2.12.0"' in page.text
     assert 'alt="e-Face X4"' in page.text
     assert 'class="header-wordmark"' not in page.text
     assert client.get("/assets/brand-horizontal.png").status_code == 200
