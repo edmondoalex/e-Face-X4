@@ -42,7 +42,7 @@ def normalize_ksenia(payload: dict[str, Any]) -> list[dict[str, Any]]:
         if not isinstance(entity, dict):
             continue
         entity_type = str(entity.get("type") or "").lower()
-        if entity_type not in {"partitions", "zones", "scenarios"}:
+        if entity_type not in {"partitions", "zones", "scenarios", "systems"}:
             continue
         source_id = str(entity.get("id") or "")
         static = entity.get("static") if isinstance(entity.get("static"), dict) else {}
@@ -74,11 +74,16 @@ def normalize_ksenia(payload: dict[str, Any]) -> list[dict[str, Any]]:
             masked = zone_status == "FM" or bool(mask_raw and mask_raw not in {"0", "F", "N", "NO", "OK"})
             state = "TAMPER" if tamper else "ACTIVE" if active else "MASKED" if masked else "BYPASSED" if bypassed else "CLOSED"
             items.append({"id": f"ksenia-zone:{source_id}", "source_id": source_id, "provider": "ksenia", "kind": "alarm_zone", "name": name, "room": str(static.get("LOC") or ""), "state": state, "active": active, "alarm": False, "tamper": tamper, "memory": zone_memory, "masked": masked, "bypassed": bypassed, "partitions": static.get("PRT"), "sensor_type": sensor_type, "icon": sensor_icon})
-        else:
+        elif entity_type == "scenarios":
             category = str(static.get("CAT") or "").strip().upper()
             if category not in {"ARM", "DISARM", "PARTIAL"}:
                 continue
             items.append({"id": f"ksenia-scenario:{source_id}", "source_id": source_id, "provider": "ksenia", "kind": "alarm_scenario", "name": name, "room": "Sicurezza", "state": category, "category": category, "pin_required": str(static.get("PIN") or "").upper() not in {"", "N", "NO"}, "icon": "mdi:shield-key-outline"})
+        else:
+            arm = realtime.get("ARM") if isinstance(realtime.get("ARM"), dict) else static.get("ARM") if isinstance(static.get("ARM"), dict) else {}
+            description = str(arm.get("D") or "").strip()
+            status = str(arm.get("S") or "").strip().upper()
+            items.append({"id": f"ksenia-system:{source_id}", "source_id": source_id, "provider": "ksenia", "kind": "alarm_system", "name": "Sistema Ksenia", "room": "", "state": status, "arm_description": description, "arm_status": status, "icon": "mdi:shield-home-outline"})
     return items
 
 

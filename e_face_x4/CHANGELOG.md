@@ -570,3 +570,8 @@
 
 - Modalità di inserimento mostrata nel riepilogo Sicurezza accanto allo stato delle aree.
 - Nome dell'ultimo scenario Ksenia eseguito, modalità personalizzata per comandi area e stato disinserito senza aree attive.
+
+# 2.12.1
+
+- Modalità di inserimento letta direttamente dal campo reale Ksenia `systems.ARM.D` (per esempio `SOLO ESTERNO`).
+- Rimossa la deduzione locale `Personalizzata`: il riepilogo segue ora la descrizione trasmessa dalla centrale, anche in realtime.

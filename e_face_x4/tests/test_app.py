@@ -26,6 +26,7 @@ def test_ksenia_normalizes_partitions_and_zones() -> None:
         {"type": "partitions", "id": 1, "name": "Casa", "realtime": {"ARM": "IA"}},
         {"type": "zones", "id": 7, "name": "Porta", "static": {"PRT": "1"}, "realtime": {"STA": "A", "BYP": "NO"}},
         {"type": "scenarios", "id": 2, "name": "Away", "static": {"CAT": "ARM", "PIN": "P"}, "realtime": {}},
+        {"type": "systems", "id": 1, "static": {"ARM": {"D": "DISINSERITO", "S": "D"}}, "realtime": {"ARM": {"D": "SOLO ESTERNO", "S": "P"}}},
     ]})
     assert items[0]["id"] == "ksenia-partition:1"
     assert items[0]["state"] == "ARMED"
@@ -35,6 +36,8 @@ def test_ksenia_normalizes_partitions_and_zones() -> None:
     assert items[1]["room"] == ""
     assert items[2]["id"] == "ksenia-scenario:2"
     assert items[2]["category"] == "ARM"
+    assert items[3]["arm_description"] == "SOLO ESTERNO"
+    assert items[3]["arm_status"] == "P"
 
 
 def test_alarm_and_room_media_navigation_are_present() -> None:
@@ -43,7 +46,7 @@ def test_alarm_and_room_media_navigation_are_present() -> None:
     assert "ksenia-partition" not in script
     assert "card?.classList.contains('media-player-card')" in script
     assert "event.type === 'ksenia_state'" in script
-    assert "eface.ksenia.mode" in script
+    assert "system?.arm_description" in script
 
 
 def test_ksenia_alarm_memory_is_not_an_active_alarm() -> None:
@@ -110,7 +113,7 @@ def test_x4_shell_and_brand_assets_are_served() -> None:
     assert '<iframe' not in page.text
     for label in ("Guarda", "Ascolta", "Luci", "Extra", "Scenari", "Oscuranti", "Comfort", "Sicurezza"):
         assert f'title="{label}"' in page.text
-    assert 'src="assets/brand-horizontal.png?v=2.12.0"' in page.text
+    assert 'src="assets/brand-horizontal.png?v=2.12.1"' in page.text
     assert 'alt="e-Face X4"' in page.text
     assert 'class="header-wordmark"' not in page.text
     assert client.get("/assets/brand-horizontal.png").status_code == 200

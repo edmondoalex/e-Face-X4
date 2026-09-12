@@ -311,7 +311,7 @@ function wheelColor(event) {
 }
 
 function renderDeviceList(devices) {
-  if (devices.length && devices.every((device) => ['lock','alarm_partition','alarm_zone','alarm_scenario'].includes(device.kind))) {
+  if (devices.length && devices.every((device) => ['lock','alarm_partition','alarm_zone','alarm_scenario','alarm_system'].includes(device.kind))) {
     renderSecurityDevices(devices)
     return
   }
@@ -334,12 +334,11 @@ function renderSecurityDevices(devices) {
   const zones = devices.filter((device) => device.kind === 'alarm_zone')
   const scenarios = devices.filter((device) => device.kind === 'alarm_scenario')
   const locks = devices.filter((device) => device.kind === 'lock')
+  const system = devices.find((device) => device.kind === 'alarm_system')
   const issueCount = [...partitions, ...zones].filter((item) => ['ALARM','TAMPER'].includes(String(item.state).toUpperCase())).length
   const memoryCount = partitions.filter((area) => area.alarm_memory || area.tamper_memory).length
   const armedCount = partitions.filter((area) => area.state === 'ARMED').length
-  let savedMode = ''
-  try { savedMode = localStorage.getItem('eface.ksenia.mode') || '' } catch (_) {}
-  const modeName = armedCount ? savedMode || 'Personalizzata' : 'Disinserito'
+  const modeName = system?.arm_description || (armedCount ? 'Inserimento attivo' : 'Disinserito')
   const summary = `<section class="security-summary"><span class="mdi-mask" style="${mdiStyle(issueCount ? 'mdi:shield-alert-outline' : armedCount ? 'mdi:shield-lock-outline' : 'mdi:shield-check-outline', 'shield-home')}"></span><div class="security-summary-state"><small>SISTEMA KSENIA LARES</small><strong>${issueCount ? `${issueCount} ${issueCount === 1 ? 'allarme attivo' : 'allarmi attivi'}` : armedCount ? `${armedCount} ${armedCount === 1 ? 'area inserita' : 'aree inserite'}` : 'Tutto sotto controllo'}</strong>${memoryCount && !issueCount ? `<span class="security-memory">${memoryCount} ${memoryCount === 1 ? 'memoria presente' : 'memorie presenti'}</span>` : ''}</div><div class="security-summary-mode"><small>MODALITÀ</small><strong>${esc(modeName)}</strong></div></section>`
   const areaCards = partitions.map((device) => {
     const alarm = device.state === 'ALARM'; const tamper = device.state === 'TAMPER'; const armed = device.state === 'ARMED'; const memory = device.alarm_memory || device.tamper_memory
@@ -652,17 +651,6 @@ function applySecurityCommandState(deviceId, action) {
   renderActiveDeviceList()
 }
 
-function rememberSecurityMode(deviceId, action) {
-  const device = currentDevices.find((item) => String(item.id) === String(deviceId))
-  let mode = ''
-  if (device?.kind === 'alarm_scenario') mode = device.category === 'DISARM' ? '' : device.name
-  else if (device?.kind === 'alarm_partition') mode = action === 'disarm' ? '' : 'Personalizzata'
-  try {
-    if (mode) localStorage.setItem('eface.ksenia.mode', mode)
-    else localStorage.removeItem('eface.ksenia.mode')
-  } catch (_) {}
-}
-
 async function submitSecurityPin(event) {
   event.preventDefault()
   if (!pendingSecurityCommand) return
@@ -676,7 +664,6 @@ async function submitSecurityPin(event) {
   pendingSecurityCommand = null
   try {
     await postDeviceCommand(command.deviceId, command.action, null, null, pin)
-    rememberSecurityMode(command.deviceId, command.action)
     applySecurityCommandState(command.deviceId, command.action)
     await refresh()
     setTimeout(refresh, 700)
@@ -1138,12 +1125,12 @@ document.querySelectorAll('.rail button').forEach((button) => button.addEventLis
   if (button.dataset.view === 'scenarios') openScenariosPage()
   if (button.dataset.view === 'covers') openDevices('Oscuranti', currentDevices.filter((device) => device.kind === 'cover'), { filters: true })
   if (button.dataset.view === 'comfort') openDevices('Comfort', currentDevices.filter((device) => ['climate', 'temp', 'temperature', 'humidity', 'air', 'air_quality'].includes(device.kind)), { filters: true })
-  if (button.dataset.view === 'security') openDevices('Sicurezza', currentDevices.filter((device) => ['lock','alarm_partition','alarm_zone','alarm_scenario'].includes(device.kind)))
+  if (button.dataset.view === 'security') openDevices('Sicurezza', currentDevices.filter((device) => ['lock','alarm_partition','alarm_zone','alarm_scenario','alarm_system'].includes(device.kind)))
 }))
 $('#widgets').addEventListener('click', (event) => {
   const button = event.target.closest('[data-kind]')
   if (!button) return
-  const map = { lights: ['light'], extra: ['switch'], covers: ['cover'], security: ['lock','alarm_partition','alarm_zone','alarm_scenario'], comfort: ['climate', 'temp', 'temperature', 'humidity', 'air', 'air_quality'] }
+  const map = { lights: ['light'], extra: ['switch'], covers: ['cover'], security: ['lock','alarm_partition','alarm_zone','alarm_scenario','alarm_system'], comfort: ['climate', 'temp', 'temperature', 'humidity', 'air', 'air_quality'] }
   const kinds = map[button.dataset.kind] || []
   openDevices(button.dataset.label || 'Dispositivi', currentDevices.filter((device) => kinds.includes(device.kind)), { filters: true, lights: button.dataset.kind === 'lights' })
 })
