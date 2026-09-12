@@ -1353,6 +1353,7 @@ $('#media-sessions-list').addEventListener('pointerdown', (event) => {
   if (Math.abs(event.clientX - thumbX) <= 18) return
   event.preventDefault()
   input.value = Math.max(0, Math.min(100, value + (event.clientX < thumbX ? -2 : 2)))
+  input.style.setProperty('--volume', `${input.value}%`)
   input.nextElementSibling.textContent = `${input.value}%`
   setSessionVolume(input)
 }, { capture: true })

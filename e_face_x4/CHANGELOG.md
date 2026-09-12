@@ -629,3 +629,8 @@
 
 - Rimossi dall'interfaccia tutti i riferimenti al marchio della centrale: titoli, nomi, avvisi ed errori usano ora termini generici di sicurezza.
 - Le aree, le zone e gli scenari di allarme non generano più pseudo-stanze nell'elenco Ambiente e rimangono raccolti nella sezione Sicurezza.
+
+# 2.15.3
+
+- Corretto il riempimento verde/celeste dello slider nelle Sessioni quando il volume viene regolato a scatti cliccando sulla barra.
+- Ogni tocco fuori dal cursore continua a modificare il volume di 2 punti e ora aggiorna immediatamente anche la parte colorata.
