@@ -135,6 +135,7 @@ function render(data) {
     if (!override.state && !Object.hasOwn(override, 'muted') && !Object.hasOwn(override, 'volume')) mediaTransportOverrides.delete(String(device.id))
   })
   updateGlobalMediaSession()
+  renderHomeMediaSessions()
   updateNavigationStates()
   if (activeDetailIds && !$('#detail-view').hidden) {
     renderActiveDeviceList()
@@ -152,6 +153,15 @@ function render(data) {
     notice.textContent = `${failedProvider.label}: ${failedProvider.reason || 'connettore non disponibile'}. Controlla indirizzo, porta e autenticazione.`
     notice.hidden = false
   }
+  renderHomeStatusCounters()
+  $('#rooms').innerHTML = (dashboard.rooms || []).map((room) => `
+    <button class="room-card" data-room="${esc(room.name)}"><span>${esc(room.name)}</span><small class="room-features">${roomFeatureIcons(room.name)}</small></button>
+  `).join('') || '<span class="empty-state">Nessun ambiente disponibile</span>'
+  $('#app').classList.remove('loading')
+  if (!failedProvider) $('#notice').hidden = true
+}
+
+function renderHomeStatusCounters() {
   const statusCounters = [
     { kind: 'lights', label: 'Luci', icon: 'mdi:lightbulb', color: 'yellow', devices: currentDevices.filter((device) => device.kind === 'light'), active: (device) => lightIsOn(device) },
     { kind: 'extra', label: 'Extra', icon: 'mdi:power-socket-eu', color: 'red', devices: currentDevices.filter((device) => device.kind === 'switch'), active: stateIsActive },
@@ -163,19 +173,6 @@ function render(data) {
     const count = counter.devices.filter(counter.active).length
     return `<button class="quick-card status-counter ${count ? `active status-counter-${counter.color}` : ''}" data-kind="${counter.kind}" data-label="${counter.label}" aria-label="${counter.label}: ${count}"><span class="qicon mdi-mask" style="${mdiStyle(counter.icon, 'shape')}"></span><strong>${count}</strong></button>`
   }).join('')
-  $('#rooms').innerHTML = (dashboard.rooms || []).map((room) => `
-    <button class="room-card" data-room="${esc(room.name)}"><span>${esc(room.name)}</span><small class="room-features">${roomFeatureIcons(room.name)}</small></button>
-  `).join('') || '<span class="empty-state">Nessun ambiente disponibile</span>'
-  const media = dashboard.media
-  $('#media').hidden = !media
-  if (media) {
-    $('#track-title').textContent = media.title || 'Nessun titolo'
-    $('#track-detail').textContent = [media.artist, media.room].filter(Boolean).join(' · ')
-    $('#volume').value = Number(media.volume) || 0
-    $('#volume-value').textContent = `${Number(media.volume) || 0}%`
-  }
-  $('#app').classList.remove('loading')
-  if (!failedProvider) $('#notice').hidden = true
 }
 
 function stateLabel(device) {
@@ -406,6 +403,25 @@ function openMediaSessions() {
     return `<button class="media-session-row ${isVideo ? 'media-session-row-watch' : ''}" data-session-device="${esc(player.id)}">${artwork}<span class="mdi-mask media-session-row-source" style="${mdiStyle(isVideo ? 'mdi:video' : mediaSourceIcon(player.source), isVideo ? 'video' : 'music-circle')}"></span><span class="media-session-row-info"><strong>${esc(player.title || player.source || player.name)}</strong><small>${esc(player.artist || player.source || '')}</small></span><span class="media-session-row-volume"><span class="mdi-mask" style="${mdiStyle('mdi:volume-high', 'volume-high')}"></span><i><u style="width:${volume}%"></u></i><b>${volume}%</b></span><span class="media-session-row-rooms"><span class="mdi-mask" style="${mdiStyle(members.length > 1 ? 'mdi:home-group' : 'mdi:plus-box-outline', 'plus-box-outline')}"></span><b>${esc(members.map((item) => item.room).join(', '))}</b></span><em>⌄</em></button>`
   }).join('') || '<p class="empty-state">Nessuna sessione attiva</p>'
   $('#media-sessions-dialog').showModal()
+}
+
+function renderHomeMediaSessions() {
+  const host = $('#home-live-media')
+  const list = $('#home-live-media-list')
+  if (!host || !list) return
+  const sessions = activeMediaSessions()
+  host.hidden = sessions.length === 0
+  $('#home-live-media-count').textContent = `${sessions.length} ${sessions.length === 1 ? 'SESSIONE' : 'SESSIONI'}`
+  list.innerHTML = sessions.map(({ player, members }) => {
+    const video = player.active_experience === 'watch'
+    const artwork = video && player.active_source_id
+      ? `<span class="home-live-art source"><img src="${apiUrl(`api/control4/source-icon/${player.active_source_id}?v=${encodeURIComponent(appVersion)}`)}" alt="" onerror="this.hidden=true"><span class="mdi-mask" style="${mdiStyle('mdi:television', 'television')}"></span></span>`
+      : player.content_fingerprint
+        ? `<span class="home-live-art"><img src="${apiUrl(`api/media/${encodeURIComponent(player.registry_id)}/artwork?fingerprint=${encodeURIComponent(player.content_fingerprint)}`)}" alt="" loading="lazy" onerror="this.hidden=true"></span>`
+        : `<span class="home-live-art fallback"><span class="mdi-mask" style="${mdiStyle(video ? 'mdi:television' : mediaSourceIcon(player.source), video ? 'television' : 'music-circle')}"></span></span>`
+    const rooms = members.map((item) => item.room).filter(Boolean).join(' · ')
+    return `<button class="home-live-session ${video ? 'video' : 'audio'}" data-home-session="${esc(player.id)}">${artwork}<span class="home-live-info"><small>${video ? 'VIDEO' : 'AUDIO'} IN RIPRODUZIONE</small><strong>${esc(player.title || player.source || player.name)}</strong><span>${esc([player.artist || player.source, rooms].filter(Boolean).join(' · '))}</span></span><i class="home-live-eq"><b></b><b></b><b></b><b></b></i><span class="home-live-open">›</span></button>`
+  }).join('')
 }
 
 function mediaArtwork(device) {
@@ -851,6 +867,7 @@ function applyRealtimeEvent(event) {
       }
     }
     if (!changed) return
+    renderHomeMediaSessions()
     updateNavigationStates()
     if (activeDetailIds && !$('#detail-view').hidden) requestAnimationFrame(renderActiveDeviceList)
     return
@@ -871,6 +888,7 @@ function applyRealtimeEvent(event) {
   if (data.value !== undefined) device.state = data.value
   if (data.position !== undefined) device.position = data.position
   if (data.brightness !== undefined) device.brightness = data.brightness
+  renderHomeStatusCounters()
   updateNavigationStates()
   if (activeRgbGroup && $('#rgb-dialog').open && device.rgb_group === activeRgbGroup) renderRgbDialog()
   if (!detailRenderQueued && activeDetailIds && !$('#detail-view').hidden) {
@@ -907,6 +925,12 @@ $('#rooms').addEventListener('click', (event) => {
   const button = event.target.closest('[data-room]')
   if (!button) return
   openDevices(button.dataset.room, currentDevices.filter((device) => device.room.toLocaleLowerCase('it') === button.dataset.room.toLocaleLowerCase('it')), {room:button.dataset.room})
+})
+$('#home-live-media-list').addEventListener('click', (event) => {
+  const button = event.target.closest('[data-home-session]')
+  if (!button) return
+  const player = currentDevices.find((item) => String(item.id) === button.dataset.homeSession)
+  if (player) player.active_experience === 'watch' ? openVideoRemote(player) : openMediaZones(player)
 })
 $('#detail-back').addEventListener('click', showHome)
 $('#light-room-toggle').addEventListener('click', (event) => {
@@ -1095,7 +1119,6 @@ $('#device-list').addEventListener('change', (event) => {
 })
 $('.home-title').addEventListener('click', showHome)
 $('#show-all-devices').addEventListener('click', () => openDevices('Tutti i dispositivi', currentDevices))
-$('#volume').addEventListener('input', (event) => { $('#volume-value').textContent = `${event.target.value}%` })
 document.addEventListener('visibilitychange', () => { if (!document.hidden) { refresh(); connectRealtime() } })
 tick()
 setInterval(tick, 30000)
