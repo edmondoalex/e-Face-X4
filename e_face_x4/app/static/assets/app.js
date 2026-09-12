@@ -36,6 +36,13 @@ function setMediaOverride(deviceId, values) {
 
 $('#tools-open')?.addEventListener('click', () => { location.href = apiUrl('tools') })
 
+document.querySelectorAll('dialog').forEach((dialog) => dialog.addEventListener('click', (event) => {
+  if (event.target !== dialog) return
+  const rect = dialog.getBoundingClientRect()
+  const outside = event.clientX < rect.left || event.clientX > rect.right || event.clientY < rect.top || event.clientY > rect.bottom
+  if (outside) dialog.close()
+}))
+
 function apiUrl(path) {
   const base = location.pathname.endsWith('/') ? location.pathname : `${location.pathname}/`
   return new URL(path.replace(/^\//, ''), `${location.origin}${base}`).toString()
@@ -401,7 +408,7 @@ function openMediaSessions() {
     const volume = volumes.length ? Math.round(volumes.reduce((sum, value) => sum + value, 0) / volumes.length) : 0
     const isVideo = player.active_experience === 'watch'
     const artwork = isVideo && !player.content_fingerprint && player.active_source_id ? `<span class="media-artwork media-video-source"><img src="${apiUrl(`api/control4/source-icon/${player.active_source_id}?v=${encodeURIComponent(appVersion)}`)}" alt="${esc(player.source || '')}" onerror="this.hidden=true"></span>` : mediaArtwork(player)
-    return `<button class="media-session-row ${isVideo ? 'media-session-row-watch' : ''}" data-session-device="${esc(player.id)}">${artwork}<span class="mdi-mask media-session-row-source" style="${mdiStyle(isVideo ? 'mdi:video' : mediaSourceIcon(player.source), isVideo ? 'video' : 'music-circle')}"></span><span class="media-session-row-info"><strong>${esc(player.title || player.source || player.name)}</strong><small>${esc(player.artist || player.source || '')}</small></span><span class="media-session-row-volume"><span class="mdi-mask" style="${mdiStyle('mdi:volume-high', 'volume-high')}"></span><i><u style="width:${volume}%"></u></i><b>${volume}%</b></span><span class="media-session-row-rooms"><span class="mdi-mask" style="${mdiStyle(members.length > 1 ? 'mdi:home-group' : 'mdi:plus-box-outline', 'plus-box-outline')}"></span><b>${esc(members.map((item) => item.room).join(', '))}</b></span><em>⌄</em></button>`
+    return `<div class="media-session-row ${isVideo ? 'media-session-row-watch' : ''}" data-session-device="${esc(player.id)}" role="button" tabindex="0">${artwork}<span class="mdi-mask media-session-row-source" style="${mdiStyle(isVideo ? 'mdi:video' : mediaSourceIcon(player.source), isVideo ? 'video' : 'music-circle')}"></span><span class="media-session-row-info"><strong>${esc(player.title || player.source || player.name)}</strong><small>${esc(player.artist || player.source || '')}</small></span><button class="media-session-row-power" data-session-power="${esc(player.id)}" aria-label="Spegni intera sessione" title="Spegni intera sessione"><span class="mdi-mask" style="${mdiStyle('mdi:power', 'power')}"></span></button><span class="media-session-row-volume"><span class="mdi-mask" style="${mdiStyle('mdi:volume-high', 'volume-high')}"></span><i><u style="width:${volume}%"></u></i><b>${volume}%</b></span><span class="media-session-row-rooms"><span class="mdi-mask" style="${mdiStyle(members.length > 1 ? 'mdi:home-group' : 'mdi:plus-box-outline', 'plus-box-outline')}"></span><b>${esc(members.map((item) => item.room).join(', '))}</b></span><em class="media-session-expand"><span class="mdi-mask" style="${mdiStyle('mdi:chevron-down', 'chevron-down')}"></span></em></div>`
   }).join('') || '<p class="empty-state">Nessuna sessione attiva</p>'
   $('#media-sessions-dialog').showModal()
 }
@@ -577,7 +584,8 @@ function renderMediaZones() {
   const average = volumes.length ? Math.round(volumes.reduce((sum, value) => sum + value, 0) / volumes.length) : 0
   const source = `<div class="media-session-source"><span class="mdi-mask" style="${mdiStyle(mediaSourceIcon(selected.source), 'music-circle')}"></span><div><strong>${esc(selected.source || 'Fonte audio')}</strong><b>${esc(selected.title || selected.name)}</b><small>${esc(selected.artist || selected.album || '')}</small></div></div>`
   const master = group?.group_id ? `<div class="media-session-master"><small>VOLUME GENERALE</small><label><span class="mdi-mask" style="${mdiStyle(selected.muted ? 'mdi:volume-off' : 'mdi:volume-high', 'volume-high')}"></span><input type="range" min="0" max="100" value="${average}" data-group-volume ${group.completeness !== 'complete' ? 'disabled' : ''}><output>${average}%</output></label></div>` : ''
-  $('#zones-master').innerHTML = source + master
+  const powerAll = `<button class="media-session-power-all" data-session-power-all aria-label="Spegni intera sessione" title="Spegni intera sessione"><span class="mdi-mask" style="${mdiStyle('mdi:power', 'power')}"></span></button>`
+  $('#zones-master').innerHTML = source + master + powerAll
   const activeRows = playing.map((player) => {
     const volume = Number.isFinite(Number(player.volume)) ? Number(player.volume) : 0
     const power = player.capabilities?.turn_off ? `<button class="media-zone-power" data-zone-power="${esc(player.id)}" aria-label="Spegni ${esc(player.room)}" title="Spegni ${esc(player.room)}"><span class="mdi-mask" style="${mdiStyle('mdi:power', 'power')}"></span></button>` : ''
@@ -606,7 +614,8 @@ async function saveMediaZones(button) {
       if (player) await postDeviceCommand(player.id, 'media_unjoin', null, player.resource_revision)
     }
     if (additions.length) await postDeviceCommand(activeMediaPlayer.id, 'media_join', additions, activeMediaPlayer.resource_revision)
-    $('#media-zones-dialog').close()
+    if ($('#media-zones-dialog').open) $('#media-zones-dialog').close()
+    if ($('#media-sessions-dialog').open) $('#media-sessions-dialog').close()
     await refresh()
   } catch (error) { fail(error) } finally { button.disabled = false }
 }
@@ -1083,11 +1092,11 @@ $('#rgb-dialog').addEventListener('click', (event) => { if (event.target === $('
 $('#media-zones-close').addEventListener('click', () => $('#media-zones-dialog').close())
 $('#global-media-session').addEventListener('click', openMediaSessions)
 $('#media-sessions-close').addEventListener('click', () => $('#media-sessions-dialog').close())
-$('#media-sessions-list').addEventListener('click', (event) => { const row = event.target.closest('[data-session-device]'); if (!row) return; const player = currentDevices.find((item) => String(item.id) === row.dataset.sessionDevice); if (player) { $('#media-sessions-dialog').close(); player.active_experience === 'watch' ? openVideoRemote(player) : openMediaZones(player) } })
+$('#media-sessions-list').addEventListener('click', (event) => { const row = event.target.closest('[data-session-device]'); if (!row) return; const player = currentDevices.find((item) => String(item.id) === row.dataset.sessionDevice); if (!player) return; const power = event.target.closest('[data-session-power]'); if (power) { const session = activeMediaSessions().find(({player:item}) => String(item.id) === power.dataset.sessionPower); return powerOffMediaSession(power, (session?.members || [player]).map((item) => item.id)) } $('#media-sessions-dialog').close(); player.active_experience === 'watch' ? openVideoRemote(player) : openMediaZones(player) })
 $('#media-zones-save').addEventListener('click', (event) => saveMediaZones(event.currentTarget))
 $('#media-zones-list').addEventListener('click', (event) => { const button = event.target.closest('[data-zone-picker-toggle]'); if (button) { const picker = $('.media-zone-picker'); picker.hidden = !picker.hidden; button.classList.toggle('active', !picker.hidden) } })
 $('#media-zones-list').addEventListener('click', (event) => { const button = event.target.closest('[data-zone-power]'); if (button) powerOffMediaSession(button, [button.dataset.zonePower]) })
-$('#media-zones-power-all').addEventListener('click', (event) => { const ids = [...document.querySelectorAll('[data-zone-power]')].map((button) => button.dataset.zonePower); powerOffMediaSession(event.currentTarget, ids) })
+$('#zones-master').addEventListener('click', (event) => { const button = event.target.closest('[data-session-power-all]'); if (button) { const ids = [...document.querySelectorAll('[data-zone-power]')].map((item) => item.dataset.zonePower); powerOffMediaSession(button, ids) } })
 $('#video-remote-close').addEventListener('click', () => $('#video-remote-dialog').close())
 $('#video-remote-dialog').addEventListener('click', (event) => {
   if (event.target === $('#video-remote-dialog')) return $('#video-remote-dialog').close()

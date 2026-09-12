@@ -70,7 +70,7 @@ def test_x4_shell_and_brand_assets_are_served() -> None:
     assert '<iframe' not in page.text
     for label in ("Guarda", "Ascolta", "Luci", "Extra", "Scenari", "Oscuranti", "Comfort", "Sicurezza"):
         assert f'title="{label}"' in page.text
-    assert 'src="assets/brand-horizontal.png?v=2.7.19"' in page.text
+    assert 'src="assets/brand-horizontal.png?v=2.7.20"' in page.text
     assert 'alt="e-Face X4"' in page.text
     assert 'class="header-wordmark"' not in page.text
     assert client.get("/assets/brand-horizontal.png").status_code == 200
@@ -96,6 +96,7 @@ def test_x4_shell_and_brand_assets_are_served() -> None:
     assert 'data-climate-mode="OFF"' in app_js
     assert "function renderHomeMediaSessions()" in app_js
     assert "function renderHomeStatusCounters()" in app_js
+    assert "event.target !== dialog" in app_js
     assert client.get("/tools").status_code == 200
     assert "Admin / Installatore" in client.get("/tools").text
     css = client.get("/assets/app.css").text
@@ -501,7 +502,7 @@ def test_media_ui_has_room_selection_and_typed_controls() -> None:
     assert "media_changed" in script
     assert "renderMediaExperience" in script
     assert 'id="media-zones-dialog"' in page
-    assert 'id="media-zones-power-all"' in page
+    assert 'id="media-zones-power-all"' not in page
     assert "[...currentRooms" not in script
     assert "device.experiences?.includes('watch')" in script
     assert "['listen', 'watch'].includes(experience)" in script
