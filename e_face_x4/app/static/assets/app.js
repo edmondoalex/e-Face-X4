@@ -183,7 +183,8 @@ function updateNavigationStates() {
   setState('extra', 'status-red', currentDevices.some((device) => device.kind === 'switch' && stateIsActive(device)))
   setState('covers', 'status-cyan', currentDevices.some((device) => device.kind === 'cover' && (stateIsActive(device) || Number(device.position) > 0)))
   setState('security', 'status-red', currentDevices.some((device) => device.kind === 'lock' && ['OPEN','OPENING','UNLOCKED'].includes(String(device.state ?? '').trim().toUpperCase())))
-  setState('listen', 'status-green', currentDevices.some((device) => ['media','media_player'].includes(device.kind) && stateIsActive(device)))
+  setState('watch', 'status-cyan', currentDevices.some((device) => ['media','media_player'].includes(device.kind) && device.active_experience === 'watch' && stateIsActive(device)))
+  setState('listen', 'status-green', currentDevices.some((device) => ['media','media_player'].includes(device.kind) && device.active_experience === 'listen' && stateIsActive(device)))
   setState('comfort', 'status-cyan', currentDevices.some((device) => device.kind === 'climate' && stateIsActive(device)))
   setState('scenarios', 'status-yellow', currentScenarios.some((scenario) => scenario.running || ['ON','1','TRUE'].includes(String(scenario.state ?? '').toUpperCase())))
 }
