@@ -30,6 +30,7 @@ class Settings:
     evoice: ProviderConfig
     etherm: ProviderConfig
     ksenia: ProviderConfig
+    sunmind: ProviderConfig
 
 
 def _provider(value: Any) -> ProviderConfig:
@@ -61,7 +62,7 @@ def load_settings() -> Settings:
     timeout = min(15.0, max(1.0, float(raw.get("request_timeout_s", 4))))
     icon_defaults = {
         "watch": "mdi:television-play", "listen": "mdi:music", "lights": "mdi:lightbulb-group",
-        "extra": "mdi:shape", "scenarios": "mdi:creation", "covers": "mdi:blinds-horizontal", "comfort": "mdi:home-thermometer", "security": "mdi:shield-home",
+        "extra": "mdi:shape", "scenarios": "mdi:creation", "covers": "mdi:blinds-horizontal", "comfort": "mdi:home-thermometer", "security": "mdi:shield-home", "energy": "mdi:solar-power-variant",
     }
     raw_icons = raw.get("nav_icons") if isinstance(raw.get("nav_icons"), dict) else {}
     nav_icons = {key: str(raw_icons.get(key) or value).strip() for key, value in icon_defaults.items()}
@@ -75,4 +76,5 @@ def load_settings() -> Settings:
         evoice=_provider(raw.get("evoice")),
         etherm=_provider(raw.get("etherm")),
         ksenia=_provider(raw.get("ksenia")),
+        sunmind=_provider(raw.get("sunmind")),
     )

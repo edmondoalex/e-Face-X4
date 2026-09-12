@@ -25,6 +25,7 @@ let selectedMediaId = ''
 let activeMediaRoom = ''
 let currentBackgrounds = {global:{mode:'preset',preset:'teal'},rooms:{}}
 let activeBackgroundRoom = ''
+let activeEnergyDashboard = null
 const securitySections = { areas: false, zones: false }
 const mediaSections = { rooms: true, playing: true }
 const mediaTransportOverrides = new Map()
@@ -972,6 +973,7 @@ async function sendRgbCommand(group, action, value, control) {
 }
 
 function openDevices(title, devices, options = {}) {
+  $('#energy-view').hidden = true
   const mediaOnly = devices.length > 0 && devices.every((device) => device.kind === 'media_player')
   activeMediaRoom = options.room && mediaOnly ? options.room : ''
   currentMediaExperience = options.experience || ''
@@ -1004,6 +1006,7 @@ function openDevices(title, devices, options = {}) {
 }
 
 function openScenariosPage() {
+  $('#energy-view').hidden = true
   applyBackground('')
   activeDetailIds = null
   $('#detail-title').textContent = 'Scenari'
@@ -1064,6 +1067,7 @@ function showHome() {
   applyBackground('')
   activeDetailIds = null
   $('#detail-view').hidden = true
+  $('#energy-view').hidden = true
   $('#detail-view').classList.remove('av-view')
   $('#detail-view').classList.remove('media-room-view')
   $('#home-view').hidden = false
@@ -1072,6 +1076,56 @@ function showHome() {
   $('#light-filters').hidden = true
   $('#av-filters').hidden = true
   document.querySelectorAll('.rail button').forEach((item) => item.classList.remove('active'))
+}
+
+function openEnergy() {
+  applyBackground('')
+  activeDetailIds = null
+  $('#home-view').hidden = true
+  $('#detail-view').hidden = true
+  $('#energy-view').hidden = false
+  showEnergyPicker()
+  loadEnergyDashboards()
+  window.scrollTo({ top: 0, behavior: 'smooth' })
+}
+
+function showEnergyPicker() {
+  activeEnergyDashboard = null
+  $('#energy-title').textContent = 'Dashboard energia'
+  $('#energy-picker').hidden = false
+  $('#energy-frame-shell').hidden = true
+  $('#energy-reload').hidden = true
+}
+
+async function loadEnergyDashboards() {
+  const picker = $('#energy-dashboard-grid')
+  picker.innerHTML = '<span class="empty-state">Caricamento dashboard…</span>'
+  try {
+    const response = await fetch(apiUrl('api/sunmind/api/data'), { cache: 'no-store' })
+    if (!response.ok) throw new Error(`HTTP ${response.status}`)
+    const energy = (await response.json()).energy || {}
+    const sites = Array.isArray(energy.sites) && energy.sites.length ? energy.sites : [energy]
+    const power = (value) => { const watts = Number(value); return Number.isFinite(watts) ? Math.abs(watts) >= 1000 ? `${(watts / 1000).toFixed(1)} kW` : `${Math.round(watts)} W` : '--' }
+    picker.innerHTML = sites.map((site, index) => {
+      const id = String(site.site_id || site.id || energy.selected_site_id || 'default')
+      const name = String(site.site_name || site.name || `Impianto ${index + 1}`)
+      const layout = String(site.energy_dashboard_layout || energy.energy_dashboard_layout || 'sunsynk')
+      const live = site.normalized || (id === energy.site_id ? energy.normalized : {}) || {}
+      const soc = Number(live.battery_soc_pct)
+      return `<button class="energy-dashboard-card" data-energy-dashboard="${esc(id)}" data-energy-name="${esc(name)}"><span class="mdi-mask" style="${mdiStyle('mdi:solar-power-variant', 'solar-power-variant')}"></span><span class="energy-dashboard-copy"><strong>${esc(name)}</strong><small>${layout === 'k_flow' ? 'Flussi energia' : 'Dashboard energia'}</small></span><span class="energy-dashboard-metrics"><span><small>FV</small><b>${power(live.pv_power_w)}</b></span><span><small>CASA</small><b>${power(live.home_power_w)}</b></span><span><small>BATTERIA</small><b>${Number.isFinite(soc) ? `${Math.round(soc)}%` : '--'}</b></span></span></button>`
+    }).join('')
+  } catch (error) {
+    picker.innerHTML = `<span class="empty-state">e-SunMind non disponibile: ${esc(error.message)}</span>`
+  }
+}
+
+function openEnergyDashboard(id, name) {
+  activeEnergyDashboard = { id, name }
+  $('#energy-title').textContent = name
+  $('#energy-picker').hidden = true
+  $('#energy-frame-shell').hidden = false
+  $('#energy-reload').hidden = false
+  $('#energy-frame').src = `${apiUrl('api/sunmind/energy-dashboard/sunsynk-wrapper.html')}?site=${encodeURIComponent(id)}`
 }
 
 function applyBackground(room = activeBackgroundRoom) {
@@ -1203,6 +1257,7 @@ document.querySelectorAll('.rail button').forEach((button) => button.addEventLis
   if (button.dataset.view === 'scenarios') openScenariosPage()
   if (button.dataset.view === 'covers') openDevices('Oscuranti', currentDevices.filter((device) => device.kind === 'cover'), { filters: true })
   if (button.dataset.view === 'comfort') openDevices('Comfort', currentDevices.filter((device) => ['climate', 'temp', 'temperature', 'humidity', 'air', 'air_quality'].includes(device.kind)), { filters: true })
+  if (button.dataset.view === 'energy') openEnergy()
   if (button.dataset.view === 'security') openDevices('Sicurezza', currentDevices.filter((device) => ['lock','alarm_partition','alarm_zone','alarm_scenario','alarm_system'].includes(device.kind)))
 }))
 $('#widgets').addEventListener('click', (event) => {
@@ -1233,6 +1288,9 @@ $('#home-live-media-list').addEventListener('click', (event) => {
   player.active_experience === 'watch' ? openVideoRemote(player) : openMediaZones(player)
 })
 $('#detail-back').addEventListener('click', showHome)
+$('#energy-back').addEventListener('click', () => activeEnergyDashboard ? showEnergyPicker() : showHome())
+$('#energy-picker').addEventListener('click', (event) => { const card = event.target.closest('[data-energy-dashboard]'); if (card) openEnergyDashboard(card.dataset.energyDashboard, card.dataset.energyName) })
+$('#energy-reload').addEventListener('click', () => { if (!activeEnergyDashboard) return; $('#energy-frame').src = `${apiUrl('api/sunmind/energy-dashboard/sunsynk-wrapper.html')}?site=${encodeURIComponent(activeEnergyDashboard.id)}&refresh=${Date.now()}` })
 $('#light-room-toggle').addEventListener('click', (event) => {
   const open = $('#light-room-menu').hidden
   $('#light-room-menu').hidden = !open

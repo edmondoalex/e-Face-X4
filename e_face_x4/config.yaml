@@ -1,5 +1,5 @@
 name: e-Face X4
-version: 2.16.9
+version: 2.17.0
 slug: e_face_x4
 description: Interfaccia unificata per gli add-on e-Konex
 url: https://github.com/edmondoalex/e-Face-X4
@@ -34,6 +34,7 @@ options:
     covers: mdi:blinds-horizontal
     comfort: mdi:home-thermometer
     security: mdi:shield-home
+    energy: mdi:solar-power-variant
   buspro:
     enabled: false
     base_url: http://127.0.0.1:8124
@@ -53,6 +54,9 @@ options:
   ksenia:
     enabled: false
     base_url: http://127.0.0.1:8080
+  sunmind:
+    enabled: true
+    base_url: http://127.0.0.1:1980
 schema:
   home_name: str?
   installer_password: password?
@@ -67,6 +71,7 @@ schema:
     covers: str?
     comfort: str?
     security: str?
+    energy: str?
   buspro:
     enabled: bool?
     base_url: str?
@@ -84,5 +89,8 @@ schema:
     password: password?
     token: password?
   ksenia:
+    enabled: bool?
+    base_url: str?
+  sunmind:
     enabled: bool?
     base_url: str?

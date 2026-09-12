@@ -112,10 +112,13 @@ def test_x4_shell_and_brand_assets_are_served() -> None:
     assert 'id="show-all-devices"' in page.text
     assert 'id="scenario-panel"' in page.text
     assert 'id="scenario-list"' in page.text
-    assert '<iframe' not in page.text
+    assert 'id="energy-view"' in page.text
+    assert 'id="energy-picker"' in page.text
+    assert 'id="energy-frame"' in page.text
+    assert 'data-view="energy"' in page.text
     for label in ("Guarda", "Ascolta", "Luci", "Extra", "Scenari", "Oscuranti", "Comfort", "Sicurezza"):
         assert f'title="{label}"' in page.text
-    assert 'src="assets/brand-horizontal.png?v=2.16.9"' in page.text
+    assert 'src="assets/brand-horizontal.png?v=2.17.0"' in page.text
     assert 'alt="e-Face X4"' in page.text
     assert 'class="header-wordmark"' not in page.text
     assert client.get("/assets/brand-horizontal.png").status_code == 200
@@ -434,6 +437,7 @@ def test_navigation_icons_have_defaults(monkeypatch, tmp_path) -> None:
     data = TestClient(create_app()).get("/api/bootstrap").json()
     assert data["nav_icons"]["watch"] == "mdi:television-play"
     assert data["nav_icons"]["security"] == "mdi:shield-home"
+    assert data["nav_icons"]["energy"] == "mdi:solar-power-variant"
     assert data["nav_icons"]["extra"] == "mdi:shape"
     assert data["nav_icons"]["scenarios"] == "mdi:creation"
 

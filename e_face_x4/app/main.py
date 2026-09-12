@@ -28,7 +28,7 @@ from .connectors.control4_media import cached_control4_icon, cached_control4_ico
 from .connectors.supervisor import discover_addon_url
 from .demo import dashboard as demo_dashboard
 
-VERSION = "2.16.9"
+VERSION = "2.17.0"
 STATIC = Path(__file__).parent / "static"
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s [e-face-x4] %(message)s")
 
@@ -57,6 +57,27 @@ def create_app() -> FastAPI:
     @app.get("/health")
     async def health() -> dict:
         return {"ok": True, "version": VERSION}
+
+    @app.get("/api/sunmind/{proxy_path:path}", include_in_schema=False)
+    async def sunmind_proxy(proxy_path: str, request: Request) -> Response:
+        settings = load_settings()
+        config = await resolved_provider(settings.sunmind, "e_sunmind", 1980, settings.request_timeout_s)
+        if not config.enabled or not config.base_url:
+            raise HTTPException(status_code=503, detail="Dashboard energia non disponibile")
+        clean_path = str(proxy_path or "").lstrip("/")
+        if not clean_path or ".." in clean_path.split("/"):
+            raise HTTPException(status_code=400, detail="Percorso dashboard non valido")
+        target = f"{config.base_url}/{clean_path}"
+        if request.url.query:
+            target = f"{target}?{request.url.query}"
+        try:
+            async with httpx.AsyncClient(timeout=max(20.0, settings.request_timeout_s), follow_redirects=True) as client:
+                upstream = await client.get(target, headers={"Accept": request.headers.get("accept", "*/*")})
+                upstream.raise_for_status()
+        except httpx.HTTPError:
+            raise HTTPException(status_code=502, detail="e-SunMind non raggiungibile")
+        headers = {"Cache-Control": upstream.headers.get("cache-control", "no-cache")}
+        return Response(upstream.content, status_code=upstream.status_code, media_type=upstream.headers.get("content-type"), headers=headers)
 
     @app.get("/api/bootstrap")
     async def bootstrap() -> dict:

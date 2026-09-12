@@ -683,3 +683,9 @@
 # 2.16.9
 
 - Corretto il pulsante Stanze: lo stato aperto/chiuso ora forza il ridisegno immediato della sezione.
+
+# 2.17.0
+
+- Aggiunta la sezione Energia con autodiscovery dell'addon e-SunMind e proxy compatibile con Home Assistant Ingress.
+- Il menu Energia apre un catalogo pulito delle plance/impianti configurati in e-SunMind; la dashboard scelta mantiene grafici, flussi, storico e configurazione originali.
+- La struttura del catalogo supporta automaticamente ulteriori impianti e dashboard aggiunti in futuro a e-SunMind.
