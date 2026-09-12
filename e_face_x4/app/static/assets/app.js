@@ -508,6 +508,13 @@ function openMediaSessions() {
   if (!$('#media-sessions-dialog').open) $('#media-sessions-dialog').showModal()
 }
 
+function openMediaRoomControl(player) {
+  if (!player) return
+  const room = player.room || player.name
+  const devices = currentDevices.filter((item) => item.kind === 'media_player' && item.room === player.room)
+  openDevices(room, devices.length ? devices : [player], { room, experience: player.active_experience || '' })
+}
+
 function renderHomeMediaSessions() {
   const host = $('#home-live-media')
   const list = $('#home-live-media-list')
@@ -1198,7 +1205,9 @@ $('#home-live-media-list').addEventListener('click', (event) => {
   const button = event.target.closest('[data-home-session]')
   if (!button) return
   const player = currentDevices.find((item) => String(item.id) === button.dataset.homeSession)
-  if (player) player.active_experience === 'watch' ? openVideoRemote(player) : openMediaZones(player)
+  if (!player) return
+  if (event.target.closest('.home-live-art')) return openMediaRoomControl(player)
+  player.active_experience === 'watch' ? openVideoRemote(player) : openMediaZones(player)
 })
 $('#detail-back').addEventListener('click', showHome)
 $('#light-room-toggle').addEventListener('click', (event) => {
@@ -1367,7 +1376,7 @@ $('#rgb-dialog').addEventListener('click', (event) => { if (event.target === $('
 $('#media-zones-close').addEventListener('click', () => $('#media-zones-dialog').close())
 $('#global-media-session').addEventListener('click', openMediaSessions)
 $('#media-sessions-close').addEventListener('click', () => $('#media-sessions-dialog').close())
-$('#media-sessions-list').addEventListener('click', (event) => { const row = event.target.closest('[data-session-device]'); if (!row || event.target.closest('[data-session-volume]')) return; const player = currentDevices.find((item) => String(item.id) === row.dataset.sessionDevice); if (!player) return; const power = event.target.closest('[data-session-power]'); if (power) { const session = activeMediaSessions().find(({player:item}) => String(item.id) === power.dataset.sessionPower); return powerOffMediaSession(power, (session?.members || [player]).map((item) => item.id)) } if (event.target.closest('.media-session-row-rooms')) { $('#media-sessions-dialog').close(); return openMediaZones(player) } $('#media-sessions-dialog').close(); player.active_experience === 'watch' ? openVideoRemote(player) : openMediaZones(player) })
+$('#media-sessions-list').addEventListener('click', (event) => { const row = event.target.closest('[data-session-device]'); if (!row || event.target.closest('[data-session-volume]')) return; const player = currentDevices.find((item) => String(item.id) === row.dataset.sessionDevice); if (!player) return; const power = event.target.closest('[data-session-power]'); if (power) { const session = activeMediaSessions().find(({player:item}) => String(item.id) === power.dataset.sessionPower); return powerOffMediaSession(power, (session?.members || [player]).map((item) => item.id)) } if (event.target.closest('.media-artwork')) { $('#media-sessions-dialog').close(); return openMediaRoomControl(player) } if (event.target.closest('.media-session-row-rooms')) { $('#media-sessions-dialog').close(); return openMediaZones(player) } $('#media-sessions-dialog').close(); player.active_experience === 'watch' ? openVideoRemote(player) : openMediaZones(player) })
 $('#media-sessions-list').addEventListener('input', (event) => { if (event.target.matches('[data-session-volume]')) { event.target.style.setProperty('--volume', `${event.target.value}%`); event.target.nextElementSibling.textContent = `${event.target.value}%` } })
 $('#media-sessions-list').addEventListener('change', (event) => { if (event.target.matches('[data-session-volume]')) setSessionVolume(event.target) })
 $('#media-sessions-list').addEventListener('pointerdown', (event) => {
