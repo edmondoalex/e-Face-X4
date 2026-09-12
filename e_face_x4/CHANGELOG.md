@@ -634,3 +634,10 @@
 
 - Corretto il riempimento verde/celeste dello slider nelle Sessioni quando il volume viene regolato a scatti cliccando sulla barra.
 - Ogni tocco fuori dal cursore continua a modificare il volume di 2 punti e ora aggiorna immediatamente anche la parte colorata.
+
+# 2.16.0
+
+- Aggiunto nella barra riepilogativa della Home lo stato Sicurezza con scudetto dinamico e modalità corrente della centrale.
+- Il nuovo riepilogo apre direttamente la sezione Sicurezza ed è adattivo su tablet e smartphone.
+- Comfort rimane a sinistra e Sicurezza a destra sui display larghi; un tocco sullo sfondo vuoto di una sezione riporta alla Home.
+- Anche il logo e-Face nell'intestazione riporta alla Home con tocco, Invio o barra spaziatrice.

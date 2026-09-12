@@ -151,6 +151,7 @@ function render(data) {
   $('#home-name').textContent = home.name || 'Casa'
   $('#mode').textContent = data.mode === 'demo' ? 'ANTEPRIMA DEMO' : 'LIVE'
   renderHomeComfort()
+  renderHomeSecurity()
   document.querySelectorAll('.nav-icon').forEach((node) => {
     node.setAttribute('style', mdiStyle(navIcons[node.dataset.icon], 'shape'))
   })
@@ -206,6 +207,23 @@ function renderHomeComfort() {
   $('#home-comfort-inside').textContent = Number.isFinite(average) ? `${average.toFixed(1)}°` : '--'
   const outside = Number(external?.temperature ?? external?.state ?? external?.value)
   $('#home-comfort-outside').textContent = Number.isFinite(outside) ? `${outside.toFixed(1)}°` : '--'
+}
+
+function renderHomeSecurity() {
+  const card = $('#home-security-summary')
+  if (!card) return
+  const partitions = currentDevices.filter((device) => device.kind === 'alarm_partition')
+  const system = currentDevices.find((device) => device.kind === 'alarm_system')
+  const issues = partitions.filter((device) => device.alarm || device.tamper || ['ALARM', 'TAMPER'].includes(String(device.state || '').toUpperCase())).length
+  const armed = partitions.filter((device) => String(device.state || '').toUpperCase() === 'ARMED').length
+  const state = issues ? `${issues} ${issues === 1 ? 'allarme attivo' : 'allarmi attivi'}` : armed ? `${armed} ${armed === 1 ? 'area inserita' : 'aree inserite'}` : 'Tutto sotto controllo'
+  const mode = system?.arm_description || (armed ? 'Inserimento attivo' : 'Disinserito')
+  const visual = issues ? 'alarm' : armed ? 'armed' : 'safe'
+  const icon = issues ? 'mdi:shield-alert' : armed ? 'mdi:shield-lock' : 'mdi:shield-check'
+  card.className = `home-security-summary security-${visual}`
+  $('#home-security-icon').setAttribute('style', mdiStyle(icon, 'shield-home'))
+  $('#home-security-state').textContent = state
+  $('#home-security-mode').textContent = mode
 }
 
 function stateLabel(device) {
@@ -1090,6 +1108,7 @@ function applyRealtimeEvent(event) {
       else currentDevices.push(update)
     }
     updateNavigationStates()
+    renderHomeSecurity()
     if (activeDetailIds && !$('#detail-view').hidden) requestAnimationFrame(renderActiveDeviceList)
     return
   }
@@ -1164,6 +1183,12 @@ $('#widgets').addEventListener('click', (event) => {
   openDevices(button.dataset.label || 'Dispositivi', currentDevices.filter((device) => kinds.includes(device.kind)), { filters: true, lights: button.dataset.kind === 'lights' })
 })
 $('#home-comfort-summary').addEventListener('click', () => openDevices('Comfort', currentDevices.filter((device) => ['climate', 'temp', 'temperature', 'humidity', 'air', 'air_quality'].includes(device.kind)), { filters: true }))
+$('#home-security-summary').addEventListener('click', () => openDevices('Sicurezza', currentDevices.filter((device) => ['lock','alarm_partition','alarm_zone','alarm_scenario','alarm_system'].includes(device.kind))))
+$('#detail-view').addEventListener('click', (event) => {
+  if ([$('#detail-view'), $('#device-list'), $('#scenario-panel')].includes(event.target)) showHome()
+})
+$('.horizontal-logo').addEventListener('click', showHome)
+$('.horizontal-logo').addEventListener('keydown', (event) => { if (['Enter', ' '].includes(event.key)) { event.preventDefault(); showHome() } })
 $('#rooms').addEventListener('click', (event) => {
   const button = event.target.closest('[data-room]')
   if (!button) return
