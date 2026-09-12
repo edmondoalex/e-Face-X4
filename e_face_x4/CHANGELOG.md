@@ -609,3 +609,7 @@
 
 - Serrature chiuse/bloccate in verde e aperte/sbloccate in rosso, sia nell'icona sia nello stato testuale.
 - Stati serratura sconosciuti mantenuti neutri per evitare falsi allarmi visivi.
+
+# 2.14.2
+
+- Eliminati definitivamente bordi, contorni focus e ombre residue dalle card Aree e Zone.
