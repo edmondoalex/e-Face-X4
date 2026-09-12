@@ -430,7 +430,7 @@ function openMediaSessions() {
     const artwork = isVideo && !player.content_fingerprint && player.active_source_id ? `<span class="media-artwork media-video-source"><img src="${apiUrl(`api/control4/source-icon/${player.active_source_id}?v=${encodeURIComponent(appVersion)}`)}" alt="${esc(player.source || '')}" onerror="this.hidden=true"></span>` : mediaArtwork(player)
     return `<div class="media-session-row ${isVideo ? 'media-session-row-watch' : ''}" data-session-device="${esc(player.id)}" role="button" tabindex="0">${artwork}<span class="mdi-mask media-session-row-source" style="${mdiStyle(isVideo ? 'mdi:video' : mediaSourceIcon(player.source), isVideo ? 'video' : 'music-circle')}"></span><span class="media-session-row-info"><strong>${esc(player.title || player.source || player.name)}</strong><small>${esc(player.artist || player.source || '')}</small></span><button class="media-session-row-power" data-session-power="${esc(player.id)}" aria-label="Spegni intera sessione" title="Spegni intera sessione"><span class="mdi-mask" style="${mdiStyle('mdi:power', 'power')}"></span></button><span class="media-session-row-volume"><span class="mdi-mask" style="${mdiStyle('mdi:volume-high', 'volume-high')}"></span><i><u style="width:${volume}%"></u></i><b>${volume}%</b></span><span class="media-session-row-rooms"><span class="mdi-mask" style="${mdiStyle(members.length > 1 ? 'mdi:home-group' : 'mdi:plus-box-outline', 'plus-box-outline')}"></span><b>${esc(members.map((item) => item.room).join(', '))}</b></span><em class="media-session-expand"><span class="mdi-mask" style="${mdiStyle('mdi:chevron-down', 'chevron-down')}"></span></em></div>`
   }).join('') || '<p class="empty-state">Nessuna sessione attiva</p>'
-  $('#media-sessions-dialog').showModal()
+  if (!$('#media-sessions-dialog').open) $('#media-sessions-dialog').showModal()
 }
 
 function renderHomeMediaSessions() {
@@ -599,7 +599,7 @@ function renderMediaZones() {
   const experience = selected.active_experience
   const compatible = (item) => !sourceId || item.provider !== 'control4' || (item.source_options || []).some((source) => Number(source.source_id) === sourceId && (!experience || source.experience === experience))
   const players = allPlayers.filter((item) => members.has(item.registry_id) || compatible(item))
-  const playing = players.filter((item) => members.has(item.registry_id))
+  const playing = players.filter((item) => members.has(item.registry_id) && !['off','unavailable','unknown'].includes(String(item.state).toLowerCase()))
   const volumes = players.filter((item) => members.has(item.registry_id) && Number.isFinite(Number(item.volume))).map((item) => Number(item.volume))
   const average = volumes.length ? Math.round(volumes.reduce((sum, value) => sum + value, 0) / volumes.length) : 0
   const source = `<div class="media-session-source"><span class="mdi-mask" style="${mdiStyle(mediaSourceIcon(selected.source), 'music-circle')}"></span><div><strong>${esc(selected.source || 'Fonte audio')}</strong><b>${esc(selected.title || selected.name)}</b><small>${esc(selected.artist || selected.album || '')}</small></div></div>`
@@ -648,9 +648,19 @@ async function powerOffMediaSession(button, deviceIds) {
     const results = await Promise.allSettled(ids.map((id) => postDeviceCommand(id, 'turn_off')))
     const failed = results.find((result) => result.status === 'rejected')
     if (failed) throw failed.reason
-    $('#media-zones-dialog').close()
+    ids.forEach((id) => {
+      setMediaOverride(id, { state: 'off', expires: Date.now() + 5000 })
+      const player = currentDevices.find((item) => String(item.id) === String(id))
+      if (player) player.state = 'off'
+    })
+    if ($('#media-sessions-dialog').open) openMediaSessions()
     await new Promise((resolve) => setTimeout(resolve, 450))
     await refresh()
+    if ($('#media-sessions-dialog').open) openMediaSessions()
+    if ($('#media-zones-dialog').open) {
+      activeMediaPlayer = currentDevices.find((item) => String(item.id) === String(activeMediaPlayer?.id)) || activeMediaPlayer
+      renderMediaZones()
+    }
   } catch (error) { fail(error) } finally { button.disabled = false }
 }
 
