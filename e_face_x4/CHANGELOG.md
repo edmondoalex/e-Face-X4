@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.20.14 — 2026-09-12
+
+- Ricomposte le sessioni Control4 multi-stanza prive di queue tramite route audio e fingerprint del flusso.
+- Evitata l'unione basata sul solo titolo: sorgente Control4 e contenuto devono coincidere.
+
 ## 2.20.13 — 2026-09-12
 
 - Recuperato direttamente `QUEUE_STATUS_V2` dal Digital Media client Control4.

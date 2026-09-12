@@ -126,7 +126,7 @@ def test_x4_shell_and_brand_assets_are_served() -> None:
     assert 'evoice.css' in page.text
     for label in ("Guarda", "Ascolta", "Luci", "Extra", "Scenari", "Oscuranti", "Comfort", "Sicurezza"):
         assert f'title="{label}"' in page.text
-    assert 'src="assets/brand-horizontal.png?v=2.20.13"' in page.text
+    assert 'src="assets/brand-horizontal.png?v=2.20.14"' in page.text
     assert 'alt="e-Face X4"' in page.text
     assert 'class="header-wordmark"' not in page.text
     assert client.get("/assets/brand-horizontal.png").status_code == 200
@@ -900,6 +900,20 @@ def test_control4_digital_media_queue_becomes_canonical_group() -> None:
         "resource_revision": 10015,
     }]
     assert players[0]["group"] == groups[0]
+
+
+def test_control4_shared_audio_route_becomes_one_session_without_queue() -> None:
+    players = [
+        {"registry_id": "c4room:51", "active_experience": "listen", "active_source_id": 210, "content_fingerprint": "same-track"},
+        {"registry_id": "c4room:50", "active_experience": "listen", "active_source_id": 210, "content_fingerprint": "same-track"},
+        {"registry_id": "c4room:61", "active_experience": "listen", "active_source_id": 100002, "content_fingerprint": "other-track"},
+    ]
+    groups = normalize_control4_groups(players, [])
+    assert len(groups) == 1
+    assert groups[0]["group_id"] == "c4route:210:same-track"
+    assert groups[0]["member_registry_ids"] == ["c4room:51", "c4room:50"]
+    assert groups[0]["inferred_from_route"] is True
+    assert players[2].get("group") is None
 
 
 def test_local_home_assistant_media_snapshot_is_normalized() -> None:
