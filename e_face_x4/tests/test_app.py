@@ -126,7 +126,9 @@ def test_x4_shell_and_brand_assets_are_served() -> None:
     assert 'evoice.css' in page.text
     for label in ("Guarda", "Ascolta", "Luci", "Extra", "Scenari", "Oscuranti", "Comfort", "Sicurezza"):
         assert f'title="{label}"' in page.text
-    assert 'src="assets/brand-horizontal.png?v=2.20.15"' in page.text
+    assert 'src="assets/brand-horizontal.png?v=2.20.16"' in page.text
+    assert 'id="startup-splash"' in page.text
+    assert client.get("/assets/splash.css").status_code == 200
     assert 'alt="e-Face X4"' in page.text
     assert 'class="header-wordmark"' not in page.text
     assert client.get("/assets/brand-horizontal.png").status_code == 200
@@ -814,6 +816,7 @@ def test_media_ui_has_room_selection_and_typed_controls() -> None:
     assert "device.experiences?.includes('listen') || device.tts_enabled" in script
     assert "data-tts-send" in script
     assert "data-tts-select-all" in script
+    assert "}, 5000)" in script
     assert "data-tts-volume" in script
     assert "await postDeviceCommand(deviceId, 'set_volume', volume)" in script
     assert "localStorage.setItem('eface-tts-volume'" in script

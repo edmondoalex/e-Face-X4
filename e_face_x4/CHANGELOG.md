@@ -1,5 +1,9 @@
 # Changelog
 
+## 2.20.16 — 2026-09-12
+
+- Aggiunta schermata iniziale con logo e-Face X4 per 5 secondi e dissolvenza verso l'app.
+
 ## 2.20.15 — 2026-09-12
 
 - Ricomposte le sessioni Wireless Music Bridge anche quando Control4 non fornisce una cover e il fingerprint artwork è assente.

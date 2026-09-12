@@ -1764,3 +1764,9 @@ setInterval(() => {
 setInterval(refresh, 60000)
 refresh()
 connectRealtime()
+setTimeout(() => {
+  const splash = $('#startup-splash')
+  if (!splash) return
+  splash.classList.add('closing')
+  setTimeout(() => splash.remove(), 650)
+}, 5000)
