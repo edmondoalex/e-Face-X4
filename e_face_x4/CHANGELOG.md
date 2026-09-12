@@ -613,3 +613,8 @@
 # 2.14.2
 
 - Eliminati definitivamente bordi, contorni focus e ombre residue dalle card Aree e Zone.
+
+# 2.15.0
+
+- Modalità grafica senza bordi estesa alle card di Home, Luci, Extra, Scenari, Cover, Comfort, Sicurezza, Audio e Video.
+- Conservati colori e indicatori di stato, oltre ai bordi funzionali di input, slider e finestre di comando.

@@ -1,0 +1,36 @@
+/* Prova visiva globale: superfici senza cornici, stato affidato a colore e contenuto. */
+.xcard,
+.quick-card,
+.room-card,
+.camera,
+.detail-header,
+.page-device-list>article,
+.scenario-panel,
+.scenario-card,
+.security-summary,
+.security-scenario,
+.security-area,
+.security-zone,
+.security-lock,
+.home-live-media,
+.home-live-media-list>*,
+.media-player-card,
+.media-session,
+.media-session-row,
+.media-service-tile,
+.media-sources>button,
+.av-filters>button,
+.media-zone,
+.media-zone-choice,
+.zones-master,
+.media-zone-picker,
+#widgets>button {
+  border: 0 !important;
+  border-color: transparent !important;
+}
+
+.page-device-list>article:last-child,
+.media-zone:last-child,
+.media-zone-choice:last-child {
+  border-bottom: 0 !important;
+}

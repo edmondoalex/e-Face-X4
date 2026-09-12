@@ -115,7 +115,7 @@ def test_x4_shell_and_brand_assets_are_served() -> None:
     assert '<iframe' not in page.text
     for label in ("Guarda", "Ascolta", "Luci", "Extra", "Scenari", "Oscuranti", "Comfort", "Sicurezza"):
         assert f'title="{label}"' in page.text
-    assert 'src="assets/brand-horizontal.png?v=2.14.2"' in page.text
+    assert 'src="assets/brand-horizontal.png?v=2.15.0"' in page.text
     assert 'alt="e-Face X4"' in page.text
     assert 'class="header-wordmark"' not in page.text
     assert client.get("/assets/brand-horizontal.png").status_code == 200
@@ -124,6 +124,7 @@ def test_x4_shell_and_brand_assets_are_served() -> None:
     assert client.get("/assets/media.css").status_code == 200
     assert client.get("/assets/media-x4.css").status_code == 200
     assert client.get("/assets/media-remote-colors.css").status_code == 200
+    assert client.get("/assets/borderless.css").status_code == 200
     assert client.get("/assets/tools-global-background.css").status_code == 200
     assert client.get("/assets/header-responsive.css").status_code == 200
     assert client.get("/assets/home-rooms.css").status_code == 200
