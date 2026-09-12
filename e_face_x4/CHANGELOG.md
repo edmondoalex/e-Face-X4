@@ -618,3 +618,9 @@
 
 - Modalità grafica senza bordi estesa alle card di Home, Luci, Extra, Scenari, Cover, Comfort, Sicurezza, Audio e Video.
 - Conservati colori e indicatori di stato, oltre ai bordi funzionali di input, slider e finestre di comando.
+
+# 2.15.1
+
+- Corretto il contenitore dei comandi area che comprimeva e sovrapponeva i pulsanti.
+- Popup area ridisegnato con icona centrale più leggibile, azioni separate e layout responsive.
+- Popup area e tastierino PIN ulteriormente semplificati: dimensioni ridotte, niente elementi decorativi e un solo comando di conferma.
