@@ -344,8 +344,10 @@ function renderSecurityDevices(devices) {
     const alarm = device.state === 'ALARM'; const tamper = device.state === 'TAMPER'; const armed = device.state === 'ARMED'; const memory = device.alarm_memory || device.tamper_memory
     const actions = alarm || armed ? `<button data-action="disarm">DISINSERISCI</button>` : `<button data-action="arm_delay">INSERISCI</button><button data-action="arm_instant">IMMEDIATO</button>`
     const delay = Number(device.exit_delay) > 0 ? ` · uscita ${device.exit_delay}s` : Number(device.entry_delay) > 0 ? ` · ingresso ${device.entry_delay}s` : ''
-    const state = alarm ? 'ALLARME ATTIVO' : tamper ? 'SABOTAGGIO ATTIVO' : armed ? device.arm_mode === 'instant' ? 'INSERITA IMMEDIATA' : `INSERITA RITARDATA${delay}` : memory ? device.alarm_memory ? 'DISINSERITA · MEMORIA ALLARME' : 'DISINSERITA · MEMORIA SABOTAGGIO' : 'DISINSERITA'
-    return `<article class="security-area ${alarm || tamper ? 'alarm' : armed ? 'armed' : memory ? 'memory' : 'ready'}" data-device-id="${esc(device.id)}"><span class="mdi-mask" style="${mdiStyle(alarm || tamper ? 'mdi:shield-alert' : armed ? 'mdi:shield-lock' : memory ? 'mdi:history' : 'mdi:shield-check', 'shield-home')}"></span><div><small>AREA</small><strong>${esc(device.name)}</strong><b>${esc(state)}</b></div><div class="security-actions">${actions}</div></article>`
+    const state = alarm ? 'ALLARME ATTIVO' : tamper ? 'SABOTAGGIO ATTIVO' : armed ? device.arm_mode === 'instant' ? 'INSERITA IMMEDIATA' : `INSERITA RITARDATA${delay}` : 'DISINSERITA'
+    const iconTitle = memory && !alarm && !tamper ? device.alarm_memory ? 'Memoria allarme' : 'Memoria sabotaggio' : state
+    const visualClass = alarm || tamper ? 'alarm' : armed ? `armed ${device.arm_mode === 'instant' ? 'armed-instant' : 'armed-delayed'}` : memory ? 'memory' : 'ready'
+    return `<article class="security-area ${visualClass}" data-device-id="${esc(device.id)}"><span class="mdi-mask" style="${mdiStyle(alarm || tamper ? 'mdi:shield-alert' : armed ? 'mdi:shield-lock' : memory ? 'mdi:history' : 'mdi:shield-check', 'shield-home')}" role="img" aria-label="${esc(iconTitle)}" title="${esc(iconTitle)}"></span><div><small>AREA</small><strong>${esc(device.name)}</strong><b>${esc(state)}</b></div><div class="security-actions">${actions}</div></article>`
   }).join('')
   const zoneIcon = (device) => {
     const active = device.state === 'ACTIVE'
@@ -361,9 +363,9 @@ function renderSecurityDevices(devices) {
     const visualState = bad ? 'tamper' : device.bypassed ? 'bypassed' : device.state === 'MASKED' ? 'masked' : device.memory ? 'memory' : device.state === 'ACTIVE' ? 'active' : 'ready'
     const stateTitle = bad ? 'Sabotaggio' : device.bypassed ? 'Zona esclusa' : device.state === 'MASKED' ? 'Zona mascherata' : device.memory ? 'Memoria presente' : device.state === 'ACTIVE' ? 'Sensore attivo' : 'Zona a riposo'
     const actionTitle = device.bypassed ? 'Includi zona' : 'Escludi zona'
-    return `<article class="security-zone zone-${visualState}" data-device-id="${esc(device.id)}"><span class="security-zone-sensor mdi-mask" style="${mdiStyle(zoneIcon(device), 'access-point')}" role="img" aria-label="${stateTitle}" title="${stateTitle}"></span><strong>${esc(device.name)}</strong><i class="security-zone-state" aria-hidden="true">${device.bypassed ? '!' : ''}</i><button data-action="${device.bypassed ? 'bypass_off' : 'bypass_on'}" aria-label="${actionTitle}" title="${actionTitle}"><span class="mdi-mask" style="${mdiStyle(device.bypassed ? 'mdi:eye-outline' : 'mdi:eye-off-outline', 'eye-off-outline')}"></span></button></article>`
+    return `<article class="security-zone zone-${visualState}" data-device-id="${esc(device.id)}" tabindex="0" role="button" aria-expanded="false"><span class="security-zone-sensor mdi-mask" style="${mdiStyle(zoneIcon(device), 'access-point')}" role="img" aria-label="${stateTitle}" title="${stateTitle}"></span><strong>${esc(device.name)}</strong><i class="security-zone-state" aria-hidden="true">${device.bypassed ? '!' : ''}</i><button data-action="${device.bypassed ? 'bypass_off' : 'bypass_on'}">${device.bypassed ? 'INCLUDI' : 'ESCLUDI'}</button></article>`
   }).join('')
-  const lockCards = locks.map((device) => `<article class="security-zone" data-device-id="${esc(device.id)}">${deviceGlyph(device)}<div><strong>${esc(device.name)}</strong><small>${esc(device.room)}</small></div><b>${esc(stateLabel(device))}</b>${deviceActions(device)}</article>`).join('')
+  const lockCards = locks.map((device) => `<article class="security-lock" data-device-id="${esc(device.id)}">${deviceGlyph(device)}<div class="security-lock-name"><strong>${esc(device.name)}</strong><small>${esc(device.room)}</small></div><b>${esc(stateLabel(device))}</b>${deviceActions(device)}</article>`).join('')
   const scenarioCards = scenarios.map((device) => { const disarm = device.category === 'DISARM'; const partial = device.category === 'PARTIAL'; return `<button class="security-scenario ${disarm ? 'disarm' : partial ? 'partial' : 'arm'}" data-security-scenario data-device-id="${esc(device.id)}" data-action="execute"><span class="mdi-mask" style="${mdiStyle(disarm ? 'mdi:shield-off-outline' : partial ? 'mdi:shield-half-full' : 'mdi:shield-lock-outline', 'shield-key-outline')}"></span><strong>${esc(device.name)}</strong></button>` }).join('')
   $('#device-list').innerHTML = `${summary}${scenarios.length ? `<section class="security-section"><h3>Scenari di inserimento</h3><div class="security-scenario-grid">${scenarioCards}</div></section>` : ''}${partitions.length ? `<section class="security-section"><h3>Stato aree <small>${partitions.length}</small></h3><div class="security-area-grid">${areaCards}</div></section>` : ''}${zones.length ? `<section class="security-section"><h3>Zone <small>${zones.length}</small></h3><div class="security-zone-grid">${zoneCards}</div></section>` : ''}${locks.length ? `<section class="security-section"><h3>Serrature</h3><div class="security-zone-grid">${lockCards}</div></section>` : ''}`
 }
@@ -1237,6 +1239,13 @@ $('#device-list').addEventListener('click', (event) => {
   }
   const button = event.target.closest('[data-action]')
   const card = event.target.closest('[data-device-id]')
+  if (!button && card?.classList.contains('security-zone')) {
+    const opening = !card.classList.contains('show-action')
+    document.querySelectorAll('.security-zone.show-action').forEach((item) => { item.classList.remove('show-action'); item.setAttribute('aria-expanded', 'false') })
+    card.classList.toggle('show-action', opening)
+    card.setAttribute('aria-expanded', String(opening))
+    return
+  }
   if (button && card && card.dataset.deviceId?.startsWith('ksenia-')) return requestSecurityPin(card.dataset.deviceId, button.dataset.action, button)
   if (button && card) sendDeviceCommand(card.dataset.deviceId, button.dataset.action, button)
   if (!button && card?.classList.contains('media-player-card') && !event.target.closest('input,label')) {
@@ -1266,7 +1275,7 @@ $('#device-list').addEventListener('pointermove', (event) => {
 }, { passive: true })
 $('#device-list').addEventListener('pointercancel', () => { devicePointerGesture = { moved: true } }, { passive: true })
 $('#device-list').addEventListener('keydown', (event) => {
-  if (!['Enter',' '].includes(event.key) || !event.target.matches('[data-device-toggle],[data-rgb-toggle]')) return
+  if (!['Enter',' '].includes(event.key) || !event.target.matches('[data-device-toggle],[data-rgb-toggle],.security-zone')) return
   event.preventDefault()
   event.target.click()
 })

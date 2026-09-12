@@ -585,3 +585,15 @@
 
 - Card degli scenari Ksenia più sottili, con la sola icona e il nome dello scenario.
 - Rimosse le descrizioni ripetitive di inserimento totale, parziale e disinserimento.
+
+# 2.12.4
+
+- Le aree con memoria mostrano soltanto `DISINSERITA`; il tipo di memoria resta rappresentato dall'icona ambra e dal relativo suggerimento accessibile.
+
+# 2.13.0
+
+- Aree inserite immediatamente in rosso, incluse icona a scudetto, bordo e stato.
+- Aree inserite con ritardo in giallo, incluse icona a scudetto, bordo e stato.
+- Rimossi i bordi esterni da riepilogo, scenari, aree e zone della pagina Sicurezza.
+- Serrature separate dal layout delle zone sensore, con pulsanti adattivi che non escono più dalle card.
+- Rimossa l'icona a occhio dalle zone: il comando `ESCLUDI` o `INCLUDI` appare soltanto toccando la card.
