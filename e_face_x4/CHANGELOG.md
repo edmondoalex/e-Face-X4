@@ -1,5 +1,12 @@
 # Changelog
 
+## 2.17.2 — 2026-09-12
+
+- Le dashboard Energia mostrano un'icona dinamica per produzione FV, batteria, prelievo e immissione in rete.
+- Disposte due dashboard per riga a tutta larghezza, con colori energetici coerenti.
+- Rimossa la card introduttiva e affidato lo scorrimento alla pagina e-Face.
+- Migliorata la connessione automatica a e-SunMind in modalità `host_network`.
+
 ## 2.7.0 — 2026-09-12
 
 - Aggiunta in `Strumenti → Utente` la scelta dello sfondo senza accesso Admin.

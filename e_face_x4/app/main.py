@@ -25,10 +25,10 @@ from .backgrounds import PRESETS, load_background, load_background_image, load_b
 from .connectors import BusproConnector, Control4MediaConnector, EThermConnector, EkonexMediaConnector, KseniaConnector, LocalMediaConnector
 from .connectors.ksenia import normalize_ksenia
 from .connectors.control4_media import cached_control4_icon, cached_control4_icon_path, cached_control4_source_label, control4_icon_path
-from .connectors.supervisor import discover_addon_url
+from .connectors.supervisor import discover_addon_url, discover_host_url
 from .demo import dashboard as demo_dashboard
 
-VERSION = "2.17.0"
+VERSION = "2.17.2"
 STATIC = Path(__file__).parent / "static"
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s [e-face-x4] %(message)s")
 
@@ -61,20 +61,36 @@ def create_app() -> FastAPI:
     @app.get("/api/sunmind/{proxy_path:path}", include_in_schema=False)
     async def sunmind_proxy(proxy_path: str, request: Request) -> Response:
         settings = load_settings()
-        config = await resolved_provider(settings.sunmind, "e_sunmind", 1980, settings.request_timeout_s)
-        if not config.enabled or not config.base_url:
+        config = settings.sunmind
+        if not config.enabled:
             raise HTTPException(status_code=503, detail="Dashboard energia non disponibile")
         clean_path = str(proxy_path or "").lstrip("/")
         if not clean_path or ".." in clean_path.split("/"):
             raise HTTPException(status_code=400, detail="Percorso dashboard non valido")
-        target = f"{config.base_url}/{clean_path}"
-        if request.url.query:
-            target = f"{target}?{request.url.query}"
-        try:
-            async with httpx.AsyncClient(timeout=max(20.0, settings.request_timeout_s), follow_redirects=True) as client:
-                upstream = await client.get(target, headers={"Accept": request.headers.get("accept", "*/*")})
-                upstream.raise_for_status()
-        except httpx.HTTPError:
+        manual = str(config.base_url or "").lower()
+        candidates = []
+        if manual and "127.0.0.1" not in manual and "localhost" not in manual:
+            candidates.append(config.base_url)
+        discovered, host_url = await asyncio.gather(
+            discover_addon_url("e_sunmind", 1980, settings.request_timeout_s),
+            discover_host_url(1980, settings.request_timeout_s),
+        )
+        candidates.extend(value for value in (discovered, host_url, config.base_url) if value and value not in candidates)
+        upstream = None
+        timeout = httpx.Timeout(max(20.0, settings.request_timeout_s), connect=min(3.0, settings.request_timeout_s))
+        async with httpx.AsyncClient(timeout=timeout, follow_redirects=True) as client:
+            for base_url in candidates:
+                target = f"{base_url.rstrip('/')}/{clean_path}"
+                if request.url.query:
+                    target = f"{target}?{request.url.query}"
+                try:
+                    candidate = await client.get(target, headers={"Accept": request.headers.get("accept", "*/*")})
+                    candidate.raise_for_status()
+                    upstream = candidate
+                    break
+                except httpx.HTTPError:
+                    continue
+        if upstream is None:
             raise HTTPException(status_code=502, detail="e-SunMind non raggiungibile")
         headers = {"Cache-Control": upstream.headers.get("cache-control", "no-cache")}
         return Response(upstream.content, status_code=upstream.status_code, media_type=upstream.headers.get("content-type"), headers=headers)

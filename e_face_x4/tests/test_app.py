@@ -8,7 +8,7 @@ from app.connectors.media import normalize_player
 from app.connectors.local_media import normalize_local_snapshot
 from app.connectors.local_media import HA_WEBSOCKET_MAX_BYTES
 from app.connectors.control4_media import Control4MediaConnector, control4_icon_path, control4_queues, control4_remote_actions, normalize_control4_groups, normalize_control4_media
-from app.connectors.supervisor import find_addon_url
+from app.connectors.supervisor import find_addon_url, find_host_url
 from app.media_preferences import apply_preferences, load_preferences, save_preferences
 from app.control4 import load_control4_config, public_control4_config, save_control4_config, summarize_ui_configuration
 from app.source_icons import delete_source_icon, load_builtin_source_icon, load_source_icon, save_source_icon
@@ -115,10 +115,13 @@ def test_x4_shell_and_brand_assets_are_served() -> None:
     assert 'id="energy-view"' in page.text
     assert 'id="energy-picker"' in page.text
     assert 'id="energy-frame"' in page.text
+    assert 'class="energy-frame"' in page.text
+    assert 'scrolling="no"' in page.text
+    assert 'energy-picker-intro' not in page.text
     assert 'data-view="energy"' in page.text
     for label in ("Guarda", "Ascolta", "Luci", "Extra", "Scenari", "Oscuranti", "Comfort", "Sicurezza"):
         assert f'title="{label}"' in page.text
-    assert 'src="assets/brand-horizontal.png?v=2.17.0"' in page.text
+    assert 'src="assets/brand-horizontal.png?v=2.17.2"' in page.text
     assert 'alt="e-Face X4"' in page.text
     assert 'class="header-wordmark"' not in page.text
     assert client.get("/assets/brand-horizontal.png").status_code == 200
@@ -430,6 +433,13 @@ def test_supervisor_addon_slug_becomes_internal_dns_name() -> None:
     assert find_addon_url(payload, "e_hdl_buspro_mqtt", 8124) == "http://a59e0dbb-e-hdl-buspro-mqtt:8124"
 
 
+def test_supervisor_network_info_becomes_host_network_url() -> None:
+    payload = {"data": {"interfaces": [
+        {"enabled": True, "ipv4": {"address": ["192.168.3.24/24"]}},
+    ]}}
+    assert find_host_url(payload, 1980) == "http://192.168.3.24:1980"
+
+
 def test_navigation_icons_have_defaults(monkeypatch, tmp_path) -> None:
     options = tmp_path / "options.json"
     options.write_text("{}", encoding="utf-8")
@@ -440,6 +450,16 @@ def test_navigation_icons_have_defaults(monkeypatch, tmp_path) -> None:
     assert data["nav_icons"]["energy"] == "mdi:solar-power-variant"
     assert data["nav_icons"]["extra"] == "mdi:shape"
     assert data["nav_icons"]["scenarios"] == "mdi:creation"
+
+
+def test_energy_cards_expose_dynamic_flow_states() -> None:
+    script = TestClient(create_app()).get("/assets/app.js").text
+    assert "transmission-tower-import" in script
+    assert "transmission-tower-export" in script
+    assert "batteryFlow" in script
+    assert "gridFlow" in script
+    assert "PRELIEVO" in script
+    assert "IMMISSIONE" in script
 
 
 def test_invalid_mdi_icon_name_returns_safe_fallback() -> None:
