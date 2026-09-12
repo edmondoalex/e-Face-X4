@@ -126,7 +126,7 @@ def test_x4_shell_and_brand_assets_are_served() -> None:
     assert 'evoice.css' in page.text
     for label in ("Guarda", "Ascolta", "Luci", "Extra", "Scenari", "Oscuranti", "Comfort", "Sicurezza"):
         assert f'title="{label}"' in page.text
-    assert 'src="assets/brand-horizontal.png?v=2.20.16"' in page.text
+    assert 'src="assets/brand-horizontal.png?v=2.20.17"' in page.text
     assert 'id="startup-splash"' in page.text
     assert client.get("/assets/splash.css").status_code == 200
     assert 'alt="e-Face X4"' in page.text
@@ -831,9 +831,9 @@ def test_media_ui_has_room_selection_and_typed_controls() -> None:
     assert "consumedPlayback.has(playbackKey)" in script
     assert "player.provider === 'evoice'" in script
     assert "device.active_experience || (['playing', 'buffering'].includes(state) ? 'listen' : '')" in script
-    assert "activeMediaPlayer?.provider === 'control4'" in script
     assert 'data-base-volume="${volume}"' in script
     assert "Number(slider.dataset.baseVolume || 0) + delta" in script
+    assert "Number(player.volume) + delta" in script
     assert "`${player.provider}|${playbackIdentity}`" in script
     assert "!['alarm_partition', 'alarm_scenario', 'alarm_system'].includes(device.kind)" in script
     assert "data-zone-volume" in script
@@ -917,6 +917,39 @@ def test_control4_shared_audio_route_becomes_one_session_without_queue() -> None
     assert groups[0]["member_registry_ids"] == ["c4room:51", "c4room:50"]
     assert groups[0]["inferred_from_route"] is True
     assert players[2].get("group") is None
+
+
+def test_control4_group_volume_applies_delta_instead_of_equalizing(monkeypatch) -> None:
+    import asyncio
+    from app.connectors import control4_media
+
+    levels = {}
+
+    class Room:
+        def __init__(self, director, room_id):
+            self.room_id = room_id
+
+        async def set_volume(self, level):
+            levels[self.room_id] = level
+
+    async def director(config):
+        return object(), "token"
+
+    connector = Control4MediaConnector({})
+
+    async def snapshot():
+        group = {"group_id": "c4route:210:test", "member_registry_ids": ["c4room:50", "c4room:51"]}
+        return {"groups": [group], "items": [
+            {"registry_id": "c4room:50", "volume": 40},
+            {"registry_id": "c4room:51", "volume": 50},
+        ]}
+
+    connector.snapshot = snapshot
+    monkeypatch.setattr(control4_media, "control4_director", director)
+    monkeypatch.setattr(control4_media, "C4Room", Room)
+    result = asyncio.run(connector.group_volume("c4route:210:test", 55))
+    assert levels == {50: 50, 51: 60}
+    assert [item["volume"] for item in result["members"]] == [50, 60]
 
 
 def test_local_home_assistant_media_snapshot_is_normalized() -> None:

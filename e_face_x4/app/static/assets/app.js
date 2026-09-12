@@ -886,15 +886,8 @@ async function setMediaGroupVolume(input) {
   if (!group?.group_id) return
   input.disabled = true
   try {
-    if (activeMediaPlayer?.provider === 'control4') {
-      const sliders = [...document.querySelectorAll('#media-zones-list [data-zone-volume]')].filter((slider) => !slider.disabled)
-      const results = await Promise.allSettled(sliders.map((slider) => postDeviceCommand(slider.dataset.deviceId, 'set_volume', Number(slider.value))))
-      const failed = results.find((result) => result.status === 'rejected')
-      if (failed) throw failed.reason
-    } else {
-      const response = await fetch(apiUrl(`api/media/groups/${encodeURIComponent(group.group_id)}/command`), {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({action:'set_group_volume', value:Number(input.value), resource_revision:group.resource_revision})})
-      if (!response.ok) throw new Error((await response.json().catch(() => ({}))).detail || `HTTP ${response.status}`)
-    }
+    const response = await fetch(apiUrl(`api/media/groups/${encodeURIComponent(group.group_id)}/command`), {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({action:'set_group_volume', value:Number(input.value), resource_revision:group.resource_revision})})
+    if (!response.ok) throw new Error((await response.json().catch(() => ({}))).detail || `HTTP ${response.status}`)
     await refresh()
   } catch (error) { fail(error) } finally { input.disabled = false }
 }
@@ -903,6 +896,9 @@ async function setSessionVolume(input) {
   const session = activeMediaSessions().find(({ player }) => String(player.id) === String(input.dataset.sessionVolume))
   if (!session) return
   const value = Number(input.value)
+  const volumes = session.members.map((player) => Number(player.volume)).filter(Number.isFinite)
+  const average = volumes.length ? Math.round(volumes.reduce((sum, level) => sum + level, 0) / volumes.length) : value
+  const delta = value - average
   input.disabled = true
   try {
     if (session.group?.group_id && session.members.length > 1) {
@@ -911,7 +907,11 @@ async function setSessionVolume(input) {
     } else {
       await postDeviceCommand(session.player.id, 'set_volume', value)
     }
-    session.members.forEach((player) => { player.volume = value; setMediaOverride(player.id, { volume: value }) })
+    session.members.forEach((player) => {
+      const level = Number.isFinite(Number(player.volume)) ? Math.max(0, Math.min(100, Number(player.volume) + delta)) : value
+      player.volume = level
+      setMediaOverride(player.id, { volume: level })
+    })
     await refresh()
   } catch (error) { fail(error) } finally { input.disabled = false }
 }

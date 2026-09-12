@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.20.17 — 2026-09-12
+
+- Centralizzato nel backend il volume generale relativo delle sessioni Control4.
+- Rimossa l'assegnazione ottimistica dello stesso volume a tutte le stanze.
+
 ## 2.20.16 — 2026-09-12
 
 - Aggiunta schermata iniziale con logo e-Face X4 per 5 secondi e dissolvenza verso l'app.
