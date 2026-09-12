@@ -35,13 +35,11 @@ Il token resta nel file delle opzioni dell'add-on e non viene restituito al brow
 
 ## Collegamento Ekonex Media
 
-Per abilitare le pagine **Guarda** e **Ascolta** tramite e-Voice configurare:
+Per abilitare le pagine **Guarda** e **Ascolta** tramite e-Voice:
 
-- `evoice.enabled`: abilita il collegamento;
-- `evoice.base_url`: indirizzo del backend e-Voice senza il suffisso `/api/media/v1`;
-- `evoice.installation_id`: UUID dell'impianto autorizzato;
-- `evoice.token`: credenziale Media e-Voice con prefisso `emf_`.
+- aggiornare Ekonex Voice almeno alla versione `0.1.8-beta.37`;
+- abilitare `evoice.enabled` nelle opzioni di e-Face.
 
-e-Face usa esclusivamente questa API e non legge direttamente il registro dei media player di Home Assistant. Se uno dei parametri manca, il provider e-Voice risulta non configurato.
+e-Face usa automaticamente l'API locale autenticata tramite Home Assistant Supervisor. Espone soltanto i media player selezionati nel componente e-Voice e non legge direttamente il registro dei media player di Home Assistant.
 
-Le credenziali restano nell'add-on. Il browser comunica esclusivamente con e-Face X4. Gli aggiornamenti arrivano dallo stream realtime; lo snapshot periodico viene usato come recupero.
+`evoice.base_url`, `evoice.installation_id` ed `evoice.token` restano disponibili esclusivamente per usare l'API Media cloud come trasporto alternativo. Il browser comunica sempre soltanto con e-Face X4.

@@ -41,16 +41,16 @@ configuration:
         name: Token
   evoice:
     name: Ekonex Media
-    description: Collegamento diretto all'API Media di e-Voice. e-Face non legge direttamente i media player di Home Assistant.
+    description: Collegamento locale automatico al componente e-Voice. I parametri API servono soltanto per il trasporto cloud alternativo.
     fields:
       enabled:
         name: Abilitato
       base_url:
-        name: Indirizzo API e-Voice
+        name: Indirizzo API cloud opzionale
       token:
-        name: Credenziale Media e-Voice
+        name: Credenziale Media cloud opzionale
       installation_id:
-        name: ID impianto e-Voice
+        name: ID impianto cloud opzionale
         description: Identificativo dell'impianto autorizzato nel backend Ekonex Media.
   etherm:
     name: e-Therm Plus KS

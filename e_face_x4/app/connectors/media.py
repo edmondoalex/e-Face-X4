@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 from typing import Any, AsyncIterator
 from urllib.parse import quote
 
@@ -96,6 +97,40 @@ class EkonexMediaConnector(Connector):
                             yield event
 
 
+class EvoiceLocalMediaConnector(EkonexMediaConnector):
+    """Media transport exposed by the Ekonex Voice HA integration."""
+
+    label = "Ekonex Voice locale"
+
+    def __init__(self, timeout: float) -> None:
+        self.timeout = timeout
+        self.base_url = "http://supervisor/core/api/evoice/media"
+        self.token = str(os.environ.get("SUPERVISOR_TOKEN") or "").strip()
+
+    def headers(self) -> dict[str, str]:
+        return {"Authorization": f"Bearer {self.token}"} if self.token else {}
+
+    def _url(self, suffix: str) -> str:
+        return f"{self.base_url}{suffix}"
+
+    async def snapshot(self) -> dict[str, Any]:
+        if not self.token:
+            return {"id": self.id, "label": self.label, "status": "misconfigured", "reason": "SUPERVISOR_TOKEN non disponibile", "items": []}
+        try:
+            async with httpx.AsyncClient(timeout=self.timeout, follow_redirects=False) as client:
+                response = await client.get(self._url("/snapshot"), headers=self.headers())
+                response.raise_for_status()
+            payload = response.json()
+            players = payload.get("players", []) if isinstance(payload, dict) else []
+            return {
+                "id": self.id, "label": self.label, "status": "online",
+                "connection_status": "online", "items": [normalize_player(item) for item in players if isinstance(item, dict)],
+                "groups": payload.get("groups", []) if isinstance(payload.get("groups"), list) else [],
+            }
+        except (httpx.HTTPError, ValueError, TypeError, AttributeError) as exc:
+            return {"id": self.id, "label": self.label, "status": "offline", "reason": _reason(exc), "items": []}
+
+
 def normalize_player(player: dict[str, Any]) -> dict[str, Any]:
     registry_id = str(player.get("registry_id") or "")
     media = player.get("media") if isinstance(player.get("media"), dict) else {}
@@ -110,9 +145,9 @@ def normalize_player(player: dict[str, Any]) -> dict[str, Any]:
     return {
         "id": f"media:{registry_id}", "registry_id": registry_id, "entity_id": str(player.get("entity_id") or ""), "provider": "evoice",
         "kind": "media_player", "icon": "mdi:speaker", "name": str(player.get("name") or "Player"),
-        "room": str(area.get("name") or "Senza stanza"), "state": player.get("state"),
+        "room": str(area.get("name") or player.get("room_name") or "Senza stanza"), "state": player.get("state"),
         "availability": str(player.get("availability") or "unknown"),
-        "connection_status": str(player.get("connection_status") or "offline"),
+        "connection_status": str(player.get("connection_status") or ("online" if player.get("availability") == "available" else "offline")),
         "title": media.get("title"), "artist": media.get("artist"), "album": media.get("album"),
         "duration_seconds": media.get("duration_seconds"), "content_fingerprint": media.get("content_fingerprint"),
         "volume": player.get("volume_percent"), "muted": player.get("muted"),

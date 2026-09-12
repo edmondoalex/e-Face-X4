@@ -1,5 +1,12 @@
 # Changelog
 
+## 2.20.0 — 2026-09-12
+
+- Integrata l'API Media locale di Ekonex Voice 0.1.8-beta.37 tramite il proxy autenticato di Home Assistant Supervisor.
+- Collegati snapshot, comandi media, TTS, DND, artwork e stream SSE direttamente al componente e-Voice.
+- Conservata l'API Media cloud come trasporto alternativo quando URL e ID impianto sono configurati.
+- Nessun accesso diretto di e-Face al registro dei media player Home Assistant.
+
 ## 2.19.9 — 2026-09-12
 
 - Rimosso il fallback silenzioso che esponeva come e-Voice i media player letti direttamente da Home Assistant.

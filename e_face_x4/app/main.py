@@ -22,13 +22,13 @@ from .installer_auth import COOKIE, create_session, valid_session
 from .media_preferences import apply_preferences, load_preferences, save_preferences
 from .source_icons import delete_source_icon, load_builtin_source_icon, load_source_icon, save_source_icon
 from .backgrounds import CARD_THEMES, PRESETS, load_background, load_background_image, load_backgrounds, load_card_theme, save_background_image, save_card_theme, save_inherit, save_preset
-from .connectors import BusproConnector, Control4MediaConnector, EThermConnector, EkonexMediaConnector, KseniaConnector
+from .connectors import BusproConnector, Control4MediaConnector, EThermConnector, EkonexMediaConnector, EvoiceLocalMediaConnector, KseniaConnector
 from .connectors.ksenia import normalize_ksenia
 from .connectors.control4_media import cached_control4_icon, cached_control4_icon_path, cached_control4_source_label, control4_icon_path
 from .connectors.supervisor import discover_addon_url, discover_host_url
 from .demo import dashboard as demo_dashboard
 
-VERSION = "2.19.9"
+VERSION = "2.20.0"
 STATIC = Path(__file__).parent / "static"
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s [e-face-x4] %(message)s")
 
@@ -45,7 +45,9 @@ def create_app() -> FastAPI:
         return replace(config, base_url=discovered) if discovered else config
 
     def evoice_connector(settings):
-        return EkonexMediaConnector(settings.evoice, settings.request_timeout_s)
+        if settings.evoice.base_url and settings.evoice.installation_id:
+            return EkonexMediaConnector(settings.evoice, settings.request_timeout_s)
+        return EvoiceLocalMediaConnector(settings.request_timeout_s)
 
     def media_connectors(settings):
         result = []
@@ -546,7 +548,7 @@ def create_app() -> FastAPI:
         settings = load_settings()
         connector = media_connector(settings, group_id)
         config = settings.evoice
-        if not isinstance(connector, Control4MediaConnector) and (not config.enabled or not config.base_url or not config.installation_id):
+        if not isinstance(connector, Control4MediaConnector) and not config.enabled:
             raise HTTPException(status_code=503, detail="Ekonex Media non disponibile")
         operation = str(payload.get("action") or "")
         if operation != "set_group_volume":
