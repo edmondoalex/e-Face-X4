@@ -1,5 +1,9 @@
 # Changelog
 
+## 2.17.5 — 2026-09-12
+
+- Le card Energia adottano un antracite freddo coerente con lo sfondo, lasciando i colori ai soli flussi.
+
 ## 2.17.4 — 2026-09-12
 
 - Le card Energia aggiornano automaticamente valori, icone e direzioni ogni 2 secondi.
