@@ -51,7 +51,11 @@ class Control4MediaConnector(Connector):
                 director.get_all_item_variable_value(ROOM_VARIABLES),
             )
             items = normalize_control4_media(ui, all_items, variables)
-            await cache_control4_source_icons(director)
+            try:
+                await cache_control4_source_icons(director)
+            except Exception:
+                # Icon metadata is optional and must never take the media connector offline.
+                pass
             groups = normalize_control4_groups(items, variables)
             room_ids = {int(str(item["registry_id"]).removeprefix("c4room:")) for item in items}
             related = {
@@ -248,7 +252,8 @@ def normalize_control4_media(ui: Any, all_items: Any, variables: Any) -> list[di
 
 
 def control4_queues(value: Any) -> list[dict[str, Any]]:
-    queues = value.get("queues", {}).get("queue", []) if isinstance(value, dict) else []
+    container = value.get("queues") if isinstance(value, dict) else None
+    queues = container.get("queue", []) if isinstance(container, dict) else []
     if isinstance(queues, dict):
         queues = [queues]
     return [item for item in queues if isinstance(item, dict)] if isinstance(queues, list) else []
@@ -261,7 +266,8 @@ def control4_icon_path(item: Any) -> str | None:
         return None
     capabilities = item.get("capabilities")
     display = capabilities.get("navigator_display_option") if isinstance(capabilities, dict) else None
-    icons = display.get("display_icons", {}).get("Icon", []) if isinstance(display, dict) else []
+    display_icons = display.get("display_icons") if isinstance(display, dict) else None
+    icons = display_icons.get("Icon", []) if isinstance(display_icons, dict) else []
     if isinstance(icons, dict):
         icons = [icons]
     candidates = [icon for icon in icons if isinstance(icon, dict) and isinstance(icon.get("$t"), str)]

@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.5.1 — 2026-09-12
+
+- Corretto `AttributeError` con driver Control4 che espongono `display_icons` in un formato non strutturato.
+- Il precaricamento opzionale delle icone non può più portare offline l'intero connettore Control4.
+
 ## 2.5.0 — 2026-09-11
 
 - Aggiunto il telecomando completo per le sessioni video Control4.
