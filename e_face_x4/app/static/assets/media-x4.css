@@ -7,3 +7,4 @@
 @media(max-width:700px){.media-room-view .page-device-list{grid-template-columns:1fr}.media-room-view .media-session{grid-column:1}.media-room-view .media-source-library .media-service-grid{grid-template-columns:repeat(3,minmax(0,1fr))}}
 .media-session.media-session-watch>.device-glyph{color:#61d8f2}.media-video-source{display:flex;align-items:center;justify-content:center;background:#050708!important}.media-video-source img{display:block;max-width:82%;max-height:72%;object-fit:contain}
 .media-session{border:0!important;border-radius:12px!important}.media-session>.media-artwork{border-radius:9px}.media-service-grid{gap:6px}.media-service-tile{border:0;border-radius:9px}.media-recent-item img,.media-recent-art{border-radius:8px}
+.media-session.media-session-listen .media-volume input{accent-color:#20df6b}.media-session.media-session-watch .media-volume input{accent-color:#61d8f2}

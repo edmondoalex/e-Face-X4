@@ -70,7 +70,7 @@ def test_x4_shell_and_brand_assets_are_served() -> None:
     assert '<iframe' not in page.text
     for label in ("Guarda", "Ascolta", "Luci", "Extra", "Scenari", "Oscuranti", "Comfort", "Sicurezza"):
         assert f'title="{label}"' in page.text
-    assert 'src="assets/brand-horizontal.png?v=2.7.6"' in page.text
+    assert 'src="assets/brand-horizontal.png?v=2.7.7"' in page.text
     assert 'alt="e-Face X4"' in page.text
     assert 'class="header-wordmark"' not in page.text
     assert client.get("/assets/brand-horizontal.png").status_code == 200
@@ -495,6 +495,11 @@ def test_media_ui_has_room_selection_and_typed_controls() -> None:
     assert 'class="remote-color remote-${color}"' in script
     assert "media-session-row-watch" in script
     assert "activeMediaRoom && selected.active_experience !== 'watch'" in script
+    assert "device.source || 'Nessuna sorgente'" in script
+    assert "event.clientX < thumbX ? -2 : 2" in script
+    media_css = client.get("/assets/media-x4.css").text
+    assert ".media-session.media-session-listen .media-volume input{accent-color:#20df6b}" in media_css
+    assert ".media-session.media-session-watch .media-volume input{accent-color:#61d8f2}" in media_css
     assert "Ascoltati di recente" in script
     assert "api/control4/recently-played" in script
     assert "const recentCache = new Map()" in script

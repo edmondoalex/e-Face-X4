@@ -277,7 +277,7 @@ function renderMediaExperience(devices) {
   const players = devices.map((device) => {
     const operating = !['off', 'unavailable', 'unknown'].includes(String(device.state).toLowerCase()) && Boolean(device.active_experience)
     const mode = device.active_experience === 'watch' ? 'Video attivo' : 'Audio attivo'
-    return `<button class="media-service-tile media-room-tile ${device.id === selected.id ? 'active' : ''} ${operating ? `media-room-on media-room-${device.active_experience}` : ''}" data-media-select="${esc(device.id)}"><span class="mdi-mask" style="${mdiStyle(device.icon, 'speaker')}"></span><b>${esc(device.name)}</b><small>${esc(device.room)}</small>${operating ? `<i class="media-room-state" aria-label="${mode}" title="${mode}"></i>` : ''}</button>`
+    return `<button class="media-service-tile media-room-tile ${device.id === selected.id ? 'active' : ''} ${operating ? `media-room-on media-room-${device.active_experience}` : ''}" data-media-select="${esc(device.id)}"><span class="mdi-mask" style="${mdiStyle(device.icon, 'speaker')}"></span><b>${esc(device.name)}</b><small>${esc(device.source || 'Nessuna sorgente')}</small>${operating ? `<i class="media-room-state" aria-label="${mode}" title="${mode}"></i>` : ''}</button>`
   }).join('')
   const options = selected.source_options?.length ? selected.source_options.filter((source) => !currentMediaExperience || source.experience === currentMediaExperience) : (selected.source_list || []).map((source) => ({key:source,label:source}))
   const sources = options.map((source) => {
@@ -473,7 +473,7 @@ function deviceActions(device, options = {}) {
     const button = (operation, icon, label, enabled = false, className = '') => enabled ? `<button class="${className}" data-media-action="${operation}" aria-label="${label}" ${disabled ? 'disabled' : ''}><span class="mdi-mask" style="${mdiStyle(`mdi:${icon}`, icon)}"></span></button>` : ''
     const controls = [button('video_remote_menu', 'remote-tv', 'Telecomando video', device.active_experience === 'watch' && device.active_source_id), button('media_shuffle', 'shuffle-variant', 'Riproduzione casuale', caps.shuffle), button('media_previous', 'skip-previous', 'Precedente', caps.previous), String(device.state).toLowerCase() === 'playing' ? button('media_pause', 'pause', 'Pausa', caps.pause, 'primary') : button('media_play', 'play', 'Riproduci', caps.play, 'primary'), button('media_next', 'skip-next', 'Successivo', caps.next), button('media_repeat', 'repeat', 'Ripeti', caps.repeat), button('media_stop', 'stop', 'Stop', caps.stop && currentMediaExperience !== 'listen'), button('turn_off', 'power', 'Spegni stanza', caps.turn_off && !options.hidePower), button('media_zones', 'plus-box-outline', 'Aggiungi stanze', caps.grouping)].join('')
     const mute = caps.mute ? button(device.muted ? 'volume_unmute' : 'volume_mute', device.muted ? 'volume-off' : 'volume-high', device.muted ? 'Riattiva audio' : 'Disattiva audio', true, 'media-volume-mute') : '<span></span>'
-    const volume = caps.set_volume ? `<label class="media-volume">${mute}<input type="range" min="0" max="100" value="${Number(device.volume) || 0}" data-media-volume ${disabled ? 'disabled' : ''}><output>${Number(device.volume) || 0}%</output></label>` : ''
+    const volume = caps.set_volume ? `<label class="media-volume">${mute}<input type="range" min="0" max="100" step="1" value="${Number(device.volume) || 0}" data-media-volume ${disabled ? 'disabled' : ''}><output>${Number(device.volume) || 0}%</output></label>` : ''
     const sourceOptions = device.source_options?.length ? device.source_options.filter((source) => !currentMediaExperience || source.experience === currentMediaExperience) : (device.source_list || []).map((source) => ({key:source,label:source}))
     const sources = caps.select_source && sourceOptions.length ? `<div class="media-sources">${sourceOptions.map((source) => `<button data-media-source="${esc(source.key)}" class="${source.label === device.source ? 'active' : ''}" ${disabled ? 'disabled' : ''}><span class="mdi-mask" style="${mdiStyle('mdi:play-box', 'play-box')}"></span><b>${esc(source.label)}</b></button>`).join('')}</div>` : ''
     return `<div class="media-controls">${controls}</div>${volume}${sources}`
@@ -1018,6 +1018,22 @@ $('#rgb-channel-controls').addEventListener('change', (event) => {
 })
 $('#rgb-dialog').addEventListener('click', (event) => { const button = event.target.closest('[data-popup-rgb-action]'); if (button) sendRgbCommand(activeRgbGroup, button.dataset.popupRgbAction, null, button) })
 $('#rgb-wheel').addEventListener('pointerdown', (event) => { event.currentTarget.setPointerCapture(event.pointerId); sendRgbCommand(activeRgbGroup, 'color', wheelColor(event), event.currentTarget) })
+$('#device-list').addEventListener('pointerdown', (event) => {
+  const input = event.target.closest('input[data-media-volume]')
+  if (!input || input.disabled) return
+  const rect = input.getBoundingClientRect()
+  const min = Number(input.min) || 0
+  const max = Number(input.max) || 100
+  const value = Number(input.value) || 0
+  const thumbX = rect.left + ((value - min) / Math.max(1, max - min)) * rect.width
+  if (Math.abs(event.clientX - thumbX) <= 18) return
+  event.preventDefault()
+  const next = Math.max(min, Math.min(max, value + (event.clientX < thumbX ? -2 : 2)))
+  input.value = String(next)
+  input.nextElementSibling.textContent = `${next}%`
+  const card = input.closest('[data-device-id]')
+  if (card) sendDeviceCommand(card.dataset.deviceId, 'set_volume', input, next)
+}, { capture: true })
 $('#device-list').addEventListener('input', (event) => {
   if (event.target.matches('[data-media-volume]')) event.target.nextElementSibling.textContent = `${event.target.value}%`
   if (event.target.matches('[data-brightness],[data-rgb-brightness]')) {
