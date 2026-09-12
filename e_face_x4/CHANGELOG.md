@@ -665,3 +665,7 @@
 - Rimossa l'etichetta ridondante `SICUREZZA` dal riepilogo Home.
 - Scudetto rosso per inserimenti immediati o allarmi, giallo per inserimenti ritardati e verde a sistema disinserito.
 - Lo scudetto Sicurezza del menu verticale usa esattamente lo stesso colore del riepilogo Home.
+
+# 2.16.6
+
+- Logo e-Face leggermente ingrandito e testata riallineata verticalmente tra marchio, nome casa, stato LIVE, orologio e comandi.
