@@ -437,7 +437,8 @@ function renderMediaExperience(devices) {
   const showRecent = selected.provider === 'control4' && (currentMediaExperience === 'listen' || (activeMediaRoom && selected.active_experience !== 'watch'))
   const recent = showRecent ? `<div class="media-recent" data-recently-played data-recent-scope="${recentScope}" ${cachedRecent && !cachedRecent.items.length ? 'hidden' : ''}><h3>Ascoltati di recente</h3><div class="media-recent-strip">${recentContent}</div></div>` : ''
   const ttsPlayers = currentDevices.filter((device) => device.kind === 'media_player' && device.provider === 'evoice' && device.tts_enabled)
-  const voicePanel = selected.provider === 'evoice' && selected.tts_enabled && ttsPlayers.length ? `<section class="evoice-panel"><h3>Messaggio vocale</h3><div class="evoice-targets">${ttsPlayers.map((device) => `<div class="evoice-target"><label><input type="checkbox" data-tts-target value="${esc(device.id)}" ${device.id === selected.id ? 'checked' : ''}><span>${esc(device.name)}</span><small>${esc(device.room)}</small></label>${device.dnd_available ? `<button class="evoice-dnd ${device.dnd ? 'active' : ''}" data-dnd-device="${esc(device.id)}" data-dnd-value="${device.dnd ? 'false' : 'true'}">DND</button>` : ''}</div>`).join('')}</div><textarea id="evoice-tts-message" maxlength="500" rows="3" placeholder="Scrivi il messaggio da pronunciare"></textarea><button class="evoice-send" data-tts-send>INVIA MESSAGGIO</button></section>` : ''
+  const ttsVolume = Math.max(0, Math.min(100, Number(localStorage.getItem('eface-tts-volume') ?? 50)))
+  const voicePanel = selected.provider === 'evoice' && selected.tts_enabled && ttsPlayers.length ? `<section class="evoice-panel"><h3>Messaggio vocale</h3><div class="evoice-targets">${ttsPlayers.map((device) => `<div class="evoice-target"><label><input type="checkbox" data-tts-target value="${esc(device.id)}" ${device.id === selected.id ? 'checked' : ''}><span>${esc(device.name)}</span><small>${esc(device.room)}</small></label>${device.dnd_available ? `<button class="evoice-dnd ${device.dnd ? 'active' : ''}" data-dnd-device="${esc(device.id)}" data-dnd-value="${device.dnd ? 'false' : 'true'}">DND</button>` : ''}</div>`).join('')}</div><label class="evoice-volume"><span>Volume messaggio</span><input type="range" min="0" max="100" value="${ttsVolume}" style="--volume:${ttsVolume}%" data-tts-volume><output>${ttsVolume}%</output></label><textarea id="evoice-tts-message" maxlength="500" rows="3" placeholder="Scrivi il messaggio da pronunciare"></textarea><button class="evoice-send" data-tts-send>INVIA MESSAGGIO</button></section>` : ''
   $('#device-list').innerHTML = `<article class="media-session ${experienceClass} ${deviceVisualClass(selected)}" data-device-id="${esc(selected.id)}">${mainArtwork}<span class="device-glyph mdi-mask" style="${mdiStyle(mainIcon, selected.active_experience === 'watch' ? 'video' : 'music-circle')}"></span><div class="media-session-info"><strong>${esc(selected.title || selected.source || selected.name)}</strong><small>${esc(selected.artist || selected.source || selected.room)}</small><span class="media-track">${esc(selected.album || selected.name)}</span></div>${power}${deviceActions(selected, { hidePower: true })}</article>${voicePanel}${recent}<div class="media-library media-room-library"><button class="media-library-toggle" data-media-section-toggle="rooms" aria-expanded="${mediaSections.rooms}"><strong>Stanze</strong><span class="mdi-mask" style="${mdiStyle(mediaSections.rooms ? 'mdi:chevron-up' : 'mdi:chevron-down', 'chevron-down')}"></span></button><div class="media-service-grid" ${mediaSections.rooms ? '' : 'hidden'}>${players}</div></div><div class="media-library media-source-library"><h3>Sorgenti e servizi</h3><div class="media-service-grid">${sources || '<span class="empty-state">Nessuna sorgente disponibile</span>'}</div></div>`
   if (recent) loadRecentlyPlayed(selected)
 }
@@ -1454,9 +1455,15 @@ $('#device-list').addEventListener('click', (event) => {
   if (ttsSend) {
     const message = $('#evoice-tts-message')?.value.trim()
     const targets = [...document.querySelectorAll('[data-tts-target]:checked')].map((input) => input.value)
+    const volume = Math.max(0, Math.min(100, Number($('[data-tts-volume]')?.value ?? 50)))
     if (!message || !targets.length) return fail(new Error(!message ? 'Scrivi un messaggio' : 'Seleziona almeno un Echo'))
+    localStorage.setItem('eface-tts-volume', String(volume))
     ttsSend.disabled = true
-    return Promise.all(targets.map((deviceId) => postDeviceCommand(deviceId, 'tts', message))).then(() => {
+    return Promise.all(targets.map(async (deviceId) => {
+      const device = currentDevices.find((item) => String(item.id) === String(deviceId))
+      if (device?.capabilities?.set_volume) await postDeviceCommand(deviceId, 'set_volume', volume)
+      await postDeviceCommand(deviceId, 'tts', message)
+    })).then(() => {
       $('#evoice-tts-message').value = ''
       const notice = $('#notice'); notice.textContent = 'Messaggio inviato'; notice.hidden = false
       setTimeout(() => { notice.hidden = true }, 2200)
@@ -1684,6 +1691,7 @@ $('#device-list').addEventListener('pointerdown', (event) => {
 }, { capture: true })
 $('#device-list').addEventListener('input', (event) => {
   if (event.target.matches('[data-media-volume]')) event.target.nextElementSibling.textContent = `${event.target.value}%`
+  if (event.target.matches('[data-tts-volume]')) { event.target.nextElementSibling.textContent = `${event.target.value}%`; event.target.style.setProperty('--volume', `${event.target.value}%`) }
   if (event.target.matches('[data-brightness],[data-rgb-brightness]')) {
     const percent = Math.round(Number(event.target.value) / 255 * 100)
     event.target.nextElementSibling.textContent = `${percent}%`

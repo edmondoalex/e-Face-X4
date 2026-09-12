@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.20.5 — 2026-09-12
+
+- Aggiunto il volume comune del messaggio nella sezione TTS.
+- Impostato il volume su ogni Echo selezionato prima dell'invio del messaggio.
+- Memorizzato localmente il volume TTS scelto per gli invii successivi.
+
 ## 2.20.4 — 2026-09-12
 
 - Selezionato correttamente l'Echo cliccato entrando dalla pagina Ambiente.
