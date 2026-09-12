@@ -604,3 +604,8 @@
 - Tastierino PIN Ksenia integrato nell'app, senza richiamare la tastiera del dispositivo.
 - Sezioni Stato aree e Zone richiudibili con un tocco e senza contatore visibile.
 - Lo scudetto del riepilogo segue lo stato: verde a riposo, giallo ritardato, rosso immediato o in allarme.
+
+# 2.14.1
+
+- Serrature chiuse/bloccate in verde e aperte/sbloccate in rosso, sia nell'icona sia nello stato testuale.
+- Stati serratura sconosciuti mantenuti neutri per evitare falsi allarmi visivi.
