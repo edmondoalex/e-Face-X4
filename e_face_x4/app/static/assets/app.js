@@ -453,8 +453,12 @@ function openMediaSessions() {
     const volume = volumes.length ? Math.round(volumes.reduce((sum, value) => sum + value, 0) / volumes.length) : 0
     const isVideo = player.active_experience === 'watch'
     const artwork = isVideo && !player.content_fingerprint && player.active_source_id ? `<span class="media-artwork media-video-source"><img src="${apiUrl(`api/control4/source-icon/${player.active_source_id}?v=${encodeURIComponent(appVersion)}`)}" alt="${esc(player.source || '')}" onerror="this.hidden=true"></span>` : mediaArtwork(player)
-    return `<div class="media-session-row ${isVideo ? 'media-session-row-watch' : 'media-session-row-listen'}" data-session-device="${esc(player.id)}" role="button" tabindex="0">${artwork}<span class="mdi-mask media-session-row-source" style="${mdiStyle(isVideo ? 'mdi:video' : mediaSourceIcon(player.source), isVideo ? 'video' : 'music-circle')}"></span><span class="media-session-row-info"><strong>${esc(player.title || player.source || player.name)}</strong><small>${esc(player.artist || player.source || '')}</small></span><button class="media-session-row-power" data-session-power="${esc(player.id)}" aria-label="Spegni intera sessione" title="Spegni intera sessione"><span class="mdi-mask" style="${mdiStyle('mdi:power', 'power')}"></span></button><label class="media-session-row-volume"><span class="mdi-mask" style="${mdiStyle('mdi:volume-high', 'volume-high')}"></span><input type="range" min="0" max="100" value="${volume}" data-session-volume="${esc(player.id)}"><b>${volume}%</b></label><span class="media-session-row-rooms"><span class="mdi-mask" style="${mdiStyle(members.length > 1 ? 'mdi:home-group' : 'mdi:plus-box-outline', 'plus-box-outline')}"></span><b>${esc(members.map((item) => item.room).join(', '))}</b></span><em class="media-session-expand"><span class="mdi-mask" style="${mdiStyle('mdi:chevron-down', 'chevron-down')}"></span></em></div>`
+    return `<div class="media-session-row ${isVideo ? 'media-session-row-watch' : 'media-session-row-listen'}" data-session-device="${esc(player.id)}" role="button" tabindex="0">${artwork}<span class="mdi-mask media-session-row-source" style="${mdiStyle(isVideo ? 'mdi:video' : mediaSourceIcon(player.source), isVideo ? 'video' : 'music-circle')}"></span><span class="media-session-row-info"><strong>${esc(player.title || player.source || player.name)}</strong><small>${esc(player.artist || player.source || '')}</small></span><button class="media-session-row-power" data-session-power="${esc(player.id)}" aria-label="Spegni intera sessione" title="Spegni intera sessione"><span class="mdi-mask" style="${mdiStyle('mdi:power', 'power')}"></span></button><label class="media-session-row-volume"><span class="mdi-mask" style="${mdiStyle('mdi:volume-high', 'volume-high')}"></span><input type="range" min="0" max="100" value="${volume}" style="--volume:${volume}%" data-session-volume="${esc(player.id)}"><b>${volume}%</b></label><span class="media-session-row-rooms"><span class="mdi-mask" style="${mdiStyle(members.length > 1 ? 'mdi:home-group' : 'mdi:plus-box-outline', 'plus-box-outline')}"></span><b>${esc(members.map((item) => item.room).join(', '))}</b></span><em class="media-session-expand"><span class="mdi-mask" style="${mdiStyle('mdi:chevron-down', 'chevron-down')}"></span></em></div>`
   }).join('') || '<p class="empty-state">Nessuna sessione attiva</p>'
+  document.querySelectorAll('#media-sessions-list .media-session-row-watch .media-session-row-rooms>.mdi-mask').forEach((icon) => {
+    icon.setAttribute('style', mdiStyle('mdi:remote-tv', 'remote-tv'))
+    icon.setAttribute('aria-label', 'Apri telecomando')
+  })
   if (!$('#media-sessions-dialog').open) $('#media-sessions-dialog').showModal()
 }
 
@@ -622,19 +626,21 @@ function renderMediaZones() {
   const allPlayers = currentDevices.filter((item) => item.kind === 'media_player')
   const sourceId = Number(selected.active_source_id)
   const experience = selected.active_experience
+  $('#media-zones-dialog').classList.toggle('media-zones-watch', experience === 'watch')
+  $('#media-zones-dialog').classList.toggle('media-zones-listen', experience !== 'watch')
   const compatible = (item) => !sourceId || item.provider !== 'control4' || (item.source_options || []).some((source) => Number(source.source_id) === sourceId && (!experience || source.experience === experience))
   const players = allPlayers.filter((item) => members.has(item.registry_id) || compatible(item))
   const playing = players.filter((item) => members.has(item.registry_id) && !['off','unavailable','unknown'].includes(String(item.state).toLowerCase()))
   const volumes = players.filter((item) => members.has(item.registry_id) && Number.isFinite(Number(item.volume))).map((item) => Number(item.volume))
   const average = volumes.length ? Math.round(volumes.reduce((sum, value) => sum + value, 0) / volumes.length) : 0
   const source = `<div class="media-session-source"><span class="mdi-mask" style="${mdiStyle(mediaSourceIcon(selected.source), 'music-circle')}"></span><div><strong>${esc(selected.source || 'Fonte audio')}</strong><b>${esc(selected.title || selected.name)}</b><small>${esc(selected.artist || selected.album || '')}</small></div></div>`
-  const master = group?.group_id ? `<div class="media-session-master"><small>VOLUME GENERALE</small><label><span class="mdi-mask" style="${mdiStyle(selected.muted ? 'mdi:volume-off' : 'mdi:volume-high', 'volume-high')}"></span><input type="range" min="0" max="100" value="${average}" data-group-volume ${group.completeness !== 'complete' ? 'disabled' : ''}><output>${average}%</output></label></div>` : ''
+  const master = group?.group_id ? `<div class="media-session-master"><small>VOLUME GENERALE</small><label><span class="mdi-mask" style="${mdiStyle(selected.muted ? 'mdi:volume-off' : 'mdi:volume-high', 'volume-high')}"></span><input type="range" min="0" max="100" value="${average}" style="--volume:${average}%" data-group-volume ${group.completeness !== 'complete' ? 'disabled' : ''}><output>${average}%</output></label></div>` : ''
   const powerAll = `<button class="media-session-power-all" data-session-power-all aria-label="Spegni intera sessione" title="Spegni intera sessione"><span class="mdi-mask" style="${mdiStyle('mdi:power', 'power')}"></span></button>`
   $('#zones-master').innerHTML = source + master + powerAll
   const activeRows = playing.map((player) => {
     const volume = Number.isFinite(Number(player.volume)) ? Number(player.volume) : 0
     const power = player.capabilities?.turn_off ? `<button class="media-zone-power" data-zone-power="${esc(player.id)}" aria-label="Spegni ${esc(player.room)}" title="Spegni ${esc(player.room)}"><span class="mdi-mask" style="${mdiStyle('mdi:power', 'power')}"></span></button>` : ''
-    return `<div class="media-zone media-zone-playing"><div class="media-zone-name"><b>${esc(player.room)}</b><small>${esc(player.name)}</small></div>${power}<label class="media-zone-level"><span class="mdi-mask" style="${mdiStyle(player.muted ? 'mdi:volume-off' : 'mdi:volume-high', 'volume-high')}"></span><input type="range" min="0" max="100" value="${volume}" data-zone-volume data-device-id="${esc(player.id)}" ${!player.capabilities?.set_volume ? 'disabled' : ''}><output>${volume}%</output></label></div>`
+    return `<div class="media-zone media-zone-playing"><div class="media-zone-name"><b>${esc(player.room)}</b><small>${esc(player.name)}</small></div>${power}<label class="media-zone-level"><span class="mdi-mask" style="${mdiStyle(player.muted ? 'mdi:volume-off' : 'mdi:volume-high', 'volume-high')}"></span><input type="range" min="0" max="100" value="${volume}" style="--volume:${volume}%" data-zone-volume data-device-id="${esc(player.id)}" ${!player.capabilities?.set_volume ? 'disabled' : ''}><output>${volume}%</output></label></div>`
   }).join('')
   const choices = players.map((player) => {
     const checked = members.has(player.registry_id)
@@ -1193,7 +1199,7 @@ $('#media-zones-close').addEventListener('click', () => $('#media-zones-dialog')
 $('#global-media-session').addEventListener('click', openMediaSessions)
 $('#media-sessions-close').addEventListener('click', () => $('#media-sessions-dialog').close())
 $('#media-sessions-list').addEventListener('click', (event) => { const row = event.target.closest('[data-session-device]'); if (!row || event.target.closest('[data-session-volume]')) return; const player = currentDevices.find((item) => String(item.id) === row.dataset.sessionDevice); if (!player) return; const power = event.target.closest('[data-session-power]'); if (power) { const session = activeMediaSessions().find(({player:item}) => String(item.id) === power.dataset.sessionPower); return powerOffMediaSession(power, (session?.members || [player]).map((item) => item.id)) } $('#media-sessions-dialog').close(); player.active_experience === 'watch' ? openVideoRemote(player) : openMediaZones(player) })
-$('#media-sessions-list').addEventListener('input', (event) => { if (event.target.matches('[data-session-volume]')) event.target.nextElementSibling.textContent = `${event.target.value}%` })
+$('#media-sessions-list').addEventListener('input', (event) => { if (event.target.matches('[data-session-volume]')) { event.target.style.setProperty('--volume', `${event.target.value}%`); event.target.nextElementSibling.textContent = `${event.target.value}%` } })
 $('#media-sessions-list').addEventListener('change', (event) => { if (event.target.matches('[data-session-volume]')) setSessionVolume(event.target) })
 $('#media-sessions-list').addEventListener('pointerdown', (event) => {
   const input = event.target.closest('[data-session-volume]')
@@ -1232,14 +1238,16 @@ $('#video-remote-dialog').addEventListener('change', (event) => {
   sendDeviceCommand(activeVideoRemote.device.id, 'set_volume', event.target, value)
 })
 $('#media-zones-list').addEventListener('change', (event) => { if (event.target.matches('.media-zone-picker input[type=checkbox]')) { event.target.closest('.media-zone-choice').classList.toggle('active', event.target.checked) } })
-$('#media-zones-list').addEventListener('input', (event) => { if (event.target.matches('[data-zone-volume]')) event.target.closest('.media-zone-level').querySelector('output').textContent = `${event.target.value}%` })
+$('#media-zones-list').addEventListener('input', (event) => { if (event.target.matches('[data-zone-volume]')) { event.target.style.setProperty('--volume', `${event.target.value}%`); event.target.closest('.media-zone-level').querySelector('output').textContent = `${event.target.value}%` } })
 $('#media-zones-list').addEventListener('change', (event) => { if (event.target.matches('[data-zone-volume]')) sendDeviceCommand(event.target.dataset.deviceId, 'set_volume', event.target, event.target.value) })
 $('#zones-master').addEventListener('input', (event) => {
   if (!event.target.matches('[data-group-volume]')) return
   const value = Number(event.target.value)
+  event.target.style.setProperty('--volume', `${value}%`)
   event.target.nextElementSibling.textContent = `${value}%`
   document.querySelectorAll('#media-zones-list [data-zone-volume]').forEach((slider) => {
     slider.value = value
+    slider.style.setProperty('--volume', `${value}%`)
     slider.closest('.media-zone-level').querySelector('output').textContent = `${value}%`
     const player = currentDevices.find((item) => String(item.id) === slider.dataset.deviceId)
     if (player) player.volume = value

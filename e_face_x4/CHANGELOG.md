@@ -521,3 +521,9 @@
 - Nuova vista Sicurezza dedicata e riepilogo dinamico in Home.
 - Il player compatto nella pagina ambiente apre ora la vista multimediale completa della stanza.
 - Telecomando video ridisegnato in stile Control4, con icone uniformi e layout adattivo per tablet e smartphone.
+# 2.8.1
+
+- Slider audio/video con riempimento colorato compatibile: verde per audio e celeste per video.
+- Stati ON/OFF e card dispositivi adattivi senza interruzioni di testo sui tablet.
+- Telecomando rifinito con icone centrate e layout responsive.
+- Slider sessione comandabile direttamente e sincronizzato con le singole zone.
