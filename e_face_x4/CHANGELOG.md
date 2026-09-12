@@ -560,3 +560,8 @@
 - Icone dinamiche per porte, finestre, tapparelle, movimento interno/esterno e altri sensori.
 - Sensore a riposo verde e sensore attivo/aperto rosso, con icona coerente allo stato.
 - Zone escluse attenuate e contrassegnate graficamente con `!` color ambra.
+
+# 2.11.1
+
+- Stati Ksenia ricevuti direttamente dallo stream SSE dell'addon, senza attendere il refresh generale.
+- Aggiornamento incrementale e immediato di aree, zone e scenari nella schermata Sicurezza.

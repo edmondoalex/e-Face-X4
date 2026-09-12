@@ -1052,6 +1052,16 @@ function applyRealtimeEvent(event) {
     return
   }
   const data = event.data || {}
+  if (event.type === 'ksenia_state') {
+    for (const update of data.items || []) {
+      const existing = currentDevices.find((item) => String(item.id) === String(update.id))
+      if (existing) Object.assign(existing, update)
+      else currentDevices.push(update)
+    }
+    updateNavigationStates()
+    if (activeDetailIds && !$('#detail-view').hidden) requestAnimationFrame(renderActiveDeviceList)
+    return
+  }
   if (event.type === 'media_state') {
     const device = currentDevices.find((item) => item.kind === 'media_player' && item.entity_id === data.entity_id)
     if (!device) {

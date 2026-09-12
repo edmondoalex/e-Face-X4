@@ -23,11 +23,12 @@ from .media_preferences import apply_preferences, load_preferences, save_prefere
 from .source_icons import delete_source_icon, load_builtin_source_icon, load_source_icon, save_source_icon
 from .backgrounds import PRESETS, load_background, load_background_image, load_backgrounds, save_background_image, save_inherit, save_preset
 from .connectors import BusproConnector, Control4MediaConnector, EThermConnector, EkonexMediaConnector, KseniaConnector, LocalMediaConnector
+from .connectors.ksenia import normalize_ksenia
 from .connectors.control4_media import cached_control4_icon, cached_control4_icon_path, cached_control4_source_label, control4_icon_path
 from .connectors.supervisor import discover_addon_url
 from .demo import dashboard as demo_dashboard
 
-VERSION = "2.11.0"
+VERSION = "2.11.1"
 STATIC = Path(__file__).parent / "static"
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s [e-face-x4] %(message)s")
 
@@ -479,9 +480,10 @@ def create_app() -> FastAPI:
     async def realtime(websocket: WebSocket) -> None:
         await websocket.accept()
         settings = load_settings()
-        buspro, etherm = await asyncio.gather(
+        buspro, etherm, ksenia = await asyncio.gather(
             resolved_provider(settings.buspro, "e_hdl_buspro_mqtt", 8124, settings.request_timeout_s),
             resolved_provider(settings.etherm, "e_therm_plus_ks", 8080, settings.request_timeout_s),
+            resolved_provider(settings.ksenia, "ksenia_lares_addon", 8080, settings.request_timeout_s),
         )
         queue: asyncio.Queue[dict] = asyncio.Queue(maxsize=100)
 
@@ -513,6 +515,28 @@ def create_app() -> FastAPI:
                         if line.startswith("data:"):
                             await queue.put({"type": "thermostats_changed"})
 
+        async def ksenia_events() -> None:
+            while True:
+                try:
+                    async with httpx.AsyncClient(timeout=None, follow_redirects=False) as client:
+                        async with client.stream("GET", f"{ksenia.base_url}/api/stream") as response:
+                            response.raise_for_status()
+                            async for line in response.aiter_lines():
+                                if not line.startswith("data:"):
+                                    continue
+                                try:
+                                    payload = json.loads(line[5:].strip())
+                                except (TypeError, json.JSONDecodeError):
+                                    continue
+                                items = normalize_ksenia(payload)
+                                if items:
+                                    await queue.put({"type": "ksenia_state", "data": {"items": items}})
+                except asyncio.CancelledError:
+                    raise
+                except Exception:
+                    logging.warning("Ksenia realtime disconnected; retrying")
+                    await asyncio.sleep(1)
+
         async def media_events() -> None:
             connector = media_connector(settings)
             while True:
@@ -535,6 +559,8 @@ def create_app() -> FastAPI:
             tasks.append(asyncio.create_task(buspro_events()))
         if etherm.enabled and etherm.base_url:
             tasks.append(asyncio.create_task(etherm_events()))
+        if ksenia.enabled and ksenia.base_url:
+            tasks.append(asyncio.create_task(ksenia_events()))
         control4_config = load_control4_config()
         if settings.evoice.enabled or (control4_config.get("username") and control4_config.get("password")):
             tasks.append(asyncio.create_task(media_events()))
