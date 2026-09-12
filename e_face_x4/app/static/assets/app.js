@@ -1214,6 +1214,21 @@ $('#media-sessions-list').addEventListener('pointerdown', (event) => {
   input.nextElementSibling.textContent = `${input.value}%`
   setSessionVolume(input)
 }, { capture: true })
+function stepSessionRangeClick(event) {
+  const input = event.target.closest('input[type=range]')
+  if (!input || input.disabled) return
+  const rect = input.getBoundingClientRect()
+  const min = Number(input.min) || 0; const max = Number(input.max) || 100; const value = Number(input.value) || 0
+  const thumbX = rect.left + ((value - min) / Math.max(1, max - min)) * rect.width
+  if (Math.abs(event.clientX - thumbX) <= 18) return
+  event.preventDefault()
+  input.value = Math.max(min, Math.min(max, value + (event.clientX < thumbX ? -2 : 2)))
+  input.style.setProperty('--volume', `${input.value}%`)
+  input.dispatchEvent(new Event('input', { bubbles: true }))
+  input.dispatchEvent(new Event('change', { bubbles: true }))
+}
+$('#zones-master').addEventListener('pointerdown', stepSessionRangeClick, { capture: true })
+$('#media-zones-list').addEventListener('pointerdown', stepSessionRangeClick, { capture: true })
 $('#media-zones-save').addEventListener('click', (event) => saveMediaZones(event.currentTarget))
 $('#media-zones-list').addEventListener('click', (event) => { const button = event.target.closest('[data-zone-picker-toggle]'); if (button) { const picker = $('.media-zone-picker'); picker.hidden = !picker.hidden; button.classList.toggle('active', !picker.hidden) } })
 $('#media-zones-list').addEventListener('click', (event) => { const button = event.target.closest('[data-zone-power]'); if (button) powerOffMediaSession(button, [button.dataset.zonePower]) })

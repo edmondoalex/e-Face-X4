@@ -539,3 +539,6 @@
 - Scenari Ksenia ARM, DISARM e PARTIAL disponibili come comandi rapidi nella pagina Sicurezza.
 - Stato dettagliato delle aree: disinserita, inserita ritardata, inserita immediata, ritardo ingresso/uscita e allarme.
 - Conferma esplicita prima dell'esecuzione di uno scenario di sicurezza.
+# 2.9.1
+
+- Clic fuori dal pallino su tutti gli slider Sessioni: variazione protetta di ±2%; il trascinamento mantiene l'impostazione diretta.
