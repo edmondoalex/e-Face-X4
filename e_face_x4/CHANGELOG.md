@@ -1,5 +1,9 @@
 # Changelog
 
+## 2.20.9 — 2026-09-12
+
+- Evidenziati e animati anche gli Echo e-Voice quando sono in riproduzione o buffering.
+
 ## 2.20.8 — 2026-09-12
 
 - Mostrato il comando Spegni sugli Echo che dichiarano il supporto `TURN_OFF`.

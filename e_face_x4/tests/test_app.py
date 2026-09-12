@@ -126,7 +126,7 @@ def test_x4_shell_and_brand_assets_are_served() -> None:
     assert 'evoice.css' in page.text
     for label in ("Guarda", "Ascolta", "Luci", "Extra", "Scenari", "Oscuranti", "Comfort", "Sicurezza"):
         assert f'title="{label}"' in page.text
-    assert 'src="assets/brand-horizontal.png?v=2.20.8"' in page.text
+    assert 'src="assets/brand-horizontal.png?v=2.20.9"' in page.text
     assert 'alt="e-Face X4"' in page.text
     assert 'class="header-wordmark"' not in page.text
     assert client.get("/assets/brand-horizontal.png").status_code == 200
@@ -746,6 +746,7 @@ def test_media_ui_has_room_selection_and_typed_controls() -> None:
     assert "['playing','buffering'].includes(state)" in script
     assert "consumedPlayback.has(playbackKey)" in script
     assert "player.provider === 'evoice'" in script
+    assert "device.active_experience || (['playing', 'buffering'].includes(state) ? 'listen' : '')" in script
     assert "activeMediaPlayer?.provider === 'control4'" in script
     assert 'data-base-volume="${volume}"' in script
     assert "Number(slider.dataset.baseVolume || 0) + delta" in script

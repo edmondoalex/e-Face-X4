@@ -417,9 +417,11 @@ function renderMediaExperience(devices) {
   selected = selected || devices.find((device) => String(device.state).toLowerCase() === 'playing') || devices[0]
   selectedMediaId = String(selected.id)
   const players = devices.map((device) => {
-    const operating = !['off', 'unavailable', 'unknown'].includes(String(device.state).toLowerCase()) && Boolean(device.active_experience)
-    const mode = device.active_experience === 'watch' ? 'Video attivo' : 'Audio attivo'
-    return `<button class="media-service-tile media-room-tile ${device.id === selected.id ? 'active' : ''} ${operating ? `media-room-on media-room-${device.active_experience}` : ''}" data-media-select="${esc(device.id)}"><span class="mdi-mask" style="${mdiStyle(device.icon, 'speaker')}"></span><b>${esc(device.name)}</b>${device.source ? `<small>${esc(device.source)}</small>` : ''}${operating ? `<i class="media-room-state" aria-label="${mode}" title="${mode}"></i>` : ''}</button>`
+    const state = String(device.state).toLowerCase()
+    const experience = device.active_experience || (['playing', 'buffering'].includes(state) ? 'listen' : '')
+    const operating = !['off', 'unavailable', 'unknown'].includes(state) && Boolean(experience)
+    const mode = experience === 'watch' ? 'Video attivo' : 'Audio attivo'
+    return `<button class="media-service-tile media-room-tile ${device.id === selected.id ? 'active' : ''} ${operating ? `media-room-on media-room-${experience}` : ''}" data-media-select="${esc(device.id)}"><span class="mdi-mask" style="${mdiStyle(device.icon, 'speaker')}"></span><b>${esc(device.name)}</b>${device.source ? `<small>${esc(device.source)}</small>` : ''}${operating ? `<i class="media-room-state" aria-label="${mode}" title="${mode}"></i>` : ''}</button>`
   }).join('')
   const options = selected.source_options?.length ? selected.source_options.filter((source) => !currentMediaExperience || source.experience === currentMediaExperience) : (selected.source_list || []).map((source) => ({key:source,label:source}))
   const sources = options.map((source) => {
