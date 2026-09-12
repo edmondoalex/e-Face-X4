@@ -580,3 +580,8 @@
 
 - Riepilogo Sicurezza compatto su una sola riga.
 - Rimosse le diciture `Sistema Ksenia lares` e memoria dal riepilogo principale.
+
+# 2.12.3
+
+- Card degli scenari Ksenia più sottili, con la sola icona e il nome dello scenario.
+- Rimosse le descrizioni ripetitive di inserimento totale, parziale e disinserimento.
