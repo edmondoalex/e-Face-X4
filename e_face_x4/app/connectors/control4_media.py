@@ -269,8 +269,10 @@ def normalize_control4_media(ui: Any, all_items: Any, variables: Any) -> list[di
         volume = values.get("CURRENT_VOLUME")
         volume = int(volume) if isinstance(volume, (int, float, str)) and str(volume).lstrip("-").isdigit() and int(volume) >= 0 else None
         selected = {str(values.get("CURRENT_AUDIO_DEVICE")), str(values.get("CURRENT_VIDEO_DEVICE")), str(values.get("CURRENT_SELECTED_DEVICE"))}
-        active_source = next((source["label"] for source in data["source_options"] if source["key"].split(":", 1)[1] in selected), None)
-        active_source_id = next((source["source_id"] for source in data["source_options"] if str(source["source_id"]) in selected), None)
+        selected_options = [source for source in data["source_options"] if str(source["source_id"]) in selected]
+        active_option = next((source for source in selected_options if source["experience"] == "watch"), None) or (selected_options[0] if selected_options else None)
+        active_source = active_option["label"] if active_option else None
+        active_source_id = active_option["source_id"] if active_option else None
         media = values.get("CURRENT MEDIA INFO")
         media = media.get("mediainfo", {}) if isinstance(media, dict) else {}
         media = media if isinstance(media, dict) else {}
@@ -290,11 +292,17 @@ def normalize_control4_media(ui: Any, all_items: Any, variables: Any) -> list[di
         playing_device = values.get("PLAYING_AUDIO_DEVICE")
         audio_device = values.get("CURRENT_AUDIO_DEVICE")
         video_device = values.get("CURRENT_VIDEO_DEVICE")
-        has_audio_session = any(str(value or "0").isdigit() and int(value or 0) > 0 for value in (playing_device, audio_device))
-        has_video_session = str(video_device or "0").isdigit() and int(video_device or 0) > 0
+        media_type = str(media.get("mediatypeV2") or media.get("mediatype") or "").upper()
+        has_video_session = (
+            (str(video_device or "0").isdigit() and int(video_device or 0) > 0)
+            or (active_option is not None and active_option.get("experience") == "watch")
+            or "VIDEO" in media_type
+        )
+        has_audio_session = not has_video_session and any(str(value or "0").isdigit() and int(value or 0) > 0 for value in (playing_device, audio_device))
         active_experience = "watch" if has_video_session else "listen" if has_audio_session else None
+        display_source = active_source if active_experience == "watch" else (str(media.get("meta", {}).get("audioFormat") or active_source or "") if isinstance(media.get("meta"), dict) else active_source)
         can_group = "listen" in data["experiences"] and (has_audio_session or has_video_session)
-        result.append({"id": f"c4media:{room_id}", "registry_id": registry_id, "entity_id": f"control4.room.{room_id}", "provider": "control4", "kind": "media_player", "icon": icon, "name": name, "room": name, "state": state_name, "availability": "available", "connection_status": "online", "volume": volume, "muted": str(values.get("IS_MUTED")) in {"1", "True", "true"}, "source": str(media.get("meta", {}).get("audioFormat") or active_source or "") if isinstance(media.get("meta"), dict) else active_source, "active_source_id": active_source_id, "title": media.get("title"), "artist": media.get("artist"), "album": media.get("album"), "content_fingerprint": fingerprint, "source_options": data["source_options"], "source_list": [source["label"] for source in data["source_options"]], "experiences": data["experiences"], "active_experience": active_experience, "capabilities": {"play": True, "pause": True, "stop": True, "previous": True, "next": True, "turn_off": True, "set_volume": volume is not None, "mute": True, "select_source": bool(data["source_options"]), "grouping": can_group, "artwork": bool(fingerprint)}})
+        result.append({"id": f"c4media:{room_id}", "registry_id": registry_id, "entity_id": f"control4.room.{room_id}", "provider": "control4", "kind": "media_player", "icon": icon, "name": name, "room": name, "state": state_name, "availability": "available", "connection_status": "online", "volume": volume, "muted": str(values.get("IS_MUTED")) in {"1", "True", "true"}, "source": display_source, "active_source_id": active_source_id, "title": media.get("title"), "artist": media.get("artist"), "album": media.get("album"), "content_fingerprint": fingerprint, "source_options": data["source_options"], "source_list": [source["label"] for source in data["source_options"]], "experiences": data["experiences"], "active_experience": active_experience, "capabilities": {"play": True, "pause": True, "stop": True, "previous": True, "next": True, "turn_off": True, "set_volume": volume is not None, "mute": True, "select_source": bool(data["source_options"]), "grouping": can_group, "artwork": bool(fingerprint)}})
     return result
 
 

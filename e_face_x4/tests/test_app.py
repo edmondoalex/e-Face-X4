@@ -70,7 +70,7 @@ def test_x4_shell_and_brand_assets_are_served() -> None:
     assert '<iframe' not in page.text
     for label in ("Guarda", "Ascolta", "Luci", "Extra", "Scenari", "Oscuranti", "Comfort", "Sicurezza"):
         assert f'title="{label}"' in page.text
-    assert 'src="assets/brand-horizontal.png?v=2.7.2"' in page.text
+    assert 'src="assets/brand-horizontal.png?v=2.7.3"' in page.text
     assert 'alt="e-Face X4"' in page.text
     assert 'class="header-wordmark"' not in page.text
     assert client.get("/assets/brand-horizontal.png").status_code == 200
@@ -248,8 +248,11 @@ def test_control4_active_video_room_is_a_media_session() -> None:
         [{"id": 61, "name": "Sala"}],
         [
             {"id": 61, "varName": "POWER_STATE", "value": 1},
-            {"id": 61, "varName": "CURRENT_VIDEO_DEVICE", "value": 244},
-            {"id": 61, "varName": "PLAYING_AUDIO_DEVICE", "value": 0},
+            {"id": 61, "varName": "CURRENT_SELECTED_DEVICE", "value": 244},
+            {"id": 61, "varName": "CURRENT_AUDIO_DEVICE", "value": 244},
+            {"id": 61, "varName": "CURRENT_VIDEO_DEVICE", "value": 0},
+            {"id": 61, "varName": "PLAYING_AUDIO_DEVICE", "value": 1569},
+            {"id": 61, "varName": "CURRENT MEDIA INFO", "value": {"mediainfo": {"mediatype": "BROADCAST_VIDEO"}}},
         ],
     )
     assert players[0]["state"] == "playing"
