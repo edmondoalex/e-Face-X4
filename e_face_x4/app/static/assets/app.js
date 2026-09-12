@@ -504,7 +504,7 @@ function activeMediaSessions() {
   const active = currentDevices.filter((item) => {
     if (item.kind !== 'media_player' || item.availability !== 'available' || item.connection_status === 'offline') return false
     const state = String(item.state).toLowerCase()
-    return item.provider === 'control4' ? !['off','unavailable','unknown'].includes(state) && Boolean(item.active_experience) : ['playing','paused','buffering'].includes(state)
+    return item.provider === 'control4' ? !['off','unavailable','unknown'].includes(state) && Boolean(item.active_experience) : ['playing','buffering'].includes(state)
   }).sort((left, right) => {
     const echoScore = (item) => item.provider === 'evoice' && (item.device_type === 'echo' || /(?:echo|alexa)/i.test(String(item.entity_id))) ? 1 : 0
     return echoScore(right) - echoScore(left)

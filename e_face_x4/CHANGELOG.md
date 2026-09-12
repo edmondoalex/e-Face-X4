@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.19.8 — 2026-09-12
+
+- Esclusi gli Echo in pausa dalla sezione LIVE e dal conteggio sessioni.
+- Considerati attivi per e-Voice soltanto gli stati playing e buffering.
+- Mantenuti visibili nella stanza i player paused, idle e standby senza indicarli come in riproduzione.
+
 ## 2.19.7 — 2026-09-12
 
 - Consolidati gli alias dello stesso Echo anche quando e-Voice assegna stanze tecniche differenti.
