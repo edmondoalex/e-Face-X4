@@ -149,7 +149,7 @@ function render(data) {
   }
   $('#home-name').textContent = home.name || 'Casa'
   $('#mode').textContent = data.mode === 'demo' ? 'ANTEPRIMA DEMO' : 'LIVE'
-  $('#temperature').textContent = `${home.temperature || 22}°`
+  renderHomeComfort()
   document.querySelectorAll('.nav-icon').forEach((node) => {
     node.setAttribute('style', mdiStyle(navIcons[node.dataset.icon], 'shape'))
   })
@@ -180,6 +180,26 @@ function renderHomeStatusCounters() {
     const count = counter.devices.filter(counter.active).length
     return `<button class="quick-card status-counter ${count ? `active status-counter-${counter.color}` : ''}" data-kind="${counter.kind}" data-label="${counter.label}" aria-label="${counter.label}: ${count}"><span class="qicon mdi-mask" style="${mdiStyle(counter.icon, 'shape')}"></span><strong>${count}</strong></button>`
   }).join('')
+}
+
+function renderHomeComfort() {
+  const card = $('#home-comfort-summary')
+  if (!card) return
+  const thermostats = currentDevices.filter((device) => device.kind === 'climate' && !device.read_only)
+  const temperatures = thermostats.map((device) => Number(device.temperature)).filter(Number.isFinite)
+  const external = currentDevices.find((device) => device.read_only && device.kind === 'climate') || currentDevices.find((device) => ['temp','temperature'].includes(device.kind) && /estern|external/i.test(`${device.name || ''} ${device.room || ''}`))
+  const heating = thermostats.filter((device) => String(device.state).toUpperCase() === 'HEATING').length
+  const cooling = thermostats.filter((device) => String(device.state).toUpperCase() === 'COOLING').length
+  const mode = heating && cooling ? 'mixed' : heating ? 'heat' : cooling ? 'cool' : 'idle'
+  const status = heating && cooling ? `${heating} caldo · ${cooling} freddo` : heating ? `${heating} ${heating === 1 ? 'zona' : 'zone'} in riscaldamento` : cooling ? `${cooling} ${cooling === 1 ? 'zona' : 'zone'} in raffrescamento` : 'Nessuna richiesta'
+  const icon = mode === 'heat' ? 'mdi:radiator' : mode === 'cool' ? 'mdi:snowflake' : mode === 'mixed' ? 'mdi:thermostat' : 'mdi:home-thermometer-outline'
+  const average = temperatures.length ? temperatures.reduce((sum, value) => sum + value, 0) / temperatures.length : NaN
+  card.className = `climate-card home-comfort-summary xcard comfort-${mode}`
+  $('#home-comfort-icon').setAttribute('style', mdiStyle(icon, 'thermostat'))
+  $('#home-comfort-state').textContent = status
+  $('#home-comfort-inside').textContent = Number.isFinite(average) ? `${average.toFixed(1)}°` : '--'
+  const outside = Number(external?.temperature ?? external?.state ?? external?.value)
+  $('#home-comfort-outside').textContent = Number.isFinite(outside) ? `${outside.toFixed(1)}°` : '--'
 }
 
 function stateLabel(device) {
@@ -925,6 +945,7 @@ function applyRealtimeEvent(event) {
   if (data.position !== undefined) device.position = data.position
   if (data.brightness !== undefined) device.brightness = data.brightness
   renderHomeStatusCounters()
+  renderHomeComfort()
   updateNavigationStates()
   if (activeRgbGroup && $('#rgb-dialog').open && device.rgb_group === activeRgbGroup) renderRgbDialog()
   if (!detailRenderQueued && activeDetailIds && !$('#detail-view').hidden) {
@@ -957,6 +978,7 @@ $('#widgets').addEventListener('click', (event) => {
   const kinds = map[button.dataset.kind] || []
   openDevices(button.dataset.label || 'Dispositivi', currentDevices.filter((device) => kinds.includes(device.kind)), { filters: true, lights: button.dataset.kind === 'lights' })
 })
+$('#home-comfort-summary').addEventListener('click', () => openDevices('Comfort', currentDevices.filter((device) => ['climate', 'temp', 'temperature', 'humidity', 'air', 'air_quality'].includes(device.kind)), { filters: true }))
 $('#rooms').addEventListener('click', (event) => {
   const button = event.target.closest('[data-room]')
   if (!button) return

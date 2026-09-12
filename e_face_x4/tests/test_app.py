@@ -70,7 +70,7 @@ def test_x4_shell_and_brand_assets_are_served() -> None:
     assert '<iframe' not in page.text
     for label in ("Guarda", "Ascolta", "Luci", "Extra", "Scenari", "Oscuranti", "Comfort", "Sicurezza"):
         assert f'title="{label}"' in page.text
-    assert 'src="assets/brand-horizontal.png?v=2.7.22"' in page.text
+    assert 'src="assets/brand-horizontal.png?v=2.7.23"' in page.text
     assert 'alt="e-Face X4"' in page.text
     assert 'class="header-wordmark"' not in page.text
     assert client.get("/assets/brand-horizontal.png").status_code == 200
@@ -86,6 +86,7 @@ def test_x4_shell_and_brand_assets_are_served() -> None:
     assert client.get("/assets/home-status.css").status_code == 200
     assert client.get("/assets/home-live-media.css").status_code == 200
     assert client.get("/assets/media-session-power.css").status_code == 200
+    assert client.get("/assets/home-comfort.css").status_code == 200
     assert client.get("/assets/control4-icons/thermostat.svg").status_code == 200
     app_js = client.get("/assets/app.js").text
     assert "let activeBackgroundRoom = ''" in app_js
@@ -96,6 +97,7 @@ def test_x4_shell_and_brand_assets_are_served() -> None:
     assert 'data-climate-mode="OFF"' in app_js
     assert "function renderHomeMediaSessions()" in app_js
     assert "function renderHomeStatusCounters()" in app_js
+    assert "function renderHomeComfort()" in app_js
     assert "event.target !== dialog" in app_js
     assert client.get("/tools").status_code == 200
     assert "Admin / Installatore" in client.get("/tools").text
