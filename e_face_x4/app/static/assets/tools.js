@@ -3,13 +3,30 @@ const esc = (value) => { const node = document.createElement('span'); node.textC
 const apiUrl = (path) => new URL(path, location.href.endsWith('/') ? location.href : `${location.href}/`).toString()
 let backgroundData = null
 
+function applyToolsBackground(selected) {
+  const presets = {
+    teal: 'linear-gradient(135deg,#84bfd5,#137073 58%,#0e4a4e)',
+    midnight: 'radial-gradient(circle at 70% 20%,#263f61,#08121e 65%)',
+    graphite: 'linear-gradient(145deg,#596066,#181c1f 65%)',
+    ocean: 'radial-gradient(circle at 25% 20%,#43a8ca,#075079 48%,#03273e)',
+    warm: 'radial-gradient(circle at 20% 20%,#b77955,#59372f 52%,#24191b)'
+  }
+  const image = selected?.mode === 'custom' ? `linear-gradient(rgba(4,22,26,.28),rgba(4,22,26,.48)),url("${apiUrl(`../api/user/background/image?v=${Date.now()}`)}")` : (presets[selected?.preset] || presets.teal)
+  document.documentElement.style.setProperty('--tools-background', image)
+}
+
+async function loadToolsBackground() {
+  const response = await fetch(apiUrl('../api/user/background'), {cache:'no-store'})
+  if (response.ok) applyToolsBackground((await response.json()).global)
+}
+
 function notice(message) { $('#tools-notice').textContent = message; $('#tools-notice').hidden = false; setTimeout(() => { $('#tools-notice').hidden = true }, 3500) }
 
 async function loadBackgrounds() {
   const activeRoom=$('#background-room')?.value||''
   const [settingsResponse, bootstrapResponse] = await Promise.all([fetch(apiUrl('../api/user/background'), {cache:'no-store'}), fetch(apiUrl('../api/bootstrap'), {cache:'no-store'})])
   if (!settingsResponse.ok || !bootstrapResponse.ok) throw new Error('Sfondi non disponibili')
-  backgroundData = await settingsResponse.json(); const bootstrap = await bootstrapResponse.json()
+  backgroundData = await settingsResponse.json(); const bootstrap = await bootstrapResponse.json(); applyToolsBackground(backgroundData.global)
   const rooms = (bootstrap.dashboard?.rooms || []).map((room) => room.name).filter(Boolean).sort((a,b)=>a.localeCompare(b,'it'))
   $('#background-room').innerHTML = '<option value="">Globale</option>' + rooms.map((room)=>`<option value="${esc(room)}">${esc(room)}</option>`).join('')
   if(rooms.includes(activeRoom))$('#background-room').value=activeRoom
@@ -92,3 +109,4 @@ const finishDrag = () => { if(draggedRow)draggedRow.classList.remove('dragging')
 $('#player-list').addEventListener('pointerup', finishDrag)
 $('#player-list').addEventListener('pointercancel', finishDrag)
 loadPlayers().catch(()=>{})
+loadToolsBackground().catch(()=>{})
