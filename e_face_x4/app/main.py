@@ -28,7 +28,7 @@ from .connectors.control4_media import cached_control4_icon, cached_control4_ico
 from .connectors.supervisor import discover_addon_url, discover_host_url
 from .demo import dashboard as demo_dashboard
 
-VERSION = "2.20.0"
+VERSION = "2.20.1"
 STATIC = Path(__file__).parent / "static"
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s [e-face-x4] %(message)s")
 
@@ -268,6 +268,7 @@ def create_app() -> FastAPI:
                 "registry_id": registry_id, "original_name": original_name, "original_room": original_room,
                 "name": str(selected.get("name") or ""), "room": str(selected.get("room") or ""),
                 "entity_id": str(player.get("entity_id") or ""), "device_type": str(player.get("device_type") or "media_player"),
+                "provider": str(player.get("provider") or ""),
                 "manufacturer": str(player.get("manufacturer") or ""), "tts_available": bool(player.get("tts_available")),
                 "dnd_available": bool(player.get("dnd_available")),
                 **{key: selected.get(key) for key in ("visible", "audio", "video", "tts", "order")},
@@ -391,6 +392,8 @@ def create_app() -> FastAPI:
             allowed = {"media_play", "media_pause", "media_stop", "turn_off", "media_next", "media_previous", "set_volume", "volume_mute", "volume_unmute", "select_source", "media_join", "media_unjoin", "video_remote", "tts", "set_dnd"}
             if operation not in allowed:
                 raise HTTPException(status_code=400, detail="Comando multimedia non valido")
+            if device_id.startswith("c4media:") and operation in {"tts", "set_dnd"}:
+                raise HTTPException(status_code=400, detail="TTS e DND sono disponibili soltanto sui player e-Voice")
             arguments = {}
             if operation == "set_volume":
                 arguments["volume_percent"] = int(payload.get("value"))

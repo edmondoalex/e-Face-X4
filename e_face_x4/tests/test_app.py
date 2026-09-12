@@ -126,7 +126,7 @@ def test_x4_shell_and_brand_assets_are_served() -> None:
     assert 'evoice.css' in page.text
     for label in ("Guarda", "Ascolta", "Luci", "Extra", "Scenari", "Oscuranti", "Comfort", "Sicurezza"):
         assert f'title="{label}"' in page.text
-    assert 'src="assets/brand-horizontal.png?v=2.20.0"' in page.text
+    assert 'src="assets/brand-horizontal.png?v=2.20.1"' in page.text
     assert 'alt="e-Face X4"' in page.text
     assert 'class="header-wordmark"' not in page.text
     assert client.get("/assets/brand-horizontal.png").status_code == 200
@@ -397,6 +397,19 @@ def test_control4_command_does_not_require_evoice_enabled(monkeypatch, tmp_path)
     response = TestClient(main_module.create_app()).post("/api/devices/c4media:51/command", json={"action": "turn_off"})
     assert response.status_code == 200
     assert response.json() == {"status": "success", "registry_id": "c4room:51", "operation": "turn_off"}
+
+
+def test_control4_rejects_evoice_only_commands(monkeypatch, tmp_path) -> None:
+    import app.main as main_module
+
+    options = tmp_path / "options.json"
+    options.write_text('{"evoice":{"enabled":true}}', encoding="utf-8")
+    monkeypatch.setenv("EFACE_OPTIONS", str(options))
+    monkeypatch.setattr(main_module, "load_control4_config", lambda: {"username": "configured", "password": "configured"})
+
+    response = TestClient(main_module.create_app()).post("/api/devices/c4media:51/command", json={"action": "tts", "value": "Ciao"})
+    assert response.status_code == 400
+    assert "soltanto sui player e-Voice" in response.json()["detail"]
 
 
 def test_control4_and_evoice_are_loaded_together(monkeypatch, tmp_path) -> None:

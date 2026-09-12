@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.20.1 — 2026-09-12
+
+- Limitati TTS e DND esclusivamente ai player provenienti da e-Voice.
+- Nascosto il pannello messaggi quando il player selezionato appartiene a Control4.
+- Bloccati lato server eventuali comandi TTS/DND indirizzati a Control4.
+
 ## 2.20.0 — 2026-09-12
 
 - Integrata l'API Media locale di Ekonex Voice 0.1.8-beta.37 tramite il proxy autenticato di Home Assistant Supervisor.
