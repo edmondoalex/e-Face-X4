@@ -597,3 +597,10 @@
 - Rimossi i bordi esterni da riepilogo, scenari, aree e zone della pagina Sicurezza.
 - Serrature separate dal layout delle zone sensore, con pulsanti adattivi che non escono più dalle card.
 - Rimossa l'icona a occhio dalle zone: il comando `ESCLUDI` o `INCLUDI` appare soltanto toccando la card.
+
+# 2.14.0
+
+- Card area ridotte a scudetto e nome; toccandole si apre il pannello Inserisci, Inserisci con ritardo o Disinserisci.
+- Tastierino PIN Ksenia integrato nell'app, senza richiamare la tastiera del dispositivo.
+- Sezioni Stato aree e Zone richiudibili con un tocco e senza contatore visibile.
+- Lo scudetto del riepilogo segue lo stato: verde a riposo, giallo ritardato, rosso immediato o in allarme.

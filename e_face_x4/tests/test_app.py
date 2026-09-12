@@ -104,7 +104,8 @@ def test_x4_shell_and_brand_assets_are_served() -> None:
     assert "now-playing" not in page.text
     assert 'id="detail-view"' in page.text
     assert 'id="detail-back"' in page.text
-    assert page.text.count('<dialog') == 5
+    assert page.text.count('<dialog') == 6
+    assert 'id="security-area-dialog"' in page.text
     assert 'id="security-pin-dialog"' in page.text
     assert 'id="rgb-dialog"' in page.text
     assert 'id="show-all-devices"' in page.text
@@ -113,7 +114,7 @@ def test_x4_shell_and_brand_assets_are_served() -> None:
     assert '<iframe' not in page.text
     for label in ("Guarda", "Ascolta", "Luci", "Extra", "Scenari", "Oscuranti", "Comfort", "Sicurezza"):
         assert f'title="{label}"' in page.text
-    assert 'src="assets/brand-horizontal.png?v=2.13.0"' in page.text
+    assert 'src="assets/brand-horizontal.png?v=2.14.0"' in page.text
     assert 'alt="e-Face X4"' in page.text
     assert 'class="header-wordmark"' not in page.text
     assert client.get("/assets/brand-horizontal.png").status_code == 200

@@ -25,6 +25,7 @@ let selectedMediaId = ''
 let activeMediaRoom = ''
 let currentBackgrounds = {global:{mode:'preset',preset:'teal'},rooms:{}}
 let activeBackgroundRoom = ''
+const securitySections = { areas: false, zones: false }
 const mediaTransportOverrides = new Map()
 const recentCache = new Map()
 const recentPending = new Map()
@@ -338,16 +339,17 @@ function renderSecurityDevices(devices) {
   const issueCount = [...partitions, ...zones].filter((item) => ['ALARM','TAMPER'].includes(String(item.state).toUpperCase())).length
   const memoryCount = partitions.filter((area) => area.alarm_memory || area.tamper_memory).length
   const armedCount = partitions.filter((area) => area.state === 'ARMED').length
+  const hasInstant = partitions.some((area) => area.state === 'ARMED' && area.arm_mode === 'instant')
+  const hasDelayed = partitions.some((area) => area.state === 'ARMED' && area.arm_mode !== 'instant')
   const modeName = system?.arm_description || (armedCount ? 'Inserimento attivo' : 'Disinserito')
-  const summary = `<section class="security-summary"><span class="mdi-mask" style="${mdiStyle(issueCount ? 'mdi:shield-alert-outline' : armedCount ? 'mdi:shield-lock-outline' : 'mdi:shield-check-outline', 'shield-home')}"></span><strong class="security-summary-state">${issueCount ? `${issueCount} ${issueCount === 1 ? 'allarme attivo' : 'allarmi attivi'}` : armedCount ? `${armedCount} ${armedCount === 1 ? 'area inserita' : 'aree inserite'}` : 'Tutto sotto controllo'}</strong><div class="security-summary-mode"><small>MODALITÀ</small><strong>${esc(modeName)}</strong></div></section>`
+  const summaryClass = issueCount || hasInstant ? 'instant' : hasDelayed ? 'delayed' : 'ready'
+  const summary = `<section class="security-summary security-summary-${summaryClass}"><span class="mdi-mask" style="${mdiStyle(issueCount ? 'mdi:shield-alert-outline' : armedCount ? 'mdi:shield-lock-outline' : 'mdi:shield-check-outline', 'shield-home')}"></span><strong class="security-summary-state">${issueCount ? `${issueCount} ${issueCount === 1 ? 'allarme attivo' : 'allarmi attivi'}` : armedCount ? `${armedCount} ${armedCount === 1 ? 'area inserita' : 'aree inserite'}` : 'Tutto sotto controllo'}</strong><div class="security-summary-mode"><small>MODALITÀ</small><strong>${esc(modeName)}</strong></div></section>`
   const areaCards = partitions.map((device) => {
     const alarm = device.state === 'ALARM'; const tamper = device.state === 'TAMPER'; const armed = device.state === 'ARMED'; const memory = device.alarm_memory || device.tamper_memory
-    const actions = alarm || armed ? `<button data-action="disarm">DISINSERISCI</button>` : `<button data-action="arm_delay">INSERISCI</button><button data-action="arm_instant">IMMEDIATO</button>`
-    const delay = Number(device.exit_delay) > 0 ? ` · uscita ${device.exit_delay}s` : Number(device.entry_delay) > 0 ? ` · ingresso ${device.entry_delay}s` : ''
-    const state = alarm ? 'ALLARME ATTIVO' : tamper ? 'SABOTAGGIO ATTIVO' : armed ? device.arm_mode === 'instant' ? 'INSERITA IMMEDIATA' : `INSERITA RITARDATA${delay}` : 'DISINSERITA'
+    const state = alarm ? 'Allarme attivo' : tamper ? 'Sabotaggio attivo' : armed ? device.arm_mode === 'instant' ? 'Inserita immediata' : 'Inserita con ritardo' : 'Disinserita'
     const iconTitle = memory && !alarm && !tamper ? device.alarm_memory ? 'Memoria allarme' : 'Memoria sabotaggio' : state
     const visualClass = alarm || tamper ? 'alarm' : armed ? `armed ${device.arm_mode === 'instant' ? 'armed-instant' : 'armed-delayed'}` : memory ? 'memory' : 'ready'
-    return `<article class="security-area ${visualClass}" data-device-id="${esc(device.id)}"><span class="mdi-mask" style="${mdiStyle(alarm || tamper ? 'mdi:shield-alert' : armed ? 'mdi:shield-lock' : memory ? 'mdi:history' : 'mdi:shield-check', 'shield-home')}" role="img" aria-label="${esc(iconTitle)}" title="${esc(iconTitle)}"></span><div><small>AREA</small><strong>${esc(device.name)}</strong><b>${esc(state)}</b></div><div class="security-actions">${actions}</div></article>`
+    return `<article class="security-area ${visualClass}" data-device-id="${esc(device.id)}" tabindex="0" role="button"><span class="mdi-mask" style="${mdiStyle(alarm || tamper ? 'mdi:shield-alert' : armed ? 'mdi:shield-lock' : memory ? 'mdi:history' : 'mdi:shield-check', 'shield-home')}" role="img" aria-label="${esc(iconTitle)}" title="${esc(iconTitle)}"></span><strong>${esc(device.name)}</strong></article>`
   }).join('')
   const zoneIcon = (device) => {
     const active = device.state === 'ACTIVE'
@@ -367,7 +369,8 @@ function renderSecurityDevices(devices) {
   }).join('')
   const lockCards = locks.map((device) => `<article class="security-lock" data-device-id="${esc(device.id)}">${deviceGlyph(device)}<div class="security-lock-name"><strong>${esc(device.name)}</strong><small>${esc(device.room)}</small></div><b>${esc(stateLabel(device))}</b>${deviceActions(device)}</article>`).join('')
   const scenarioCards = scenarios.map((device) => { const disarm = device.category === 'DISARM'; const partial = device.category === 'PARTIAL'; return `<button class="security-scenario ${disarm ? 'disarm' : partial ? 'partial' : 'arm'}" data-security-scenario data-device-id="${esc(device.id)}" data-action="execute"><span class="mdi-mask" style="${mdiStyle(disarm ? 'mdi:shield-off-outline' : partial ? 'mdi:shield-half-full' : 'mdi:shield-lock-outline', 'shield-key-outline')}"></span><strong>${esc(device.name)}</strong></button>` }).join('')
-  $('#device-list').innerHTML = `${summary}${scenarios.length ? `<section class="security-section"><h3>Scenari di inserimento</h3><div class="security-scenario-grid">${scenarioCards}</div></section>` : ''}${partitions.length ? `<section class="security-section"><h3>Stato aree <small>${partitions.length}</small></h3><div class="security-area-grid">${areaCards}</div></section>` : ''}${zones.length ? `<section class="security-section"><h3>Zone <small>${zones.length}</small></h3><div class="security-zone-grid">${zoneCards}</div></section>` : ''}${locks.length ? `<section class="security-section"><h3>Serrature</h3><div class="security-zone-grid">${lockCards}</div></section>` : ''}`
+  const section = (key, title, content, className) => `<section class="security-section security-collapsible"><button class="security-section-toggle" data-security-toggle="${key}" aria-expanded="${securitySections[key]}"><strong>${title}</strong><span class="mdi-mask" style="${mdiStyle(securitySections[key] ? 'mdi:chevron-up' : 'mdi:chevron-down', 'chevron-down')}"></span></button><div class="${className}" ${securitySections[key] ? '' : 'hidden'}>${content}</div></section>`
+  $('#device-list').innerHTML = `${summary}${scenarios.length ? `<section class="security-section"><h3>Scenari di inserimento</h3><div class="security-scenario-grid">${scenarioCards}</div></section>` : ''}${partitions.length ? section('areas', 'Stato aree', areaCards, 'security-area-grid') : ''}${zones.length ? section('zones', 'Zone', zoneCards, 'security-zone-grid') : ''}${locks.length ? `<section class="security-section"><h3>Serrature</h3><div class="security-zone-grid">${lockCards}</div></section>` : ''}`
 }
 
 function renderMediaExperience(devices) {
@@ -520,7 +523,7 @@ function renderActiveDeviceList() {
     if (lightFilterActive) devices = devices.filter(deviceIsActiveForFilter)
   }
   if (!$('#av-filters').hidden && avRoom) devices = devices.filter((device) => device.room === avRoom)
-  const signature = JSON.stringify({devices, selectedMediaId, currentMediaExperience, activeMediaRoom, avRoom, lightFilterRoom, lightFilterActive, sectionFilterMode})
+  const signature = JSON.stringify({devices, selectedMediaId, currentMediaExperience, activeMediaRoom, avRoom, lightFilterRoom, lightFilterActive, sectionFilterMode, securitySections})
   if (signature === lastDetailSignature && $('#device-list').childElementCount) return
   lastDetailSignature = signature
   renderDeviceList(devices)
@@ -626,6 +629,22 @@ async function postDeviceCommand(deviceId, action, value, resourceRevision = nul
 }
 
 let pendingSecurityCommand = null
+let activeSecurityArea = null
+
+function openSecurityArea(device) {
+  activeSecurityArea = device
+  const armed = device.state === 'ARMED' || device.state === 'ALARM'
+  const memory = device.alarm_memory || device.tamper_memory
+  const icon = device.state === 'ALARM' || device.state === 'TAMPER' ? 'mdi:shield-alert' : armed ? 'mdi:shield-lock' : memory ? 'mdi:history' : 'mdi:shield-check'
+  const colorClass = device.state === 'ALARM' || device.state === 'TAMPER' || device.arm_mode === 'instant' ? 'instant' : armed ? 'delayed' : memory ? 'memory' : 'ready'
+  $('#security-area-dialog').className = `security-area-dialog ${colorClass}`
+  $('#security-area-title').textContent = device.name
+  $('#security-area-icon').style.cssText = mdiStyle(icon, 'shield-home')
+  $('#security-area-popup-actions').innerHTML = armed
+    ? '<button data-area-action="disarm">Disinserisci</button>'
+    : '<button data-area-action="arm_instant">Inserisci</button><button data-area-action="arm_delay">Inserisci con ritardo</button>'
+  $('#security-area-dialog').showModal()
+}
 
 function requestSecurityPin(deviceId, action, button) {
   const device = currentDevices.find((item) => String(item.id) === String(deviceId))
@@ -635,7 +654,6 @@ function requestSecurityPin(deviceId, action, button) {
   $('#security-pin-error').textContent = ''
   $('#security-pin-input').value = ''
   $('#security-pin-dialog').showModal()
-  requestAnimationFrame(() => $('#security-pin-input').focus())
 }
 
 function applySecurityCommandState(deviceId, action) {
@@ -1239,6 +1257,13 @@ $('#device-list').addEventListener('click', (event) => {
   }
   const button = event.target.closest('[data-action]')
   const card = event.target.closest('[data-device-id]')
+  const sectionToggle = event.target.closest('[data-security-toggle]')
+  if (sectionToggle) {
+    securitySections[sectionToggle.dataset.securityToggle] = sectionToggle.getAttribute('aria-expanded') !== 'true'
+    renderActiveDeviceList()
+    return
+  }
+  if (!button && card?.classList.contains('security-area')) return openSecurityArea(currentDevices.find((item) => String(item.id) === card.dataset.deviceId))
   if (!button && card?.classList.contains('security-zone')) {
     const opening = !card.classList.contains('show-action')
     document.querySelectorAll('.security-zone.show-action').forEach((item) => { item.classList.remove('show-action'); item.setAttribute('aria-expanded', 'false') })
@@ -1275,7 +1300,7 @@ $('#device-list').addEventListener('pointermove', (event) => {
 }, { passive: true })
 $('#device-list').addEventListener('pointercancel', () => { devicePointerGesture = { moved: true } }, { passive: true })
 $('#device-list').addEventListener('keydown', (event) => {
-  if (!['Enter',' '].includes(event.key) || !event.target.matches('[data-device-toggle],[data-rgb-toggle],.security-zone')) return
+  if (!['Enter',' '].includes(event.key) || !event.target.matches('[data-device-toggle],[data-rgb-toggle],.security-zone,.security-area')) return
   event.preventDefault()
   event.target.click()
 })
@@ -1285,6 +1310,25 @@ function closeSecurityPin() { $('#security-pin-input').value = ''; $('#security-
 $('#security-pin-close').addEventListener('click', closeSecurityPin)
 $('#security-pin-cancel').addEventListener('click', closeSecurityPin)
 $('#security-pin-dialog').addEventListener('click', (event) => { if (event.target === $('#security-pin-dialog')) closeSecurityPin() })
+$('#security-pin-keys').addEventListener('click', (event) => {
+  const key = event.target.closest('[data-pin-key]')?.dataset.pinKey
+  if (!key) return
+  const input = $('#security-pin-input')
+  if (key === 'clear') input.value = ''
+  else if (key === 'back') input.value = input.value.slice(0, -1)
+  else if (input.value.length < Number(input.maxLength || 16)) input.value += key
+  $('#security-pin-error').textContent = ''
+})
+function closeSecurityArea() { $('#security-area-dialog').close(); activeSecurityArea = null }
+$('#security-area-close').addEventListener('click', closeSecurityArea)
+$('#security-area-dialog').addEventListener('click', (event) => {
+  if (event.target === $('#security-area-dialog')) return closeSecurityArea()
+  const button = event.target.closest('[data-area-action]')
+  if (!button || !activeSecurityArea) return
+  const device = activeSecurityArea
+  closeSecurityArea()
+  requestSecurityPin(device.id, button.dataset.areaAction, button)
+})
 $('#rgb-dialog').addEventListener('click', (event) => { if (event.target === $('#rgb-dialog')) $('#rgb-dialog').close() })
 $('#media-zones-close').addEventListener('click', () => $('#media-zones-dialog').close())
 $('#global-media-session').addEventListener('click', openMediaSessions)
