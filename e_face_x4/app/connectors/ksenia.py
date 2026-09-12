@@ -83,13 +83,13 @@ def normalize_ksenia(payload: dict[str, Any]) -> list[dict[str, Any]]:
             arm = realtime.get("ARM") if isinstance(realtime.get("ARM"), dict) else static.get("ARM") if isinstance(static.get("ARM"), dict) else {}
             description = str(arm.get("D") or "").strip()
             status = str(arm.get("S") or "").strip().upper()
-            items.append({"id": f"ksenia-system:{source_id}", "source_id": source_id, "provider": "ksenia", "kind": "alarm_system", "name": "Sistema Ksenia", "room": "", "state": status, "arm_description": description, "arm_status": status, "icon": "mdi:shield-home-outline"})
+            items.append({"id": f"ksenia-system:{source_id}", "source_id": source_id, "provider": "ksenia", "kind": "alarm_system", "name": "Sistema di sicurezza", "room": "", "state": status, "arm_description": description, "arm_status": status, "icon": "mdi:shield-home-outline"})
     return items
 
 
 class KseniaConnector(Connector):
     id = "ksenia"
-    label = "Ksenia lares"
+    label = "Sicurezza"
 
     def __init__(self, config: ProviderConfig, timeout_s: float) -> None:
         self.config = config
@@ -110,15 +110,15 @@ class KseniaConnector(Connector):
         except (httpx.HTTPError, ValueError, TypeError) as exc:
             cached = _snapshot_cache.get(self.config.base_url)
             if cached:
-                return {"id": self.id, "label": self.label, "status": "stale", "reason": "ultimo stato Ksenia disponibile", "items": cached}
-            return {"id": self.id, "label": self.label, "status": "offline", "reason": f"Ksenia non raggiungibile ({type(exc).__name__})", "items": []}
+                return {"id": self.id, "label": self.label, "status": "stale", "reason": "ultimo stato disponibile", "items": cached}
+            return {"id": self.id, "label": self.label, "status": "offline", "reason": f"centrale non raggiungibile ({type(exc).__name__})", "items": []}
 
     @staticmethod
     def _parse(response: httpx.Response) -> dict[str, Any]:
         response.raise_for_status()
         result = response.json()
         if not isinstance(result, dict):
-            raise ValueError("Risposta non valida dalla centrale Ksenia")
+            raise ValueError("Risposta non valida dalla centrale")
         return result
 
     @staticmethod
@@ -126,18 +126,18 @@ class KseniaConnector(Connector):
         raw = str(error or "").strip()
         lowered = raw.lower()
         if any(word in lowered for word in ("pin", "login", "credential", "auth", "denied")):
-            return "Codice Ksenia errato o non autorizzato"
+            return "Codice errato o non autorizzato"
         if "timeout" in lowered:
-            return "La centrale Ksenia non risponde"
-        return raw or "Comando rifiutato dalla centrale Ksenia"
+            return "La centrale non risponde"
+        return raw or "Comando rifiutato dalla centrale"
 
     async def command(self, kind: str, source_id: str, action: str, pin: str) -> dict[str, Any]:
         allowed = {"partition": {"arm_delay", "arm_instant", "disarm"}, "zone": {"bypass_on", "bypass_off"}, "scenario": {"execute"}}
         if action not in allowed.get(kind, set()):
-            raise ValueError("comando Ksenia non valido")
+            raise ValueError("comando di sicurezza non valido")
         pin = str(pin or "").strip()
         if not pin:
-            raise ValueError("Inserisci il codice Ksenia")
+            raise ValueError("Inserisci il codice di sicurezza")
         entity_type = {"partition": "partitions", "zone": "zones", "scenario": "scenarios"}[kind]
         async with httpx.AsyncClient(timeout=max(12.0, self.timeout_s), follow_redirects=False) as client:
             session = self._parse(await client.post(f"{self.config.base_url}/api/cmd", json={"type": "session", "action": "start", "value": {"pin": pin, "minutes": 1}}))

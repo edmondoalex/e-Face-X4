@@ -28,7 +28,7 @@ from .connectors.control4_media import cached_control4_icon, cached_control4_ico
 from .connectors.supervisor import discover_addon_url
 from .demo import dashboard as demo_dashboard
 
-VERSION = "2.15.1"
+VERSION = "2.15.2"
 STATIC = Path(__file__).parent / "static"
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s [e-face-x4] %(message)s")
 
@@ -293,15 +293,15 @@ def create_app() -> FastAPI:
         if device_id.startswith(("ksenia-partition:", "ksenia-zone:", "ksenia-scenario:")):
             config = await resolved_provider(settings.ksenia, "ksenia_lares_addon", 8080, settings.request_timeout_s)
             if not config.enabled or not config.base_url:
-                raise HTTPException(status_code=503, detail="Ksenia lares non disponibile")
+                raise HTTPException(status_code=503, detail="Sistema di sicurezza non disponibile")
             kind = "partition" if device_id.startswith("ksenia-partition:") else "scenario" if device_id.startswith("ksenia-scenario:") else "zone"
             source_id = device_id.split(":", 1)[1]
             try:
                 return await KseniaConnector(config, settings.request_timeout_s).command(kind, source_id, str(payload.get("action") or ""), str(payload.get("pin") or ""))
             except (httpx.ConnectError, httpx.ConnectTimeout, httpx.ReadTimeout):
-                raise HTTPException(status_code=502, detail="Centrale Ksenia non raggiungibile")
+                raise HTTPException(status_code=502, detail="Centrale non raggiungibile")
             except httpx.HTTPStatusError as exc:
-                raise HTTPException(status_code=502, detail=f"Ksenia ha risposto con errore HTTP {exc.response.status_code}")
+                raise HTTPException(status_code=502, detail=f"La centrale ha risposto con errore HTTP {exc.response.status_code}")
             except (ValueError, TypeError) as exc:
                 raise HTTPException(status_code=400, detail=str(exc))
         if device_id.startswith(("media:", "c4media:")):

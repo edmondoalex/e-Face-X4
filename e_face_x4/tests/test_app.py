@@ -115,7 +115,7 @@ def test_x4_shell_and_brand_assets_are_served() -> None:
     assert '<iframe' not in page.text
     for label in ("Guarda", "Ascolta", "Luci", "Extra", "Scenari", "Oscuranti", "Comfort", "Sicurezza"):
         assert f'title="{label}"' in page.text
-    assert 'src="assets/brand-horizontal.png?v=2.15.1"' in page.text
+    assert 'src="assets/brand-horizontal.png?v=2.15.2"' in page.text
     assert 'alt="e-Face X4"' in page.text
     assert 'class="header-wordmark"' not in page.text
     assert client.get("/assets/brand-horizontal.png").status_code == 200
@@ -379,7 +379,7 @@ def test_ksenia_security_command_requires_central_pin(monkeypatch, tmp_path) -> 
         "/api/devices/ksenia-partition:1/command", json={"action": "arm_delay"}
     )
     assert response.status_code == 400
-    assert response.json()["detail"] == "Inserisci il codice Ksenia"
+    assert response.json()["detail"] == "Inserisci il codice di sicurezza"
 
 
 def test_configured_home_name_is_shown_in_bootstrap(monkeypatch, tmp_path) -> None:

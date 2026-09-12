@@ -162,7 +162,12 @@ function render(data) {
     notice.hidden = false
   }
   renderHomeStatusCounters()
-  $('#rooms').innerHTML = (dashboard.rooms || []).map((room) => `
+  const visibleRoomNames = new Set(currentDevices
+    .filter((device) => !['alarm_partition', 'alarm_zone', 'alarm_scenario', 'alarm_system'].includes(device.kind))
+    .map((device) => String(device.room || '').trim().toLocaleLowerCase('it'))
+    .filter(Boolean))
+  const visibleRooms = (dashboard.rooms || []).filter((room) => visibleRoomNames.has(String(room.name || '').trim().toLocaleLowerCase('it')))
+  $('#rooms').innerHTML = visibleRooms.map((room) => `
     <button class="room-card" data-room="${esc(room.name)}"><span>${esc(room.name)}</span><small class="room-features">${roomFeatureIcons(room.name)}</small></button>
   `).join('') || '<span class="empty-state">Nessun ambiente disponibile</span>'
   $('#app').classList.remove('loading')
@@ -680,7 +685,7 @@ async function submitSecurityPin(event) {
   if (!pendingSecurityCommand) return
   const pin = $('#security-pin-input').value.trim()
   const confirmButton = $('#security-pin-confirm')
-  if (!pin) { $('#security-pin-error').textContent = 'Inserisci il codice della centrale Ksenia'; return }
+  if (!pin) { $('#security-pin-error').textContent = 'Inserisci il codice di sicurezza'; return }
   const command = pendingSecurityCommand
   confirmButton.disabled = true
   $('#security-pin-input').value = ''

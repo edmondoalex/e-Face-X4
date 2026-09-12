@@ -624,3 +624,8 @@
 - Corretto il contenitore dei comandi area che comprimeva e sovrapponeva i pulsanti.
 - Popup area ridisegnato con icona centrale più leggibile, azioni separate e layout responsive.
 - Popup area e tastierino PIN ulteriormente semplificati: dimensioni ridotte, niente elementi decorativi e un solo comando di conferma.
+
+# 2.15.2
+
+- Rimossi dall'interfaccia tutti i riferimenti al marchio della centrale: titoli, nomi, avvisi ed errori usano ora termini generici di sicurezza.
+- Le aree, le zone e gli scenari di allarme non generano più pseudo-stanze nell'elenco Ambiente e rimangono raccolti nella sezione Sicurezza.
