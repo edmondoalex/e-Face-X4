@@ -70,7 +70,7 @@ def test_x4_shell_and_brand_assets_are_served() -> None:
     assert '<iframe' not in page.text
     for label in ("Guarda", "Ascolta", "Luci", "Extra", "Scenari", "Oscuranti", "Comfort", "Sicurezza"):
         assert f'title="{label}"' in page.text
-    assert 'src="assets/brand-horizontal.png?v=2.7.3"' in page.text
+    assert 'src="assets/brand-horizontal.png?v=2.7.4"' in page.text
     assert 'alt="e-Face X4"' in page.text
     assert 'class="header-wordmark"' not in page.text
     assert client.get("/assets/brand-horizontal.png").status_code == 200
@@ -492,6 +492,8 @@ def test_media_ui_has_room_selection_and_typed_controls() -> None:
     assert "data-session-device" in script
     assert "Ascoltati di recente" in script
     assert "api/control4/recently-played" in script
+    assert "const recentCache = new Map()" in script
+    assert "const recentPending = new Map()" in script
 
 
 def test_control4_recently_played_decodes_native_payload(monkeypatch) -> None:

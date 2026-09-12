@@ -24,7 +24,8 @@ let selectedMediaId = ''
 let currentBackgrounds = {global:{mode:'preset',preset:'teal'},rooms:{}}
 let activeBackgroundRoom = ''
 const mediaTransportOverrides = new Map()
-let recentRequest = 0
+const recentCache = new Map()
+const recentPending = new Map()
 
 function setMediaOverride(deviceId, values) {
   const key = String(deviceId)
@@ -288,31 +289,47 @@ function renderMediaExperience(devices) {
   const experienceClass = selected.active_experience === 'watch' ? 'media-session-watch' : 'media-session-listen'
   const mainIcon = selected.active_experience === 'watch' ? 'mdi:video' : mediaSourceIcon(selected.source)
   const mainArtwork = selected.active_experience === 'watch' && !selected.content_fingerprint && selected.active_source_id ? `<span class="media-artwork media-video-source"><img src="${apiUrl(`api/control4/source-icon/${selected.active_source_id}?v=${encodeURIComponent(appVersion)}`)}" alt="${esc(selected.source || '')}" onerror="this.hidden=true"></span>` : mediaArtwork(selected)
-  const recent = currentMediaExperience === 'listen' && selected.provider === 'control4' ? '<div class="media-recent" data-recently-played><h3>Ascoltati di recente</h3><div class="media-recent-strip"><span class="empty-state">Caricamentoâ€¦</span></div></div>' : ''
+  const recentRoomId = Number(String(selected.registry_id || '').replace('c4room:', ''))
+  const recentScope = avRoom && recentRoomId ? `room-${recentRoomId}` : 'global'
+  const cachedRecent = recentCache.get(recentScope)
+  const recentContent = cachedRecent ? recentlyPlayedHtml(cachedRecent.items, recentRoomId) : '<span class="empty-state">Caricamento…</span>'
+  const recent = currentMediaExperience === 'listen' && selected.provider === 'control4' ? `<div class="media-recent" data-recently-played data-recent-scope="${recentScope}" ${cachedRecent && !cachedRecent.items.length ? 'hidden' : ''}><h3>Ascoltati di recente</h3><div class="media-recent-strip">${recentContent}</div></div>` : ''
   $('#device-list').innerHTML = `<article class="media-session ${experienceClass} ${deviceVisualClass(selected)}" data-device-id="${esc(selected.id)}">${mainArtwork}<span class="device-glyph mdi-mask" style="${mdiStyle(mainIcon, selected.active_experience === 'watch' ? 'video' : 'music-circle')}"></span><div class="media-session-info"><strong>${esc(selected.title || selected.source || selected.name)}</strong><small>${esc(selected.artist || selected.source || selected.room)}</small><span class="media-track">${esc(selected.album || selected.name)}</span></div>${power}${deviceActions(selected, { hidePower: true })}</article>${recent}<div class="media-library media-room-library"><h3>Stanze</h3><div class="media-service-grid">${players}</div></div><div class="media-library media-source-library"><h3>Sorgenti e servizi</h3><div class="media-service-grid">${sources || '<span class="empty-state">Nessuna sorgente disponibile</span>'}</div></div>`
   if (recent) loadRecentlyPlayed(selected)
 }
 
 async function loadRecentlyPlayed(selected) {
-  const request = ++recentRequest
   const roomId = Number(String(selected.registry_id || '').replace('c4room:', ''))
+  const scope = avRoom && roomId ? `room-${roomId}` : 'global'
   const params = avRoom && roomId ? `?room_id=${roomId}` : ''
+  const cached = recentCache.get(scope)
+  if (cached && Date.now() - cached.updated < 30000) return
+  if (recentPending.has(scope)) return recentPending.get(scope)
+  const pending = (async () => {
   try {
     const response = await fetch(apiUrl(`api/control4/recently-played${params}`), { cache: 'no-store' })
     if (!response.ok) throw new Error('Ascoltati di recente non disponibili')
     const data = await response.json()
     const host = document.querySelector('[data-recently-played]')
-    if (request !== recentRequest || !host) return
     const items = Array.isArray(data.items) ? data.items : []
-    if (!items.length) { host.hidden = true; return }
-    host.querySelector('.media-recent-strip').innerHTML = items.map((item) => {
-      const art = item.content_fingerprint ? apiUrl(`api/media/${encodeURIComponent(item.registry_id)}/artwork?fingerprint=${encodeURIComponent(item.content_fingerprint)}`) : ''
-      return `<button class="media-recent-item" data-recent-key="${esc(item.key)}" data-recent-room="${roomId}" title="${esc(item.title)}">${art ? `<img src="${esc(art)}" alt="" loading="lazy">` : '<span class="media-recent-art mdi-mask" style="'+mdiStyle('mdi:music-circle','music-circle')+'"></span>'}<b>${esc(item.title || 'Senza titolo')}</b><small>${esc(item.subtitle || '')}</small><em><span class="mdi-mask" style="${mdiStyle(item.driver_id === 1569 ? 'mdi:spotify' : 'mdi:radio', 'music-circle')}"></span>${esc(item.item_type || 'Audio')}</em></button>`
-    }).join('')
+    recentCache.set(scope, { items, updated: Date.now() })
+    if (!host || host.dataset.recentScope !== scope) return
+    host.hidden = !items.length
+    host.querySelector('.media-recent-strip').innerHTML = recentlyPlayedHtml(items, roomId)
   } catch (_) {
     const host = document.querySelector('[data-recently-played]')
-    if (request === recentRequest && host) host.hidden = true
-  }
+    if (!cached && host?.dataset.recentScope === scope) host.hidden = true
+  } finally { recentPending.delete(scope) }
+  })()
+  recentPending.set(scope, pending)
+  return pending
+}
+
+function recentlyPlayedHtml(items, roomId) {
+  return items.map((item) => {
+    const art = item.content_fingerprint ? apiUrl(`api/media/${encodeURIComponent(item.registry_id)}/artwork?fingerprint=${encodeURIComponent(item.content_fingerprint)}`) : ''
+    return `<button class="media-recent-item" data-recent-key="${esc(item.key)}" data-recent-room="${roomId}" title="${esc(item.title)}">${art ? `<img src="${esc(art)}" alt="" loading="lazy">` : '<span class="media-recent-art mdi-mask" style="'+mdiStyle('mdi:music-circle','music-circle')+'"></span>'}<b>${esc(item.title || 'Senza titolo')}</b><small>${esc(item.subtitle || '')}</small><em><span class="mdi-mask" style="${mdiStyle(item.driver_id === 1569 ? 'mdi:spotify' : 'mdi:radio', 'music-circle')}"></span>${esc(item.item_type || 'Audio')}</em></button>`
+  }).join('')
 }
 
 async function selectRecentlyPlayed(button) {
@@ -320,6 +337,7 @@ async function selectRecentlyPlayed(button) {
   try {
     const response = await fetch(apiUrl('api/control4/recently-played/select'), { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({room_id:Number(button.dataset.recentRoom), key:button.dataset.recentKey}) })
     if (!response.ok) throw new Error((await response.json().catch(()=>({}))).detail || 'Avvio non riuscito')
+    recentCache.delete(button.closest('[data-recently-played]')?.dataset.recentScope || '')
     await new Promise((resolve) => setTimeout(resolve, 500))
     await refresh()
   } catch (error) { fail(error) } finally { button.disabled = false }
