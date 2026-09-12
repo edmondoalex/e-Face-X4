@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.19.9 — 2026-09-12
+
+- Rimosso il fallback silenzioso che esponeva come e-Voice i media player letti direttamente da Home Assistant.
+- Il provider e-Voice usa ora esclusivamente l'API Media e-Voice configurata (`base_url`, `installation_id` e credenziale).
+- Se l'API e-Voice non è configurata o raggiungibile, e-Face la dichiara non disponibile senza sostituirla con dati Hassio.
+
 ## 2.19.8 — 2026-09-12
 
 - Esclusi gli Echo in pausa dalla sezione LIVE e dal conteggio sessioni.

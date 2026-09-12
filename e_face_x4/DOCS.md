@@ -24,7 +24,7 @@ di e-HDL BusPro MQTT.
 
 ## Collegamento e-HDL BusPro MQTT
 
-Disattivare la modalità demo solo quando almeno un connettore reale è stato configurato.
+Disattivare la modalitÃ  demo solo quando almeno un connettore reale Ã¨ stato configurato.
 Per il primo connettore impostare:
 
 - `buspro.enabled`: abilita il collegamento;
@@ -35,19 +35,13 @@ Il token resta nel file delle opzioni dell'add-on e non viene restituito al brow
 
 ## Collegamento Ekonex Media
 
-Per abilitare le pagine **Guarda** e **Ascolta** in locale configurare soltanto:
+Per abilitare le pagine **Guarda** e **Ascolta** tramite e-Voice configurare:
 
 - `evoice.enabled`: abilita il collegamento;
+- `evoice.base_url`: indirizzo del backend e-Voice senza il suffisso `/api/media/v1`;
+- `evoice.installation_id`: UUID dell'impianto autorizzato;
+- `evoice.token`: credenziale Media e-Voice con prefisso `emf_`.
 
-Lasciare vuoti `evoice.base_url`, `evoice.installation_id` ed `evoice.token`. e-Face usa
-automaticamente il collegamento interno protetto di Home Assistant/Supervisor; non servono IP,
-porte o credenziali manuali.
+e-Face usa esclusivamente questa API e non legge direttamente il registro dei media player di Home Assistant. Se uno dei parametri manca, il provider e-Voice risulta non configurato.
 
-I tre campi opzionali permettono in futuro di usare il backend cloud Ekonex Media. In quel caso
-`base_url` è l'indirizzo del backend senza il suffisso `/api/media/v1`.
-
-Le credenziali restano nell'add-on. Il browser comunica esclusivamente con e-Face X4. Gli
-aggiornamenti arrivano dallo stream realtime; lo snapshot periodico viene usato come recupero.
-
-La versione 0.1.0 non invia ancora comandi agli add-on collegati: il primo connettore viene usato
-per verificare disponibilità e contratto dei dati prima di abilitare il controllo reale.
+Le credenziali restano nell'add-on. Il browser comunica esclusivamente con e-Face X4. Gli aggiornamenti arrivano dallo stream realtime; lo snapshot periodico viene usato come recupero.

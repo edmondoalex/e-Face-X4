@@ -22,13 +22,13 @@ from .installer_auth import COOKIE, create_session, valid_session
 from .media_preferences import apply_preferences, load_preferences, save_preferences
 from .source_icons import delete_source_icon, load_builtin_source_icon, load_source_icon, save_source_icon
 from .backgrounds import CARD_THEMES, PRESETS, load_background, load_background_image, load_backgrounds, load_card_theme, save_background_image, save_card_theme, save_inherit, save_preset
-from .connectors import BusproConnector, Control4MediaConnector, EThermConnector, EkonexMediaConnector, KseniaConnector, LocalMediaConnector
+from .connectors import BusproConnector, Control4MediaConnector, EThermConnector, EkonexMediaConnector, KseniaConnector
 from .connectors.ksenia import normalize_ksenia
 from .connectors.control4_media import cached_control4_icon, cached_control4_icon_path, cached_control4_source_label, control4_icon_path
 from .connectors.supervisor import discover_addon_url, discover_host_url
 from .demo import dashboard as demo_dashboard
 
-VERSION = "2.19.8"
+VERSION = "2.19.9"
 STATIC = Path(__file__).parent / "static"
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s [e-face-x4] %(message)s")
 
@@ -45,9 +45,7 @@ def create_app() -> FastAPI:
         return replace(config, base_url=discovered) if discovered else config
 
     def evoice_connector(settings):
-        if settings.evoice.enabled and settings.evoice.base_url and settings.evoice.installation_id:
-            return EkonexMediaConnector(settings.evoice, settings.request_timeout_s)
-        return LocalMediaConnector(settings.request_timeout_s)
+        return EkonexMediaConnector(settings.evoice, settings.request_timeout_s)
 
     def media_connectors(settings):
         result = []
@@ -419,8 +417,6 @@ def create_app() -> FastAPI:
                         raise ValueError("I player della sessione devono appartenere allo stesso provider")
                 if isinstance(connector, Control4MediaConnector):
                     return await connector.command(f"c4room:{device_id.split(':', 1)[1]}", operation, payload.get("value"))
-                if isinstance(connector, LocalMediaConnector):
-                    return await connector.command(device_id.split(":", 1)[1], operation, payload.get("value"))
                 return await connector.command(device_id.split(":", 1)[1], command)
             except httpx.HTTPStatusError as exc:
                 detail = None
@@ -467,7 +463,7 @@ def create_app() -> FastAPI:
         if not config.enabled and not isinstance(connector, Control4MediaConnector):
             raise HTTPException(status_code=503, detail="Ekonex Media non disponibile")
         try:
-            upstream = await connector.artwork(registry_id) if isinstance(connector, LocalMediaConnector) else await connector.artwork(registry_id, fingerprint, if_none_match)
+            upstream = await connector.artwork(registry_id, fingerprint, if_none_match)
         except httpx.HTTPError:
             raise HTTPException(status_code=502, detail="Ekonex Media non raggiungibile")
         if upstream.status_code == 304:
@@ -550,14 +546,14 @@ def create_app() -> FastAPI:
         settings = load_settings()
         connector = media_connector(settings, group_id)
         config = settings.evoice
-        if not isinstance(connector, (Control4MediaConnector, LocalMediaConnector)) and (not config.enabled or not config.base_url or not config.installation_id):
+        if not isinstance(connector, Control4MediaConnector) and (not config.enabled or not config.base_url or not config.installation_id):
             raise HTTPException(status_code=503, detail="Ekonex Media non disponibile")
         operation = str(payload.get("action") or "")
         if operation != "set_group_volume":
             raise HTTPException(status_code=400, detail="Comando gruppo non valido")
         command = {"request_id": str(uuid.uuid4()), "operation": operation, "arguments": {"volume_percent": int(payload.get("value"))}, "expected_resource_revision": payload.get("resource_revision")}
         try:
-            if isinstance(connector, (Control4MediaConnector, LocalMediaConnector)):
+            if isinstance(connector, Control4MediaConnector):
                 return await connector.group_volume(group_id, int(payload.get("value")))
             return await connector.group_command(group_id, command)
         except httpx.HTTPStatusError as exc:
