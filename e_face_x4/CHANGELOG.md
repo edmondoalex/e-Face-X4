@@ -534,3 +534,8 @@
 
 - Connettore Ksenia più resiliente: timeout dedicato e conservazione dell'ultimo stato valido durante rallentamenti temporanei.
 - Le 21 aree e 102 zone non scompaiono più per un singolo timeout dell'API Ksenia.
+# 2.9.0
+
+- Scenari Ksenia ARM, DISARM e PARTIAL disponibili come comandi rapidi nella pagina Sicurezza.
+- Stato dettagliato delle aree: disinserita, inserita ritardata, inserita immediata, ritardo ingresso/uscita e allarme.
+- Conferma esplicita prima dell'esecuzione di uno scenario di sicurezza.

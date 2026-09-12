@@ -311,7 +311,7 @@ function wheelColor(event) {
 }
 
 function renderDeviceList(devices) {
-  if (devices.length && devices.every((device) => ['lock','alarm_partition','alarm_zone'].includes(device.kind))) {
+  if (devices.length && devices.every((device) => ['lock','alarm_partition','alarm_zone','alarm_scenario'].includes(device.kind))) {
     renderSecurityDevices(devices)
     return
   }
@@ -332,22 +332,27 @@ function renderDeviceList(devices) {
 function renderSecurityDevices(devices) {
   const partitions = devices.filter((device) => device.kind === 'alarm_partition')
   const zones = devices.filter((device) => device.kind === 'alarm_zone')
+  const scenarios = devices.filter((device) => device.kind === 'alarm_scenario')
   const locks = devices.filter((device) => device.kind === 'lock')
-  const issueCount = zones.filter((zone) => ['OPEN','ALARM','TAMPER'].includes(String(zone.state).toUpperCase())).length
+  const issueCount = [...partitions, ...zones].filter((item) => ['ALARM','TAMPER'].includes(String(item.state).toUpperCase())).length
+  const memoryCount = partitions.filter((area) => area.alarm_memory || area.tamper_memory).length
   const armedCount = partitions.filter((area) => area.state === 'ARMED').length
-  const summary = `<section class="security-summary"><span class="mdi-mask" style="${mdiStyle(issueCount ? 'mdi:shield-alert-outline' : armedCount ? 'mdi:shield-lock-outline' : 'mdi:shield-check-outline', 'shield-home')}"></span><div><small>SISTEMA KSENIA LARES</small><strong>${issueCount ? `${issueCount} ${issueCount === 1 ? 'zona da verificare' : 'zone da verificare'}` : armedCount ? `${armedCount} ${armedCount === 1 ? 'area inserita' : 'aree inserite'}` : 'Tutto sotto controllo'}</strong></div></section>`
+  const summary = `<section class="security-summary"><span class="mdi-mask" style="${mdiStyle(issueCount ? 'mdi:shield-alert-outline' : armedCount ? 'mdi:shield-lock-outline' : 'mdi:shield-check-outline', 'shield-home')}"></span><div><small>SISTEMA KSENIA LARES</small><strong>${issueCount ? `${issueCount} ${issueCount === 1 ? 'allarme attivo' : 'allarmi attivi'}` : armedCount ? `${armedCount} ${armedCount === 1 ? 'area inserita' : 'aree inserite'}` : 'Tutto sotto controllo'}</strong>${memoryCount && !issueCount ? `<span class="security-memory">${memoryCount} ${memoryCount === 1 ? 'memoria presente' : 'memorie presenti'}</span>` : ''}</div></section>`
   const areaCards = partitions.map((device) => {
-    const alarm = device.state === 'ALARM'; const armed = device.state === 'ARMED'
+    const alarm = device.state === 'ALARM'; const tamper = device.state === 'TAMPER'; const armed = device.state === 'ARMED'; const memory = device.alarm_memory || device.tamper_memory
     const actions = alarm || armed ? `<button data-action="disarm">DISINSERISCI</button>` : `<button data-action="arm_delay">INSERISCI</button><button data-action="arm_instant">IMMEDIATO</button>`
-    return `<article class="security-area ${alarm ? 'alarm' : armed ? 'armed' : 'ready'}" data-device-id="${esc(device.id)}"><span class="mdi-mask" style="${mdiStyle(alarm ? 'mdi:shield-alert' : armed ? 'mdi:shield-lock' : 'mdi:shield-check', 'shield-home')}"></span><div><small>AREA</small><strong>${esc(device.name)}</strong><b>${alarm ? 'ALLARME' : armed ? 'INSERITA' : 'DISINSERITA'}</b></div><div class="security-actions">${actions}</div></article>`
+    const delay = Number(device.exit_delay) > 0 ? ` · uscita ${device.exit_delay}s` : Number(device.entry_delay) > 0 ? ` · ingresso ${device.entry_delay}s` : ''
+    const state = alarm ? 'ALLARME ATTIVO' : tamper ? 'SABOTAGGIO ATTIVO' : armed ? device.arm_mode === 'instant' ? 'INSERITA IMMEDIATA' : `INSERITA RITARDATA${delay}` : memory ? device.alarm_memory ? 'DISINSERITA · MEMORIA ALLARME' : 'DISINSERITA · MEMORIA SABOTAGGIO' : 'DISINSERITA'
+    return `<article class="security-area ${alarm || tamper ? 'alarm' : armed ? 'armed' : memory ? 'memory' : 'ready'}" data-device-id="${esc(device.id)}"><span class="mdi-mask" style="${mdiStyle(alarm || tamper ? 'mdi:shield-alert' : armed ? 'mdi:shield-lock' : memory ? 'mdi:history' : 'mdi:shield-check', 'shield-home')}"></span><div><small>AREA</small><strong>${esc(device.name)}</strong><b>${esc(state)}</b></div><div class="security-actions">${actions}</div></article>`
   }).join('')
   const zoneCards = zones.map((device) => {
-    const bad = ['OPEN','ALARM','TAMPER'].includes(String(device.state).toUpperCase())
-    const label = device.state === 'ALARM' ? 'ALLARME' : device.state === 'TAMPER' ? 'SABOTAGGIO' : device.state === 'OPEN' ? 'APERTA' : device.bypassed ? 'ESCLUSA' : 'OK'
+    const bad = device.state === 'TAMPER'
+    const label = device.state === 'TAMPER' ? 'SABOTAGGIO ATTIVO' : device.state === 'ACTIVE' ? 'APERTA / ATTIVA' : device.state === 'MASKED' ? 'MASCHERATA' : device.bypassed ? 'ESCLUSA' : device.memory ? 'MEMORIA' : 'OK'
     return `<article class="security-zone ${bad ? 'warning' : ''} ${device.bypassed ? 'bypassed' : ''}" data-device-id="${esc(device.id)}"><span class="mdi-mask" style="${mdiStyle(bad ? 'mdi:alert-circle-outline' : 'mdi:checkbox-marked-circle-outline', 'shield-outline')}"></span><div><strong>${esc(device.name)}</strong><small>${esc(device.room)}</small></div><b>${label}</b><button data-action="${device.bypassed ? 'bypass_off' : 'bypass_on'}">${device.bypassed ? 'INCLUDI' : 'ESCLUDI'}</button></article>`
   }).join('')
   const lockCards = locks.map((device) => `<article class="security-zone" data-device-id="${esc(device.id)}">${deviceGlyph(device)}<div><strong>${esc(device.name)}</strong><small>${esc(device.room)}</small></div><b>${esc(stateLabel(device))}</b>${deviceActions(device)}</article>`).join('')
-  $('#device-list').innerHTML = `${summary}${partitions.length ? `<section class="security-section"><h3>Aree</h3><div class="security-area-grid">${areaCards}</div></section>` : ''}${zones.length ? `<section class="security-section"><h3>Zone <small>${zones.length}</small></h3><div class="security-zone-grid">${zoneCards}</div></section>` : ''}${locks.length ? `<section class="security-section"><h3>Serrature</h3><div class="security-zone-grid">${lockCards}</div></section>` : ''}`
+  const scenarioCards = scenarios.map((device) => { const disarm = device.category === 'DISARM'; const partial = device.category === 'PARTIAL'; return `<button class="security-scenario ${disarm ? 'disarm' : partial ? 'partial' : 'arm'}" data-security-scenario data-device-id="${esc(device.id)}" data-action="execute"><span class="mdi-mask" style="${mdiStyle(disarm ? 'mdi:shield-off-outline' : partial ? 'mdi:shield-half-full' : 'mdi:shield-lock-outline', 'shield-key-outline')}"></span><span><strong>${esc(device.name)}</strong><small>${disarm ? 'DISINSERIMENTO' : partial ? 'INSERIMENTO PARZIALE' : 'INSERIMENTO TOTALE'}</small></span></button>` }).join('')
+  $('#device-list').innerHTML = `${summary}${scenarios.length ? `<section class="security-section"><h3>Scenari di inserimento</h3><div class="security-scenario-grid">${scenarioCards}</div></section>` : ''}${partitions.length ? `<section class="security-section"><h3>Stato aree <small>${partitions.length}</small></h3><div class="security-area-grid">${areaCards}</div></section>` : ''}${zones.length ? `<section class="security-section"><h3>Zone <small>${zones.length}</small></h3><div class="security-zone-grid">${zoneCards}</div></section>` : ''}${locks.length ? `<section class="security-section"><h3>Serrature</h3><div class="security-zone-grid">${lockCards}</div></section>` : ''}`
 }
 
 function renderMediaExperience(devices) {
@@ -1045,12 +1050,12 @@ document.querySelectorAll('.rail button').forEach((button) => button.addEventLis
   if (button.dataset.view === 'scenarios') openScenariosPage()
   if (button.dataset.view === 'covers') openDevices('Oscuranti', currentDevices.filter((device) => device.kind === 'cover'), { filters: true })
   if (button.dataset.view === 'comfort') openDevices('Comfort', currentDevices.filter((device) => ['climate', 'temp', 'temperature', 'humidity', 'air', 'air_quality'].includes(device.kind)), { filters: true })
-  if (button.dataset.view === 'security') openDevices('Sicurezza', currentDevices.filter((device) => ['lock','alarm_partition','alarm_zone'].includes(device.kind)))
+  if (button.dataset.view === 'security') openDevices('Sicurezza', currentDevices.filter((device) => ['lock','alarm_partition','alarm_zone','alarm_scenario'].includes(device.kind)))
 }))
 $('#widgets').addEventListener('click', (event) => {
   const button = event.target.closest('[data-kind]')
   if (!button) return
-  const map = { lights: ['light'], extra: ['switch'], covers: ['cover'], security: ['lock','alarm_partition','alarm_zone'], comfort: ['climate', 'temp', 'temperature', 'humidity', 'air', 'air_quality'] }
+  const map = { lights: ['light'], extra: ['switch'], covers: ['cover'], security: ['lock','alarm_partition','alarm_zone','alarm_scenario'], comfort: ['climate', 'temp', 'temperature', 'humidity', 'air', 'air_quality'] }
   const kinds = map[button.dataset.kind] || []
   openDevices(button.dataset.label || 'Dispositivi', currentDevices.filter((device) => kinds.includes(device.kind)), { filters: true, lights: button.dataset.kind === 'lights' })
 })
@@ -1157,6 +1162,7 @@ $('#device-list').addEventListener('click', (event) => {
   }
   const button = event.target.closest('[data-action]')
   const card = event.target.closest('[data-device-id]')
+  if (button?.matches('[data-security-scenario]') && card && !window.confirm(`Eseguire lo scenario "${card.querySelector('strong')?.textContent || ''}"?`)) return
   if (button && card) sendDeviceCommand(card.dataset.deviceId, button.dataset.action, button)
   if (!button && card?.classList.contains('media-player-card') && !event.target.closest('input,label')) {
     const device = currentDevices.find((item) => String(item.id) === card.dataset.deviceId)

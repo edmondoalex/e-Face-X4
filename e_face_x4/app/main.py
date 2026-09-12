@@ -27,7 +27,7 @@ from .connectors.control4_media import cached_control4_icon, cached_control4_ico
 from .connectors.supervisor import discover_addon_url
 from .demo import dashboard as demo_dashboard
 
-VERSION = "2.8.3"
+VERSION = "2.9.0"
 STATIC = Path(__file__).parent / "static"
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s [e-face-x4] %(message)s")
 
@@ -289,11 +289,12 @@ def create_app() -> FastAPI:
     @app.post("/api/devices/{device_id}/command")
     async def device_command(device_id: str, payload: dict) -> dict:
         settings = load_settings()
-        if device_id.startswith(("ksenia-partition:", "ksenia-zone:")):
+        if device_id.startswith(("ksenia-partition:", "ksenia-zone:", "ksenia-scenario:")):
             config = await resolved_provider(settings.ksenia, "ksenia_lares_addon", 8080, settings.request_timeout_s)
             if not config.enabled or not config.base_url:
                 raise HTTPException(status_code=503, detail="Ksenia lares non disponibile")
-            kind, source_id = ("partition", device_id.split(":", 1)[1]) if device_id.startswith("ksenia-partition:") else ("zone", device_id.split(":", 1)[1])
+            kind = "partition" if device_id.startswith("ksenia-partition:") else "scenario" if device_id.startswith("ksenia-scenario:") else "zone"
+            source_id = device_id.split(":", 1)[1]
             try:
                 return await KseniaConnector(config, settings.request_timeout_s).command(kind, source_id, str(payload.get("action") or ""))
             except httpx.HTTPError:

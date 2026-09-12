@@ -25,11 +25,14 @@ def test_ksenia_normalizes_partitions_and_zones() -> None:
     items = normalize_ksenia({"entities": [
         {"type": "partitions", "id": 1, "name": "Casa", "realtime": {"ARM": "IA"}},
         {"type": "zones", "id": 7, "name": "Porta", "static": {"PRT": "1"}, "realtime": {"STA": "A", "BYP": "NO"}},
+        {"type": "scenarios", "id": 2, "name": "Away", "static": {"CAT": "ARM", "PIN": "P"}, "realtime": {}},
     ]})
     assert items[0]["id"] == "ksenia-partition:1"
     assert items[0]["state"] == "ARMED"
     assert items[1]["id"] == "ksenia-zone:7"
-    assert items[1]["state"] == "ALARM"
+    assert items[1]["state"] == "ACTIVE"
+    assert items[2]["id"] == "ksenia-scenario:2"
+    assert items[2]["category"] == "ARM"
 
 
 def test_alarm_and_room_media_navigation_are_present() -> None:
@@ -37,6 +40,19 @@ def test_alarm_and_room_media_navigation_are_present() -> None:
     assert "renderSecurityDevices" in script
     assert "ksenia-partition" not in script
     assert "card?.classList.contains('media-player-card')" in script
+
+
+def test_ksenia_alarm_memory_is_not_an_active_alarm() -> None:
+    items = normalize_ksenia({"entities": [
+        {"type": "partitions", "id": 2, "name": "Centrale", "realtime": {"ARM": "D", "AST": "AM", "TST": "OK"}},
+        {"type": "zones", "id": 56, "name": "Camera", "realtime": {"STA": "R", "T": "M", "BYP": "NO"}},
+    ]})
+    assert items[0]["state"] == "DISARMED"
+    assert items[0]["alarm"] is False
+    assert items[0]["alarm_memory"] is True
+    assert items[1]["state"] == "CLOSED"
+    assert items[1]["tamper"] is False
+    assert items[1]["memory"] is True
 
 
 def test_bootstrap_never_exposes_tokens(monkeypatch, tmp_path) -> None:
@@ -89,7 +105,7 @@ def test_x4_shell_and_brand_assets_are_served() -> None:
     assert '<iframe' not in page.text
     for label in ("Guarda", "Ascolta", "Luci", "Extra", "Scenari", "Oscuranti", "Comfort", "Sicurezza"):
         assert f'title="{label}"' in page.text
-    assert 'src="assets/brand-horizontal.png?v=2.8.3"' in page.text
+    assert 'src="assets/brand-horizontal.png?v=2.9.0"' in page.text
     assert 'alt="e-Face X4"' in page.text
     assert 'class="header-wordmark"' not in page.text
     assert client.get("/assets/brand-horizontal.png").status_code == 200
