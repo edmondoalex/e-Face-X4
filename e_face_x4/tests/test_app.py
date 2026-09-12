@@ -119,9 +119,11 @@ def test_x4_shell_and_brand_assets_are_served() -> None:
     assert 'scrolling="no"' in page.text
     assert 'energy-picker-intro' not in page.text
     assert 'data-view="energy"' in page.text
+    assert 'card-themes.css' in page.text
+    assert 'header-media-state.css' in page.text
     for label in ("Guarda", "Ascolta", "Luci", "Extra", "Scenari", "Oscuranti", "Comfort", "Sicurezza"):
         assert f'title="{label}"' in page.text
-    assert 'src="assets/brand-horizontal.png?v=2.17.5"' in page.text
+    assert 'src="assets/brand-horizontal.png?v=2.18.0"' in page.text
     assert 'alt="e-Face X4"' in page.text
     assert 'class="header-wordmark"' not in page.text
     assert client.get("/assets/brand-horizontal.png").status_code == 200
@@ -462,6 +464,23 @@ def test_energy_cards_expose_dynamic_flow_states() -> None:
     assert "IMMISSIONE" in script
     assert "loadEnergyDashboards(false)" in script
     assert "energyRefreshRunning" in script
+
+
+def test_user_can_select_persistent_card_theme(monkeypatch, tmp_path) -> None:
+    monkeypatch.setenv("EFACE_BACKGROUNDS", str(tmp_path))
+    client = TestClient(create_app())
+    assert client.get("/api/user/card-theme").json()["theme"] == "graphite"
+    response = client.put("/api/user/card-theme", json={"theme": "midnight"})
+    assert response.status_code == 200
+    assert client.get("/api/user/card-theme").json()["theme"] == "midnight"
+    assert client.put("/api/user/card-theme", json={"theme": "rainbow"}).status_code == 400
+
+
+def test_tools_page_has_card_theme_picker_and_brand() -> None:
+    page = TestClient(create_app()).get("/tools").text
+    assert 'id="card-theme-tool"' in page
+    assert 'id="card-theme-config"' in page
+    assert 'class="tools-brand"' in page
 
 
 def test_invalid_mdi_icon_name_returns_safe_fallback() -> None:

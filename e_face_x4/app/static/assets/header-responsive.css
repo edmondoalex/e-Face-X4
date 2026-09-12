@@ -16,7 +16,7 @@
 .horizontal-logo {
   flex: 0 1 auto;
   display: block;
-  width: min(270px, 52%);
+  width: min(292px, 55%);
   height: 62px;
 }
 
@@ -72,7 +72,7 @@
   }
 
   .horizontal-logo {
-    width: min(160px, 60%);
+    width: min(174px, 62%);
     height: 46px;
   }
 
@@ -110,7 +110,7 @@
   }
 
   .horizontal-logo {
-    width: min(136px, 58%);
+    width: min(146px, 60%);
     height: 42px;
   }
 

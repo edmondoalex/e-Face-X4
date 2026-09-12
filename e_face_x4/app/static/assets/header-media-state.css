@@ -1,0 +1,7 @@
+.home-title h1:before{display:none!important}
+.home-title{gap:14px}
+#mode{color:#fff!important}
+.global-media-session.media-state-audio{color:#20df6b}.global-media-session.media-state-video{color:#61d8f2}.global-media-session.media-state-mixed svg{fill:url(#media-session-mixed-gradient)}
+#mode[data-media-state]:before{content:"";display:inline-block;width:6px;height:6px;margin-right:5px;border-radius:50%;vertical-align:1px}
+#mode[data-media-state="audio"]:before{background:#20df6b;box-shadow:0 0 7px #20df6b99}#mode[data-media-state="video"]:before{background:#61d8f2;box-shadow:0 0 7px #61d8f299}#mode[data-media-state="mixed"]:before{background:linear-gradient(90deg,#20df6b 50%,#61d8f2 50%);box-shadow:0 0 7px #47dfb899}#mode[data-media-state="none"]:before{display:none}
+@media(max-width:700px){.home-title{gap:8px}}

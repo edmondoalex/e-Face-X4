@@ -4,6 +4,7 @@ import base64, binascii, hashlib, json, os
 from pathlib import Path
 
 PRESETS = {"teal", "midnight", "graphite", "ocean", "warm"}
+CARD_THEMES = {"graphite", "petrol", "midnight", "slate", "warm"}
 MIME_SUFFIX = {"image/png": ".png", "image/jpeg": ".jpg", "image/webp": ".webp"}
 
 def _directory() -> Path: return Path(os.environ.get("EFACE_BACKGROUNDS", "/data/backgrounds"))
@@ -24,6 +25,14 @@ def load_background(room: str | None = None) -> dict[str, str]:
 def load_backgrounds() -> dict:
     raw = _config(); rooms = raw.get("rooms") if isinstance(raw.get("rooms"), dict) else {}
     return {"global": load_background(), "rooms": {room: load_background(room) for room in rooms}}
+
+def load_card_theme() -> str:
+    value = str(_config().get("card_theme") or "graphite")
+    return value if value in CARD_THEMES else "graphite"
+
+def save_card_theme(theme: str) -> None:
+    if theme not in CARD_THEMES: raise ValueError("Colore card non valido")
+    raw = _config(); raw["card_theme"] = theme; _write(raw)
 
 def save_preset(preset: str, room: str | None = None) -> None:
     if preset not in PRESETS: raise ValueError("Sfondo predefinito non valido")

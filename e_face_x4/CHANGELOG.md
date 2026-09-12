@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.18.0 — 2026-09-12
+
+- Aggiunta in `Strumenti → Utente` la scelta persistente del colore delle card.
+- Disponibili cinque palette curate: Grafite, Petrolio, Notte, Ardesia e Calda.
+- Le tinte di allarme e di stato restano in evidenza indipendentemente dalla palette.
+
 ## 2.17.5 — 2026-09-12
 
 - Le card Energia adottano un antracite freddo coerente con lo sfondo, lasciando i colori ai soli flussi.

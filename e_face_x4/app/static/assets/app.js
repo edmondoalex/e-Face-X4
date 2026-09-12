@@ -116,6 +116,7 @@ function tick() {
 function render(data) {
   appVersion = data.version || appVersion
   currentBackgrounds = data.backgrounds || currentBackgrounds
+  document.body.dataset.cardTheme = data.appearance?.card_theme || 'graphite'
   applyBackground()
   const dashboard = data.dashboard || {}
   const home = dashboard.home || {}
@@ -487,7 +488,13 @@ async function selectRecentlyPlayed(button) {
 function updateGlobalMediaSession() {
   const button = $('#global-media-session')
   const sessions = activeMediaSessions()
+  const hasAudio = sessions.some(({ player }) => player.active_experience !== 'watch')
+  const hasVideo = sessions.some(({ player }) => player.active_experience === 'watch')
+  const mediaState = hasAudio && hasVideo ? 'mixed' : hasVideo ? 'video' : hasAudio ? 'audio' : 'none'
   button.hidden = sessions.length === 0
+  button.classList.remove('media-state-audio', 'media-state-video', 'media-state-mixed')
+  if (mediaState !== 'none') button.classList.add(`media-state-${mediaState}`)
+  $('#mode').dataset.mediaState = mediaState
   button.querySelector('b').textContent = sessions.length
 }
 

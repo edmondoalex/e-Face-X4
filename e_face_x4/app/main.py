@@ -21,14 +21,14 @@ from .control4 import load_control4_config, public_control4_config, save_control
 from .installer_auth import COOKIE, create_session, valid_session
 from .media_preferences import apply_preferences, load_preferences, save_preferences
 from .source_icons import delete_source_icon, load_builtin_source_icon, load_source_icon, save_source_icon
-from .backgrounds import PRESETS, load_background, load_background_image, load_backgrounds, save_background_image, save_inherit, save_preset
+from .backgrounds import CARD_THEMES, PRESETS, load_background, load_background_image, load_backgrounds, load_card_theme, save_background_image, save_card_theme, save_inherit, save_preset
 from .connectors import BusproConnector, Control4MediaConnector, EThermConnector, EkonexMediaConnector, KseniaConnector, LocalMediaConnector
 from .connectors.ksenia import normalize_ksenia
 from .connectors.control4_media import cached_control4_icon, cached_control4_icon_path, cached_control4_source_label, control4_icon_path
 from .connectors.supervisor import discover_addon_url, discover_host_url
 from .demo import dashboard as demo_dashboard
 
-VERSION = "2.17.5"
+VERSION = "2.18.0"
 STATIC = Path(__file__).parent / "static"
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s [e-face-x4] %(message)s")
 
@@ -162,6 +162,7 @@ def create_app() -> FastAPI:
         return {
             "version": VERSION,
             "backgrounds": load_backgrounds(),
+            "appearance": {"card_theme": load_card_theme()},
             "nav_icons": settings.nav_icons,
             "mode": "demo" if settings.demo_mode else "live",
             "dashboard": dashboard,
@@ -197,6 +198,16 @@ def create_app() -> FastAPI:
     @app.get("/api/user/background")
     async def user_background() -> dict:
         return {**load_backgrounds(), "presets": sorted(PRESETS)}
+
+    @app.get("/api/user/card-theme")
+    async def user_card_theme() -> dict:
+        return {"theme": load_card_theme(), "themes": sorted(CARD_THEMES)}
+
+    @app.put("/api/user/card-theme")
+    async def user_save_card_theme(payload: dict) -> dict:
+        try: save_card_theme(str(payload.get("theme") or ""))
+        except ValueError as exc: raise HTTPException(status_code=400, detail=str(exc))
+        return {"ok": True, "theme": load_card_theme()}
 
     @app.put("/api/user/background")
     async def user_save_background(payload: dict) -> dict:
