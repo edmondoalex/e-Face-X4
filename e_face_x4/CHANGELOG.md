@@ -1,5 +1,13 @@
 # Changelog
 
+## 2.19.0 — 2026-09-12
+
+- Aggiunta configurazione Admin dei dispositivi e-Voice ed Echo.
+- Aggiunte rinomina e stanza locali, visibilità e abilitazioni Audio, Video e TTS.
+- Aggiunto invio TTS verso uno o più Echo dalla pagina Ascolta.
+- Aggiunto comando DND per i dispositivi che lo dichiarano nelle capacità e-Voice.
+- Supportati gli Echo solo TTS senza esporli come normali player multimediali.
+
 ## 2.18.5 — 2026-09-12
 
 - Eliminato il lampo teal e delle card provvisorie durante il refresh.

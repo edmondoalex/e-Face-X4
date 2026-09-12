@@ -103,6 +103,10 @@ def normalize_player(player: dict[str, Any]) -> dict[str, Any]:
     capabilities = player.get("capabilities") if isinstance(player.get("capabilities"), dict) else {}
     group = player.get("group") if isinstance(player.get("group"), dict) else None
     experiences = player.get("experiences") if isinstance(player.get("experiences"), list) else ["watch", "listen"]
+    identity = " ".join(str(player.get(key) or "") for key in ("name", "entity_id", "device_class", "manufacturer", "model")).casefold()
+    is_echo = bool(player.get("is_echo")) or any(token in identity for token in ("amazon", "alexa", "echo"))
+    tts_available = bool(player.get("tts_available") or capabilities.get("tts") or capabilities.get("announce") or is_echo)
+    dnd_available = bool(player.get("dnd_available") or capabilities.get("dnd") or capabilities.get("do_not_disturb"))
     return {
         "id": f"media:{registry_id}", "registry_id": registry_id, "entity_id": str(player.get("entity_id") or ""), "provider": "evoice",
         "kind": "media_player", "icon": "mdi:speaker", "name": str(player.get("name") or "Player"),
@@ -115,6 +119,9 @@ def normalize_player(player: dict[str, Any]) -> dict[str, Any]:
         "source": player.get("source"), "source_list": player.get("source_list") or [],
         "capabilities": capabilities, "group": group, "resource_revision": player.get("resource_revision"),
         "experiences": [str(item).lower() for item in experiences if str(item).lower() in {"watch", "listen"}],
+        "device_type": "echo" if is_echo else str(player.get("device_class") or "media_player"),
+        "manufacturer": str(player.get("manufacturer") or ""), "tts_available": tts_available,
+        "dnd_available": dnd_available, "dnd": bool(player.get("dnd") or player.get("do_not_disturb")),
     }
 
 

@@ -119,6 +119,14 @@ class LocalMediaConnector(Connector):
             "set_volume": "volume_set", "select_source": "select_source",
             "media_join": "join", "media_unjoin": "unjoin",
         }
+        if operation == "tts":
+            message = str(value or "").strip()
+            if not message or len(message) > 500:
+                raise ValueError("Messaggio TTS non valido")
+            async with httpx.AsyncClient(timeout=self.timeout, follow_redirects=False) as client:
+                response = await client.post(f"{self.api_url}/services/notify/alexa_media", headers=self.headers(), json={"message": message, "target": [entity_id], "data": {"type": "tts"}})
+                response.raise_for_status()
+            return {"status": "success", "operation": operation, "registry_id": registry_id}
         if operation not in services:
             raise ValueError("Comando multimedia locale non valido")
         body: dict[str, Any] = {"entity_id": entity_id}
@@ -205,6 +213,9 @@ def normalize_local_snapshot(raw: dict[str, Any]) -> tuple[list[dict[str, Any]],
         try: revision = int(datetime.fromisoformat(changed.replace("Z", "+00:00")).timestamp() * 1_000_000)
         except ValueError: revision = 0
         volume = attrs.get("volume_level")
+        device = devices.get(str(entry.get("device_id"))) or {}
+        identity = " ".join(str(value or "") for value in (player_name, entity_id, device.get("manufacturer"), device.get("model"))).casefold()
+        is_echo = any(token in identity for token in ("amazon", "alexa", "echo"))
         item = {
             "id": f"media:{entry['id']}", "registry_id": str(entry["id"]), "entity_id": entity_id,
             "provider": "evoice", "kind": "media_player", "icon": str(attrs.get("icon") or "mdi:speaker"),
@@ -216,6 +227,8 @@ def normalize_local_snapshot(raw: dict[str, Any]) -> tuple[list[dict[str, Any]],
             "muted": attrs.get("is_volume_muted"), "source": attrs.get("source"), "source_list": attrs.get("source_list") or [],
             "group_entity_ids": attrs.get("group_members") or [], "capabilities": {"play": bool(features & 16384), "pause": bool(features & 1), "stop": bool(features & 4096), "next": bool(features & 32), "previous": bool(features & 16), "set_volume": bool(features & 4), "mute": bool(features & 8), "select_source": bool(features & 2048), "grouping": bool(features & 524288), "artwork": bool(attrs.get("entity_picture"))},
             "resource_revision": revision, "experiences": experiences,
+            "device_type": "echo" if is_echo else (media_class or "media_player"),
+            "manufacturer": str(device.get("manufacturer") or ""), "tts_available": is_echo,
         }
         by_entity[entity_id] = item
     players = list(by_entity.values())

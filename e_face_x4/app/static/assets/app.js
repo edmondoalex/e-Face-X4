@@ -436,7 +436,9 @@ function renderMediaExperience(devices) {
   const recentContent = cachedRecent ? recentlyPlayedHtml(cachedRecent.items, recentRoomId) : '<span class="empty-state">Caricamento…</span>'
   const showRecent = selected.provider === 'control4' && (currentMediaExperience === 'listen' || (activeMediaRoom && selected.active_experience !== 'watch'))
   const recent = showRecent ? `<div class="media-recent" data-recently-played data-recent-scope="${recentScope}" ${cachedRecent && !cachedRecent.items.length ? 'hidden' : ''}><h3>Ascoltati di recente</h3><div class="media-recent-strip">${recentContent}</div></div>` : ''
-  $('#device-list').innerHTML = `<article class="media-session ${experienceClass} ${deviceVisualClass(selected)}" data-device-id="${esc(selected.id)}">${mainArtwork}<span class="device-glyph mdi-mask" style="${mdiStyle(mainIcon, selected.active_experience === 'watch' ? 'video' : 'music-circle')}"></span><div class="media-session-info"><strong>${esc(selected.title || selected.source || selected.name)}</strong><small>${esc(selected.artist || selected.source || selected.room)}</small><span class="media-track">${esc(selected.album || selected.name)}</span></div>${power}${deviceActions(selected, { hidePower: true })}</article>${recent}<div class="media-library media-room-library"><button class="media-library-toggle" data-media-section-toggle="rooms" aria-expanded="${mediaSections.rooms}"><strong>Stanze</strong><span class="mdi-mask" style="${mdiStyle(mediaSections.rooms ? 'mdi:chevron-up' : 'mdi:chevron-down', 'chevron-down')}"></span></button><div class="media-service-grid" ${mediaSections.rooms ? '' : 'hidden'}>${players}</div></div><div class="media-library media-source-library"><h3>Sorgenti e servizi</h3><div class="media-service-grid">${sources || '<span class="empty-state">Nessuna sorgente disponibile</span>'}</div></div>`
+  const ttsPlayers = currentDevices.filter((device) => device.kind === 'media_player' && device.tts_enabled)
+  const voicePanel = currentMediaExperience === 'listen' && ttsPlayers.length ? `<section class="evoice-panel"><h3>Messaggio vocale</h3><div class="evoice-targets">${ttsPlayers.map((device) => `<label><input type="checkbox" data-tts-target value="${esc(device.id)}" ${device.id === selected.id ? 'checked' : ''}><span>${esc(device.name)}</span><small>${esc(device.room)}</small></label>${device.dnd_available ? `<button class="evoice-dnd ${device.dnd ? 'active' : ''}" data-dnd-device="${esc(device.id)}" data-dnd-value="${device.dnd ? 'false' : 'true'}">DND</button>` : ''}`).join('')}</div><textarea id="evoice-tts-message" maxlength="500" rows="3" placeholder="Scrivi il messaggio da pronunciare"></textarea><button class="evoice-send" data-tts-send>INVIA MESSAGGIO</button></section>` : ''
+  $('#device-list').innerHTML = `<article class="media-session ${experienceClass} ${deviceVisualClass(selected)}" data-device-id="${esc(selected.id)}">${mainArtwork}<span class="device-glyph mdi-mask" style="${mdiStyle(mainIcon, selected.active_experience === 'watch' ? 'video' : 'music-circle')}"></span><div class="media-session-info"><strong>${esc(selected.title || selected.source || selected.name)}</strong><small>${esc(selected.artist || selected.source || selected.room)}</small><span class="media-track">${esc(selected.album || selected.name)}</span></div>${power}${deviceActions(selected, { hidePower: true })}</article>${voicePanel}${recent}<div class="media-library media-room-library"><button class="media-library-toggle" data-media-section-toggle="rooms" aria-expanded="${mediaSections.rooms}"><strong>Stanze</strong><span class="mdi-mask" style="${mdiStyle(mediaSections.rooms ? 'mdi:chevron-up' : 'mdi:chevron-down', 'chevron-down')}"></span></button><div class="media-service-grid" ${mediaSections.rooms ? '' : 'hidden'}>${players}</div></div><div class="media-library media-source-library"><h3>Sorgenti e servizi</h3><div class="media-service-grid">${sources || '<span class="empty-state">Nessuna sorgente disponibile</span>'}</div></div>`
   if (recent) loadRecentlyPlayed(selected)
 }
 
@@ -1327,7 +1329,7 @@ document.querySelectorAll('.rail button').forEach((button) => button.addEventLis
   document.querySelector('main').classList.remove('app-view')
   requestAnimationFrame(() => document.querySelector('main').classList.add('app-view'))
   if (button.dataset.view === 'watch') openDevices('Guarda', currentDevices.filter((device) => ['camera', 'doorbell'].includes(device.kind) || (device.kind === 'media_player' && device.experiences?.includes('watch'))), { av: true, experience: 'watch' })
-  if (button.dataset.view === 'listen') openDevices('Ascolta', currentDevices.filter((device) => ['media_player', 'media'].includes(device.kind) && (!device.experiences?.length || device.experiences.some((experience) => ['listen', 'watch'].includes(experience)))), { av: true, experience: 'listen' })
+  if (button.dataset.view === 'listen') openDevices('Ascolta', currentDevices.filter((device) => ['media_player', 'media'].includes(device.kind) && (device.experiences?.includes('listen') || device.tts_enabled)), { av: true, experience: 'listen' })
   if (button.dataset.view === 'lights') openDevices('Luci', currentDevices.filter((device) => device.kind === 'light'), { lights: true, filters: true })
   if (button.dataset.view === 'extra') openDevices('Extra', currentDevices.filter((device) => device.kind === 'switch'), { filters: true })
   if (button.dataset.view === 'scenarios') openScenariosPage()
@@ -1436,6 +1438,23 @@ $('#device-list').addEventListener('click', (event) => {
   }
   const recentButton = event.target.closest('[data-recent-key]')
   if (recentButton) return selectRecentlyPlayed(recentButton)
+  const ttsSend = event.target.closest('[data-tts-send]')
+  if (ttsSend) {
+    const message = $('#evoice-tts-message')?.value.trim()
+    const targets = [...document.querySelectorAll('[data-tts-target]:checked')].map((input) => input.value)
+    if (!message || !targets.length) return fail(new Error(!message ? 'Scrivi un messaggio' : 'Seleziona almeno un Echo'))
+    ttsSend.disabled = true
+    return Promise.all(targets.map((deviceId) => postDeviceCommand(deviceId, 'tts', message))).then(() => {
+      $('#evoice-tts-message').value = ''
+      const notice = $('#notice'); notice.textContent = 'Messaggio inviato'; notice.hidden = false
+      setTimeout(() => { notice.hidden = true }, 2200)
+    }).catch(fail).finally(() => { ttsSend.disabled = false })
+  }
+  const dndButton = event.target.closest('[data-dnd-device]')
+  if (dndButton) {
+    dndButton.disabled = true
+    return postDeviceCommand(dndButton.dataset.dndDevice, 'set_dnd', dndButton.dataset.dndValue === 'true').then(refresh).catch(fail).finally(() => { dndButton.disabled = false })
+  }
   const rgbOpen = event.target.closest('[data-rgb-open]')
   if (rgbOpen) return openRgbDialog(rgbOpen.closest('[data-rgb-group]').dataset.rgbGroup)
   const rgbButton = event.target.closest('[data-rgb-action]')

@@ -28,7 +28,7 @@ from .connectors.control4_media import cached_control4_icon, cached_control4_ico
 from .connectors.supervisor import discover_addon_url, discover_host_url
 from .demo import dashboard as demo_dashboard
 
-VERSION = "2.18.5"
+VERSION = "2.19.0"
 STATIC = Path(__file__).parent / "static"
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s [e-face-x4] %(message)s")
 
@@ -242,8 +242,17 @@ def create_app() -> FastAPI:
         for index, player in enumerate(snapshot.get("items", [])):
             registry_id = str(player.get("registry_id") or "")
             inferred = set(player.get("experiences") or [])
-            selected = saved.get(registry_id, {"visible": True, "audio": "listen" in inferred, "video": "watch" in inferred, "order": index})
-            items.append({"registry_id": registry_id, "name": str(player.get("name") or registry_id), "entity_id": str(player.get("entity_id") or ""), **selected})
+            selected = saved.get(registry_id, {"visible": True, "audio": "listen" in inferred, "video": "watch" in inferred, "tts": bool(player.get("tts_available")), "order": index, "name": "", "room": ""})
+            original_name = str(player.get("name") or registry_id)
+            original_room = str(player.get("room") or "Senza stanza")
+            items.append({
+                "registry_id": registry_id, "original_name": original_name, "original_room": original_room,
+                "name": str(selected.get("name") or ""), "room": str(selected.get("room") or ""),
+                "entity_id": str(player.get("entity_id") or ""), "device_type": str(player.get("device_type") or "media_player"),
+                "manufacturer": str(player.get("manufacturer") or ""), "tts_available": bool(player.get("tts_available")),
+                "dnd_available": bool(player.get("dnd_available")),
+                **{key: selected.get(key) for key in ("visible", "audio", "video", "tts", "order")},
+            })
         items.sort(key=lambda item: int(item.get("order", 0)))
         return {"items": items, "configured": bool(saved)}
 
@@ -360,7 +369,7 @@ def create_app() -> FastAPI:
             if not control4_enabled and not config.enabled:
                 raise HTTPException(status_code=503, detail="Ekonex Media non disponibile")
             operation = str(payload.get("action") or "")
-            allowed = {"media_play", "media_pause", "media_stop", "turn_off", "media_next", "media_previous", "set_volume", "volume_mute", "volume_unmute", "select_source", "media_join", "media_unjoin", "video_remote"}
+            allowed = {"media_play", "media_pause", "media_stop", "turn_off", "media_next", "media_previous", "set_volume", "volume_mute", "volume_unmute", "select_source", "media_join", "media_unjoin", "video_remote", "tts", "set_dnd"}
             if operation not in allowed:
                 raise HTTPException(status_code=400, detail="Comando multimedia non valido")
             arguments = {}
@@ -370,6 +379,16 @@ def create_app() -> FastAPI:
                 arguments["source"] = str(payload.get("value") or "")
             elif operation == "media_join":
                 arguments["member_registry_ids"] = payload.get("value")
+            elif operation == "tts":
+                message = str(payload.get("value") or "").strip()
+                if not message or len(message) > 500:
+                    raise HTTPException(status_code=400, detail="Messaggio TTS non valido")
+                preferences = load_preferences().get(device_id.split(":", 1)[1], {})
+                if not preferences.get("visible") or not preferences.get("tts"):
+                    raise HTTPException(status_code=403, detail="TTS non abilitato per questo dispositivo")
+                arguments["text"] = message
+            elif operation == "set_dnd":
+                arguments["enabled"] = bool(payload.get("value"))
             command = {"request_id": str(uuid.uuid4()), "operation": operation, "arguments": arguments, "expected_resource_revision": payload.get("resource_revision") if operation in {"media_join", "media_unjoin"} else None}
             try:
                 connector = media_connector(settings)

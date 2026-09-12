@@ -123,9 +123,10 @@ def test_x4_shell_and_brand_assets_are_served() -> None:
     assert 'header-media-state.css' in page.text
     assert 'mobile-alignment.css' in page.text
     assert 'refresh-state.css' in page.text
+    assert 'evoice.css' in page.text
     for label in ("Guarda", "Ascolta", "Luci", "Extra", "Scenari", "Oscuranti", "Comfort", "Sicurezza"):
         assert f'title="{label}"' in page.text
-    assert 'src="assets/brand-horizontal.png?v=2.18.5"' in page.text
+    assert 'src="assets/brand-horizontal.png?v=2.19.0"' in page.text
     assert 'alt="e-Face X4"' in page.text
     assert 'class="header-wordmark"' not in page.text
     assert client.get("/assets/brand-horizontal.png").status_code == 200
@@ -138,6 +139,10 @@ def test_x4_shell_and_brand_assets_are_served() -> None:
     assert refresh_css.status_code == 200
     assert ".app.loading" in refresh_css.text
     assert "body:not([data-background])" in refresh_css.text
+    assert client.get("/assets/evoice.css").status_code == 200
+    tools_page = client.get("/tools")
+    assert "evoice-admin.css" in tools_page.text
+    assert "e-Voice / Multimedia" in tools_page.text
     card_theme_css = client.get("/assets/card-themes.css")
     assert card_theme_css.status_code == 200
     assert ".security-pin-dialog" in card_theme_css.text
@@ -179,7 +184,7 @@ def test_x4_shell_and_brand_assets_are_served() -> None:
 def test_media_preferences_are_saved_and_applied(monkeypatch, tmp_path) -> None:
     path = tmp_path / "media_players.json"
     monkeypatch.setenv("EFACE_MEDIA_PREFERENCES", str(path))
-    saved = save_preferences({"one": {"visible": True, "audio": True, "video": False, "order": 1}, "two": {"visible": True, "audio": True, "order": 0}}, {"one", "two"})
+    saved = save_preferences({"one": {"visible": True, "audio": True, "video": False, "tts": True, "name": "Echo Sala", "room": "Sala", "order": 1}, "two": {"visible": True, "audio": True, "order": 0}}, {"one", "two"})
     assert load_preferences() == saved
     filtered = apply_preferences({"items": [
         {"registry_id": "one", "room": "Sala", "experiences": ["watch"]},
@@ -188,6 +193,8 @@ def test_media_preferences_are_saved_and_applied(monkeypatch, tmp_path) -> None:
     ], "groups": [], "rooms": []})
     assert [item["registry_id"] for item in filtered["items"]] == ["two", "one"]
     assert filtered["items"][1]["experiences"] == ["listen"]
+    assert filtered["items"][1]["name"] == "Echo Sala"
+    assert filtered["items"][1]["tts_enabled"] is True
     assert filtered["rooms"] == ["Sala", "Studio"]
 
 
@@ -603,6 +610,16 @@ def test_media_player_is_normalized_without_exposing_credentials() -> None:
     assert "access_token" not in item
 
 
+def test_echo_is_recognized_with_tts_and_dnd() -> None:
+    item = normalize_player({
+        "registry_id": "echo-1", "entity_id": "media_player.echo_sala", "name": "Echo Sala",
+        "manufacturer": "Amazon", "capabilities": {"tts": True, "do_not_disturb": True},
+    })
+    assert item["device_type"] == "echo"
+    assert item["tts_available"] is True
+    assert item["dnd_available"] is True
+
+
 def test_media_configuration_includes_installation(monkeypatch, tmp_path) -> None:
     from app.config import load_settings
     options = tmp_path / "options.json"
@@ -627,7 +644,9 @@ def test_media_ui_has_room_selection_and_typed_controls() -> None:
     assert 'id="media-zones-power-all"' not in page
     assert "[...currentRooms" not in script
     assert "device.experiences?.includes('watch')" in script
-    assert "['listen', 'watch'].includes(experience)" in script
+    assert "device.experiences?.includes('listen') || device.tts_enabled" in script
+    assert "data-tts-send" in script
+    assert "data-dnd-device" in script
     assert "data-zone-volume" in script
     assert "postDeviceCommand(player.id, 'media_unjoin'" in script
     assert "updateGlobalMediaSession()" in script
