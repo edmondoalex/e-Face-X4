@@ -28,7 +28,7 @@ from .connectors.control4_media import cached_control4_icon, cached_control4_ico
 from .connectors.supervisor import discover_addon_url, discover_host_url
 from .demo import dashboard as demo_dashboard
 
-VERSION = "2.19.4"
+VERSION = "2.19.5"
 STATIC = Path(__file__).parent / "static"
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s [e-face-x4] %(message)s")
 
@@ -140,7 +140,6 @@ def create_app() -> FastAPI:
             if isinstance(ksenia, dict):
                 dashboard["devices"].extend(ksenia.get("items", []))
             for media in (item for item in providers if item.get("id") in {"control4", "evoice"} and item.get("status") == "online"):
-                media = apply_preferences(media)
                 media_items = media.get("items", [])
                 dashboard["devices"].extend(media_items)
                 playing = next((item for item in media_items if str(item.get("state", "")).lower() == "playing"), None)
@@ -153,11 +152,19 @@ def create_app() -> FastAPI:
                     }
             room_map = {str(room.get("name", "")).casefold(): room for room in dashboard["rooms"] if isinstance(room, dict)}
             for device in dashboard["devices"]:
+                if device.get("kind") in {"alarm_partition", "alarm_scenario", "alarm_system"}:
+                    continue
                 room = str(device.get("room") or "Clima")
+                if not room.strip():
+                    continue
                 key = room.casefold()
                 if key not in room_map:
                     if device.get("kind") == "media_player":
-                        continue
+                        provider = str(device.get("provider") or "")
+                        original_room = str(device.get("original_room") or "").strip()
+                        manually_assigned = bool(original_room and original_room.casefold() != key)
+                        if provider != "control4" and not manually_assigned:
+                            continue
                     entry = {"id": f"room-{len(room_map)}", "name": room, "devices": 0}
                     room_map[key] = entry
                     dashboard["rooms"].append(entry)

@@ -1,5 +1,13 @@
 # Changelog
 
+## 2.19.5 — 2026-09-12
+
+- Ripristinate le stanze multimediali Control4 legittime.
+- Conservate le nuove stanze assegnate manualmente ai dispositivi e-Voice.
+- Rimossa la doppia applicazione delle preferenze che perdeva l'origine della stanza personalizzata.
+- Ripristinati gli ambienti reali contenenti soltanto zone di sicurezza.
+- Esclusi dagli Ambienti solo partizioni, scenari e contenitori tecnici dell'allarme.
+
 ## 2.19.4 — 2026-09-12
 
 - Impedito ai media player e-Voice di creare card Ambiente autonome.

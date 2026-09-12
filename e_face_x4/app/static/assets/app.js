@@ -169,7 +169,7 @@ function render(data) {
   }
   renderHomeStatusCounters()
   const visibleRoomNames = new Set(currentDevices
-    .filter((device) => !['alarm_partition', 'alarm_zone', 'alarm_scenario', 'alarm_system'].includes(device.kind))
+    .filter((device) => !['alarm_partition', 'alarm_scenario', 'alarm_system'].includes(device.kind))
     .map((device) => String(device.room || '').trim().toLocaleLowerCase('it'))
     .filter(Boolean))
   const visibleRooms = (dashboard.rooms || []).filter((room) => visibleRoomNames.has(String(room.name || '').trim().toLocaleLowerCase('it')))

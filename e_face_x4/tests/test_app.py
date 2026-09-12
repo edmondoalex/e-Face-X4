@@ -126,7 +126,7 @@ def test_x4_shell_and_brand_assets_are_served() -> None:
     assert 'evoice.css' in page.text
     for label in ("Guarda", "Ascolta", "Luci", "Extra", "Scenari", "Oscuranti", "Comfort", "Sicurezza"):
         assert f'title="{label}"' in page.text
-    assert 'src="assets/brand-horizontal.png?v=2.19.4"' in page.text
+    assert 'src="assets/brand-horizontal.png?v=2.19.5"' in page.text
     assert 'alt="e-Face X4"' in page.text
     assert 'class="header-wordmark"' not in page.text
     assert client.get("/assets/brand-horizontal.png").status_code == 200
@@ -405,10 +405,13 @@ def test_control4_and_evoice_are_loaded_together(monkeypatch, tmp_path) -> None:
     options = tmp_path / "options.json"
     options.write_text('{"demo_mode":false,"evoice":{"enabled":true,"base_url":"http://evoice.local","installation_id":"home"}}', encoding="utf-8")
     monkeypatch.setenv("EFACE_OPTIONS", str(options))
+    preferences = tmp_path / "media_players.json"
+    preferences.write_text('{"echo-1":{"visible":true,"audio":true,"video":false,"tts":true,"name":"Echo Cucina","room":"Cucina nuova","order":0}}', encoding="utf-8")
+    monkeypatch.setenv("EFACE_MEDIA_PREFERENCES", str(preferences))
     monkeypatch.setattr(main_module, "load_control4_config", lambda: {"username": "configured", "password": "configured"})
 
     async def c4_snapshot(self):
-        return {"id": "control4", "status": "online", "items": [{"id": "c4media:1", "registry_id": "c4room:1", "kind": "media_player", "name": "Sala", "room": "Sala"}], "groups": [], "rooms": ["Sala"]}
+        return {"id": "control4", "status": "online", "items": [{"id": "c4media:1", "registry_id": "c4room:1", "provider": "control4", "kind": "media_player", "name": "Sala", "room": "Sala"}], "groups": [], "rooms": ["Sala"]}
 
     async def evoice_snapshot(self):
         return {"id": "evoice", "status": "online", "items": [{"id": "media:echo-1", "registry_id": "echo-1", "kind": "media_player", "name": "Echo", "room": "Cucina", "tts_available": True}], "groups": [], "rooms": ["Cucina"]}
@@ -419,6 +422,8 @@ def test_control4_and_evoice_are_loaded_together(monkeypatch, tmp_path) -> None:
     assert {provider["id"] for provider in payload["providers"]} >= {"control4", "evoice"}
     assert {item["id"] for item in payload["dashboard"]["devices"]} >= {"c4media:1", "media:echo-1"}
     assert "Cucina" not in {room["name"] for room in payload["dashboard"]["rooms"]}
+    assert "Sala" in {room["name"] for room in payload["dashboard"]["rooms"]}
+    assert "Cucina nuova" in {room["name"] for room in payload["dashboard"]["rooms"]}
 
 
 def test_ksenia_security_command_requires_central_pin(monkeypatch, tmp_path) -> None:
@@ -673,6 +678,7 @@ def test_media_ui_has_room_selection_and_typed_controls() -> None:
     assert "item.provider === selected.provider" in script
     assert "item.provider === player.provider" in script
     assert "['playing','paused','buffering'].includes(state)" in script
+    assert "!['alarm_partition', 'alarm_scenario', 'alarm_system'].includes(device.kind)" in script
     assert "data-zone-volume" in script
     assert "postDeviceCommand(player.id, 'media_unjoin'" in script
     assert "updateGlobalMediaSession()" in script
