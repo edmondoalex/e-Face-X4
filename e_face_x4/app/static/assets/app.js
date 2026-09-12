@@ -505,16 +505,24 @@ function activeMediaSessions() {
     if (item.kind !== 'media_player' || item.availability !== 'available' || item.connection_status === 'offline') return false
     const state = String(item.state).toLowerCase()
     return item.provider === 'control4' ? !['off','unavailable','unknown'].includes(state) && Boolean(item.active_experience) : ['playing','paused','buffering'].includes(state)
+  }).sort((left, right) => {
+    const echoScore = (item) => item.provider === 'evoice' && (item.device_type === 'echo' || /(?:echo|alexa)/i.test(String(item.entity_id))) ? 1 : 0
+    return echoScore(right) - echoScore(left)
   })
   const sessions = []
   const consumed = new Set()
+  const consumedPlayback = new Set()
   for (const player of active) {
     if (consumed.has(player.registry_id)) continue
+    const playbackIdentity = String(player.title ? `${player.title}|${player.artist || ''}|${player.album || ''}` : player.content_fingerprint || '').trim().toLocaleLowerCase('it')
+    const playbackKey = player.provider === 'evoice' && playbackIdentity.replace('|','') ? `${player.provider}|${String(player.room || '').trim().toLocaleLowerCase('it')}|${playbackIdentity}` : ''
+    if (playbackKey && consumedPlayback.has(playbackKey)) continue
     const group = mediaGroupFor(player)
     const members = group ? active.filter((item) => item.provider === player.provider && group.member_registry_ids.includes(item.registry_id)) : [player]
     members.forEach((item) => consumed.add(item.registry_id))
     const owner = members.find((item) => item.registry_id === group?.owner_registry_id) || members.find((item) => String(item.state).toLowerCase() === 'playing') || player
     sessions.push({ player: owner, group, members })
+    if (playbackKey) consumedPlayback.add(playbackKey)
   }
   return sessions
 }

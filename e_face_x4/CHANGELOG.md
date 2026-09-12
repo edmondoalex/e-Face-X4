@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.19.6 — 2026-09-12
+
+- Consolidate le entità duplicate dello stesso Echo in una sola sessione e-Voice.
+- Usati stanza e contenuto riprodotto per riconoscere i duplicati logici.
+- Mantenuta completamente separata la deduplicazione dalle sessioni Control4.
+
 ## 2.19.5 — 2026-09-12
 
 - Ripristinate le stanze multimediali Control4 legittime.
