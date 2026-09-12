@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import base64
 import hashlib
+import json
 import re
 from typing import Any, AsyncIterator
 
@@ -154,6 +155,50 @@ class Control4MediaConnector(Connector):
                 results.append({"registry_id": item["registry_id"], "status": "failed"})
         return {"status": "success" if all(item["status"] == "success" for item in results) else "partial", "members": results}
 
+    async def recently_played(self, room_ids: list[int], limit: int = 20) -> list[dict[str, Any]]:
+        if not room_ids:
+            return []
+        director, _ = await control4_director(self.config)
+        raw = await director.send_post_request(
+            "/api/v1/items/12/commands", "GetHistoryItemsByRooms",
+            {"rooms": ",".join(str(room_id) for room_id in room_ids), "limit": max(1, min(20, int(limit)))}, False,
+        )
+        envelope = json.loads(raw)
+        encoded = str(envelope.get("b64json") or "")
+        if not encoded:
+            return []
+        decoded = json.loads(base64.b64decode(encoded).decode("utf-8"))
+        result: list[dict[str, Any]] = []
+        for entry in decoded if isinstance(decoded, list) else []:
+            if not isinstance(entry, dict):
+                continue
+            info = entry.get("info") if isinstance(entry.get("info"), dict) else {}
+            container = info.get("container") if isinstance(info.get("container"), dict) else {}
+            key = str(entry.get("key") or "")
+            image_url = _decode_artwork_url(container.get("image"))
+            fingerprint = hashlib.sha256(image_url.encode()).hexdigest() if image_url else None
+            registry_id = f"c4recent:{hashlib.sha256(key.encode()).hexdigest()[:24]}"
+            if image_url and fingerprint:
+                _artwork_urls[registry_id] = (fingerprint, image_url)
+            result.append({
+                "key": key, "driver_id": int(entry.get("driverId") or info.get("driverId") or 0),
+                "room_ids": [int(value) for value in re.findall(r"\d+", str(entry.get("roomIds") or ""))],
+                "timestamp": int(entry.get("timestamp") or 0), "title": str(container.get("title") or ""),
+                "subtitle": str(container.get("subtitle") or ""), "item_type": str(container.get("itemType") or ""),
+                "registry_id": registry_id, "content_fingerprint": fingerprint,
+            })
+        return result
+
+    async def select_recent(self, room_id: int, key: str) -> dict[str, Any]:
+        if room_id <= 0 or not key or len(key) > 256:
+            raise ValueError("Elemento recente Control4 non valido")
+        director, _ = await control4_director(self.config)
+        await director.send_post_request(
+            "/api/v1/items/12/commands", "SelectHistoryItem",
+            {"rooms": str(room_id), "key": key}, False,
+        )
+        return {"status": "success", "room_id": room_id}
+
 
     async def artwork(self, registry_id: str, fingerprint: str, if_none_match: str | None = None) -> httpx.Response:
         cached = _artwork_urls.get(registry_id)
@@ -161,7 +206,7 @@ class Control4MediaConnector(Connector):
             return httpx.Response(404)
         url = httpx.URL(cached[1])
         host = (url.host or "").lower()
-        if url.scheme != "https" or not any(host == allowed or host.endswith(f".{allowed}") for allowed in _ARTWORK_HOSTS):
+        if url.scheme not in {"http", "https"} or not any(host == allowed or host.endswith(f".{allowed}") for allowed in _ARTWORK_HOSTS):
             return httpx.Response(415)
         headers = {"If-None-Match": if_none_match} if if_none_match else {}
         async with httpx.AsyncClient(timeout=5, follow_redirects=False) as client:
@@ -387,9 +432,12 @@ def normalize_control4_groups(items: list[dict[str, Any]], variables: Any) -> li
 def _decode_artwork_url(value: Any) -> str:
     if not isinstance(value, str) or not value or len(value) > 4096:
         return ""
+    direct = httpx.URL(value)
+    if direct.scheme in {"http", "https"} and direct.host:
+        return value
     try:
         decoded = base64.b64decode(value, validate=True).decode("utf-8")
         url = httpx.URL(decoded)
-        return decoded if url.scheme == "https" and url.host else ""
+        return decoded if url.scheme in {"http", "https"} and url.host else ""
     except (ValueError, UnicodeError):
         return ""

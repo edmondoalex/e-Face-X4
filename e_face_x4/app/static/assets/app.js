@@ -24,6 +24,7 @@ let selectedMediaId = ''
 let currentBackgrounds = {global:{mode:'preset',preset:'teal'},rooms:{}}
 let activeBackgroundRoom = ''
 const mediaTransportOverrides = new Map()
+let recentRequest = 0
 
 function setMediaOverride(deviceId, values) {
   const key = String(deviceId)
@@ -285,7 +286,41 @@ function renderMediaExperience(devices) {
   const disabled = selected.connection_status === 'offline' || selected.availability !== 'available'
   const power = caps.turn_off ? `<button class="media-session-power" data-media-action="turn_off" aria-label="Spegni stanza" ${disabled ? 'disabled' : ''}><span class="mdi-mask" style="${mdiStyle('mdi:power', 'power')}"></span></button>` : ''
   const experienceClass = currentMediaExperience === 'listen' ? 'media-session-listen' : 'media-session-watch'
-  $('#device-list').innerHTML = `<article class="media-session ${experienceClass} ${deviceVisualClass(selected)}" data-device-id="${esc(selected.id)}">${mediaArtwork(selected)}<span class="device-glyph mdi-mask" style="${mdiStyle(mediaSourceIcon(selected.source), 'music-circle')}"></span><div class="media-session-info"><strong>${esc(selected.title || selected.source || selected.name)}</strong><small>${esc(selected.artist || selected.source || selected.room)}</small><span class="media-track">${esc(selected.album || selected.name)}</span></div>${power}${deviceActions(selected, { hidePower: true })}</article><div class="media-library media-room-library"><h3>Stanze</h3><div class="media-service-grid">${players}</div></div><div class="media-library media-source-library"><h3>Sorgenti e servizi</h3><div class="media-service-grid">${sources || '<span class="empty-state">Nessuna sorgente disponibile</span>'}</div></div>`
+  const recent = currentMediaExperience === 'listen' && selected.provider === 'control4' ? '<div class="media-recent" data-recently-played><h3>Ascoltati di recente</h3><div class="media-recent-strip"><span class="empty-state">Caricamentoâ€¦</span></div></div>' : ''
+  $('#device-list').innerHTML = `<article class="media-session ${experienceClass} ${deviceVisualClass(selected)}" data-device-id="${esc(selected.id)}">${mediaArtwork(selected)}<span class="device-glyph mdi-mask" style="${mdiStyle(mediaSourceIcon(selected.source), 'music-circle')}"></span><div class="media-session-info"><strong>${esc(selected.title || selected.source || selected.name)}</strong><small>${esc(selected.artist || selected.source || selected.room)}</small><span class="media-track">${esc(selected.album || selected.name)}</span></div>${power}${deviceActions(selected, { hidePower: true })}</article>${recent}<div class="media-library media-room-library"><h3>Stanze</h3><div class="media-service-grid">${players}</div></div><div class="media-library media-source-library"><h3>Sorgenti e servizi</h3><div class="media-service-grid">${sources || '<span class="empty-state">Nessuna sorgente disponibile</span>'}</div></div>`
+  if (recent) loadRecentlyPlayed(selected)
+}
+
+async function loadRecentlyPlayed(selected) {
+  const request = ++recentRequest
+  const roomId = Number(String(selected.registry_id || '').replace('c4room:', ''))
+  const params = avRoom && roomId ? `?room_id=${roomId}` : ''
+  try {
+    const response = await fetch(apiUrl(`api/control4/recently-played${params}`), { cache: 'no-store' })
+    if (!response.ok) throw new Error('Ascoltati di recente non disponibili')
+    const data = await response.json()
+    const host = document.querySelector('[data-recently-played]')
+    if (request !== recentRequest || !host) return
+    const items = Array.isArray(data.items) ? data.items : []
+    if (!items.length) { host.hidden = true; return }
+    host.querySelector('.media-recent-strip').innerHTML = items.map((item) => {
+      const art = item.content_fingerprint ? apiUrl(`api/media/${encodeURIComponent(item.registry_id)}/artwork?fingerprint=${encodeURIComponent(item.content_fingerprint)}`) : ''
+      return `<button class="media-recent-item" data-recent-key="${esc(item.key)}" data-recent-room="${roomId}" title="${esc(item.title)}">${art ? `<img src="${esc(art)}" alt="" loading="lazy">` : '<span class="media-recent-art mdi-mask" style="'+mdiStyle('mdi:music-circle','music-circle')+'"></span>'}<b>${esc(item.title || 'Senza titolo')}</b><small>${esc(item.subtitle || '')}</small><em><span class="mdi-mask" style="${mdiStyle(item.driver_id === 1569 ? 'mdi:spotify' : 'mdi:radio', 'music-circle')}"></span>${esc(item.item_type || 'Audio')}</em></button>`
+    }).join('')
+  } catch (_) {
+    const host = document.querySelector('[data-recently-played]')
+    if (request === recentRequest && host) host.hidden = true
+  }
+}
+
+async function selectRecentlyPlayed(button) {
+  button.disabled = true
+  try {
+    const response = await fetch(apiUrl('api/control4/recently-played/select'), { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({room_id:Number(button.dataset.recentRoom), key:button.dataset.recentKey}) })
+    if (!response.ok) throw new Error((await response.json().catch(()=>({}))).detail || 'Avvio non riuscito')
+    await new Promise((resolve) => setTimeout(resolve, 500))
+    await refresh()
+  } catch (error) { fail(error) } finally { button.disabled = false }
 }
 
 function updateGlobalMediaSession() {
@@ -874,6 +909,8 @@ $('#scenario-list').addEventListener('click', (event) => {
 })
 $('#device-list').addEventListener('click', (event) => {
   if (devicePointerGesture?.moved) { devicePointerGesture = null; return }
+  const recentButton = event.target.closest('[data-recent-key]')
+  if (recentButton) return selectRecentlyPlayed(recentButton)
   const rgbOpen = event.target.closest('[data-rgb-open]')
   if (rgbOpen) return openRgbDialog(rgbOpen.closest('[data-rgb-group]').dataset.rgbGroup)
   const rgbButton = event.target.closest('[data-rgb-action]')

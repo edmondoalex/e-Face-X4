@@ -6,7 +6,7 @@ from app.connectors.etherm import normalize_thermostats
 from app.connectors.media import normalize_player
 from app.connectors.local_media import normalize_local_snapshot
 from app.connectors.local_media import HA_WEBSOCKET_MAX_BYTES
-from app.connectors.control4_media import control4_icon_path, control4_queues, control4_remote_actions, normalize_control4_groups, normalize_control4_media
+from app.connectors.control4_media import Control4MediaConnector, control4_icon_path, control4_queues, control4_remote_actions, normalize_control4_groups, normalize_control4_media
 from app.connectors.supervisor import find_addon_url
 from app.media_preferences import apply_preferences, load_preferences, save_preferences
 from app.control4 import load_control4_config, public_control4_config, save_control4_config, summarize_ui_configuration
@@ -70,7 +70,7 @@ def test_x4_shell_and_brand_assets_are_served() -> None:
     assert '<iframe' not in page.text
     for label in ("Guarda", "Ascolta", "Luci", "Extra", "Scenari", "Oscuranti", "Comfort", "Sicurezza"):
         assert f'title="{label}"' in page.text
-    assert 'src="assets/brand-horizontal.png?v=2.7.1"' in page.text
+    assert 'src="assets/brand-horizontal.png?v=2.7.2"' in page.text
     assert 'alt="e-Face X4"' in page.text
     assert 'class="header-wordmark"' not in page.text
     assert client.get("/assets/brand-horizontal.png").status_code == 200
@@ -487,6 +487,31 @@ def test_media_ui_has_room_selection_and_typed_controls() -> None:
     assert 'id="media-sessions-dialog"' in page
     assert "activeMediaSessions()" in script
     assert "data-session-device" in script
+    assert "Ascoltati di recente" in script
+    assert "api/control4/recently-played" in script
+
+
+def test_control4_recently_played_decodes_native_payload(monkeypatch) -> None:
+    import asyncio
+    import base64
+    import json
+    from app.connectors import control4_media
+
+    history = [{"key":"abc", "driverId":615, "roomIds":"51,54", "timestamp":123,
+                "info":{"container":{"title":"Radio Deejay", "subtitle":"On air", "itemType":"Station",
+                                      "image":"http://cdn-radiotime-logos.tunein.com/s1g.png"}}}]
+    class Director:
+        async def send_post_request(self, uri, command, params, is_async):
+            assert command == "GetHistoryItemsByRooms"
+            assert params == {"rooms":"51,54", "limit":20}
+            return json.dumps({"b64json":base64.b64encode(json.dumps(history).encode()).decode()})
+    async def fake_director(config):
+        return Director(), "token"
+    monkeypatch.setattr(control4_media, "control4_director", fake_director)
+    items = asyncio.run(Control4MediaConnector({}).recently_played([51,54]))
+    assert items[0]["title"] == "Radio Deejay"
+    assert items[0]["room_ids"] == [51,54]
+    assert items[0]["content_fingerprint"]
 
 
 def test_control4_digital_media_queue_becomes_canonical_group() -> None:

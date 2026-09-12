@@ -27,7 +27,7 @@ from .connectors.control4_media import cached_control4_icon, cached_control4_ico
 from .connectors.supervisor import discover_addon_url
 from .demo import dashboard as demo_dashboard
 
-VERSION = "2.7.1"
+VERSION = "2.7.2"
 STATIC = Path(__file__).parent / "static"
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s [e-face-x4] %(message)s")
 
@@ -368,6 +368,37 @@ def create_app() -> FastAPI:
         if upstream.headers.get("etag"):
             headers["ETag"] = upstream.headers["etag"]
         return Response(upstream.content, media_type=media_type, headers=headers)
+
+    @app.get("/api/control4/recently-played")
+    async def control4_recently_played(room_id: int | None = Query(None, gt=0), limit: int = Query(20, ge=1, le=20)) -> dict:
+        config = load_control4_config()
+        if not config.get("username") or not config.get("password"):
+            raise HTTPException(status_code=503, detail="Control4 non configurato")
+        connector = Control4MediaConnector(config)
+        try:
+            if room_id is None:
+                snapshot = await connector.snapshot()
+                room_ids = [int(str(item["registry_id"]).removeprefix("c4room:")) for item in snapshot.get("items", [])]
+            else:
+                room_ids = [room_id]
+            return {"items": await connector.recently_played(room_ids, limit)}
+        except (ValueError, TypeError, json.JSONDecodeError) as exc:
+            raise HTTPException(status_code=400, detail=str(exc))
+        except Exception as exc:
+            logging.warning("Control4 recently played non disponibile: %s", type(exc).__name__)
+            raise HTTPException(status_code=502, detail="Ascoltati di recente Control4 non disponibili")
+
+    @app.post("/api/control4/recently-played/select")
+    async def control4_select_recent(payload: dict) -> dict:
+        config = load_control4_config()
+        if not config.get("username") or not config.get("password"):
+            raise HTTPException(status_code=503, detail="Control4 non configurato")
+        try:
+            return await Control4MediaConnector(config).select_recent(int(payload.get("room_id") or 0), str(payload.get("key") or ""))
+        except (ValueError, TypeError) as exc:
+            raise HTTPException(status_code=400, detail=str(exc))
+        except Exception:
+            raise HTTPException(status_code=502, detail="Riproduzione recente Control4 non disponibile")
 
     @app.get("/api/control4/source-icon/{source_id}", include_in_schema=False)
     async def control4_source_icon(source_id: int) -> Response:
