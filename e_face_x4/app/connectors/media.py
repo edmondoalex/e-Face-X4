@@ -135,7 +135,7 @@ class EvoiceLocalMediaConnector(EkonexMediaConnector):
     async def command(self, registry_id: str, payload: dict[str, Any]) -> dict[str, Any]:
         local_payload = dict(payload)
         if local_payload.get("operation") == "turn_off":
-            local_payload["operation"] = "power_off"
+            local_payload["operation"] = "media_stop"
         return await super().command(registry_id, local_payload)
 
 
@@ -177,7 +177,11 @@ def normalize_local_player(player: dict[str, Any]) -> dict[str, Any]:
         supported_features = 0
     item["capabilities"] = {
         **item["capabilities"],
-        "turn_off": bool(item["capabilities"].get("turn_off") or supported_features & 256),
+        "turn_off": bool(
+            item["capabilities"].get("turn_off")
+            or supported_features & 256
+            or (item["device_type"] == "echo" and item["capabilities"].get("stop"))
+        ),
     }
     media = player.get("media") if isinstance(player.get("media"), dict) else {}
     artwork_identity = {key: media.get(key) for key in ("title", "artist", "album")}

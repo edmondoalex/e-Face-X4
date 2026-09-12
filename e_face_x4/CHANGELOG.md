@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.20.11 — 2026-09-12
+
+- Mostrato il tasto Spegni sugli Echo che supportano STOP anche quando Alexa non dichiara TURN_OFF.
+- Il tasto Spegni degli Echo arresta la riproduzione tramite `media_stop` sull'API locale e-Voice.
+
 ## 2.20.10 — 2026-09-12
 
 - Aggiunto il comando Seleziona tutti nella scelta degli Echo per i messaggi TTS.

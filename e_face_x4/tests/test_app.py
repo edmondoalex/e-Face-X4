@@ -4,7 +4,7 @@ from app.main import create_app
 from app.connectors.buspro import normalize_snapshot
 from app.connectors.etherm import normalize_thermostats
 from app.connectors.ksenia import normalize_ksenia
-from app.connectors.media import EvoiceLocalMediaConnector, normalize_local_player, normalize_player
+from app.connectors.media import EkonexMediaConnector, EvoiceLocalMediaConnector, normalize_local_player, normalize_player
 from app.connectors.local_media import normalize_local_snapshot
 from app.connectors.local_media import HA_WEBSOCKET_MAX_BYTES
 from app.connectors.control4_media import Control4MediaConnector, control4_icon_path, control4_queues, control4_remote_actions, normalize_control4_groups, normalize_control4_media
@@ -126,7 +126,7 @@ def test_x4_shell_and_brand_assets_are_served() -> None:
     assert 'evoice.css' in page.text
     for label in ("Guarda", "Ascolta", "Luci", "Extra", "Scenari", "Oscuranti", "Comfort", "Sicurezza"):
         assert f'title="{label}"' in page.text
-    assert 'src="assets/brand-horizontal.png?v=2.20.10"' in page.text
+    assert 'src="assets/brand-horizontal.png?v=2.20.11"' in page.text
     assert 'alt="e-Face X4"' in page.text
     assert 'class="header-wordmark"' not in page.text
     assert client.get("/assets/brand-horizontal.png").status_code == 200
@@ -705,6 +705,25 @@ def test_local_evoice_player_gets_stable_artwork_fingerprint() -> None:
     assert first["content_fingerprint"] == second["content_fingerprint"]
     assert first["capabilities"]["artwork"] is True
     assert first["capabilities"]["turn_off"] is True
+
+
+def test_local_echo_stop_capability_also_offers_power_button() -> None:
+    item = normalize_local_player({
+        "registry_id": "echo-2", "entity_id": "media_player.echo_2", "name": "Echo Spot",
+        "is_echo": True, "capabilities": {"stop": True},
+    })
+    assert item["capabilities"]["turn_off"] is True
+
+
+def test_local_echo_power_button_uses_media_stop(monkeypatch) -> None:
+    import asyncio
+
+    async def capture(self, registry_id, payload):
+        return {"registry_id": registry_id, "operation": payload["operation"]}
+
+    monkeypatch.setattr(EkonexMediaConnector, "command", capture)
+    result = asyncio.run(EvoiceLocalMediaConnector(4).command("echo-2", {"operation": "turn_off"}))
+    assert result == {"registry_id": "echo-2", "operation": "media_stop"}
 
 
 def test_media_configuration_includes_installation(monkeypatch, tmp_path) -> None:
