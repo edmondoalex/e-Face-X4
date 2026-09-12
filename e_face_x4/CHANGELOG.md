@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.20.7 — 2026-09-12
+
+- Abilitato il caricamento delle copertine degli Echo tramite l'endpoint artwork locale di e-Voice.
+- Generato un fingerprint stabile da titolo, artista e album quando l'API locale non lo fornisce.
+
 ## 2.20.6 — 2026-09-12
 
 - Salvato il volume originale di ogni Echo prima del messaggio TTS.

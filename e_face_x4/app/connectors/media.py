@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import hashlib
+import json
 import os
 from typing import Any, AsyncIterator
 from urllib.parse import quote
@@ -124,7 +126,7 @@ class EvoiceLocalMediaConnector(EkonexMediaConnector):
             players = payload.get("players", []) if isinstance(payload, dict) else []
             return {
                 "id": self.id, "label": self.label, "status": "online",
-                "connection_status": "online", "items": [normalize_player(item) for item in players if isinstance(item, dict)],
+                "connection_status": "online", "items": [normalize_local_player(item) for item in players if isinstance(item, dict)],
                 "groups": payload.get("groups", []) if isinstance(payload.get("groups"), list) else [],
             }
         except (httpx.HTTPError, ValueError, TypeError, AttributeError) as exc:
@@ -158,6 +160,18 @@ def normalize_player(player: dict[str, Any]) -> dict[str, Any]:
         "manufacturer": str(player.get("manufacturer") or ""), "tts_available": tts_available,
         "dnd_available": dnd_available, "dnd": bool(player.get("dnd") or player.get("do_not_disturb")),
     }
+
+
+def normalize_local_player(player: dict[str, Any]) -> dict[str, Any]:
+    """Add a stable cache key for the artwork endpoint exposed by e-Voice local."""
+    item = normalize_player(player)
+    media = player.get("media") if isinstance(player.get("media"), dict) else {}
+    artwork_identity = {key: media.get(key) for key in ("title", "artist", "album")}
+    if any(artwork_identity.values()):
+        encoded = json.dumps(artwork_identity, ensure_ascii=False, sort_keys=True).encode()
+        item["content_fingerprint"] = hashlib.sha256(encoded).hexdigest()
+        item["capabilities"] = {**item["capabilities"], "artwork": True}
+    return item
 
 
 def _reason(exc: Exception) -> str:

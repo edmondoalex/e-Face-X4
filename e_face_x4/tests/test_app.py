@@ -4,7 +4,7 @@ from app.main import create_app
 from app.connectors.buspro import normalize_snapshot
 from app.connectors.etherm import normalize_thermostats
 from app.connectors.ksenia import normalize_ksenia
-from app.connectors.media import EvoiceLocalMediaConnector, normalize_player
+from app.connectors.media import EvoiceLocalMediaConnector, normalize_local_player, normalize_player
 from app.connectors.local_media import normalize_local_snapshot
 from app.connectors.local_media import HA_WEBSOCKET_MAX_BYTES
 from app.connectors.control4_media import Control4MediaConnector, control4_icon_path, control4_queues, control4_remote_actions, normalize_control4_groups, normalize_control4_media
@@ -126,7 +126,7 @@ def test_x4_shell_and_brand_assets_are_served() -> None:
     assert 'evoice.css' in page.text
     for label in ("Guarda", "Ascolta", "Luci", "Extra", "Scenari", "Oscuranti", "Comfort", "Sicurezza"):
         assert f'title="{label}"' in page.text
-    assert 'src="assets/brand-horizontal.png?v=2.20.6"' in page.text
+    assert 'src="assets/brand-horizontal.png?v=2.20.7"' in page.text
     assert 'alt="e-Face X4"' in page.text
     assert 'class="header-wordmark"' not in page.text
     assert client.get("/assets/brand-horizontal.png").status_code == 200
@@ -695,6 +695,15 @@ def test_echo_without_evoice_tts_capability_does_not_offer_tts() -> None:
     item = normalize_player({"registry_id": "echo-2", "entity_id": "media_player.echo_sala", "name": "Echo Sala", "manufacturer": "Amazon", "capabilities": {"tts": False}})
     assert item["device_type"] == "echo"
     assert item["tts_available"] is False
+
+
+def test_local_evoice_player_gets_stable_artwork_fingerprint() -> None:
+    raw = {"registry_id": "echo-1", "entity_id": "media_player.echo", "name": "Echo", "media": {"title": "Happier", "artist": "Artist", "album": "Album"}}
+    first = normalize_local_player(raw)
+    second = normalize_local_player(raw)
+    assert len(first["content_fingerprint"]) == 64
+    assert first["content_fingerprint"] == second["content_fingerprint"]
+    assert first["capabilities"]["artwork"] is True
 
 
 def test_media_configuration_includes_installation(monkeypatch, tmp_path) -> None:
