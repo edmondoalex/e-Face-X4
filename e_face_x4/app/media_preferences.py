@@ -69,7 +69,7 @@ def apply_preferences(snapshot: dict[str, Any]) -> dict[str, Any]:
             continue
         item = dict(source)
         item["experiences"] = (["listen"] if selected["audio"] else []) + (["watch"] if selected["video"] else [])
-        item["tts_enabled"] = bool(selected.get("tts"))
+        item["tts_enabled"] = bool(selected.get("tts") and source.get("provider") == "evoice" and source.get("tts_available"))
         if selected.get("name"):
             item["original_name"] = item.get("name")
             item["name"] = selected["name"]

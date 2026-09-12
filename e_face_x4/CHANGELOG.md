@@ -1,5 +1,13 @@
 # Changelog
 
+## 2.20.3 — 2026-09-12
+
+- Esteso il pannello TTS e-Voice a tutta la larghezza della pagina.
+- Allineati ogni Echo e il relativo comando DND nella stessa cella della griglia.
+- Visualizzato il pannello esclusivamente sul player e-Voice per cui TTS è stato abilitato nell'Admin.
+- Verificate lato server provider e capability TTS prima di salvare le preferenze.
+- Rimossa l'esportazione residua del vecchio connettore diretto a Home Assistant.
+
 ## 2.20.2 — 2026-09-12
 
 - Rimossa la validazione bloccante "Seleziona Media o TTS" dalla configurazione Player.

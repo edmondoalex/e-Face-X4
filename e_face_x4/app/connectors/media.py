@@ -140,7 +140,7 @@ def normalize_player(player: dict[str, Any]) -> dict[str, Any]:
     experiences = player.get("experiences") if isinstance(player.get("experiences"), list) else ["watch", "listen"]
     identity = " ".join(str(player.get(key) or "") for key in ("name", "entity_id", "device_class", "manufacturer", "model")).casefold()
     is_echo = bool(player.get("is_echo")) or any(token in identity for token in ("amazon", "alexa", "echo"))
-    tts_available = bool(player.get("tts_available") or capabilities.get("tts") or capabilities.get("announce") or is_echo)
+    tts_available = bool(player.get("tts_available") or capabilities.get("tts") or capabilities.get("announce"))
     dnd_available = bool(player.get("dnd_available") or capabilities.get("dnd") or capabilities.get("do_not_disturb"))
     return {
         "id": f"media:{registry_id}", "registry_id": registry_id, "entity_id": str(player.get("entity_id") or ""), "provider": "evoice",

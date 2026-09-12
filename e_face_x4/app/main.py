@@ -28,7 +28,7 @@ from .connectors.control4_media import cached_control4_icon, cached_control4_ico
 from .connectors.supervisor import discover_addon_url, discover_host_url
 from .demo import dashboard as demo_dashboard
 
-VERSION = "2.20.2"
+VERSION = "2.20.3"
 STATIC = Path(__file__).parent / "static"
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s [e-face-x4] %(message)s")
 
@@ -281,9 +281,18 @@ def create_app() -> FastAPI:
         require_installer(request)
         settings = load_settings()
         snapshots = await asyncio.gather(*(connector.snapshot() for connector in media_connectors(settings)))
-        valid_ids = {str(item.get("registry_id")) for snapshot in snapshots for item in snapshot.get("items", []) if item.get("registry_id")}
+        valid_players = {str(item.get("registry_id")): item for snapshot in snapshots for item in snapshot.get("items", []) if item.get("registry_id")}
+        selections = payload.get("players")
+        if isinstance(selections, dict):
+            selections = {key: dict(value) if isinstance(value, dict) else value for key, value in selections.items()}
+            for registry_id, selection in selections.items():
+                if not isinstance(selection, dict):
+                    continue
+                player = valid_players.get(registry_id, {})
+                if player.get("provider") != "evoice" or not player.get("tts_available"):
+                    selection["tts"] = False
         try:
-            saved = save_preferences(payload.get("players"), valid_ids)
+            saved = save_preferences(selections, set(valid_players))
         except (OSError, ValueError) as exc:
             raise HTTPException(status_code=400, detail=str(exc))
         return {"ok": True, "players": len(saved)}

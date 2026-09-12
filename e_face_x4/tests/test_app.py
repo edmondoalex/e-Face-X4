@@ -126,7 +126,7 @@ def test_x4_shell_and_brand_assets_are_served() -> None:
     assert 'evoice.css' in page.text
     for label in ("Guarda", "Ascolta", "Luci", "Extra", "Scenari", "Oscuranti", "Comfort", "Sicurezza"):
         assert f'title="{label}"' in page.text
-    assert 'src="assets/brand-horizontal.png?v=2.20.2"' in page.text
+    assert 'src="assets/brand-horizontal.png?v=2.20.3"' in page.text
     assert 'alt="e-Face X4"' in page.text
     assert 'class="header-wordmark"' not in page.text
     assert client.get("/assets/brand-horizontal.png").status_code == 200
@@ -140,6 +140,8 @@ def test_x4_shell_and_brand_assets_are_served() -> None:
     assert ".app.loading" in refresh_css.text
     assert "body:not([data-background])" in refresh_css.text
     assert client.get("/assets/evoice.css").status_code == 200
+    assert "grid-column:1/-1" in client.get("/assets/evoice.css").text
+    assert "repeat(auto-fit,minmax(210px,1fr))" in client.get("/assets/evoice.css").text
     tools_page = client.get("/tools")
     assert "evoice-admin.css" in tools_page.text
     assert "e-Voice / Multimedia" in tools_page.text
@@ -187,7 +189,7 @@ def test_media_preferences_are_saved_and_applied(monkeypatch, tmp_path) -> None:
     saved = save_preferences({"one": {"visible": True, "audio": True, "video": False, "tts": True, "name": "Echo Sala", "room": "Sala", "order": 1}, "two": {"visible": True, "audio": True, "order": 0}}, {"one", "two"})
     assert load_preferences() == saved
     filtered = apply_preferences({"items": [
-        {"registry_id": "one", "room": "Sala", "experiences": ["watch"]},
+        {"registry_id": "one", "room": "Sala", "experiences": ["watch"], "provider": "evoice", "tts_available": True},
         {"registry_id": "two", "room": "Studio", "experiences": ["listen"]},
         {"registry_id": "three", "room": "Altro", "experiences": ["listen"]},
     ], "groups": [], "rooms": []})
@@ -689,6 +691,12 @@ def test_echo_is_recognized_with_tts_and_dnd() -> None:
     assert item["dnd_available"] is True
 
 
+def test_echo_without_evoice_tts_capability_does_not_offer_tts() -> None:
+    item = normalize_player({"registry_id": "echo-2", "entity_id": "media_player.echo_sala", "name": "Echo Sala", "manufacturer": "Amazon", "capabilities": {"tts": False}})
+    assert item["device_type"] == "echo"
+    assert item["tts_available"] is False
+
+
 def test_media_configuration_includes_installation(monkeypatch, tmp_path) -> None:
     from app.config import load_settings
     options = tmp_path / "options.json"
@@ -716,6 +724,7 @@ def test_media_ui_has_room_selection_and_typed_controls() -> None:
     assert "device.experiences?.includes('listen') || device.tts_enabled" in script
     assert "data-tts-send" in script
     assert "data-dnd-device" in script
+    assert "selected.provider === 'evoice' && selected.tts_enabled" in script
     assert "item.provider === selected.provider" in script
     assert "item.provider === player.provider" in script
     assert "['playing','buffering'].includes(state)" in script
