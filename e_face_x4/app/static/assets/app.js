@@ -90,7 +90,7 @@ const roomFeatureDefinitions = [
   { id: 'lights', label: 'Luci', icon: 'mdi:lightbulb', matches: (device) => device.kind === 'light' },
   { id: 'climate', label: 'Clima', icon: 'mdi:thermometer', matches: (device) => ['climate', 'temp', 'temperature', 'humidity', 'air', 'air_quality'].includes(device.kind) },
   { id: 'covers', label: 'Oscuranti', icon: 'mdi:blinds-horizontal', matches: (device) => device.kind === 'cover' },
-  { id: 'security', label: 'Sicurezza', icon: 'mdi:shield-home', matches: (device) => ['lock', 'alarm', 'security', 'camera', 'doorbell'].includes(device.kind) },
+  { id: 'security', label: 'Sicurezza', icon: 'mdi:shield-home', matches: (device) => ['lock', 'alarm', 'security', 'alarm_partition', 'alarm_zone', 'camera', 'doorbell'].includes(device.kind) },
   { id: 'extra', label: 'Extra', icon: 'mdi:power-socket-eu', matches: (device) => device.kind === 'switch' },
 ]
 
@@ -173,7 +173,7 @@ function renderHomeStatusCounters() {
     { kind: 'lights', label: 'Luci', icon: 'mdi:lightbulb', color: 'yellow', devices: currentDevices.filter((device) => device.kind === 'light'), active: (device) => lightIsOn(device) },
     { kind: 'extra', label: 'Extra', icon: 'mdi:power-socket-eu', color: 'red', devices: currentDevices.filter((device) => device.kind === 'switch'), active: stateIsActive },
     { kind: 'covers', label: 'Oscuranti', icon: 'mdi:blinds-horizontal', color: 'cyan', devices: currentDevices.filter((device) => device.kind === 'cover'), active: (device) => stateIsActive(device) || Number(device.position) > 0 },
-    { kind: 'security', label: 'Sicurezza', icon: 'mdi:shield-home', color: 'red', devices: currentDevices.filter((device) => device.kind === 'lock'), active: (device) => ['OPEN','OPENING','UNLOCKED'].includes(String(device.state ?? '').trim().toUpperCase()) },
+    { kind: 'security', label: 'Sicurezza', icon: 'mdi:shield-home', color: 'red', devices: currentDevices.filter((device) => ['lock','alarm_partition','alarm_zone'].includes(device.kind)), active: (device) => ['OPEN','OPENING','UNLOCKED','ARMED','ALARM','TAMPER'].includes(String(device.state ?? '').trim().toUpperCase()) },
     { kind: 'comfort', label: 'Comfort', icon: 'mdi:thermostat', color: 'blue', devices: currentDevices.filter((device) => ['climate', 'temp', 'temperature', 'humidity', 'air', 'air_quality'].includes(device.kind)), active: (device) => device.kind === 'climate' && !device.read_only && ['HEATING','COOLING'].includes(String(device.state).toUpperCase()) },
   ]
   $('#widgets').innerHTML = statusCounters.map((counter) => {
@@ -236,7 +236,7 @@ function updateNavigationStates() {
   setState('lights', 'status-yellow', currentDevices.some((device) => device.kind === 'light' && lightIsOn(device)))
   setState('extra', 'status-red', currentDevices.some((device) => device.kind === 'switch' && stateIsActive(device)))
   setState('covers', 'status-cyan', currentDevices.some((device) => device.kind === 'cover' && (stateIsActive(device) || Number(device.position) > 0)))
-  setState('security', 'status-red', currentDevices.some((device) => device.kind === 'lock' && ['OPEN','OPENING','UNLOCKED'].includes(String(device.state ?? '').trim().toUpperCase())))
+  setState('security', 'status-red', currentDevices.some((device) => ['lock','alarm_partition','alarm_zone'].includes(device.kind) && ['OPEN','OPENING','UNLOCKED','ARMED','ALARM','TAMPER'].includes(String(device.state ?? '').trim().toUpperCase())))
   setState('watch', 'status-cyan', currentDevices.some((device) => ['media','media_player'].includes(device.kind) && device.active_experience === 'watch' && stateIsActive(device)))
   setState('listen', 'status-green', currentDevices.some((device) => ['media','media_player'].includes(device.kind) && device.active_experience === 'listen' && stateIsActive(device)))
   setState('comfort', 'status-cyan', currentDevices.some((device) => device.kind === 'climate' && !device.read_only && ['HEATING','COOLING'].includes(String(device.state).toUpperCase())))
@@ -311,6 +311,10 @@ function wheelColor(event) {
 }
 
 function renderDeviceList(devices) {
+  if (devices.length && devices.every((device) => ['lock','alarm_partition','alarm_zone'].includes(device.kind))) {
+    renderSecurityDevices(devices)
+    return
+  }
   if (devices.length && devices.every((device) => device.kind === 'media_player')) {
     renderMediaExperience(devices)
     return
@@ -323,6 +327,27 @@ function renderDeviceList(devices) {
   `)
   completeGroups.forEach((channels, group) => cards.push(renderRgbCard(group, channels)))
   $('#device-list').innerHTML = cards.join('') || '<p class="empty-state">Nessun dispositivo disponibile</p>'
+}
+
+function renderSecurityDevices(devices) {
+  const partitions = devices.filter((device) => device.kind === 'alarm_partition')
+  const zones = devices.filter((device) => device.kind === 'alarm_zone')
+  const locks = devices.filter((device) => device.kind === 'lock')
+  const issueCount = zones.filter((zone) => ['OPEN','ALARM','TAMPER'].includes(String(zone.state).toUpperCase())).length
+  const armedCount = partitions.filter((area) => area.state === 'ARMED').length
+  const summary = `<section class="security-summary"><span class="mdi-mask" style="${mdiStyle(issueCount ? 'mdi:shield-alert-outline' : armedCount ? 'mdi:shield-lock-outline' : 'mdi:shield-check-outline', 'shield-home')}"></span><div><small>SISTEMA KSENIA LARES</small><strong>${issueCount ? `${issueCount} ${issueCount === 1 ? 'zona da verificare' : 'zone da verificare'}` : armedCount ? `${armedCount} ${armedCount === 1 ? 'area inserita' : 'aree inserite'}` : 'Tutto sotto controllo'}</strong></div></section>`
+  const areaCards = partitions.map((device) => {
+    const alarm = device.state === 'ALARM'; const armed = device.state === 'ARMED'
+    const actions = alarm || armed ? `<button data-action="disarm">DISINSERISCI</button>` : `<button data-action="arm_delay">INSERISCI</button><button data-action="arm_instant">IMMEDIATO</button>`
+    return `<article class="security-area ${alarm ? 'alarm' : armed ? 'armed' : 'ready'}" data-device-id="${esc(device.id)}"><span class="mdi-mask" style="${mdiStyle(alarm ? 'mdi:shield-alert' : armed ? 'mdi:shield-lock' : 'mdi:shield-check', 'shield-home')}"></span><div><small>AREA</small><strong>${esc(device.name)}</strong><b>${alarm ? 'ALLARME' : armed ? 'INSERITA' : 'DISINSERITA'}</b></div><div class="security-actions">${actions}</div></article>`
+  }).join('')
+  const zoneCards = zones.map((device) => {
+    const bad = ['OPEN','ALARM','TAMPER'].includes(String(device.state).toUpperCase())
+    const label = device.state === 'ALARM' ? 'ALLARME' : device.state === 'TAMPER' ? 'SABOTAGGIO' : device.state === 'OPEN' ? 'APERTA' : device.bypassed ? 'ESCLUSA' : 'OK'
+    return `<article class="security-zone ${bad ? 'warning' : ''} ${device.bypassed ? 'bypassed' : ''}" data-device-id="${esc(device.id)}"><span class="mdi-mask" style="${mdiStyle(bad ? 'mdi:alert-circle-outline' : 'mdi:checkbox-marked-circle-outline', 'shield-outline')}"></span><div><strong>${esc(device.name)}</strong><small>${esc(device.room)}</small></div><b>${label}</b><button data-action="${device.bypassed ? 'bypass_off' : 'bypass_on'}">${device.bypassed ? 'INCLUDI' : 'ESCLUDI'}</button></article>`
+  }).join('')
+  const lockCards = locks.map((device) => `<article class="security-zone" data-device-id="${esc(device.id)}">${deviceGlyph(device)}<div><strong>${esc(device.name)}</strong><small>${esc(device.room)}</small></div><b>${esc(stateLabel(device))}</b>${deviceActions(device)}</article>`).join('')
+  $('#device-list').innerHTML = `${summary}${partitions.length ? `<section class="security-section"><h3>Aree</h3><div class="security-area-grid">${areaCards}</div></section>` : ''}${zones.length ? `<section class="security-section"><h3>Zone <small>${zones.length}</small></h3><div class="security-zone-grid">${zoneCards}</div></section>` : ''}${locks.length ? `<section class="security-section"><h3>Serrature</h3><div class="security-zone-grid">${lockCards}</div></section>` : ''}`
 }
 
 function renderMediaExperience(devices) {
@@ -428,7 +453,7 @@ function openMediaSessions() {
     const volume = volumes.length ? Math.round(volumes.reduce((sum, value) => sum + value, 0) / volumes.length) : 0
     const isVideo = player.active_experience === 'watch'
     const artwork = isVideo && !player.content_fingerprint && player.active_source_id ? `<span class="media-artwork media-video-source"><img src="${apiUrl(`api/control4/source-icon/${player.active_source_id}?v=${encodeURIComponent(appVersion)}`)}" alt="${esc(player.source || '')}" onerror="this.hidden=true"></span>` : mediaArtwork(player)
-    return `<div class="media-session-row ${isVideo ? 'media-session-row-watch' : ''}" data-session-device="${esc(player.id)}" role="button" tabindex="0">${artwork}<span class="mdi-mask media-session-row-source" style="${mdiStyle(isVideo ? 'mdi:video' : mediaSourceIcon(player.source), isVideo ? 'video' : 'music-circle')}"></span><span class="media-session-row-info"><strong>${esc(player.title || player.source || player.name)}</strong><small>${esc(player.artist || player.source || '')}</small></span><button class="media-session-row-power" data-session-power="${esc(player.id)}" aria-label="Spegni intera sessione" title="Spegni intera sessione"><span class="mdi-mask" style="${mdiStyle('mdi:power', 'power')}"></span></button><span class="media-session-row-volume"><span class="mdi-mask" style="${mdiStyle('mdi:volume-high', 'volume-high')}"></span><i><u style="width:${volume}%"></u></i><b>${volume}%</b></span><span class="media-session-row-rooms"><span class="mdi-mask" style="${mdiStyle(members.length > 1 ? 'mdi:home-group' : 'mdi:plus-box-outline', 'plus-box-outline')}"></span><b>${esc(members.map((item) => item.room).join(', '))}</b></span><em class="media-session-expand"><span class="mdi-mask" style="${mdiStyle('mdi:chevron-down', 'chevron-down')}"></span></em></div>`
+    return `<div class="media-session-row ${isVideo ? 'media-session-row-watch' : 'media-session-row-listen'}" data-session-device="${esc(player.id)}" role="button" tabindex="0">${artwork}<span class="mdi-mask media-session-row-source" style="${mdiStyle(isVideo ? 'mdi:video' : mediaSourceIcon(player.source), isVideo ? 'video' : 'music-circle')}"></span><span class="media-session-row-info"><strong>${esc(player.title || player.source || player.name)}</strong><small>${esc(player.artist || player.source || '')}</small></span><button class="media-session-row-power" data-session-power="${esc(player.id)}" aria-label="Spegni intera sessione" title="Spegni intera sessione"><span class="mdi-mask" style="${mdiStyle('mdi:power', 'power')}"></span></button><label class="media-session-row-volume"><span class="mdi-mask" style="${mdiStyle('mdi:volume-high', 'volume-high')}"></span><input type="range" min="0" max="100" value="${volume}" data-session-volume="${esc(player.id)}"><b>${volume}%</b></label><span class="media-session-row-rooms"><span class="mdi-mask" style="${mdiStyle(members.length > 1 ? 'mdi:home-group' : 'mdi:plus-box-outline', 'plus-box-outline')}"></span><b>${esc(members.map((item) => item.room).join(', '))}</b></span><em class="media-session-expand"><span class="mdi-mask" style="${mdiStyle('mdi:chevron-down', 'chevron-down')}"></span></em></div>`
   }).join('') || '<p class="empty-state">Nessuna sessione attiva</p>'
   if (!$('#media-sessions-dialog').open) $('#media-sessions-dialog').showModal()
 }
@@ -670,13 +695,17 @@ function openVideoRemote(device) {
   activeVideoRemote = { device, source }
   const actions = new Set(source.remote_actions || [])
   const make = (action, label) => actions.has(action) ? `<button data-remote-command="${esc(action)}">${label}</button>` : ''
+  const icon = (action, name, label, className = '') => actions.has(action) ? `<button class="remote-icon ${className}" data-remote-command="${esc(action)}" aria-label="${label}" title="${label}"><span class="mdi-mask" style="${mdiStyle(`mdi:${name}`, name)}"></span></button>` : ''
   const quick = [['dvr','DVR'],['guide','GUIDA'],['recall','RICHIAMA'],['menu','MENU'],['cancel','ANNULLA'],['info','INFO'],['input','INGRESSO']].map(([a,l]) => make(a,l)).join('')
   const nav = [['up','▲'],['left','◀'],['enter','SELEZIONA'],['right','▶'],['down','▼']].map(([a,l]) => make(a,l)).join('')
   const digits = ['1','2','3','4','5','6','7','8','9','star','0','pound'].map((key) => make(key.length === 1 ? `digit_${key}` : key, key === 'star' ? '*' : key === 'pound' ? '#' : key)).join('')
-  const transport = [['scan_rev','⏪'],['skip_rev','|◀'],['play','▶'],['pause','Ⅱ'],['stop','■'],['skip_fwd','▶|'],['scan_fwd','⏩'],['record','●'],['page_up','PG ▲'],['page_down','PG ▼'],['channel_up','CH ▲'],['channel_down','CH ▼']].map(([a,l]) => make(a,l)).join('')
+  const transport = [icon('scan_rev','rewind','Riavvolgi'),icon('scan_fwd','fast-forward','Avanti veloce'),icon('skip_rev','skip-previous','Precedente'),icon('play','play','Riproduci'),icon('skip_fwd','skip-next','Successivo'),icon('record','record-circle','Registra','remote-record'),icon('pause','pause','Pausa'),icon('stop','stop','Stop')].join('')
+  const pages = [make('page_up','▲<small>PG</small>'),make('page_down','<small>PG</small>▼')].join('')
+  const channels = `${make('channel_up','⌃')}<span>CH</span>${make('channel_down','⌄')}`
+  const volume = device.capabilities?.set_volume ? `<div class="remote-volume-side"><button data-remote-volume-step="2">＋</button><span>VOL</span><button data-remote-volume-step="-2">−</button></div><label class="remote-volume-slider"><span class="mdi-mask" style="${mdiStyle(device.muted ? 'mdi:volume-off' : 'mdi:volume-high','volume-high')}"></span><input type="range" min="0" max="100" value="${Number(device.volume) || 0}" data-remote-volume><output>${Number(device.volume) || 0}</output></label>` : ''
   const custom = [['custom:PROGRAM_A','red','Rosso'],['custom:PROGRAM_B','green','Verde'],['custom:PROGRAM_C','yellow','Giallo'],['custom:PROGRAM_D','blue','Blu']].filter(([action]) => actions.has(action)).map(([action,color,label]) => `<button class="remote-color remote-${color}" data-remote-command="${action}" aria-label="${label}" title="${label}"><span></span></button>`).join('')
   $('#video-remote-title').textContent = `${source.label} · ${device.room}`
-  $('#video-remote-body').innerHTML = quick || nav || digits || transport ? `<div class="remote-quick">${quick}</div><div class="remote-layout"><div class="remote-nav">${nav}</div><div class="remote-keypad">${digits}</div></div><div class="remote-transport">${transport}</div>${custom ? `<div class="remote-custom">${custom}</div>` : ''}` : '<p class="remote-empty">Questo apparato non espone comandi telecomando.</p>'
+  $('#video-remote-body').innerHTML = quick || nav || digits || transport ? `<div class="remote-console"><div class="remote-quick">${quick}</div>${volume}<div class="remote-transport">${transport}${pages}</div><div class="remote-nav">${nav}</div><div class="remote-keypad">${digits}</div><div class="remote-channel-side">${channels}</div>${custom ? `<div class="remote-custom">${custom}</div>` : ''}</div>` : '<p class="remote-empty">Questo apparato non espone comandi telecomando.</p>'
   $('#video-remote-dialog').showModal()
 }
 
@@ -699,6 +728,41 @@ async function setMediaGroupVolume(input) {
     if (!response.ok) throw new Error((await response.json().catch(() => ({}))).detail || `HTTP ${response.status}`)
     await refresh()
   } catch (error) { fail(error) } finally { input.disabled = false }
+}
+
+async function setSessionVolume(input) {
+  const session = activeMediaSessions().find(({ player }) => String(player.id) === String(input.dataset.sessionVolume))
+  if (!session) return
+  const value = Number(input.value)
+  input.disabled = true
+  try {
+    if (session.group?.group_id && session.members.length > 1) {
+      const response = await fetch(apiUrl(`api/media/groups/${encodeURIComponent(session.group.group_id)}/command`), {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({action:'set_group_volume', value, resource_revision:session.group.resource_revision})})
+      if (!response.ok) throw new Error((await response.json().catch(() => ({}))).detail || `HTTP ${response.status}`)
+    } else {
+      await postDeviceCommand(session.player.id, 'set_volume', value)
+    }
+    session.members.forEach((player) => { player.volume = value; setMediaOverride(player.id, { volume: value }) })
+    await refresh()
+  } catch (error) { fail(error) } finally { input.disabled = false }
+}
+
+async function adjustActiveUiVolume(delta) {
+  if ($('#video-remote-dialog').open && activeVideoRemote?.device) {
+    const input = $('#video-remote-dialog').querySelector('[data-remote-volume]')
+    if (input) { input.value = Math.max(0, Math.min(100, Number(input.value) + delta)); input.dispatchEvent(new Event('change', { bubbles: true })); return true }
+  }
+  if ($('#media-zones-dialog').open) {
+    const input = $('#zones-master').querySelector('[data-group-volume]') || $('#media-zones-list').querySelector('[data-zone-volume]')
+    if (input) { input.value = Math.max(0, Math.min(100, Number(input.value) + delta)); input.dispatchEvent(new Event('input', { bubbles: true })); input.dispatchEvent(new Event('change', { bubbles: true })); return true }
+  }
+  if ($('#media-sessions-dialog').open) {
+    const input = $('#media-sessions-list').querySelector('[data-session-volume]')
+    if (input) { input.value = Math.max(0, Math.min(100, Number(input.value) + delta)); input.dispatchEvent(new Event('input', { bubbles: true })); input.dispatchEvent(new Event('change', { bubbles: true })); return true }
+  }
+  const roomPlayer = currentDevices.find((item) => item.kind === 'media_player' && activeDetailIds?.has(String(item.id)) && stateIsActive(item))
+  if (roomPlayer) { await sendDeviceCommand(roomPlayer.id, 'set_volume', null, Math.max(0, Math.min(100, Number(roomPlayer.volume || 0) + delta))); return true }
+  return false
 }
 
 async function sendDeviceCommand(deviceId, action, button, value) {
@@ -979,12 +1043,12 @@ document.querySelectorAll('.rail button').forEach((button) => button.addEventLis
   if (button.dataset.view === 'scenarios') openScenariosPage()
   if (button.dataset.view === 'covers') openDevices('Oscuranti', currentDevices.filter((device) => device.kind === 'cover'), { filters: true })
   if (button.dataset.view === 'comfort') openDevices('Comfort', currentDevices.filter((device) => ['climate', 'temp', 'temperature', 'humidity', 'air', 'air_quality'].includes(device.kind)), { filters: true })
-  if (button.dataset.view === 'security') openDevices('Sicurezza', currentDevices.filter((device) => device.kind === 'lock'), { filters: true })
+  if (button.dataset.view === 'security') openDevices('Sicurezza', currentDevices.filter((device) => ['lock','alarm_partition','alarm_zone'].includes(device.kind)))
 }))
 $('#widgets').addEventListener('click', (event) => {
   const button = event.target.closest('[data-kind]')
   if (!button) return
-  const map = { lights: ['light'], extra: ['switch'], covers: ['cover'], security: ['lock'], comfort: ['climate', 'temp', 'temperature', 'humidity', 'air', 'air_quality'] }
+  const map = { lights: ['light'], extra: ['switch'], covers: ['cover'], security: ['lock','alarm_partition','alarm_zone'], comfort: ['climate', 'temp', 'temperature', 'humidity', 'air', 'air_quality'] }
   const kinds = map[button.dataset.kind] || []
   openDevices(button.dataset.label || 'Dispositivi', currentDevices.filter((device) => kinds.includes(device.kind)), { filters: true, lights: button.dataset.kind === 'lights' })
 })
@@ -1092,6 +1156,10 @@ $('#device-list').addEventListener('click', (event) => {
   const button = event.target.closest('[data-action]')
   const card = event.target.closest('[data-device-id]')
   if (button && card) sendDeviceCommand(card.dataset.deviceId, button.dataset.action, button)
+  if (!button && card?.classList.contains('media-player-card') && !event.target.closest('input,label')) {
+    const device = currentDevices.find((item) => String(item.id) === card.dataset.deviceId)
+    if (device) return openDevices(device.room || device.name, currentDevices.filter((item) => item.kind === 'media_player' && item.room === device.room), { room: device.room || device.name, experience: device.active_experience || '' })
+  }
   if (!button && card?.matches('[data-device-toggle]') && !event.target.closest('input,label')) {
     const device = currentDevices.find((item) => String(item.id) === card.dataset.deviceId)
     const active = ['ON','1','TRUE'].includes(String(device?.state).trim().toUpperCase())
@@ -1124,7 +1192,20 @@ $('#rgb-dialog').addEventListener('click', (event) => { if (event.target === $('
 $('#media-zones-close').addEventListener('click', () => $('#media-zones-dialog').close())
 $('#global-media-session').addEventListener('click', openMediaSessions)
 $('#media-sessions-close').addEventListener('click', () => $('#media-sessions-dialog').close())
-$('#media-sessions-list').addEventListener('click', (event) => { const row = event.target.closest('[data-session-device]'); if (!row) return; const player = currentDevices.find((item) => String(item.id) === row.dataset.sessionDevice); if (!player) return; const power = event.target.closest('[data-session-power]'); if (power) { const session = activeMediaSessions().find(({player:item}) => String(item.id) === power.dataset.sessionPower); return powerOffMediaSession(power, (session?.members || [player]).map((item) => item.id)) } $('#media-sessions-dialog').close(); player.active_experience === 'watch' ? openVideoRemote(player) : openMediaZones(player) })
+$('#media-sessions-list').addEventListener('click', (event) => { const row = event.target.closest('[data-session-device]'); if (!row || event.target.closest('[data-session-volume]')) return; const player = currentDevices.find((item) => String(item.id) === row.dataset.sessionDevice); if (!player) return; const power = event.target.closest('[data-session-power]'); if (power) { const session = activeMediaSessions().find(({player:item}) => String(item.id) === power.dataset.sessionPower); return powerOffMediaSession(power, (session?.members || [player]).map((item) => item.id)) } $('#media-sessions-dialog').close(); player.active_experience === 'watch' ? openVideoRemote(player) : openMediaZones(player) })
+$('#media-sessions-list').addEventListener('input', (event) => { if (event.target.matches('[data-session-volume]')) event.target.nextElementSibling.textContent = `${event.target.value}%` })
+$('#media-sessions-list').addEventListener('change', (event) => { if (event.target.matches('[data-session-volume]')) setSessionVolume(event.target) })
+$('#media-sessions-list').addEventListener('pointerdown', (event) => {
+  const input = event.target.closest('[data-session-volume]')
+  if (!input || input.disabled) return
+  const rect = input.getBoundingClientRect(); const value = Number(input.value) || 0
+  const thumbX = rect.left + value / 100 * rect.width
+  if (Math.abs(event.clientX - thumbX) <= 18) return
+  event.preventDefault()
+  input.value = Math.max(0, Math.min(100, value + (event.clientX < thumbX ? -2 : 2)))
+  input.nextElementSibling.textContent = `${input.value}%`
+  setSessionVolume(input)
+}, { capture: true })
 $('#media-zones-save').addEventListener('click', (event) => saveMediaZones(event.currentTarget))
 $('#media-zones-list').addEventListener('click', (event) => { const button = event.target.closest('[data-zone-picker-toggle]'); if (button) { const picker = $('.media-zone-picker'); picker.hidden = !picker.hidden; button.classList.toggle('active', !picker.hidden) } })
 $('#media-zones-list').addEventListener('click', (event) => { const button = event.target.closest('[data-zone-power]'); if (button) powerOffMediaSession(button, [button.dataset.zonePower]) })
@@ -1132,13 +1213,38 @@ $('#zones-master').addEventListener('click', (event) => { const button = event.t
 $('#video-remote-close').addEventListener('click', () => $('#video-remote-dialog').close())
 $('#video-remote-dialog').addEventListener('click', (event) => {
   if (event.target === $('#video-remote-dialog')) return $('#video-remote-dialog').close()
+  const volumeStep = event.target.closest('[data-remote-volume-step]')
+  if (volumeStep && activeVideoRemote) {
+    const next = Math.max(0, Math.min(100, (Number(activeVideoRemote.device.volume) || 0) + Number(volumeStep.dataset.remoteVolumeStep)))
+    activeVideoRemote.device.volume = next
+    const slider = $('#video-remote-dialog').querySelector('[data-remote-volume]')
+    if (slider) { slider.value = next; slider.nextElementSibling.textContent = next }
+    return sendDeviceCommand(activeVideoRemote.device.id, 'set_volume', volumeStep, next)
+  }
   const button = event.target.closest('[data-remote-command]')
   if (button) sendVideoRemote(button.dataset.remoteCommand, button)
+})
+$('#video-remote-dialog').addEventListener('change', (event) => {
+  if (!event.target.matches('[data-remote-volume]') || !activeVideoRemote) return
+  const value = Number(event.target.value)
+  activeVideoRemote.device.volume = value
+  event.target.nextElementSibling.textContent = value
+  sendDeviceCommand(activeVideoRemote.device.id, 'set_volume', event.target, value)
 })
 $('#media-zones-list').addEventListener('change', (event) => { if (event.target.matches('.media-zone-picker input[type=checkbox]')) { event.target.closest('.media-zone-choice').classList.toggle('active', event.target.checked) } })
 $('#media-zones-list').addEventListener('input', (event) => { if (event.target.matches('[data-zone-volume]')) event.target.closest('.media-zone-level').querySelector('output').textContent = `${event.target.value}%` })
 $('#media-zones-list').addEventListener('change', (event) => { if (event.target.matches('[data-zone-volume]')) sendDeviceCommand(event.target.dataset.deviceId, 'set_volume', event.target, event.target.value) })
-$('#zones-master').addEventListener('input', (event) => { if (event.target.matches('[data-group-volume]')) event.target.nextElementSibling.textContent = `${event.target.value}%` })
+$('#zones-master').addEventListener('input', (event) => {
+  if (!event.target.matches('[data-group-volume]')) return
+  const value = Number(event.target.value)
+  event.target.nextElementSibling.textContent = `${value}%`
+  document.querySelectorAll('#media-zones-list [data-zone-volume]').forEach((slider) => {
+    slider.value = value
+    slider.closest('.media-zone-level').querySelector('output').textContent = `${value}%`
+    const player = currentDevices.find((item) => String(item.id) === slider.dataset.deviceId)
+    if (player) player.volume = value
+  })
+})
 $('#zones-master').addEventListener('change', (event) => { if (event.target.matches('[data-group-volume]')) setMediaGroupVolume(event.target) })
 $('#rgb-palette').addEventListener('click', (event) => { const button = event.target.closest('[data-palette]'); if (button) sendRgbCommand(activeRgbGroup, 'color', button.dataset.palette, button) })
 $('#rgb-master').addEventListener('input', (event) => { $('#rgb-master-value').textContent = `${Math.round(Number(event.target.value) / 255 * 100)}%` })
@@ -1192,6 +1298,11 @@ $('#show-all-devices').addEventListener('click', () => openDevices('Tutti i disp
 document.addEventListener('visibilitychange', () => { if (!document.hidden) { refresh(); connectRealtime() } })
 tick()
 setInterval(tick, 30000)
+window.addEventListener('keydown', (event) => {
+  const delta = event.key === 'AudioVolumeUp' ? 2 : event.key === 'AudioVolumeDown' ? -2 : 0
+  if (!delta) return
+  adjustActiveUiVolume(delta).then((handled) => { if (handled) event.preventDefault() })
+})
 setInterval(() => {
   if (!realtimeSocket || realtimeSocket.readyState !== WebSocket.OPEN) refresh()
 }, 30000)

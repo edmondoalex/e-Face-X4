@@ -515,3 +515,9 @@
 
 - Prima integrazione Ekonex Media con player, controlli, sorgenti, artwork e realtime SSE.
 - Pagine Guarda e Ascolta con selezione stanza e layout responsive ispirato a Control4 X4.
+# 2.8.0
+
+- Integrazione nativa Ksenia lares con aree, zone, stati di allarme, inserimento, disinserimento ed esclusione zone.
+- Nuova vista Sicurezza dedicata e riepilogo dinamico in Home.
+- Il player compatto nella pagina ambiente apre ora la vista multimediale completa della stanza.
+- Telecomando video ridisegnato in stile Control4, con icone uniformi e layout adattivo per tablet e smartphone.

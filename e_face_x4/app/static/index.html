@@ -3,10 +3,10 @@
   <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
   <meta name="theme-color" content="#263f48"><title>e-Face X4</title>
   <link rel="icon" type="image/png" href="assets/brand-icon.png"><link rel="apple-touch-icon" href="assets/brand-icon.png">
-  <link rel="manifest" href="assets/manifest.webmanifest"><link rel="stylesheet" href="assets/app.css?v=2.7.24"><link rel="stylesheet" href="assets/backgrounds.css?v=2.7.24"><link rel="stylesheet" href="assets/media.css?v=2.7.24"><link rel="stylesheet" href="assets/media-x4.css?v=2.7.24"><link rel="stylesheet" href="assets/media-session.css?v=2.7.24"><link rel="stylesheet" href="assets/media-sessions.css?v=2.7.24"><link rel="stylesheet" href="assets/media-remote.css?v=2.7.24"><link rel="stylesheet" href="assets/media-remote-colors.css?v=2.7.24"><link rel="stylesheet" href="assets/header-responsive.css?v=2.7.24"><link rel="stylesheet" href="assets/home-rooms.css?v=2.7.24"><link rel="stylesheet" href="assets/device-icons.css?v=2.7.24"><link rel="stylesheet" href="assets/home-status.css?v=2.7.24"><link rel="stylesheet" href="assets/home-live-media.css?v=2.7.24"><link rel="stylesheet" href="assets/media-session-power.css?v=2.7.24"><link rel="stylesheet" href="assets/home-comfort.css?v=2.7.24">
+  <link rel="manifest" href="assets/manifest.webmanifest"><link rel="stylesheet" href="assets/app.css?v=2.8.0"><link rel="stylesheet" href="assets/backgrounds.css?v=2.8.0"><link rel="stylesheet" href="assets/media.css?v=2.8.0"><link rel="stylesheet" href="assets/media-x4.css?v=2.8.0"><link rel="stylesheet" href="assets/media-session.css?v=2.8.0"><link rel="stylesheet" href="assets/media-sessions.css?v=2.8.0"><link rel="stylesheet" href="assets/media-remote.css?v=2.8.0"><link rel="stylesheet" href="assets/media-remote-colors.css?v=2.8.0"><link rel="stylesheet" href="assets/media-remote-responsive.css?v=2.8.0"><link rel="stylesheet" href="assets/header-responsive.css?v=2.8.0"><link rel="stylesheet" href="assets/home-rooms.css?v=2.8.0"><link rel="stylesheet" href="assets/device-icons.css?v=2.8.0"><link rel="stylesheet" href="assets/home-status.css?v=2.8.0"><link rel="stylesheet" href="assets/home-live-media.css?v=2.8.0"><link rel="stylesheet" href="assets/media-session-power.css?v=2.8.0"><link rel="stylesheet" href="assets/home-comfort.css?v=2.8.0"><link rel="stylesheet" href="assets/security.css?v=2.8.0">
 </head><body><div id="app" class="app loading" aria-live="polite">
   <header class="topbar">
-    <div class="home-title"><img src="assets/brand-horizontal.png?v=2.7.24" alt="e-Face X4" class="horizontal-logo"><h1 id="home-name">Casa</h1><span id="mode">ANTEPRIMA DEMO</span></div>
+    <div class="home-title"><img src="assets/brand-horizontal.png?v=2.8.0" alt="e-Face X4" class="horizontal-logo"><h1 id="home-name">Casa</h1><span id="mode">ANTEPRIMA DEMO</span></div>
     <div class="clock"><strong id="clock">--:--</strong><span id="date">--</span></div><button id="global-media-session" class="global-media-session" aria-label="Gestione sessione audio e video" hidden><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2.4 7C2.5 4.4 4.5 2.4 7 2.4V1C3.5.9.8 3.6 1 7h1.4M7 5.4V4C5.2 4 4 5.3 4 7h1.4C5.5 6.2 6.2 5.5 7 5.4M17 2.4c2.5 0 4.5 2 4.6 4.6H23c.2-3.4-2.5-6.1-6-6v1.4M17 4v1.4c.8.1 1.5.8 1.6 1.6H20c0-1.7-1.2-3-3-3M19 20v-8h3L12 3 2 12h3v8h14Z"/></svg><b>1</b></button><button id="tools-open" class="more" aria-label="Strumenti">⋮</button>
   </header>
   <div class="layout">
@@ -21,15 +21,12 @@
       <button data-view="security" title="Sicurezza"><b class="nav-icon" data-icon="security"></b><span>Sicurezza</span></button>
     </nav>
     <main>
-      <div id="home-view">
-      <section class="dashboard-grid">
+      <div id="home-view"><section class="dashboard-grid">
         <button class="climate-card home-comfort-summary xcard comfort-idle" id="home-comfort-summary"><span class="comfort-state"><i id="home-comfort-icon" class="mdi-mask"></i><span><small>COMFORT</small><b id="home-comfort-state">Nessuna richiesta</b></span></span><span class="comfort-readings"><span><small>MEDIA INTERNA</small><strong id="home-comfort-inside">--</strong></span><i></i><span><small>ESTERNA</small><strong id="home-comfort-outside">--</strong></span><em>›</em></span></button>
         <section class="quick-grid state-summary-grid" id="widgets"></section>
         <section class="camera-grid" id="demo-cameras"><button class="camera garden"><span>Giardino</span></button><button class="camera pool"><span>Piscina</span></button><button class="camera patio"><span>Patio</span></button></section>
         <section class="room-panel xcard"><div class="panel-title"><span>Ambienti</span><button id="show-all-devices">Vedi tutti ›</button></div><div class="room-grid" id="rooms"></div></section>
-      </section>
-      <section class="home-live-media" id="home-live-media" hidden><header><span></span><strong>LIVE</strong><b id="home-live-media-count">0 SESSIONI</b></header><div id="home-live-media-list" class="home-live-media-list"></div></section>
-      </div>
+      </section><section class="home-live-media" id="home-live-media" hidden><header><span></span><strong>LIVE</strong><b id="home-live-media-count">0 SESSIONI</b></header><div id="home-live-media-list" class="home-live-media-list"></div></section></div>
       <section id="detail-view" class="detail-view" hidden>
         <header class="detail-header"><button id="detail-back" aria-label="Torna alla home">‹</button><div><h2 id="detail-title">Sezione</h2></div></header>
         <nav id="light-filters" class="light-filters" aria-label="Filtri luci" hidden><div class="room-filter"><button id="light-room-toggle" aria-expanded="false">Stanza</button><div id="light-room-menu" class="light-room-menu" hidden></div></div><button id="light-on-filter" class="light-state-filter" aria-label="Mostra solo le luci accese" title="Solo accesi" aria-pressed="false"><span></span></button><button id="light-all-filter" class="active">Tutto</button></nav>
@@ -39,18 +36,8 @@
       </section>
     </main>
   </div><div id="notice" class="notice" hidden></div>
-  <dialog id="rgb-dialog" class="rgb-dialog">
-    <header><div><small>CONTROLLO RGB</small><h2 id="rgb-title">Luce RGB</h2></div><button id="rgb-close" aria-label="Chiudi">×</button></header>
-    <div class="rgb-popup-body">
-      <label class="rgb-master"><output id="rgb-master-value">0%</output><input id="rgb-master" type="range" min="1" max="255"></label>
-      <div id="rgb-preview" class="rgb-preview"></div>
-      <div id="rgb-wheel" class="rgb-wheel" role="slider" aria-label="Selettore colore"><i></i></div>
-      <div id="rgb-palette" class="rgb-palette"></div>
-      <div id="rgb-channel-controls" class="rgb-channel-controls"></div>
-      <div class="rgb-popup-actions"><button data-popup-rgb-action="off">OFF</button><button data-popup-rgb-action="on">ON</button></div>
-    </div>
-  </dialog>
+  <dialog id="rgb-dialog" class="rgb-dialog"><header><div><small>CONTROLLO RGB</small><h2 id="rgb-title">Luce RGB</h2></div><button id="rgb-close" aria-label="Chiudi">×</button></header><div class="rgb-popup-body"><label class="rgb-master"><output id="rgb-master-value">0%</output><input id="rgb-master" type="range" min="1" max="255"></label><div id="rgb-preview" class="rgb-preview"></div><div id="rgb-wheel" class="rgb-wheel" role="slider" aria-label="Selettore colore"><i></i></div><div id="rgb-palette" class="rgb-palette"></div><div id="rgb-channel-controls" class="rgb-channel-controls"></div><div class="rgb-popup-actions"><button data-popup-rgb-action="off">OFF</button><button data-popup-rgb-action="on">ON</button></div></div></dialog>
   <dialog id="media-sessions-dialog" class="media-sessions-dialog"><header><h2>Sessioni</h2><button id="media-sessions-close" aria-label="Chiudi">×</button></header><div id="media-sessions-list" class="media-sessions-list"></div></dialog>
   <dialog id="media-zones-dialog" class="media-zones-dialog"><header><div><small>SESSIONE AUDIO/VIDEO</small><h2>Gestione stanze</h2></div><button id="media-zones-close" aria-label="Chiudi">×</button></header><div class="zones-master" id="zones-master"></div><div id="media-zones-list" class="media-zones-list"></div><footer><button id="media-zones-save">APPLICA</button></footer></dialog>
-  <dialog id="video-remote-dialog" class="video-remote-dialog"><header><button id="video-remote-close" aria-label="Chiudi">‹</button><h2 id="video-remote-title">Telecomando</h2><button data-remote-command="off" class="remote-power" aria-label="Spegni">⏻</button></header><div id="video-remote-body"></div></dialog>
-</div><script type="module" src="assets/app.js?v=2.7.24"></script></body></html>
+  <dialog id="video-remote-dialog" class="video-remote-dialog"><header><button id="video-remote-close" aria-label="Chiudi">‹</button><h2 id="video-remote-title">Telecomando</h2><button data-remote-command="off" class="remote-power" aria-label="Spegni"><span class="mdi-mask" style="--icon:url('api/icons/mdi/power.svg')"></span></button></header><div id="video-remote-body"></div></dialog>
+</div><script type="module" src="assets/app.js?v=2.8.0"></script></body></html>

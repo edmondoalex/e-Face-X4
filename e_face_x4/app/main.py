@@ -22,12 +22,12 @@ from .installer_auth import COOKIE, create_session, valid_session
 from .media_preferences import apply_preferences, load_preferences, save_preferences
 from .source_icons import delete_source_icon, load_builtin_source_icon, load_source_icon, save_source_icon
 from .backgrounds import PRESETS, load_background, load_background_image, load_backgrounds, save_background_image, save_inherit, save_preset
-from .connectors import BusproConnector, Control4MediaConnector, EThermConnector, EkonexMediaConnector, LocalMediaConnector
+from .connectors import BusproConnector, Control4MediaConnector, EThermConnector, EkonexMediaConnector, KseniaConnector, LocalMediaConnector
 from .connectors.control4_media import cached_control4_icon, cached_control4_icon_path, cached_control4_source_label, control4_icon_path
 from .connectors.supervisor import discover_addon_url
 from .demo import dashboard as demo_dashboard
 
-VERSION = "2.7.24"
+VERSION = "2.8.0"
 STATIC = Path(__file__).parent / "static"
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s [e-face-x4] %(message)s")
 
@@ -60,13 +60,15 @@ def create_app() -> FastAPI:
     @app.get("/api/bootstrap")
     async def bootstrap() -> dict:
         settings = load_settings()
-        buspro_config, etherm_config = await asyncio.gather(
+        buspro_config, etherm_config, ksenia_config = await asyncio.gather(
             resolved_provider(settings.buspro, "e_hdl_buspro_mqtt", 8124, settings.request_timeout_s),
             resolved_provider(settings.etherm, "e_therm_plus_ks", 8080, settings.request_timeout_s),
+            resolved_provider(settings.ksenia, "ksenia_lares_addon", 8080, settings.request_timeout_s),
         )
         connectors = [
             BusproConnector(buspro_config, settings.request_timeout_s),
             EThermConnector(etherm_config, settings.request_timeout_s),
+            KseniaConnector(ksenia_config, settings.request_timeout_s),
             media_connector(settings),
         ]
         providers = list(await asyncio.gather(*(connector.snapshot() for connector in connectors)))
@@ -82,6 +84,9 @@ def create_app() -> FastAPI:
             etherm = next((item for item in providers if item.get("id") == "etherm" and item.get("status") == "online"), None)
             if isinstance(etherm, dict):
                 dashboard["devices"].extend(etherm.get("items", []))
+            ksenia = next((item for item in providers if item.get("id") == "ksenia" and item.get("status") == "online"), None)
+            if isinstance(ksenia, dict):
+                dashboard["devices"].extend(ksenia.get("items", []))
             media = next((item for item in providers if item.get("id") in {"control4", "evoice"} and item.get("status") == "online"), None)
             if isinstance(media, dict):
                 media_items = media.get("items", [])
@@ -284,6 +289,17 @@ def create_app() -> FastAPI:
     @app.post("/api/devices/{device_id}/command")
     async def device_command(device_id: str, payload: dict) -> dict:
         settings = load_settings()
+        if device_id.startswith(("ksenia-partition:", "ksenia-zone:")):
+            config = await resolved_provider(settings.ksenia, "ksenia_lares_addon", 8080, settings.request_timeout_s)
+            if not config.enabled or not config.base_url:
+                raise HTTPException(status_code=503, detail="Ksenia lares non disponibile")
+            kind, source_id = ("partition", device_id.split(":", 1)[1]) if device_id.startswith("ksenia-partition:") else ("zone", device_id.split(":", 1)[1])
+            try:
+                return await KseniaConnector(config, settings.request_timeout_s).command(kind, source_id, str(payload.get("action") or ""))
+            except httpx.HTTPError:
+                raise HTTPException(status_code=502, detail="Ksenia lares non raggiungibile")
+            except (ValueError, TypeError) as exc:
+                raise HTTPException(status_code=400, detail=str(exc))
         if device_id.startswith(("media:", "c4media:")):
             config = settings.evoice
             control4 = load_control4_config()

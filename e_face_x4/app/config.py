@@ -29,6 +29,7 @@ class Settings:
     buspro: ProviderConfig
     evoice: ProviderConfig
     etherm: ProviderConfig
+    ksenia: ProviderConfig
 
 
 def _provider(value: Any) -> ProviderConfig:
@@ -73,4 +74,5 @@ def load_settings() -> Settings:
         buspro=_provider(raw.get("buspro")),
         evoice=_provider(raw.get("evoice")),
         etherm=_provider(raw.get("etherm")),
+        ksenia=_provider(raw.get("ksenia")),
     )

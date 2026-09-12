@@ -3,6 +3,7 @@ from fastapi.testclient import TestClient
 from app.main import create_app
 from app.connectors.buspro import normalize_snapshot
 from app.connectors.etherm import normalize_thermostats
+from app.connectors.ksenia import normalize_ksenia
 from app.connectors.media import normalize_player
 from app.connectors.local_media import normalize_local_snapshot
 from app.connectors.local_media import HA_WEBSOCKET_MAX_BYTES
@@ -18,6 +19,24 @@ def test_health() -> None:
     response = TestClient(create_app()).get("/health")
     assert response.status_code == 200
     assert response.json()["ok"] is True
+
+
+def test_ksenia_normalizes_partitions_and_zones() -> None:
+    items = normalize_ksenia({"entities": [
+        {"type": "partitions", "id": 1, "name": "Casa", "realtime": {"ARM": "IA"}},
+        {"type": "zones", "id": 7, "name": "Porta", "static": {"PRT": "1"}, "realtime": {"STA": "A", "BYP": "NO"}},
+    ]})
+    assert items[0]["id"] == "ksenia-partition:1"
+    assert items[0]["state"] == "ARMED"
+    assert items[1]["id"] == "ksenia-zone:7"
+    assert items[1]["state"] == "ALARM"
+
+
+def test_alarm_and_room_media_navigation_are_present() -> None:
+    script = TestClient(create_app()).get("/assets/app.js").text
+    assert "renderSecurityDevices" in script
+    assert "ksenia-partition" not in script
+    assert "card?.classList.contains('media-player-card')" in script
 
 
 def test_bootstrap_never_exposes_tokens(monkeypatch, tmp_path) -> None:
@@ -70,7 +89,7 @@ def test_x4_shell_and_brand_assets_are_served() -> None:
     assert '<iframe' not in page.text
     for label in ("Guarda", "Ascolta", "Luci", "Extra", "Scenari", "Oscuranti", "Comfort", "Sicurezza"):
         assert f'title="{label}"' in page.text
-    assert 'src="assets/brand-horizontal.png?v=2.7.24"' in page.text
+    assert 'src="assets/brand-horizontal.png?v=2.8.0"' in page.text
     assert 'alt="e-Face X4"' in page.text
     assert 'class="header-wordmark"' not in page.text
     assert client.get("/assets/brand-horizontal.png").status_code == 200
