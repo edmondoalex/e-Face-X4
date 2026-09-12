@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.18.2 — 2026-09-12
+
+- Rimossa la dicitura ridondante `SESSIONE AUDIO/VIDEO` dalla finestra Gestione stanze.
+- Ripulite le testate da etichette descrittive duplicate nelle finestre RGB e nelle pagine Strumenti.
+
 ## 2.18.1 — 2026-09-12
 
 - La palette scelta viene applicata anche alle card riepilogo Sicurezza e Comfort della Home.
