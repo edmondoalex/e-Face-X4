@@ -1122,15 +1122,21 @@ async function loadEnergyDashboards() {
       const name = String(site.site_name || site.name || `Impianto ${index + 1}`)
       const live = site.normalized || (id === energy.site_id ? energy.normalized : {}) || {}
       const battery = Number(live.battery_power_w) || 0
+      const batterySoc = Number(live.battery_soc_pct)
       const grid = Number(live.grid_power_w) || 0
       const flow = flowState(live)
-      const batteryFlow = battery < 0
+      const batteryFlow = Math.abs(battery) < 1
+        ? { key: 'idle', icon: 'mdi:battery-outline', label: 'BATTERIA' }
+        : battery < 0
         ? { key: 'charge', icon: 'mdi:battery-arrow-down-outline', label: 'CARICA' }
         : { key: 'discharge', icon: 'mdi:battery-arrow-up-outline', label: 'SCARICA' }
-      const gridFlow = grid > 0
+      const gridFlow = Math.abs(grid) < 1
+        ? { key: 'idle', icon: 'mdi:transmission-tower', label: 'RETE' }
+        : grid > 0
         ? { key: 'export', icon: 'mdi:transmission-tower-export', label: 'IMMISSIONE' }
         : { key: 'import', icon: 'mdi:transmission-tower-import', label: 'PRELIEVO' }
-      return `<button class="energy-dashboard-card energy-flow-${flow.key}" data-energy-dashboard="${esc(id)}" data-energy-name="${esc(name)}" title="${esc(flow.label)}"><span class="energy-main-icon mdi-mask" style="${mdiStyle(flow.icon, 'home-outline')}"></span><strong class="energy-dashboard-name">${esc(name)}</strong><span class="energy-flow-metrics"><span class="solar"><i class="mdi-mask" style="${mdiStyle('mdi:solar-power-variant', 'solar-power-variant')}"></i><small>FV</small><b>${power(live.pv_power_w)}</b></span><span class="battery ${batteryFlow.key}"><i class="mdi-mask" style="${mdiStyle(batteryFlow.icon, 'battery-outline')}"></i><small>${batteryFlow.label}</small><b>${power(Math.abs(battery))}</b></span><span class="home"><i class="mdi-mask" style="${mdiStyle('mdi:home-outline', 'home-outline')}"></i><small>CASA</small><b>${power(live.home_power_w)}</b></span><span class="grid ${gridFlow.key}"><i class="mdi-mask" style="${mdiStyle(gridFlow.icon, 'transmission-tower')}"></i><small>${gridFlow.label}</small><b>${power(Math.abs(grid))}</b></span></span></button>`
+      const socLabel = Number.isFinite(batterySoc) ? ` · ${Math.round(batterySoc)}%` : ''
+      return `<button class="energy-dashboard-card energy-flow-${flow.key}" data-energy-dashboard="${esc(id)}" data-energy-name="${esc(name)}" title="${esc(flow.label)}"><span class="energy-main-icon mdi-mask" style="${mdiStyle(flow.icon, 'home-outline')}"></span><strong class="energy-dashboard-name">${esc(name)}</strong><span class="energy-flow-metrics"><span class="solar"><i class="mdi-mask" style="${mdiStyle('mdi:solar-power-variant', 'solar-power-variant')}"></i><small>FV</small><b>${power(live.pv_power_w)}</b></span><span class="battery ${batteryFlow.key}"><i class="mdi-mask" style="${mdiStyle(batteryFlow.icon, 'battery-outline')}"></i><small>${batteryFlow.label}</small><b>${power(Math.abs(battery))}${socLabel}</b></span><span class="home"><i class="mdi-mask" style="${mdiStyle('mdi:home-outline', 'home-outline')}"></i><small>CASA</small><b>${power(live.home_power_w)}</b></span><span class="grid ${gridFlow.key}"><i class="mdi-mask" style="${mdiStyle(gridFlow.icon, 'transmission-tower')}"></i><small>${gridFlow.label}</small><b>${power(Math.abs(grid))}</b></span></span></button>`
     }).join('')
   } catch (error) {
     picker.innerHTML = `<span class="empty-state">e-SunMind non disponibile: ${esc(error.message)}</span>`

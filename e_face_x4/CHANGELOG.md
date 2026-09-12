@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.17.3 — 2026-09-12
+
+- Aggiunta la percentuale di carica accanto alla potenza istantanea della batteria.
+- Lo stato rete a zero viene mostrato neutro, senza indicarlo come prelievo.
+
 ## 2.17.2 — 2026-09-12
 
 - Le dashboard Energia mostrano un'icona dinamica per produzione FV, batteria, prelievo e immissione in rete.
