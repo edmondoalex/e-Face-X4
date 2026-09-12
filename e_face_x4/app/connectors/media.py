@@ -132,6 +132,12 @@ class EvoiceLocalMediaConnector(EkonexMediaConnector):
         except (httpx.HTTPError, ValueError, TypeError, AttributeError) as exc:
             return {"id": self.id, "label": self.label, "status": "offline", "reason": _reason(exc), "items": []}
 
+    async def command(self, registry_id: str, payload: dict[str, Any]) -> dict[str, Any]:
+        local_payload = dict(payload)
+        if local_payload.get("operation") == "turn_off":
+            local_payload["operation"] = "power_off"
+        return await super().command(registry_id, local_payload)
+
 
 def normalize_player(player: dict[str, Any]) -> dict[str, Any]:
     registry_id = str(player.get("registry_id") or "")
@@ -165,6 +171,14 @@ def normalize_player(player: dict[str, Any]) -> dict[str, Any]:
 def normalize_local_player(player: dict[str, Any]) -> dict[str, Any]:
     """Add a stable cache key for the artwork endpoint exposed by e-Voice local."""
     item = normalize_player(player)
+    try:
+        supported_features = int(player.get("supported_features") or 0)
+    except (TypeError, ValueError):
+        supported_features = 0
+    item["capabilities"] = {
+        **item["capabilities"],
+        "turn_off": bool(item["capabilities"].get("turn_off") or supported_features & 256),
+    }
     media = player.get("media") if isinstance(player.get("media"), dict) else {}
     artwork_identity = {key: media.get(key) for key in ("title", "artist", "album")}
     if any(artwork_identity.values()):

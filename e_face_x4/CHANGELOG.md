@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.20.8 — 2026-09-12
+
+- Mostrato il comando Spegni sugli Echo che dichiarano il supporto `TURN_OFF`.
+- Tradotto il comando UI `turn_off` nell'operazione locale e-Voice `power_off`.
+- Ripristinata la regolazione relativa del volume generale Control4, mantenendo le differenze tra le stanze.
+
 ## 2.20.7 — 2026-09-12
 
 - Abilitato il caricamento delle copertine degli Echo tramite l'endpoint artwork locale di e-Voice.

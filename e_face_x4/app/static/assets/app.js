@@ -788,13 +788,13 @@ function renderMediaZones() {
   const volumes = players.filter((item) => members.has(item.registry_id) && Number.isFinite(Number(item.volume))).map((item) => Number(item.volume))
   const average = volumes.length ? Math.round(volumes.reduce((sum, value) => sum + value, 0) / volumes.length) : 0
   const source = `<div class="media-session-source"><span class="mdi-mask" style="${mdiStyle(mediaSourceIcon(selected.source), 'music-circle')}"></span><div><strong>${esc(selected.source || 'Fonte audio')}</strong><b>${esc(selected.title || selected.name)}</b><small>${esc(selected.artist || selected.album || '')}</small></div></div>`
-  const master = group?.group_id ? `<div class="media-session-master"><small>VOLUME GENERALE</small><label><span class="mdi-mask" style="${mdiStyle(selected.muted ? 'mdi:volume-off' : 'mdi:volume-high', 'volume-high')}"></span><input type="range" min="0" max="100" value="${average}" style="--volume:${average}%" data-group-volume ${group.completeness !== 'complete' ? 'disabled' : ''}><output>${average}%</output></label></div>` : ''
+  const master = group?.group_id ? `<div class="media-session-master"><small>VOLUME GENERALE</small><label><span class="mdi-mask" style="${mdiStyle(selected.muted ? 'mdi:volume-off' : 'mdi:volume-high', 'volume-high')}"></span><input type="range" min="0" max="100" value="${average}" style="--volume:${average}%" data-group-volume data-base-volume="${average}" ${group.completeness !== 'complete' ? 'disabled' : ''}><output>${average}%</output></label></div>` : ''
   const powerAll = `<button class="media-session-power-all" data-session-power-all aria-label="Spegni intera sessione" title="Spegni intera sessione"><span class="mdi-mask" style="${mdiStyle('mdi:power', 'power')}"></span></button>`
   $('#zones-master').innerHTML = source + master + powerAll
   const activeRows = playing.map((player) => {
     const volume = Number.isFinite(Number(player.volume)) ? Number(player.volume) : 0
     const power = player.capabilities?.turn_off ? `<button class="media-zone-power" data-zone-power="${esc(player.id)}" aria-label="Spegni ${esc(player.room)}" title="Spegni ${esc(player.room)}"><span class="mdi-mask" style="${mdiStyle('mdi:power', 'power')}"></span></button>` : ''
-    return `<div class="media-zone media-zone-playing"><div class="media-zone-name"><b>${esc(player.room)}</b><small>${esc(player.name)}</small></div>${power}<label class="media-zone-level"><span class="mdi-mask" style="${mdiStyle(player.muted ? 'mdi:volume-off' : 'mdi:volume-high', 'volume-high')}"></span><input type="range" min="0" max="100" value="${volume}" style="--volume:${volume}%" data-zone-volume data-device-id="${esc(player.id)}" ${!player.capabilities?.set_volume ? 'disabled' : ''}><output>${volume}%</output></label></div>`
+    return `<div class="media-zone media-zone-playing"><div class="media-zone-name"><b>${esc(player.room)}</b><small>${esc(player.name)}</small></div>${power}<label class="media-zone-level"><span class="mdi-mask" style="${mdiStyle(player.muted ? 'mdi:volume-off' : 'mdi:volume-high', 'volume-high')}"></span><input type="range" min="0" max="100" value="${volume}" style="--volume:${volume}%" data-zone-volume data-base-volume="${volume}" data-device-id="${esc(player.id)}" ${!player.capabilities?.set_volume ? 'disabled' : ''}><output>${volume}%</output></label></div>`
   }).join('')
   const choices = players.map((player) => {
     const checked = members.has(player.registry_id)
@@ -884,8 +884,15 @@ async function setMediaGroupVolume(input) {
   if (!group?.group_id) return
   input.disabled = true
   try {
-    const response = await fetch(apiUrl(`api/media/groups/${encodeURIComponent(group.group_id)}/command`), {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({action:'set_group_volume', value:Number(input.value), resource_revision:group.resource_revision})})
-    if (!response.ok) throw new Error((await response.json().catch(() => ({}))).detail || `HTTP ${response.status}`)
+    if (activeMediaPlayer?.provider === 'control4') {
+      const sliders = [...document.querySelectorAll('#media-zones-list [data-zone-volume]')].filter((slider) => !slider.disabled)
+      const results = await Promise.allSettled(sliders.map((slider) => postDeviceCommand(slider.dataset.deviceId, 'set_volume', Number(slider.value))))
+      const failed = results.find((result) => result.status === 'rejected')
+      if (failed) throw failed.reason
+    } else {
+      const response = await fetch(apiUrl(`api/media/groups/${encodeURIComponent(group.group_id)}/command`), {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({action:'set_group_volume', value:Number(input.value), resource_revision:group.resource_revision})})
+      if (!response.ok) throw new Error((await response.json().catch(() => ({}))).detail || `HTTP ${response.status}`)
+    }
     await refresh()
   } catch (error) { fail(error) } finally { input.disabled = false }
 }
@@ -1667,12 +1674,15 @@ $('#zones-master').addEventListener('input', (event) => {
   const value = Number(event.target.value)
   event.target.style.setProperty('--volume', `${value}%`)
   event.target.nextElementSibling.textContent = `${value}%`
+  const relative = activeMediaPlayer?.provider === 'control4'
+  const delta = value - Number(event.target.dataset.baseVolume || value)
   document.querySelectorAll('#media-zones-list [data-zone-volume]').forEach((slider) => {
-    slider.value = value
-    slider.style.setProperty('--volume', `${value}%`)
-    slider.closest('.media-zone-level').querySelector('output').textContent = `${value}%`
+    const next = relative ? Math.max(0, Math.min(100, Number(slider.dataset.baseVolume || 0) + delta)) : value
+    slider.value = next
+    slider.style.setProperty('--volume', `${next}%`)
+    slider.closest('.media-zone-level').querySelector('output').textContent = `${next}%`
     const player = currentDevices.find((item) => String(item.id) === slider.dataset.deviceId)
-    if (player) player.volume = value
+    if (player) player.volume = next
   })
 })
 $('#zones-master').addEventListener('change', (event) => { if (event.target.matches('[data-group-volume]')) setMediaGroupVolume(event.target) })

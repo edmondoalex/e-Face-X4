@@ -126,7 +126,7 @@ def test_x4_shell_and_brand_assets_are_served() -> None:
     assert 'evoice.css' in page.text
     for label in ("Guarda", "Ascolta", "Luci", "Extra", "Scenari", "Oscuranti", "Comfort", "Sicurezza"):
         assert f'title="{label}"' in page.text
-    assert 'src="assets/brand-horizontal.png?v=2.20.7"' in page.text
+    assert 'src="assets/brand-horizontal.png?v=2.20.8"' in page.text
     assert 'alt="e-Face X4"' in page.text
     assert 'class="header-wordmark"' not in page.text
     assert client.get("/assets/brand-horizontal.png").status_code == 200
@@ -698,12 +698,13 @@ def test_echo_without_evoice_tts_capability_does_not_offer_tts() -> None:
 
 
 def test_local_evoice_player_gets_stable_artwork_fingerprint() -> None:
-    raw = {"registry_id": "echo-1", "entity_id": "media_player.echo", "name": "Echo", "media": {"title": "Happier", "artist": "Artist", "album": "Album"}}
+    raw = {"registry_id": "echo-1", "entity_id": "media_player.echo", "name": "Echo", "supported_features": 256, "media": {"title": "Happier", "artist": "Artist", "album": "Album"}}
     first = normalize_local_player(raw)
     second = normalize_local_player(raw)
     assert len(first["content_fingerprint"]) == 64
     assert first["content_fingerprint"] == second["content_fingerprint"]
     assert first["capabilities"]["artwork"] is True
+    assert first["capabilities"]["turn_off"] is True
 
 
 def test_media_configuration_includes_installation(monkeypatch, tmp_path) -> None:
@@ -745,6 +746,9 @@ def test_media_ui_has_room_selection_and_typed_controls() -> None:
     assert "['playing','buffering'].includes(state)" in script
     assert "consumedPlayback.has(playbackKey)" in script
     assert "player.provider === 'evoice'" in script
+    assert "activeMediaPlayer?.provider === 'control4'" in script
+    assert 'data-base-volume="${volume}"' in script
+    assert "Number(slider.dataset.baseVolume || 0) + delta" in script
     assert "`${player.provider}|${playbackIdentity}`" in script
     assert "!['alarm_partition', 'alarm_scenario', 'alarm_system'].includes(device.kind)" in script
     assert "data-zone-volume" in script
