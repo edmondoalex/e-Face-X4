@@ -515,7 +515,7 @@ function activeMediaSessions() {
   for (const player of active) {
     if (consumed.has(player.registry_id)) continue
     const playbackIdentity = String(player.title ? `${player.title}|${player.artist || ''}|${player.album || ''}` : player.content_fingerprint || '').trim().toLocaleLowerCase('it')
-    const playbackKey = player.provider === 'evoice' && playbackIdentity.replace('|','') ? `${player.provider}|${String(player.room || '').trim().toLocaleLowerCase('it')}|${playbackIdentity}` : ''
+    const playbackKey = player.provider === 'evoice' && playbackIdentity.replaceAll('|','') ? `${player.provider}|${playbackIdentity}` : ''
     if (playbackKey && consumedPlayback.has(playbackKey)) continue
     const group = mediaGroupFor(player)
     const members = group ? active.filter((item) => item.provider === player.provider && group.member_registry_ids.includes(item.registry_id)) : [player]

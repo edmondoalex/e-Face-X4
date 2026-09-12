@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.19.7 — 2026-09-12
+
+- Consolidati gli alias dello stesso Echo anche quando e-Voice assegna stanze tecniche differenti.
+- Basata la deduplicazione e-Voice sul contenuto riprodotto anziché sul nome della stanza.
+- Mantenute escluse dalla deduplicazione tutte le sessioni Control4.
+
 ## 2.19.6 — 2026-09-12
 
 - Consolidate le entità duplicate dello stesso Echo in una sola sessione e-Voice.
