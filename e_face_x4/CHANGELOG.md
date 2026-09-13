@@ -1,5 +1,9 @@
 # Changelog
 
+## 2.20.73 — 2026-09-13
+- Aggiunta una diagnosi riservata dei comandi Navigator `GetSettings` per Amazon Music, Deezer e Qobuz, più `LogInCommand` Amazon con i soli segnaposto del driver. La risposta segnala soltanto esito, struttura e presenza di un link; non espone credenziali né URL.
+- Nessun login cliente attivato: la compatibilità dei comandi PROTOCOL tramite Director REST va verificata sul driver reale.
+
 ## 2.20.72 — 2026-09-13
 - La prova Amazon Music esegue una diagnosi completa in un clic: individua il link nella risposta del comando, nella scheda driver o nelle variabili e segnala se è cambiato dopo l'azione, senza esporre il valore.
 - La diagnostica distingue inoltre le letture non disponibili dai campi leggibili ma privi del link.

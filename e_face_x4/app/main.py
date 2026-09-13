@@ -41,7 +41,7 @@ from .connectors.control4_media import cached_control4_icon, cached_control4_ico
 from .connectors.supervisor import discover_addon_url, discover_host_url
 from .demo import dashboard as demo_dashboard
 
-VERSION = "2.20.72"
+VERSION = "2.20.73"
 STATIC = Path(__file__).parent / "static"
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s [e-face-x4] %(message)s")
 
@@ -434,6 +434,62 @@ def create_app() -> FastAPI:
             "variable_link_changed": bool(after["variable_links"] - before["variable_links"]),
             "note": "Diagnostica riservata: restituisce solo presenza e variazione del link, mai il link stesso.",
         }, headers={"Cache-Control": "no-store, private"})
+
+    @app.post("/api/admin/control4/music-navigator-probe")
+    async def admin_control4_music_navigator_probe(request: Request) -> Response:
+        require_admin(request)
+        config = load_control4_config()
+        if not config.get("username") or not config.get("password"):
+            raise HTTPException(status_code=409, detail="Control4 non configurato in e-Face")
+        try:
+            director, _ = await control4_director(config)
+            all_items = await director.get_all_item_info()
+        except Exception as exc:
+            logging.warning("Ricognizione Navigator Control4 non disponibile: %s", type(exc).__name__)
+            raise HTTPException(status_code=502, detail="Director non raggiungibile") from exc
+
+        def summary(raw: object) -> dict[str, object]:
+            try:
+                envelope = json.loads(raw) if isinstance(raw, str) else raw
+            except (TypeError, ValueError):
+                envelope = raw
+            fields = sorted(str(key) for key in envelope if re.fullmatch(r"[A-Za-z_][A-Za-z0-9_-]{0,49}", str(key))) if isinstance(envelope, dict) else []
+            result = envelope.get("result") if isinstance(envelope, dict) else None
+            kind = "empty" if result in (None, "") else "json" if isinstance(result, (dict, list)) or (isinstance(result, str) and result.lstrip().startswith(("{", "["))) else "text"
+            serial = json.dumps(envelope, ensure_ascii=False) if isinstance(envelope, (dict, list)) else str(envelope)
+            serial = serial.replace("\\/", "/")[:100_000]
+            return {"accepted": True, "fields": fields, "result_format": kind,
+                    "pairing_link_present": bool(re.search(r"https://link\.ctrl4\.co/[A-Za-z0-9_/-]{1,160}", serial))}
+
+        async def run(item_id: int, command: str, params: dict[str, str]) -> dict[str, object]:
+            try:
+                raw = await director.send_post_request(f"/api/v1/items/{item_id}/commands", command, params, False)
+                return summary(raw)
+            except Exception as exc:
+                return {"accepted": False, "error_type": type(exc).__name__}
+
+        targets = {"Amazon Music": "amazon", "Deezer": "deezer", "Qobuz": "qobuz"}
+        found: dict[str, dict] = {}
+        for item in all_items if isinstance(all_items, list) else []:
+            if not isinstance(item, dict) or str(item.get("proxy") or "").lower() != "media_service" or not str(item.get("id") or "").isdigit():
+                continue
+            name = str(item.get("name") or "")
+            if name in targets and (name not in found or "deviceOrder" not in item):
+                found[name] = item
+        results: list[dict[str, object]] = []
+        for name, service in targets.items():
+            item = found.get(name)
+            if not item:
+                results.append({"service": service, "found": False})
+                continue
+            item_id = int(item["id"])
+            entry: dict[str, object] = {"service": service, "found": True, "driver_id": item_id,
+                                        "get_settings": await run(item_id, "GetSettings", {})}
+            if service == "amazon":
+                entry["login_command"] = await run(item_id, "LogInCommand", {"username": "username", "password": "password"})
+                entry["get_settings_after_login"] = await run(item_id, "GetSettings", {})
+            results.append(entry)
+        return JSONResponse({"drivers": results, "note": "Solo struttura ed esito dei comandi; nessun valore, password o link."}, headers={"Cache-Control": "no-store, private"})
 
     @app.get("/api/admin/control4/artwork-diagnostic")
     async def admin_control4_artwork_diagnostic(request: Request) -> dict:

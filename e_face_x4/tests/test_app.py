@@ -1143,6 +1143,49 @@ def test_amazon_auth_action_probe_detects_property_link_without_returning_it(mon
     assert "secret-old" not in response.text and "secret-new" not in response.text
 
 
+def test_music_navigator_probe_redacts_settings_and_pairing_url(monkeypatch, tmp_path) -> None:
+    import app.main as main_module
+    from app.user_auth import create_admin
+
+    monkeypatch.setenv("EFACE_AUTH_DIR", str(tmp_path / "auth"))
+    create_admin("password-admin-lunga")
+    monkeypatch.setattr(main_module, "load_control4_config", lambda: {"host": "192.168.3.10", "username": "private", "password": "director-secret"})
+
+    class Director:
+        async def get_all_item_info(self):
+            return [{"id": 1643, "name": "Amazon Music", "proxy": "media_service"},
+                    {"id": 1641, "name": "Deezer", "proxy": "media_service"},
+                    {"id": 1647, "name": "Qobuz", "proxy": "media_service"}]
+
+        async def send_post_request(self, uri, command, params, is_async):
+            assert is_async is False
+            if command == "LogInCommand":
+                assert uri == "/api/v1/items/1643/commands"
+                assert params == {"username": "username", "password": "password"}
+                return '{"name":"LogInCommand","result":"https://link.ctrl4.co/private-code","seq":1}'
+            assert command == "GetSettings" and params == {}
+            if uri == "/api/v1/items/1641/commands":
+                return '{"name":"GetSettings","result":{"status":"Logged Out","password":"private-deezer-password"},"seq":2}'
+            return '{"name":"GetSettings","result":"ok","seq":3}'
+
+    async def director(config):
+        return Director(), "director-token"
+
+    monkeypatch.setattr(main_module, "control4_director", director)
+    client = TestClient(main_module.create_app())
+    path = "/api/admin/control4/music-navigator-probe"
+    assert client.post(path).status_code == 401
+    assert client.post("/api/auth/login", json={"username": "admin", "password": "password-admin-lunga"}).status_code == 200
+    response = client.post(path)
+    assert response.status_code == 200
+    drivers = response.json()["drivers"]
+    assert len(drivers) == 3
+    assert drivers[0]["login_command"]["pairing_link_present"] is True
+    assert drivers[1]["get_settings"]["accepted"] is True
+    for secret in ("private-code", "private-deezer-password", "director-secret", "director-token"):
+        assert secret not in response.text
+
+
 def test_control4_command_does_not_require_evoice_enabled(monkeypatch, tmp_path) -> None:
     import app.main as main_module
 

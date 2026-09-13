@@ -180,9 +180,22 @@ $('#control4-service-link').addEventListener('click', async (event) => {
 })
 const pairingControls = document.createElement('div')
 pairingControls.className = 'control4-actions'
-pairingControls.innerHTML = '<button type="button" data-music-pairing-probe="tunein">VERIFICA ASSOCIAZIONE TUNEIN</button><button type="button" data-music-pairing-probe="amazon">VERIFICA ASSOCIAZIONE AMAZON</button><button type="button" data-music-pairing-probe="tidal">VERIFICA ASSOCIAZIONE TIDAL</button><button type="button" id="amazon-auth-action-probe">PROVA LINK AMAZON</button>'
+pairingControls.innerHTML = '<button type="button" data-music-pairing-probe="tunein">VERIFICA ASSOCIAZIONE TUNEIN</button><button type="button" data-music-pairing-probe="amazon">VERIFICA ASSOCIAZIONE AMAZON</button><button type="button" data-music-pairing-probe="tidal">VERIFICA ASSOCIAZIONE TIDAL</button><button type="button" id="amazon-auth-action-probe">PROVA LINK AMAZON</button><button type="button" id="music-navigator-probe">DIAGNOSI LOGIN SERVIZI</button>'
 $('#control4-result').before(pairingControls)
 pairingControls.addEventListener('click', async (event) => {
+  if (event.target.closest('#music-navigator-probe')) {
+    const button = event.target.closest('#music-navigator-probe')
+    button.disabled = true
+    try {
+      const response = await fetch(apiUrl('../api/admin/control4/music-navigator-probe'), { method: 'POST', cache: 'no-store' })
+      const data = await response.json().catch(() => ({}))
+      if (!response.ok) throw new Error(data.detail || `HTTP ${response.status}`)
+      const describe = (probe) => !probe ? '-' : `${probe.accepted ? 'OK' : 'NON DISPONIBILE'} · ${esc((probe.fields || []).join(', ') || probe.error_type || 'nessun campo')} · ${esc(probe.result_format || '-')} · link: ${probe.pairing_link_present ? 'SÌ' : 'NO'}`
+      $('#control4-result').innerHTML = `<b>Diagnosi login servizi · nessun valore mostrato</b>${(data.drivers || []).map(item => `<span>${esc(item.service)} · ${item.found ? `driver ${Number(item.driver_id)}` : 'non trovato'} · GetSettings: ${describe(item.get_settings)}${item.login_command ? ` · Login Navigator: ${describe(item.login_command)} · GetSettings dopo: ${describe(item.get_settings_after_login)}` : ''}</span>`).join('')}`
+      $('#control4-result').hidden = false
+    } catch (error) { notice(error.message) } finally { button.disabled = false }
+    return
+  }
   if (event.target.closest('#amazon-auth-action-probe')) {
     const button = event.target.closest('#amazon-auth-action-probe')
     button.disabled = true

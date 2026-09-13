@@ -68,6 +68,8 @@ I tre pacchetti contengono Lua cifrato (`lua/squished.lua.encrypted`): il compor
 
 La documentazione Deezer del pacchetto conferma che un account a pagamento è richiesto. Il file XML indica `Debug Mode` per tutti e tre, con default `Off`; questo non prova che disattivarlo impedisca il logging in chiaro della password, già osservato nel driver Deezer attivo. Nessun form credenziali cliente va esposto finché tale rischio non è risolto.
 
+In e-Face 2.20.73 un'unica diagnosi admin prova `GetSettings` per Amazon/Deezer/Qobuz e `LogInCommand` Amazon con i segnaposto dichiarati dal manifest. Restituisce solo esito, nomi di campo e presenza di un eventuale link; non pubblica valori della risposta, account, password o URL. L'esito reale determinerà se i comandi Navigator `PROTOCOL` sono raggiungibili dall'API REST usata da e-Face. Nessun pulsante cliente viene attivato sulla base del solo manifest.
+
 ## Criteri di completamento
 
 1. Il cliente rinnova un account scaduto usando solo e-Face e il provider, senza UI Control4; la stessa sorgente riproduce poi musica.
