@@ -168,10 +168,47 @@ $('#intercom-test').addEventListener('click', async () => {
   } catch(error) { message(error.message) } finally { button.disabled = false }
 })
 
+function renderInstallation(data) {
+  const target = $('#installation-results')
+  target.replaceChildren()
+  const checks = [
+    [data.asterisk_tcp ? '✓' : '!', 'Asterisk', data.asterisk_tcp ? 'WebSocket raggiungibile dalla rete e-Face' : 'Non raggiungibile: controlla IP, porta e add-on'],
+    [data.doorbird_tcp ? '✓' : '!', 'DoorBird', data.doorbird_tcp ? 'Dispositivo raggiungibile dalla rete e-Face' : 'Non raggiungibile: controlla IP e rete'],
+    [data.turn_configured ? '✓' : '!', 'TURN', data.turn_configured ? 'Credenziali salvate in e-Face' : 'Configura server e credenziali nel pannello Videocitofono'],
+    [data.turn_udp ? '✓' : data.turn_udp_tested ? '!' : '–', 'Rete audio remota', data.turn_udp ? 'STUN risponde via UDP; autenticazione e audio da verificare con una chiamata' : data.turn_udp_tested ? 'UDP non risponde: controlla VPS e firewall' : 'Test UDP non disponibile per questa configurazione TURN'],
+    ['–', 'Attivazione VPS', 'Codice impianto e provisioning automatico: da sviluppare'],
+    ['–', 'Chiamata', 'Esegui il test audio reale da LAN e rete mobile'],
+  ]
+  for (const [symbol, title, detail] of checks) {
+    const row = document.createElement('p')
+    const heading = document.createElement('strong')
+    heading.textContent = `${symbol} ${title}: `
+    row.append(heading, document.createTextNode(detail))
+    target.append(row)
+  }
+}
+
+$('#installation-back').addEventListener('click', () => closePanel('installation-config'))
+$('#installation-check').addEventListener('click', async (event) => {
+  const button = event.currentTarget
+  button.disabled = true
+  $('#installation-results').textContent = 'Verifica in corso…'
+  try { renderInstallation(await request('api/admin/installation/preflight')) }
+  catch(error) { $('#installation-results').textContent = error.message }
+  finally { button.disabled = false }
+})
+
 async function initialize() {
   const status = await request('api/auth/status')
   $('#tools-admin-nav').hidden = status.enabled && status.role !== 'admin'
   if (status.enabled && status.role === 'admin') {
+    const setup = document.createElement('button')
+    setup.type = 'button'
+    setup.id = 'installation-tool'
+    setup.className = 'tool-card'
+    setup.innerHTML = '<span>◇</span><div><b>Preparazione impianto</b><small>Controlli per la futura attivazione guidata</small></div><i>›</i>'
+    setup.addEventListener('click', () => openPanel('installation-config'))
+    $('#admin-tools .tools-grid').prepend(setup)
     const link = document.createElement('a')
     link.href = api('intercom')
     link.className = 'tool-card'

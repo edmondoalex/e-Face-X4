@@ -34,6 +34,9 @@ def save_turn(payload: dict) -> dict:
     url = str(payload["turn_url"]).strip()
     if url and not re.fullmatch(r"turns?:[A-Za-z0-9.-]+(?::[0-9]{1,5})?(?:\?transport=(?:udp|tcp))?", url):
         raise ValueError("Indirizzo TURN non valido")
+    port = re.search(r":([0-9]{1,5})(?:\?|$)", url)
+    if port and not 1 <= int(port.group(1)) <= 65535:
+        raise ValueError("Porta TURN non valida")
     username = str(payload["turn_username"]).strip()
     password = str(payload["turn_password"])
     if url and (not username or not password):

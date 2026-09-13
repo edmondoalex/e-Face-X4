@@ -2,6 +2,8 @@
 
 Stato: **DA FARE — requisito tassativo prima della distribuzione in campo**.
 
+Primo incremento (e-Face 2.20.45): pannello admin **Preparazione impianto** con controlli di sola lettura per Asterisk, DoorBird e raggiungibilità UDP del server TURN. Non configura Asterisk, non attiva un impianto sulla VPS e non sostituisce la prova audio reale. Il task resta aperto finché tutti i criteri sotto sono soddisfatti.
+
 ## Obiettivo
 
 Distribuire gli stessi add-on e la stessa configurazione di base in tutti gli impianti. L'installatore deve poter attivare e-Face, Asterisk e il videocitofono con una procedura guidata, senza modificare file di configurazione, copiare password tra macchine o eseguire comandi Asterisk manuali.

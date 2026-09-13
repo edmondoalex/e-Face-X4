@@ -120,7 +120,7 @@ def test_intercom_dashboard_stores_only_local_settings(monkeypatch, tmp_path) ->
     assert 'id="tools-admin-nav"' in page
     assert 'id="intercom-tool"' in page
     assert 'id="users-tool"' in page
-    assert "tools-dashboard.js?v=2.20.44" in page
+    assert "tools-dashboard.js?v=2.20.45" in page
 
 
 def test_intercom_test_phone_requires_admin_and_same_origin(monkeypatch, tmp_path) -> None:
@@ -158,6 +158,31 @@ def test_intercom_test_phone_requires_admin_and_same_origin(monkeypatch, tmp_pat
         with admin.websocket_connect("/api/intercom/sip", headers={"origin": "https://evil.example"}, subprotocols=["sip"]):
             pass
     assert denied.value.code == 1008
+
+
+def test_installation_preflight_is_admin_only_and_read_only(monkeypatch, tmp_path) -> None:
+    monkeypatch.setenv("EFACE_AUTH_DIR", str(tmp_path / "auth"))
+    monkeypatch.setenv("EFACE_INTERCOM_TURN_SETTINGS", str(tmp_path / "turn.json"))
+    from app import installation, intercom_settings
+    from app.user_auth import create_admin
+
+    create_admin("password-admin-lunga")
+    intercom_settings.save_turn({"turn_url": "turn:169.58.200.54:3478?transport=udp", "turn_username": "eface", "turn_password": "test-secret"})
+
+    async def reachable(_host, _port):
+        return True
+
+    monkeypatch.setattr(installation, "_tcp_reachable", reachable)
+    monkeypatch.setattr(installation, "_stun_binding", lambda host, port: host == "169.58.200.54" and port == 3478)
+    client = TestClient(create_app())
+    assert client.get("/api/admin/installation/preflight").status_code == 401
+    assert client.post("/api/auth/login", json={"username": "admin", "password": "password-admin-lunga"}).status_code == 200
+    result = client.get("/api/admin/installation/preflight").json()
+    assert result["asterisk_tcp"] is True
+    assert result["doorbird_tcp"] is True
+    assert result["turn_udp"] is True
+    assert result["provisioning_available"] is False
+    assert "test-secret" not in str(result)
 
 
 def test_install_brand_and_theme_are_consistent() -> None:

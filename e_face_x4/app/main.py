@@ -25,6 +25,7 @@ from .control4 import load_control4_config, public_control4_config, save_control
 from .installer_auth import COOKIE, create_session, valid_session
 from . import user_auth
 from . import intercom_settings
+from . import installation
 from .media_preferences import apply_preferences, load_preferences, save_preferences
 from .source_icons import delete_source_icon, load_builtin_source_icon, load_source_icon, save_source_icon
 from .backgrounds import CARD_THEMES, PRESETS, load_background, load_background_image, load_backgrounds, load_card_theme, load_card_glow, load_room_order, load_security_order, save_background_image, save_card_theme, save_card_glow, save_room_order, save_security_order, save_inherit, save_preset
@@ -34,7 +35,7 @@ from .connectors.control4_media import cached_control4_icon, cached_control4_ico
 from .connectors.supervisor import discover_addon_url, discover_host_url
 from .demo import dashboard as demo_dashboard
 
-VERSION = "2.20.44"
+VERSION = "2.20.45"
 STATIC = Path(__file__).parent / "static"
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s [e-face-x4] %(message)s")
 
@@ -79,6 +80,11 @@ def create_app() -> FastAPI:
         if username != "admin":
             raise HTTPException(status_code=403, detail="Accesso amministratore richiesto")
         return username
+
+    @app.get("/api/admin/installation/preflight")
+    async def admin_installation_preflight(request: Request) -> dict:
+        require_admin(request)
+        return await installation.preflight()
 
     @app.get("/api/admin/users")
     async def admin_users(request: Request) -> dict:
