@@ -4,7 +4,9 @@
 .page-device-list article.device-cover-open{background:linear-gradient(100deg,rgba(97,216,242,var(--card-glow,.24)),transparent 72%),var(--user-card)!important}
 .page-device-list article.device-climate-heat{background:linear-gradient(100deg,rgba(255,192,69,.24),transparent 72%),var(--user-card)!important}
 .page-device-list article.device-climate-cool{background:linear-gradient(100deg,rgba(97,216,242,.24),transparent 72%),var(--user-card)!important}
-.scenario-card.active,.security-scenario.active{background:linear-gradient(100deg,rgba(255,211,78,.23),transparent 72%),var(--user-card)!important}
+.scenario-card.active,.security-scenario.partial.active{background:linear-gradient(100deg,rgba(255,211,78,.23),transparent 72%),var(--user-card)!important}
+.security-scenario.arm.active{background:linear-gradient(100deg,rgba(255,82,109,.25),transparent 72%),var(--user-card)!important}
+.security-scenario.disarm.active{background:linear-gradient(100deg,rgba(101,234,174,.22),transparent 72%),var(--user-card)!important}
 .security-area.ready{background:linear-gradient(100deg,rgba(101,234,174,.20),transparent 72%),var(--user-card)!important}
 .security-area.armed-delayed{background:linear-gradient(100deg,rgba(255,192,69,.22),transparent 72%),var(--user-card)!important}
 .security-area.armed-instant,.security-area.alarm{background:linear-gradient(100deg,rgba(255,82,109,.25),transparent 72%),var(--user-card)!important}

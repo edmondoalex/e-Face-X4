@@ -61,6 +61,22 @@ def test_ksenia_normalizes_partitions_and_zones() -> None:
     assert items[3]["arm_status"] == "P"
 
 
+def test_ksenia_total_arms_unique_away_scenario_only() -> None:
+    scenarios = [
+        {"type": "scenarios", "id": 2, "name": "Away", "static": {"CAT": "ARM"}},
+        {"type": "scenarios", "id": 3, "name": "A Fumare", "static": {"CAT": "PARTIAL"}},
+    ]
+    def active(description: str, status: str, entries: list[dict] = scenarios) -> str | None:
+        items = normalize_ksenia({"entities": [*entries, {"type": "systems", "id": 1, "realtime": {"ARM": {"D": description, "S": status}}}]})
+        return next(item for item in items if item["kind"] == "alarm_system")["active_scenario_id"]
+    assert active("Inserito totale", "T") == "ksenia-scenario:2"
+    assert active("Totale", "T_OUT") == "ksenia-scenario:2"
+    assert active("A Fumare", "P") == "ksenia-scenario:3"
+    assert active("Modalità personalizzata", "T") is None
+    assert active("Inserito totale", "P") is None
+    assert active("Inserito totale", "T", scenarios + [scenarios[0]]) is None
+
+
 def test_alarm_and_room_media_navigation_are_present() -> None:
     script = TestClient(create_app()).get("/assets/app.js").text
     assert "renderSecurityDevices" in script

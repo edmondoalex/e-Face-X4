@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from typing import Any
+import re
 
 import httpx
 
@@ -34,6 +35,22 @@ def _zone_sensor(name: str, category: str) -> tuple[str, str]:
     if category == "IMOV" or any(word in label for word in ("IR ", "SPIDER", "BX80")):
         return "motion_indoor", "mdi:motion-sensor"
     return "contact", "mdi:access-point"
+
+
+def _active_scenario_id(items: list[dict[str, Any]], description: str, status: str) -> str | None:
+    scenarios = [item for item in items if item.get("kind") == "alarm_scenario"]
+    name = description.strip().casefold()
+    matches = [item for item in scenarios if str(item.get("name") or "").strip().casefold() == name] if name else []
+    if len(matches) == 1:
+        return str(matches[0]["id"])
+    if matches:
+        return None
+    total = bool(re.fullmatch(r"(?:inserit[oa]|inserimento)?\s*total[ei](?:\s*\([^)]*\))?", name))
+    if total and status in {"T", "T_IN", "T_OUT"}:
+        away = [item for item in scenarios if str(item.get("name") or "").strip().casefold() == "away" and item.get("category") == "ARM"]
+        if len(away) == 1:
+            return str(away[0]["id"])
+    return None
 
 
 def normalize_ksenia(payload: dict[str, Any]) -> list[dict[str, Any]]:
@@ -84,6 +101,9 @@ def normalize_ksenia(payload: dict[str, Any]) -> list[dict[str, Any]]:
             description = str(arm.get("D") or "").strip()
             status = str(arm.get("S") or "").strip().upper()
             items.append({"id": f"ksenia-system:{source_id}", "source_id": source_id, "provider": "ksenia", "kind": "alarm_system", "name": "Sistema di sicurezza", "room": "", "state": status, "arm_description": description, "arm_status": status, "icon": "mdi:shield-home-outline"})
+    for item in items:
+        if item.get("kind") == "alarm_system":
+            item["active_scenario_id"] = _active_scenario_id(items, item.get("arm_description", ""), item.get("arm_status", ""))
     return items
 
 

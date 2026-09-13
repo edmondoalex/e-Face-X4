@@ -390,9 +390,7 @@ function renderSecurityDevices(devices) {
   const hasInstant = partitions.some((area) => area.state === 'ARMED' && area.arm_mode === 'instant')
   const hasDelayed = partitions.some((area) => area.state === 'ARMED' && area.arm_mode !== 'instant')
   const modeName = system?.arm_description || (armedCount ? 'Inserimento attivo' : 'Disinserito')
-  const modeKey = String(system?.arm_description || '').trim().toLocaleLowerCase('it')
-  const matchingScenarios = modeKey ? scenarios.filter((scenario) => String(scenario.name || '').trim().toLocaleLowerCase('it') === modeKey) : []
-  const activeScenarioId = matchingScenarios.length === 1 ? String(matchingScenarios[0].id) : ''
+  const activeScenarioId = String(system?.active_scenario_id || '')
   const summaryClass = issueCount || hasInstant ? 'instant' : hasDelayed ? 'delayed' : 'ready'
   const summary = `<section class="security-summary security-summary-${summaryClass}"><span class="mdi-mask" style="${mdiStyle(issueCount ? 'mdi:shield-alert-outline' : armedCount ? 'mdi:shield-lock-outline' : 'mdi:shield-check-outline', 'shield-home')}"></span><strong class="security-summary-state">${issueCount ? `${issueCount} ${issueCount === 1 ? 'allarme attivo' : 'allarmi attivi'}` : armedCount ? `${armedCount} ${armedCount === 1 ? 'area inserita' : 'aree inserite'}` : 'Tutto sotto controllo'}</strong><div class="security-summary-mode"><small>MODALITÀ</small><strong>${esc(modeName)}</strong></div></section>`
   const areaCards = partitions.map((device) => {
