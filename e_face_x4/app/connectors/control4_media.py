@@ -23,7 +23,7 @@ _source_icon_content: dict[int, tuple[str, bytes]] = {}
 _source_labels: dict[int, str] = {}
 _source_remote_actions: dict[int, set[str]] = {}
 _source_custom_buttons: dict[int, tuple[int, set[str]]] = {}
-_ARTWORK_HOSTS = ("i.scdn.co", "mosaic.scdn.co", "spotifycdn.com", "mzstatic.com", "media-amazon.com", "tunein.com")
+_ARTWORK_HOSTS = ("i.scdn.co", "mosaic.scdn.co", "spotifycdn.com", "mzstatic.com", "media-amazon.com", "tunein.com", "sonosradio.imgix.net")
 
 
 def _trusted_artwork_url(url: httpx.URL, controller_host: str, extra_hosts: str = "") -> bool:

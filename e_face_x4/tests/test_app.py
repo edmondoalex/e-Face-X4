@@ -859,6 +859,14 @@ async def test_control4_cover_accepts_local_media_host_only_on_controller_subnet
     assert (await extra_connector.artwork("c4room:51", fingerprint)).status_code == 200
 
 
+def test_control4_cover_accepts_observed_sonos_radio_cdn_only() -> None:
+    import httpx
+    from app.connectors.control4_media import _trusted_artwork_url
+
+    assert _trusted_artwork_url(httpx.URL("https://sonosradio.imgix.net/cover.jpg"), "192.168.3.10")
+    assert not _trusted_artwork_url(httpx.URL("https://other.imgix.net/cover.jpg"), "192.168.3.10")
+
+
 
 def test_control4_cover_diagnostic_uses_saved_login_without_leaking_url(monkeypatch, tmp_path) -> None:
     import httpx
