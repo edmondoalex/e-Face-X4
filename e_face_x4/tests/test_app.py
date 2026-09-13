@@ -880,6 +880,29 @@ def test_control4_cover_accepts_any_public_image_host_but_not_private_dns(monkey
     assert not _trusted_artwork_url(httpx.URL("https://other.imgix.net/cover.jpg"), "192.168.3.10")
 
 
+@pytest.mark.asyncio
+async def test_control4_cover_maps_director_alias_only_to_configured_controller(monkeypatch) -> None:
+    import httpx
+    from app.connectors import control4_media
+
+    fingerprint = "fingerprint-director"
+    control4_media._artwork_urls["c4room:51"] = (fingerprint, "http://director:80/album-art.jpg")
+    seen = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.append(str(request.url))
+        return httpx.Response(200, content=b"jpeg", headers={"Content-Type": "image/jpeg"})
+
+    original = httpx.AsyncClient
+    monkeypatch.setattr(control4_media.httpx, "AsyncClient", lambda **kwargs: original(transport=httpx.MockTransport(handler), **kwargs))
+    connector = Control4MediaConnector({"host": "192.168.3.10"})
+    assert (await connector.artwork("c4room:51", fingerprint)).status_code == 200
+    assert seen == ["http://192.168.3.10/album-art.jpg"]
+    control4_media._artwork_urls["c4room:51"] = (fingerprint, "http://director:8080/private")
+    assert (await connector.artwork("c4room:51", fingerprint)).status_code == 415
+    assert len(seen) == 1
+
+
 
 def test_control4_cover_diagnostic_uses_saved_login_without_leaking_url(monkeypatch, tmp_path) -> None:
     import httpx

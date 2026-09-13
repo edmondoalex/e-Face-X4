@@ -1,5 +1,7 @@
 # TASK — Accesso tecnico persistente a Control4 per lo sviluppo
 
+La matrice dei formati media e delle sorgenti realmente osservate è in [CONTROL4_MEDIA_COMPATIBILITY.md](CONTROL4_MEDIA_COMPATIBILITY.md); comprende anche tre casi precedenti ancora da identificare.
+
 Stato: **DA FARE**. Questo task non riguarda la sola cover: deve rendere ripetibile la diagnosi e lo sviluppo delle funzioni Control4 senza dipendere dalla sessione del PC installatore.
 
 ## Stato verificato il 13 settembre 2026

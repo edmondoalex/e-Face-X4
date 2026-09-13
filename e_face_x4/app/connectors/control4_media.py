@@ -260,10 +260,19 @@ class Control4MediaConnector(Connector):
         if not cached or cached[0] != fingerprint:
             return httpx.Response(404)
         url = httpx.URL(cached[1])
+        director_alias = (url.host or "").lower() == "director"
+        if director_alias:
+            if url.scheme != "http" or url.port not in {None, 80} or url.username or url.password:
+                return httpx.Response(415)
+            try:
+                ipaddress.ip_address(str(self.config.get("host") or ""))
+            except ValueError:
+                return httpx.Response(415)
+            url = url.copy_with(host=str(self.config["host"]))
         headers = {"If-None-Match": if_none_match} if if_none_match else {}
         async with httpx.AsyncClient(timeout=5, follow_redirects=False) as client:
-            for _ in range(4):
-                if not await asyncio.to_thread(_trusted_artwork_url, url, str(self.config.get("host") or ""), str(self.config.get("artwork_hosts") or "")):
+            for hop in range(4):
+                if not (director_alias and hop == 0) and not await asyncio.to_thread(_trusted_artwork_url, url, str(self.config.get("host") or ""), str(self.config.get("artwork_hosts") or "")):
                     return httpx.Response(415)
                 response = await client.get(url, headers=headers)
                 if response.status_code not in {301, 302, 303, 307, 308}:

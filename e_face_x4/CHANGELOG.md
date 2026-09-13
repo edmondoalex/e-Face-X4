@@ -1,5 +1,9 @@
 # Changelog
 
+## 2.20.63 — 2026-09-13
+- Le cover Control4 che usano l'alias locale `http://director` vengono scaricate dall'IP del Director configurato in e-Face.
+- Documentate le modalità di origine cover osservate e aggiunti test di compatibilità per l'alias locale.
+
 ## 2.20.62 — 2026-09-13
 - Recuperate tutte le note di rilascio mancanti dalla 2.20.22 alla 2.20.61.
 - Aggiunto un controllo automatico che richiede una voce changelog per la versione corrente.
