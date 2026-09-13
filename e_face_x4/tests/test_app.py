@@ -801,7 +801,7 @@ async def test_control4_cover_follows_only_trusted_image_redirects(monkeypatch) 
     import httpx
     from app.connectors import control4_media
 
-    url = "https://opml.radiotime.com/redirect-cover"
+    url = "http://127.0.0.1/redirect-cover"
     fingerprint = "fingerprint-test"
     control4_media._artwork_urls["c4room:51"] = (fingerprint, url)
     # The initial host must be trusted too; a source outside the allowlist is rejected.
@@ -859,11 +859,15 @@ async def test_control4_cover_accepts_local_media_host_only_on_controller_subnet
     assert (await extra_connector.artwork("c4room:51", fingerprint)).status_code == 200
 
 
-def test_control4_cover_accepts_observed_sonos_radio_cdn_only() -> None:
+def test_control4_cover_accepts_any_public_image_host_but_not_private_dns(monkeypatch) -> None:
     import httpx
+    from app.connectors import control4_media
     from app.connectors.control4_media import _trusted_artwork_url
 
     assert _trusted_artwork_url(httpx.URL("https://sonosradio.imgix.net/cover.jpg"), "192.168.3.10")
+    monkeypatch.setattr(control4_media.socket, "getaddrinfo", lambda *args, **kwargs: [(2, 1, 6, "", ("1.1.1.1", 443))])
+    assert _trusted_artwork_url(httpx.URL("https://other.imgix.net/cover.jpg"), "192.168.3.10")
+    monkeypatch.setattr(control4_media.socket, "getaddrinfo", lambda *args, **kwargs: [(2, 1, 6, "", ("192.168.3.20", 443))])
     assert not _trusted_artwork_url(httpx.URL("https://other.imgix.net/cover.jpg"), "192.168.3.10")
 
 

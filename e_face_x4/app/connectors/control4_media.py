@@ -6,6 +6,7 @@ import hashlib
 import ipaddress
 import json
 import re
+import socket
 from typing import Any, AsyncIterator
 
 import httpx
@@ -31,11 +32,25 @@ def _trusted_artwork_url(url: httpx.URL, controller_host: str, extra_hosts: str 
         return False
     host = (url.host or "").lower()
     if any(host == allowed or host.endswith(f".{allowed}") for allowed in _ARTWORK_HOSTS):
-        return url.port is None or url.port in {80, 443}
+        return True
     # Local media servers often publish artwork on an application-specific high port.
     # Keep privileged ports blocked; never fetch from the Director itself.
     if url.port is not None and url.port not in {80, 443} and url.port < 1024:
         return False
+    try:
+        literal = ipaddress.ip_address(host)
+    except ValueError:
+        literal = None
+    if literal is not None and literal.is_global:
+        return True
+    if literal is None:
+        if not re.fullmatch(r"(?=.{1,253}$)[a-z0-9][a-z0-9.-]*[a-z0-9]", host) or "." not in host or host.endswith((".local", ".internal", ".localhost")):
+            return False
+        try:
+            addresses = {ipaddress.ip_address(entry[4][0]) for entry in socket.getaddrinfo(host, url.port or (443 if url.scheme == "https" else 80), type=socket.SOCK_STREAM)}
+        except (OSError, ValueError):
+            return False
+        return bool(addresses) and all(address.is_global for address in addresses)
     if host in {item.strip() for item in extra_hosts.split(",") if item.strip()}:
         try:
             target = ipaddress.ip_address(host)
@@ -248,7 +263,7 @@ class Control4MediaConnector(Connector):
         headers = {"If-None-Match": if_none_match} if if_none_match else {}
         async with httpx.AsyncClient(timeout=5, follow_redirects=False) as client:
             for _ in range(4):
-                if not _trusted_artwork_url(url, str(self.config.get("host") or ""), str(self.config.get("artwork_hosts") or "")):
+                if not await asyncio.to_thread(_trusted_artwork_url, url, str(self.config.get("host") or ""), str(self.config.get("artwork_hosts") or "")):
                     return httpx.Response(415)
                 response = await client.get(url, headers=headers)
                 if response.status_code not in {301, 302, 303, 307, 308}:
