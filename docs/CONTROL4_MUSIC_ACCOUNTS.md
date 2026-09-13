@@ -10,6 +10,10 @@ Nell'admin Control4, «Ricognizione servizi musicali» legge le sorgenti Ascolta
 
 ## Fase 2 - stato verificato per driver
 
+Ricognizione reale del 2026-09-13: i driver TuneIn 614, Deezer 1641, Amazon Music 1643, Apple Music 1645, Qobuz 1647, TIDAL 1649 e SoundMachine 1651 hanno proxy `media_service`. Gli ID successivi sono le sorgenti Ascolta, non un secondo account. TuneIn 589 e Deezer 599 sono ingressi `media_player` di un ricevitore. Nei metadati accessibili via Director `/api/v1/items/{id}/variables` e `/commands` non emergono variabili di stato account né comandi di accesso: solo Play Item, SelectAlbum, SelectPlaylist o StartFlow. Questa osservazione non dimostra che il driver non abbia una procedura interna: dimostra che **l'API Director attualmente usata da e-Face non espone un flusso di login utilizzabile**.
+
+La documentazione ufficiale Control4 colloca l'accesso ai servizi nel Navigator e, per TuneIn, documenta anche proprietà/azioni in Composer. Le azioni Composer non sono automaticamente comandi dell'API Director. Il flusso OAuth2 del portale Control4 autorizza l'accesso al controller, non ai singoli provider musicali. Non usare nessuno dei due come scorciatoia non verificata.
+
 Per ciascun driver identificare il segnale affidabile di account collegato, sessione scaduta e servizio irraggiungibile. «Free» è il livello di abbonamento, non un errore di autenticazione. Gli stati e-Face saranno `connected`, `reauth_required`, `service_unavailable`, `unknown`; in assenza di un segnale affidabile rimane `unknown`.
 
 ## Fase 3 - riconnessione interamente in e-Face
@@ -17,6 +21,8 @@ Per ciascun driver identificare il segnale affidabile di account collegato, sess
 Per ogni servizio verificare un flusso supportato dal driver: avvio dell'autorizzazione da e-Face, eventuale OAuth/device-code/link esterno del provider, ritorno a e-Face, aggiornamento della sessione Control4 e test della riproduzione. Non salvare password dei provider nel vault e-Face. Un eventuale comando «Join»/«Login» va eseguito soltanto dopo averne verificato semantica e sicurezza sul driver reale.
 
 Se un driver non espone un flusso integrabile, segnare esplicitamente il servizio come **non ancora supportato per il self-service** e valutare un'integrazione diversa. Non sostituire il requisito con istruzioni per aprire Navigator e non mostrare un successo fittizio.
+
+Prossima verifica tecnica: ottenere documentazione o collaborazione del produttore del driver su un'interfaccia supportata di autorizzazione/riassociazione, partendo da TuneIn, e provarla su un account di test prima di creare la UI cliente. Se non esiste, la soluzione richiede un'integrazione media diversa che mantenga la riproduzione sui dispositivi desiderati; non basta duplicare le credenziali in e-Face.
 
 ## Criteri di completamento
 
