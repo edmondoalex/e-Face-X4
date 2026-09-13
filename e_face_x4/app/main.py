@@ -38,7 +38,7 @@ from .connectors.control4_media import cached_control4_icon, cached_control4_ico
 from .connectors.supervisor import discover_addon_url, discover_host_url
 from .demo import dashboard as demo_dashboard
 
-VERSION = "2.20.50"
+VERSION = "2.20.51"
 STATIC = Path(__file__).parent / "static"
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s [e-face-x4] %(message)s")
 
@@ -207,6 +207,17 @@ def create_app() -> FastAPI:
         if not all(turn.values()):
             return {"iceServers": []}
         return {"iceServers": [{"urls": turn["turn_url"], "username": turn["turn_username"], "credential": turn["turn_password"]}]}
+
+    @app.get("/api/intercom/sip/credential")
+    async def intercom_sip_credential(request: Request) -> Response:
+        require_admin(request)
+        account = credential_inventory.load().get("sip_eface", {})
+        if account.get("username") != "8301" or not account.get("password"):
+            raise HTTPException(status_code=409, detail="Credenziale SIP 8301 non configurata in Credenziali impianto")
+        return JSONResponse(
+            {"username": "8301", "password": account["password"]},
+            headers={"Cache-Control": "no-store, private", "Pragma": "no-cache", "Vary": "Cookie", "X-Content-Type-Options": "nosniff"},
+        )
 
     @app.put("/api/admin/intercom")
     async def admin_save_intercom(request: Request, payload: dict) -> dict:

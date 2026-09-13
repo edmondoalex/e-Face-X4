@@ -12,6 +12,8 @@
   let micSource = null
   let micGain = null
   let iceServers = []
+  $('#sip-password').parentElement.firstChild.textContent = 'Password SIP alternativa (facoltativa)'
+  $('#sip-password').placeholder = 'Vuoto = usa la credenziale salvata in e-Face'
 
   async function loadIce() {
     const response = await fetch(new URL('api/intercom/ice', root), {cache:'no-store'})
@@ -141,11 +143,17 @@
   }
 
   $('#sip-connect').addEventListener('click', async () => {
-    const password = $('#sip-password').value
-    if (!password) { error('Inserisci la password SIP dell’interno 8301.'); return }
+    let password = $('#sip-password').value
     if (!window.JsSIP) { error('Il client SIP non è disponibile.'); return }
     error('')
     try {
+      if (!password) {
+        const response = await fetch(new URL('api/intercom/sip/credential', root), {cache:'no-store', credentials:'same-origin'})
+        const data = await response.json().catch(() => ({}))
+        if (!response.ok) throw new Error(data.detail || 'Credenziale SIP 8301 non disponibile in e-Face')
+        password = data.password
+      }
+      if (!password) throw new Error('Password SIP 8301 mancante')
       await loadIce()
       const socket = new JsSIP.WebSocketInterface(socketUrl.toString())
       phone = new JsSIP.UA({sockets:[socket], uri:'sip:8301@asterisk', authorization_user:'8301', password, display_name:'e-Face Test', register:true, session_timers:false})

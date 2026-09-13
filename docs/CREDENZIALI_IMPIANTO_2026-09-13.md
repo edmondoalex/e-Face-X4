@@ -10,6 +10,7 @@ Correzione **2.20.47**: le copie SIP/DoorBird sono indicate come **non verificat
 - La password admin e-Face non è recuperabile: può soltanto essere cambiata nella gestione utenti, perché è memorizzata come hash.
 - Le password Control4 e TURN già salvate dall'app possono essere visualizzate temporaneamente dopo una nuova conferma della password admin, senza creare copie aggiuntive.
 - Le credenziali SIP e DoorBird possono essere importate come **copie di riferimento**. La copia è salvata in `/data/credential_inventory.json` con permessi `0600`; l'importazione **non cambia** password o utenti nei dispositivi e non sincronizza Asterisk.
+- Dalla versione 2.20.51, la postazione SIP admin 8301 usa per impostazione predefinita la credenziale `sip_eface` salvata nell'inventario. La password è consegnata soltanto alla pagina admin via HTTPS, con `Cache-Control: no-store`, e non è salvata in storage persistente del browser. Questo rende la copia operativa per e-Face, ma **non** aggiorna il file Asterisk; la creazione e rotazione automatica restano da implementare.
 - Una password rivelata scompare dalla pagina dopo 30 secondi o alla chiusura della pagina. L'API di rivelazione richiede la password admin, limita i tentativi falliti e imposta `Cache-Control: no-store`.
 
 ## Limiti e sicurezza

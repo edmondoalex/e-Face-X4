@@ -167,6 +167,29 @@ def test_intercom_dashboard_stores_only_local_settings(monkeypatch, tmp_path) ->
     assert "tools-dashboard.js?v=2.20.50" in page
 
 
+def test_intercom_uses_admin_verified_8301_copy(monkeypatch, tmp_path) -> None:
+    monkeypatch.setenv("EFACE_AUTH_DIR", str(tmp_path / "auth"))
+    monkeypatch.setenv("EFACE_CREDENTIAL_INVENTORY", str(tmp_path / "inventory.json"))
+    from app.user_auth import create_admin, create_account
+    from app import credential_inventory
+    create_admin("password-admin-lunga")
+    create_account("mario", "Mario", "password-mario-lunga")
+    admin = TestClient(create_app())
+    person = TestClient(create_app())
+    assert admin.get("/api/intercom/sip/credential").status_code == 401
+    assert admin.post("/api/auth/login", json={"username": "admin", "password": "password-admin-lunga"}).status_code == 200
+    assert person.post("/api/auth/login", json={"username": "mario", "password": "password-mario-lunga"}).status_code == 200
+    assert person.get("/api/intercom/sip/credential").status_code == 403
+    assert admin.get("/api/intercom/sip/credential").status_code == 409
+    credential_inventory.save("sip_eface", "8301", "real-sip-secret")
+    response = admin.get("/api/intercom/sip/credential")
+    assert response.status_code == 200
+    assert response.json() == {"username": "8301", "password": "real-sip-secret"}
+    assert response.headers["cache-control"] == "no-store, private"
+    assert response.headers["vary"] == "Cookie"
+    assert "api/intercom/sip/credential" in admin.get("/assets/intercom.js").text
+
+
 def test_intercom_test_phone_requires_admin_and_same_origin(monkeypatch, tmp_path) -> None:
     monkeypatch.setenv("EFACE_AUTH_DIR", str(tmp_path / "auth"))
     monkeypatch.setenv("EFACE_INTERCOM_TURN_SETTINGS", str(tmp_path / "turn.json"))
