@@ -1,20 +1,22 @@
-.page-device-list article.device-light-on{background:linear-gradient(115deg,rgba(255,211,78,var(--card-glow,.35)),var(--user-card,#1e292d) 53%)!important;box-shadow:inset 0 0 0 1px rgba(255,211,78,var(--card-glow,.35)),inset 0 0 26px rgba(255,211,78,var(--card-glow,.35)),0 0 var(--card-halo,14px) rgba(255,211,78,var(--card-glow,.35))!important}
-.page-device-list article.device-switch-on{box-shadow:inset 0 0 0 1px rgba(255,82,109,.48),inset 0 0 24px rgba(255,82,109,.18),0 0 15px rgba(255,82,109,.20)!important}
-.page-device-list article.device-cover-open{box-shadow:inset 0 0 0 1px rgba(97,216,242,var(--card-glow,.3)),inset 0 0 24px rgba(97,216,242,.14),0 0 15px rgba(97,216,242,.18)!important}
-.page-device-list article.device-climate-heat{box-shadow:inset 0 0 0 1px rgba(97,216,242,.55),inset 0 0 26px rgba(97,216,242,.18),0 0 18px rgba(97,216,242,.18)!important}
-.page-device-list article.device-climate-heat .device-glyph{color:#61d8f2;filter:drop-shadow(0 0 7px rgba(97,216,242,.55))}
-.page-device-list article.device-climate-cool{box-shadow:inset 0 0 0 1px rgba(255,192,69,.55),inset 0 0 26px rgba(255,192,69,.18),0 0 18px rgba(255,192,69,.18)!important}
-.page-device-list article.device-climate-cool .device-glyph{color:#ffc045;filter:drop-shadow(0 0 7px rgba(255,192,69,.55))}
-.scenario-card.active{box-shadow:inset 0 0 0 1px rgba(255,211,78,.55),inset 0 0 24px rgba(255,211,78,.15),0 0 16px rgba(255,211,78,.16)!important}
-.security-scenario.active{box-shadow:inset 0 0 0 1px rgba(255,211,78,.55),inset 0 0 22px rgba(255,211,78,.15),0 0 15px rgba(255,211,78,.17)!important}
-.security-area.ready{box-shadow:inset 0 0 0 1px rgba(101,234,174,.43),inset 0 0 20px rgba(101,234,174,.11)!important}
-.security-area.armed-delayed{box-shadow:inset 0 0 0 1px rgba(255,192,69,.62),inset 0 0 22px rgba(255,192,69,.15),0 0 14px rgba(255,192,69,.14)!important}
-.security-area.armed-instant,.security-area.alarm{box-shadow:inset 0 0 0 1px rgba(255,82,109,.67),inset 0 0 24px rgba(255,82,109,.17),0 0 15px rgba(255,82,109,.17)!important}
+/* State tint on card surfaces only: no glowing outlines or borders. */
+.page-device-list article.device-light-on{background:linear-gradient(100deg,rgba(255,211,78,var(--card-glow,.32)),transparent 72%),var(--user-card)!important}
+.page-device-list article.device-switch-on{background:linear-gradient(100deg,rgba(255,82,109,.24),transparent 72%),var(--user-card)!important}
+.page-device-list article.device-cover-open{background:linear-gradient(100deg,rgba(97,216,242,var(--card-glow,.24)),transparent 72%),var(--user-card)!important}
+.page-device-list article.device-climate-heat{background:linear-gradient(100deg,rgba(97,216,242,.24),transparent 72%),var(--user-card)!important}
+.page-device-list article.device-climate-cool{background:linear-gradient(100deg,rgba(255,192,69,.24),transparent 72%),var(--user-card)!important}
+.scenario-card.active,.security-scenario.active{background:linear-gradient(100deg,rgba(255,211,78,.23),transparent 72%),var(--user-card)!important}
+.security-area.ready{background:linear-gradient(100deg,rgba(101,234,174,.20),transparent 72%),var(--user-card)!important}
+.security-area.armed-delayed{background:linear-gradient(100deg,rgba(255,192,69,.22),transparent 72%),var(--user-card)!important}
+.security-area.armed-instant,.security-area.alarm{background:linear-gradient(100deg,rgba(255,82,109,.25),transparent 72%),var(--user-card)!important}
 .security-area.armed-instant>.mdi-mask{color:#ff526d}
 .security-area.ready>.mdi-mask{color:#65eaae}
-.security-zone,.security-zone:hover,.security-zone:focus{box-shadow:none!important}
-.security-lock.security-lock-locked{box-shadow:inset 0 0 0 1px rgba(101,234,174,.38),inset 0 0 18px rgba(101,234,174,.1)!important}
-.security-lock.security-lock-unlocked{box-shadow:inset 0 0 0 1px rgba(255,82,109,.45),inset 0 0 18px rgba(255,82,109,.12)!important}
+.security-lock.security-lock-locked{background:linear-gradient(100deg,rgba(101,234,174,.16),transparent 72%),var(--user-card)!important}
+.security-lock.security-lock-unlocked{background:linear-gradient(100deg,rgba(255,82,109,.19),transparent 72%),var(--user-card)!important}
+.page-device-list article.device-climate-heat .device-glyph{color:#61d8f2}
+.page-device-list article.device-climate-cool .device-glyph{color:#ffc045}
+.page-device-list article.device-light-on,.page-device-list article.device-switch-on,.page-device-list article.device-cover-open,.page-device-list article.device-climate-heat,.page-device-list article.device-climate-cool,.scenario-card.active,.security-scenario.active,.security-area,.security-lock{border:0!important;box-shadow:none!important}
+.security-lock>.device-actions button{display:flex;align-items:center;justify-content:center;gap:5px}
+.security-lock>.device-actions button .mdi-mask{width:16px;height:16px;flex:none}
 .security-lock-battery{display:inline-flex;align-items:center;gap:3px;margin-left:7px;color:#aebabc;font-size:9px;white-space:nowrap}
 .security-lock-battery i{width:12px;height:12px}
 .security-lock-battery.low{color:#ff526d}
@@ -26,5 +28,4 @@ body[data-card-glow="off"] .page-device-list article.device-climate-cool,
 body[data-card-glow="off"] .scenario-card.active,
 body[data-card-glow="off"] .security-scenario.active,
 body[data-card-glow="off"] .security-area,
-body[data-card-glow="off"] .security-lock{box-shadow:none!important}
-body[data-card-glow="off"] .page-device-list article.device-light-on{background:var(--user-card,#1e292d)!important}
+body[data-card-glow="off"] .security-lock{background:var(--user-card)!important}

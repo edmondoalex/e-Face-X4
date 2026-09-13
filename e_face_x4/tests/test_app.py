@@ -592,6 +592,8 @@ def test_buspro_snapshot_is_normalized_by_room_and_kind() -> None:
     assert normalized["devices"][0]["icon"] == ""
     assert normalized["devices"][0]["dimmable"] is True
     assert normalized["devices"][0]["rgb_group"] == "RGB Sala"
+
+
     assert normalized["devices"][0]["rgb_channel"] == "red"
     temperature = next(device for device in normalized["devices"] if device["kind"] == "temperature")
     assert temperature["state"] == 28.0
@@ -599,6 +601,14 @@ def test_buspro_snapshot_is_normalized_by_room_and_kind() -> None:
     assert temperature["state_key"] == "1.61.1"
     assert normalized["devices"][-1]["kind"] == "light"
     assert next(device for device in normalized["devices"] if device["name"] == "Presa")["kind"] == "switch"
+
+
+def test_buspro_lock_battery_comes_from_hdl_metrics() -> None:
+    normalized = normalize_snapshot({
+        "devices": [{"type": "lock", "entity_id": "lock.porta_ufficio", "name": "Porta Ufficio", "group": "Ufficio"}],
+        "ha_states": {"lock.porta_ufficio": {"state": "locked", "metrics": {"battery_level": 76, "battery_low": False}}},
+    })
+    assert normalized["devices"][0]["battery_percent"] == 76
 
 
 def test_supervisor_addon_slug_becomes_internal_dns_name() -> None:

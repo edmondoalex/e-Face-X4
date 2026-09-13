@@ -74,6 +74,8 @@ def normalize_snapshot(payload: dict[str, Any]) -> dict[str, Any]:
             position = attributes.get("current_position")
             brightness = attributes.get("brightness")
             battery = attributes.get("battery_level", attributes.get("battery_percentage", attributes.get("battery", battery)))
+            metrics = ha_state.get("metrics") if isinstance(ha_state.get("metrics"), dict) else {}
+            battery = metrics.get("battery_level", battery)
         if state is None:
             source = cover_states if kind == "cover" else light_states
             if kind in sensor_sources:

@@ -86,11 +86,16 @@ function mediaSourceMarkup(source, provider = '') {
 }
 
 function deviceGlyph(device) {
-  const unlocked = ['UNLOCKED', 'OPEN', 'OPENING', 'UNLOCKING', 'ON', '1'].includes(String(device.state ?? '').trim().toUpperCase())
-  const lockIdentity = `${device.name || ''} ${device.icon || ''}`.toLocaleLowerCase('it')
-  const lockIcon = /cancello|gate/.test(lockIdentity) ? (unlocked ? 'gate-open' : 'gate') : /garage|portone|garagedoor/.test(lockIdentity) ? (unlocked ? 'garage-open' : 'garage') : /porta|door/.test(lockIdentity) ? (unlocked ? 'door-open' : 'door-closed') : (unlocked ? 'lock-open-outline' : 'lock-outline')
-  const fallback = device.kind === 'climate' ? 'thermostat' : device.kind === 'cover' ? 'blinds-horizontal' : device.kind === 'lock' ? lockIcon : device.kind === 'media_player' ? 'speaker' : 'lightbulb'
-  return `<span class="device-glyph mdi-mask" style="${mdiStyle(device.kind === 'lock' ? `mdi:${lockIcon}` : device.icon, fallback)}"></span>`
+  const fallback = device.kind === 'climate' ? 'thermostat' : device.kind === 'cover' ? 'blinds-horizontal' : device.kind === 'lock' ? 'lock' : device.kind === 'media_player' ? 'speaker' : 'lightbulb'
+  return `<span class="device-glyph mdi-mask" style="${mdiStyle(device.icon, fallback)}"></span>`
+}
+
+function lockActionIcon(device, open) {
+  const identity = `${device.name || ''} ${device.icon || ''}`.toLocaleLowerCase('it')
+  if (/cancello|gate/.test(identity)) return open ? 'mdi:gate-open' : 'mdi:gate'
+  if (/garage|portone|garagedoor/.test(identity)) return open ? 'mdi:garage-open' : 'mdi:garage'
+  if (/porta|door/.test(identity)) return open ? 'mdi:door-open' : 'mdi:door-closed'
+  return open ? 'mdi:lock-open-outline' : 'mdi:lock-outline'
 }
 
 const roomFeatureDefinitions = [
@@ -288,7 +293,7 @@ function updateNavigationStates() {
 }
 
 function brightness255(device) {
-  const value = Number(device.brightness)
+  const value = device.brightness === null || device.brightness === undefined || device.brightness === '' ? NaN : Number(device.brightness)
   if (Number.isFinite(value)) return Math.max(0, Math.min(255, Math.round(value)))
   return ['ON', '1', 'TRUE'].includes(String(device.state).trim().toUpperCase()) ? 255 : 0
 }
@@ -385,6 +390,9 @@ function renderSecurityDevices(devices) {
   const hasInstant = partitions.some((area) => area.state === 'ARMED' && area.arm_mode === 'instant')
   const hasDelayed = partitions.some((area) => area.state === 'ARMED' && area.arm_mode !== 'instant')
   const modeName = system?.arm_description || (armedCount ? 'Inserimento attivo' : 'Disinserito')
+  const modeKey = String(system?.arm_description || '').trim().toLocaleLowerCase('it')
+  const matchingScenarios = modeKey ? scenarios.filter((scenario) => String(scenario.name || '').trim().toLocaleLowerCase('it') === modeKey) : []
+  const activeScenarioId = matchingScenarios.length === 1 ? String(matchingScenarios[0].id) : ''
   const summaryClass = issueCount || hasInstant ? 'instant' : hasDelayed ? 'delayed' : 'ready'
   const summary = `<section class="security-summary security-summary-${summaryClass}"><span class="mdi-mask" style="${mdiStyle(issueCount ? 'mdi:shield-alert-outline' : armedCount ? 'mdi:shield-lock-outline' : 'mdi:shield-check-outline', 'shield-home')}"></span><strong class="security-summary-state">${issueCount ? `${issueCount} ${issueCount === 1 ? 'allarme attivo' : 'allarmi attivi'}` : armedCount ? `${armedCount} ${armedCount === 1 ? 'area inserita' : 'aree inserite'}` : 'Tutto sotto controllo'}</strong><div class="security-summary-mode"><small>MODALITÀ</small><strong>${esc(modeName)}</strong></div></section>`
   const areaCards = partitions.map((device) => {
@@ -418,7 +426,7 @@ function renderSecurityDevices(devices) {
     const batteryMarkup = battery === null ? '' : `<span class="security-lock-battery ${battery <= 20 ? 'low' : ''}" title="Batteria ${battery}%"><i class="mdi-mask" style="${mdiStyle(battery <= 20 ? 'mdi:battery-alert-variant-outline' : 'mdi:battery', 'battery')}"></i>${battery}%</span>`
     return `<article class="security-lock security-lock-${stateClass}" data-device-id="${esc(device.id)}">${deviceGlyph(device)}<div class="security-lock-name"><strong>${esc(device.name)}</strong><small>${esc(device.room)}</small></div><b>${esc(stateLabel(device))}${batteryMarkup}</b>${deviceActions(device)}</article>`
   }).join('')
-  const scenarioCards = scenarios.map((device) => { const disarm = device.category === 'DISARM'; const partial = device.category === 'PARTIAL'; const active = ['ON','ACTIVE','1','TRUE'].includes(String(device.state ?? '').toUpperCase()); return `<button class="security-scenario ${disarm ? 'disarm' : partial ? 'partial' : 'arm'} ${active ? 'active' : ''}" data-security-scenario data-device-id="${esc(device.id)}" data-action="execute"><span class="mdi-mask" style="${mdiStyle(disarm ? 'mdi:shield-off-outline' : partial ? 'mdi:shield-half-full' : 'mdi:shield-lock-outline', 'shield-key-outline')}"></span><strong>${esc(device.name)}</strong></button>` }).join('')
+  const scenarioCards = scenarios.map((device) => { const disarm = device.category === 'DISARM'; const partial = device.category === 'PARTIAL'; const active = String(device.id) === activeScenarioId; return `<button class="security-scenario ${disarm ? 'disarm' : partial ? 'partial' : 'arm'} ${active ? 'active' : ''}" data-security-scenario data-device-id="${esc(device.id)}" data-action="execute"><span class="mdi-mask" style="${mdiStyle(disarm ? 'mdi:shield-off-outline' : partial ? 'mdi:shield-half-full' : 'mdi:shield-lock-outline', 'shield-key-outline')}"></span><strong>${esc(device.name)}</strong></button>` }).join('')
   const section = (key, title, content, className) => `<section class="security-section security-collapsible"><button class="security-section-toggle" data-security-toggle="${key}" aria-expanded="${securitySections[key]}"><strong>${title}</strong><span class="mdi-mask" style="${mdiStyle(securitySections[key] ? 'mdi:chevron-up' : 'mdi:chevron-down', 'chevron-down')}"></span></button><div class="${className}" ${securitySections[key] ? '' : 'hidden'}>${content}</div></section>`
   $('#device-list').innerHTML = `${summary}${scenarios.length ? `<section class="security-section"><h3>Scenari di inserimento</h3><div class="security-scenario-grid">${scenarioCards}</div></section>` : ''}${partitions.length ? section('areas', 'Stato aree', areaCards, 'security-area-grid') : ''}${zones.length ? section('zones', 'Zone', zoneCards, 'security-zone-grid') : ''}${locks.length ? `<section class="security-section"><h3>Serrature</h3><div class="security-zone-grid">${lockCards}</div></section>` : ''}`
 }
@@ -676,7 +684,7 @@ function deviceActions(device, options = {}) {
     return dimmer
   }
   if (device.kind === 'cover') return '<div class="device-actions"><button data-action="open">SU</button><button data-action="stop">STOP</button><button data-action="close">GIÙ</button></div>'
-  if (device.kind === 'lock') return '<div class="device-actions"><button data-action="unlock">SBLOCCA</button><button data-action="lock">BLOCCA</button></div>'
+  if (device.kind === 'lock') return `<div class="device-actions"><button data-action="unlock" aria-label="Apri ${esc(device.name)}" title="Apri"><span class="mdi-mask" style="${mdiStyle(lockActionIcon(device, true), 'lock-open-outline')}"></span>APRI</button><button data-action="lock" aria-label="Chiudi ${esc(device.name)}" title="Chiudi"><span class="mdi-mask" style="${mdiStyle(lockActionIcon(device, false), 'lock-outline')}"></span>CHIUDI</button></div>`
   if (device.kind === 'climate') {
     const target = Number(device.target_temperature)
     const value = Number.isFinite(target) ? target : 20
