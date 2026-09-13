@@ -1,6 +1,14 @@
 const $ = (selector) => document.querySelector(selector)
 const esc = (value) => { const node = document.createElement('span'); node.textContent = String(value ?? ''); return node.innerHTML }
 const apiUrl = (path) => new URL(path, location.href.endsWith('/') ? location.href : `${location.href}/`).toString()
+const brandLink = document.querySelector('.tools-brand')
+brandLink.setAttribute('role', 'link')
+brandLink.setAttribute('tabindex', '0')
+brandLink.setAttribute('aria-label', 'Torna alla Home e-Face')
+brandLink.style.cursor = 'pointer'
+const openHomeFromBrand = () => { location.href = apiUrl('../') }
+brandLink.addEventListener('click', openHomeFromBrand)
+brandLink.addEventListener('keydown', (event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); openHomeFromBrand() } })
 let backgroundData = null
 
 function applyToolsBackground(selected, refreshImage = false) {
