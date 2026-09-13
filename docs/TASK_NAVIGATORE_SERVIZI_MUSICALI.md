@@ -1,12 +1,12 @@
 # Navigatore servizi musicali Control4 in e-Face
 
-Stato al 13 settembre 2026: **non completato**. La 2.20.79 apre dalla cover un popup contestuale a stanza e sorgente e consente di richiamare gli ascolti recenti del servizio. Non sono ancora disponibili Sfoglia, Cerca, Preferiti e i menu azioni del driver.
+Stato al 13 settembre 2026: **non completato**. Il popup provvisorio della 2.20.79 è stato rimosso nella 2.20.80 perché non forniva il navigatore richiesto e si apriva anche su sorgenti MP3 generiche. Non sono ancora disponibili Sfoglia, Cerca, Preferiti e i menu azioni del driver.
 
 ## Comportamento richiesto
 
 - Clic sulla cover in Ascolta: popup della sorgente attiva (TuneIn, Amazon Music, TIDAL e, in seguito, altri media service).
 - Clic fuori, Esc o Chiudi: chiusura del solo popup, senza interrompere la musica.
-- Schede e schermate fornite dal driver: Home, Sfoglia, Preferiti, Cerca e impostazioni quando presenti. Non fissare gli stessi tab per tutti i servizi.
+- Schede e schermate fornite dal driver: Home, Sfoglia, Preferiti, Cerca e impostazioni quando presenti. Non fissare gli stessi tab per tutti i servizi. **Nel popup**, riprendere il navigatore delle foto Control4: intestazione della sorgente, schede orizzontali, righe a tutta larghezza con icona/cover, titolo, sottotitolo e menu ⋮, più ricerca dedicata, nello stile cromatico e-Face. **Sotto il player nella vista Ascolta**, niente cronologia globale: mostrare invece i preferiti del solo servizio attivo come griglia di cover senza scritte visibili, una volta disponibili dal driver.
 - Cartelle, contenuti, immagini e menu azioni letti dal driver; selezione di una stazione/brano avvia la riproduzione nella stanza corretta.
 - Preferiti dell'account del servizio e preferiti della stanza Control4 restano distinti.
 

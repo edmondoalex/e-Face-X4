@@ -42,9 +42,18 @@ from .connectors.control4_media import cached_control4_icon, cached_control4_ico
 from .connectors.supervisor import discover_addon_url, discover_host_url
 from .demo import dashboard as demo_dashboard
 
-VERSION = "2.20.79"
+VERSION = "2.20.80"
 STATIC = Path(__file__).parent / "static"
-logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s [e-face-x4] %(message)s")
+logging.basicConfig(level=logging.WARNING, format="%(asctime)s %(levelname)s [e-face-x4] %(message)s")
+_reconnect_warning_at: dict[str, float] = {}
+
+
+def log_reconnect_warning(source: str) -> None:
+    """Keep a broken realtime source from flooding Supervisor logs."""
+    now = time.monotonic()
+    if now - _reconnect_warning_at.get(source, -60.0) >= 60.0:
+        _reconnect_warning_at[source] = now
+        logging.warning("%s realtime disconnected; retrying", source)
 
 
 def artwork_media_type(declared: str, content: bytes) -> str:
@@ -1568,6 +1577,7 @@ def create_app() -> FastAPI:
                             await queue.put({"type": "thermostats_changed"})
 
         async def ksenia_events() -> None:
+            retry_delay = 1
             while True:
                 try:
                     async with httpx.AsyncClient(timeout=None, follow_redirects=False) as client:
@@ -1581,18 +1591,22 @@ def create_app() -> FastAPI:
                                 except (TypeError, json.JSONDecodeError):
                                     continue
                                 items = normalize_ksenia(payload)
-                                if items:
-                                    await queue.put({"type": "ksenia_state", "data": {"items": items}})
+                            if items:
+                                await queue.put({"type": "ksenia_state", "data": {"items": items}})
+                                retry_delay = 1
                 except asyncio.CancelledError:
                     raise
                 except Exception:
-                    logging.warning("Ksenia realtime disconnected; retrying")
-                    await asyncio.sleep(1)
+                    log_reconnect_warning("Ksenia")
+                    await asyncio.sleep(retry_delay)
+                    retry_delay = min(retry_delay * 2, 30)
 
         async def media_events(connector) -> None:
+            retry_delay = 2
             while True:
                 try:
                     async for event in connector.events():
+                        retry_delay = 2
                         event_type = str(event.get("type") or "")
                         if event_type == "local.player_updated":
                             await queue.put({"type": "media_state", "data": event.get("data") or {}})
@@ -1602,8 +1616,9 @@ def create_app() -> FastAPI:
                 except asyncio.CancelledError:
                     raise
                 except Exception:
-                    logging.warning("%s realtime disconnected; retrying", connector.id)
-                    await asyncio.sleep(2)
+                    log_reconnect_warning(connector.id)
+                    await asyncio.sleep(retry_delay)
+                    retry_delay = min(retry_delay * 2, 30)
 
         tasks = []
         if buspro.enabled and buspro.base_url:
@@ -1704,7 +1719,7 @@ def create_app() -> FastAPI:
 
 
 def main() -> None:
-    uvicorn.run(create_app(), host="0.0.0.0", port=8099, access_log=False)
+    uvicorn.run(create_app(), host="0.0.0.0", port=8099, access_log=False, log_level="warning")
 
 
 if __name__ == "__main__":

@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.20.80 — 2026-09-13
+- Rimosso il popup provvisorio aperto dalla cover: non era il navigatore MSP richiesto e compariva anche per sorgenti generiche come MP3. La navigazione dei servizi resta da integrare con dati e azioni reali del driver.
+- Ridotta la verbosità predefinita a WARNING, disabilitati anche i log informativi Uvicorn e limitati a uno al minuto per sorgente gli avvisi di riconnessione realtime. Riconnessioni fallite usano un backoff progressivo fino a 30 secondi.
+- Rimossa dalla vista Ascolta la sezione globale «Ascoltati di recente» e le sue richieste periodiche: nel navigatore futuro compariranno invece i preferiti del solo servizio attivo, come cover senza etichette visibili.
+
 ## 2.20.79 — 2026-09-13
 - La cover del player Control4 in Ascolta apre un popup contestuale alla stanza e alla sorgente attiva. Clic fuori, Esc o Chiudi richiudono il popup senza fermare la riproduzione.
 - Nel popup sono richiamabili gli ascolti recenti del servizio attivo. La navigazione MSP di Sfoglia, Cerca e Preferiti non è ancora collegata: il popup lo dichiara esplicitamente, senza mostrare controlli fittizi.

@@ -20,6 +20,22 @@ from app.source_icons import delete_source_icon, load_builtin_source_icon, load_
 from app.backgrounds import load_background, load_background_image, load_backgrounds, save_background_image, save_card_theme, save_inherit, save_preset
 
 
+def test_reconnect_warnings_are_rate_limited(monkeypatch) -> None:
+    import app.main as main_module
+
+    messages = []
+    current = [100.0]
+    main_module._reconnect_warning_at.clear()
+    monkeypatch.setattr(main_module.time, "monotonic", lambda: current[0])
+    monkeypatch.setattr(main_module.logging, "warning", lambda *args: messages.append(args))
+    main_module.log_reconnect_warning("control4")
+    main_module.log_reconnect_warning("control4")
+    current[0] += 60
+    main_module.log_reconnect_warning("control4")
+    assert len(messages) == 2
+    main_module._reconnect_warning_at.clear()
+
+
 def test_release_changelog_matches_addon_version() -> None:
     root = Path(__file__).resolve().parents[1]
     version = next(line.split(":", 1)[1].strip() for line in (root / "config.yaml").read_text(encoding="utf-8").splitlines() if line.startswith("version:"))
@@ -520,8 +536,8 @@ def test_x4_shell_and_brand_assets_are_served() -> None:
     assert "now-playing" not in page.text
     assert 'id="detail-view"' in page.text
     assert 'id="detail-back"' in page.text
-    assert page.text.count('<dialog') == 7
-    assert 'id="media-browser-dialog"' in page.text
+    assert page.text.count('<dialog') == 6
+    assert 'id="media-browser-dialog"' not in page.text
     assert 'id="security-area-dialog"' in page.text
     assert 'id="security-pin-dialog"' in page.text
     assert 'id="rgb-dialog"' in page.text
@@ -1966,7 +1982,6 @@ def test_media_ui_has_room_selection_and_typed_controls() -> None:
     assert "['custom:PROGRAM_A','red','Rosso']" in script
     assert 'class="remote-color remote-${color}"' in script
     assert "media-session-row-watch" in script
-    assert "activeMediaRoom && selected.active_experience !== 'watch'" in script
     assert "device.source ? `<small>${esc(device.source)}</small>` : ''" in script
     assert "event.clientX < thumbX ? -2 : 2" in script
     assert "device.active_experience === 'watch' && stateIsActive(device)" in script
@@ -1975,10 +1990,10 @@ def test_media_ui_has_room_selection_and_typed_controls() -> None:
     media_css = client.get("/assets/media-x4.css").text
     assert ".media-session.media-session-listen .media-volume input{accent-color:#20df6b}" in media_css
     assert ".media-session.media-session-watch .media-volume input{accent-color:#61d8f2}" in media_css
-    assert "Ascoltati di recente" in script
-    assert "api/control4/recently-played" in script
-    assert "const recentCache = new Map()" in script
-    assert "const recentPending = new Map()" in script
+    assert "Ascoltati di recente" not in script
+    assert "api/control4/recently-played" not in script
+    assert "const recentCache = new Map()" not in script
+    assert "const recentPending = new Map()" not in script
 
 
 def test_control4_recently_played_decodes_native_payload(monkeypatch) -> None:
