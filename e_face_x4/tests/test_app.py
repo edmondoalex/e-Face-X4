@@ -483,14 +483,19 @@ def test_control4_and_evoice_are_loaded_together(monkeypatch, tmp_path) -> None:
     async def evoice_snapshot(self):
         return {"id": "evoice", "status": "online", "items": [{"id": "media:echo-1", "registry_id": "echo-1", "kind": "media_player", "name": "Echo", "room": "Cucina", "tts_available": True}], "groups": [], "rooms": ["Cucina"]}
 
+    async def ksenia_snapshot(self):
+        return {"id": "ksenia", "status": "online", "items": [{"id": "ksenia-zone:1", "kind": "alarm_zone", "name": "Sensore senza stanza", "room": ""}]}
+
     monkeypatch.setattr(main_module.Control4MediaConnector, "snapshot", c4_snapshot)
     monkeypatch.setattr(main_module.EkonexMediaConnector, "snapshot", evoice_snapshot)
+    monkeypatch.setattr(main_module.KseniaConnector, "snapshot", ksenia_snapshot)
     payload = TestClient(main_module.create_app()).get("/api/bootstrap").json()
     assert {provider["id"] for provider in payload["providers"]} >= {"control4", "evoice"}
     assert {item["id"] for item in payload["dashboard"]["devices"]} >= {"c4media:1", "media:echo-1"}
     assert "Cucina" not in {room["name"] for room in payload["dashboard"]["rooms"]}
     assert "Sala" in {room["name"] for room in payload["dashboard"]["rooms"]}
     assert "Cucina nuova" in {room["name"] for room in payload["dashboard"]["rooms"]}
+    assert "Clima" not in {room["name"] for room in payload["dashboard"]["rooms"]}
 
 
 def test_evoice_local_api_requires_supervisor_token(monkeypatch, tmp_path) -> None:

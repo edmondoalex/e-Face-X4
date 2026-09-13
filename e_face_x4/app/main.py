@@ -29,7 +29,7 @@ from .connectors.control4_media import cached_control4_icon, cached_control4_ico
 from .connectors.supervisor import discover_addon_url, discover_host_url
 from .demo import dashboard as demo_dashboard
 
-VERSION = "2.20.30"
+VERSION = "2.20.31"
 STATIC = Path(__file__).parent / "static"
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s [e-face-x4] %(message)s")
 
@@ -155,8 +155,8 @@ def create_app() -> FastAPI:
             for device in dashboard["devices"]:
                 if device.get("kind") in {"alarm_partition", "alarm_scenario", "alarm_system"}:
                     continue
-                room = str(device.get("room") or "Clima")
-                if not room.strip():
+                room = str(device.get("room") or "").strip()
+                if not room:
                     continue
                 key = room.casefold()
                 if key not in room_map:
