@@ -2,6 +2,8 @@
 
 Stato: **DA FARE — requisito tassativo prima della distribuzione in campo**.
 
+Incremento 2.20.54: e-Face può assegnare a un account un interno personale 8302–8399 con password SIP casuale, distinta dal login e dall'8301 admin. La configurazione Asterisk è generata nell'admin solo dopo una nuova verifica della password admin. L'interno resta **in attesa** finché non viene applicato e confermato in Asterisk; non è una sincronizzazione automatica. Non aggiungere ancora questi interni al gruppo 8290 né dichiarare l'intercomunicazione utente-utente pronta: serve un provisioning persistente sicuro, poi test di registrazione, squillo e audio. L'8301 e il dialplan funzionante non vengono modificati da questa versione.
+
 Primo incremento (e-Face 2.20.45): pannello admin **Preparazione impianto** con controlli di sola lettura per Asterisk, DoorBird e raggiungibilità UDP del server TURN. Non configura Asterisk, non attiva un impianto sulla VPS e non sostituisce la prova audio reale. Il task resta aperto finché tutti i criteri sotto sono soddisfatti.
 
 Secondo incremento (e-Face 2.20.46): inventario unico **Credenziali impianto** nell'admin, con visualizzazione temporanea dopo nuova autenticazione e importazione delle credenziali SIP/DoorBird come copie esplicitamente non sincronizzate. Vedi [CREDENZIALI_IMPIANTO_2026-09-13.md](CREDENZIALI_IMPIANTO_2026-09-13.md). Il task resta aperto: il provisioning e il vault per-impianto non sono ancora implementati.

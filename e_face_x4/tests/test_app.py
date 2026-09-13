@@ -164,12 +164,13 @@ def test_intercom_dashboard_stores_only_local_settings(monkeypatch, tmp_path) ->
     assert 'id="tools-admin-nav"' in page
     assert 'id="intercom-tool"' in page
     assert 'id="users-tool"' in page
-    assert "tools-dashboard.js?v=2.20.52" in page
+    assert "tools-dashboard.js?v=2.20.54" in page
 
 
 def test_intercom_uses_admin_verified_8301_copy(monkeypatch, tmp_path) -> None:
     monkeypatch.setenv("EFACE_AUTH_DIR", str(tmp_path / "auth"))
     monkeypatch.setenv("EFACE_CREDENTIAL_INVENTORY", str(tmp_path / "inventory.json"))
+    monkeypatch.setenv("EFACE_SIP_ACCOUNTS", str(tmp_path / "sip_accounts.json"))
     from app.user_auth import create_admin, create_account
     from app import credential_inventory
     create_admin("password-admin-lunga")
@@ -179,7 +180,7 @@ def test_intercom_uses_admin_verified_8301_copy(monkeypatch, tmp_path) -> None:
     assert admin.get("/api/intercom/sip/credential").status_code == 401
     assert admin.post("/api/auth/login", json={"username": "admin", "password": "password-admin-lunga"}).status_code == 200
     assert person.post("/api/auth/login", json={"username": "mario", "password": "password-mario-lunga"}).status_code == 200
-    assert person.get("/api/intercom/sip/credential").status_code == 403
+    assert person.get("/api/intercom/sip/credential").status_code == 409
     assert admin.get("/api/intercom/sip/credential").status_code == 409
     credential_inventory.save("sip_eface", "8301", "real-sip-secret")
     response = admin.get("/api/intercom/sip/credential")
@@ -191,6 +192,41 @@ def test_intercom_uses_admin_verified_8301_copy(monkeypatch, tmp_path) -> None:
     script = admin.get("/assets/intercom.js").text
     assert "eface-intercom-fast-ice-v1" in script
     assert "if (icePreference === null) $('#fast-ice').checked = iceServers.length === 0" in script
+
+
+def test_personal_sip_accounts_require_provisioning_and_keep_8301_private(monkeypatch, tmp_path) -> None:
+    monkeypatch.setenv("EFACE_AUTH_DIR", str(tmp_path / "auth"))
+    monkeypatch.setenv("EFACE_SIP_ACCOUNTS", str(tmp_path / "sip_accounts.json"))
+    from app.user_auth import create_admin, create_account
+    create_admin("password-admin-lunga")
+    create_account("mario", "Mario Rossi", "password-mario-lunga")
+    admin = TestClient(create_app())
+    person = TestClient(create_app())
+    admin.post("/api/auth/login", json={"username": "admin", "password": "password-admin-lunga"})
+    person.post("/api/auth/login", json={"username": "mario", "password": "password-mario-lunga"})
+    assert person.get("/api/admin/intercom/sip/accounts").status_code == 403
+    assert person.get("/intercom").status_code == 200
+    assert person.get("/api/intercom/sip/credential").status_code == 409
+    endpoint = "/api/admin/intercom/sip/accounts/mario"
+    assert admin.post(endpoint, json={"admin_password": "wrong"}).status_code == 403
+    created = admin.post(endpoint, json={"admin_password": "password-admin-lunga"})
+    assert created.status_code == 200
+    data = created.json()
+    assert data["extension"] == "8302"
+    assert data["provisioned"] is False
+    assert "context=eface-test" in data["asterisk_config"]
+    assert "[8301]" not in data["asterisk_config"]
+    assert person.get("/api/intercom/sip/credential").status_code == 409
+    listing = admin.get("/api/admin/intercom/sip/accounts")
+    assert "password=" not in listing.text
+    assert listing.json()["users"][0]["extension"] == "8302"
+    assert admin.put(endpoint + "/provisioned", json={"provisioned": True}).status_code == 200
+    credential = person.get("/api/intercom/sip/credential")
+    assert credential.status_code == 200
+    assert credential.json()["username"] == "8302"
+    assert len(credential.json()["password"]) >= 40
+    assert credential.headers["cache-control"] == "no-store, private"
+    assert admin.post(endpoint, json={"admin_password": "password-admin-lunga"}).json()["asterisk_config"] == data["asterisk_config"]
 
 
 def test_admin_doorbird_check_uses_stored_credential_without_exposing_it(monkeypatch, tmp_path) -> None:
@@ -228,7 +264,7 @@ def test_intercom_test_phone_requires_admin_and_same_origin(monkeypatch, tmp_pat
     assert admin.post("/api/auth/login", json={"username": "admin", "password": "password-admin-lunga"}).status_code == 200
     assert admin.post("/api/admin/users", json={"username": "mario", "name": "Mario", "password": "password-mario-lunga"}).status_code == 200
     assert person.post("/api/auth/login", json={"username": "mario", "password": "password-mario-lunga"}).status_code == 200
-    assert person.get("/intercom").status_code == 403
+    assert person.get("/intercom").status_code == 200
     assert "Postazione SIP" in admin.get("/intercom").text
     assert 'id="fast-ice"' in admin.get("/intercom").text
     assert 'id="speaker-gain"' in admin.get("/intercom").text
@@ -236,7 +272,7 @@ def test_intercom_test_phone_requires_admin_and_same_origin(monkeypatch, tmp_pat
     assert admin.get("/assets/intercom.js").status_code == 200
     assert "pcConfig:peerConfig()" in admin.get("/assets/intercom.js").text
     assert admin.get("/api/intercom/ice").json() == {"iceServers": []}
-    assert person.get("/api/intercom/ice").status_code == 403
+    assert person.get("/api/intercom/ice").status_code == 200
     turn = {"turn_url": "turn:169.58.200.54:3478?transport=udp", "turn_username": "eface", "turn_password": "test-secret"}
     assert admin.put("/api/admin/intercom/turn", json=turn).status_code == 200
     assert "turn_password" not in admin.get("/api/admin/intercom").text
@@ -246,7 +282,7 @@ def test_intercom_test_phone_requires_admin_and_same_origin(monkeypatch, tmp_pat
     assert "createMediaStreamDestination" in admin.get("/assets/intercom.js").text
     assert admin.get("/assets/jssip-3.13.8.js").status_code == 200
     with pytest.raises(WebSocketDisconnect) as denied:
-        with person.websocket_connect("/api/intercom/sip", headers={"origin": "http://testserver"}, subprotocols=["sip"]):
+        with TestClient(create_app()).websocket_connect("/api/intercom/sip", headers={"origin": "http://testserver"}, subprotocols=["sip"]):
             pass
     assert denied.value.code == 1008
     with pytest.raises(WebSocketDisconnect) as denied:

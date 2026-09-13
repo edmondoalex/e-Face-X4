@@ -133,7 +133,57 @@ async function intercom() {
   $('#intercom-turn-username').value = turn.turn_username
   $('#intercom-turn-password').value = ''
   $('#intercom-turn-password').placeholder = turn.password_configured ? 'Password gia configurata' : 'Password TURN'
+  await sipAccounts()
 }
+
+async function sipAccounts() {
+  const {users} = await request('api/admin/intercom/sip/accounts')
+  const list = $('#sip-accounts-list')
+  list.replaceChildren()
+  for (const user of users) {
+    const row = document.createElement('div')
+    row.className = 'admin-info'
+    const title = document.createElement('b')
+    title.textContent = `${user.name} (${user.username}) — ${user.extension || 'nessun interno'}${user.provisioned ? ' · attivo' : ' · in attesa'}`
+    const button = document.createElement('button')
+    button.type = 'button'
+    button.className = 'secondary'
+    button.textContent = user.extension ? 'MOSTRA CONFIGURAZIONE' : 'ASSEGNA INTERNO'
+    button.disabled = !user.active
+    button.addEventListener('click', async () => {
+      try {
+        const adminPassword = window.prompt('Inserisci la password admin e-Face per mostrare la configurazione SIP')
+        if (adminPassword === null) return
+        const data = await request(`api/admin/intercom/sip/accounts/${encodeURIComponent(user.username)}`, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({admin_password:adminPassword})})
+        $('#sip-asterisk-config').textContent = data.asterisk_config
+        $('#sip-asterisk-config').hidden = false
+        $('#sip-copy-config').hidden = false
+        await sipAccounts()
+      } catch(error) { message(error.message) }
+    })
+    row.append(title, document.createElement('br'), button)
+    if (user.extension) {
+      const confirm = document.createElement('button')
+      confirm.type = 'button'
+      confirm.className = 'secondary'
+      confirm.textContent = user.provisioned ? 'DISATTIVA IN E-FACE' : 'CONFERMA SU ASTERISK'
+      confirm.addEventListener('click', async () => {
+        if (!user.provisioned && !window.confirm(`Confermi che l'interno ${user.extension} è già configurato e registrabile su Asterisk?`)) return
+        try {
+          await request(`api/admin/intercom/sip/accounts/${encodeURIComponent(user.username)}/provisioned`, {method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify({provisioned:!user.provisioned})})
+          await sipAccounts()
+        } catch(error) { message(error.message) }
+      })
+      row.append(' ', confirm)
+    }
+    list.append(row)
+  }
+}
+
+$('#sip-copy-config').addEventListener('click', async () => {
+  try { await navigator.clipboard.writeText($('#sip-asterisk-config').textContent); message('Configurazione copiata: contiene la password SIP, conservala con cura') }
+  catch(error) { message('Copia non riuscita: seleziona il testo manualmente') }
+})
 
 $('#intercom-tool').addEventListener('click', async () => { try { await intercom(); openPanel('intercom-config') } catch(error) { message(error.message) } })
 $('#intercom-back').addEventListener('click', () => closePanel('intercom-config'))
@@ -369,6 +419,13 @@ window.addEventListener('pagehide', hideCredentialReveal)
 
 async function initialize() {
   const status = await request('api/auth/status')
+  if (status.enabled) {
+    const phoneLink = document.createElement('a')
+    phoneLink.href = api('intercom')
+    phoneLink.className = 'tool-card'
+    phoneLink.innerHTML = '<span>☎</span><div><b>Citofono</b><small>Chiamate e intercomunicazione</small></div><i>›</i>'
+    $('#tools-user-section .tools-grid').append(phoneLink)
+  }
   $('#tools-admin-nav').hidden = status.enabled && status.role !== 'admin'
   if (status.enabled && status.role === 'admin') {
     const vault = document.createElement('button')
@@ -392,9 +449,9 @@ async function initialize() {
     icon.textContent = '☎'
     const description = document.createElement('div')
     const title = document.createElement('b')
-    title.textContent = 'Postazione SIP di prova'
+    title.textContent = 'Postazione citofono'
     const detail = document.createElement('small')
-    detail.textContent = 'Audio e-Face in rete locale'
+    detail.textContent = 'Audio e-Face in rete locale e da remoto'
     description.append(title, detail)
     const arrow = document.createElement('i')
     arrow.textContent = '›'

@@ -28,6 +28,7 @@ from . import user_auth
 from . import intercom_settings
 from . import installation
 from . import credential_inventory
+from . import sip_accounts
 from . import asterisk_ami
 from . import doorbird_api
 from .media_preferences import apply_preferences, load_preferences, save_preferences
@@ -39,7 +40,7 @@ from .connectors.control4_media import cached_control4_icon, cached_control4_ico
 from .connectors.supervisor import discover_addon_url, discover_host_url
 from .demo import dashboard as demo_dashboard
 
-VERSION = "2.20.53"
+VERSION = "2.20.54"
 STATIC = Path(__file__).parent / "static"
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s [e-face-x4] %(message)s")
 
@@ -203,7 +204,8 @@ def create_app() -> FastAPI:
 
     @app.get("/api/intercom/ice")
     async def intercom_ice(request: Request) -> dict:
-        require_admin(request)
+        if not user_auth.session_user(request.cookies.get(user_auth.COOKIE)):
+            raise HTTPException(status_code=401, detail="Accesso richiesto")
         turn = intercom_settings.load_turn()
         if not all(turn.values()):
             return {"iceServers": []}
@@ -211,14 +213,65 @@ def create_app() -> FastAPI:
 
     @app.get("/api/intercom/sip/credential")
     async def intercom_sip_credential(request: Request) -> Response:
-        require_admin(request)
-        account = credential_inventory.load().get("sip_eface", {})
-        if account.get("username") != "8301" or not account.get("password"):
-            raise HTTPException(status_code=409, detail="Credenziale SIP 8301 non configurata in Credenziali impianto")
+        username = user_auth.session_user(request.cookies.get(user_auth.COOKIE))
+        if not username:
+            raise HTTPException(status_code=401, detail="Accesso richiesto")
+        if username == "admin":
+            account = credential_inventory.load().get("sip_eface", {})
+            if account.get("username") != "8301" or not account.get("password"):
+                raise HTTPException(status_code=409, detail="Credenziale SIP 8301 non configurata in Credenziali impianto")
+            extension, password = "8301", account["password"]
+        else:
+            account = sip_accounts.load().get(username, {})
+            if not account.get("provisioned"):
+                raise HTTPException(status_code=409, detail="Interno personale non ancora attivato su Asterisk")
+            extension, password = account["extension"], account["password"]
         return JSONResponse(
-            {"username": "8301", "password": account["password"]},
+            {"username": extension, "password": password},
             headers={"Cache-Control": "no-store, private", "Pragma": "no-cache", "Vary": "Cookie", "X-Content-Type-Options": "nosniff"},
         )
+
+    @app.get("/api/admin/intercom/sip/accounts")
+    async def admin_sip_accounts(request: Request) -> dict:
+        require_admin(request)
+        assigned = sip_accounts.load()
+        return {"users": [{**user, "extension": assigned.get(user["username"], {}).get("extension"), "provisioned": bool(assigned.get(user["username"], {}).get("provisioned"))} for user in user_auth.accounts() if user["username"] != "admin"]}
+
+    @app.post("/api/admin/intercom/sip/accounts/{username}")
+    async def admin_allocate_sip(username: str, request: Request, payload: dict) -> Response:
+        require_admin(request)
+        session = request.cookies.get(user_auth.COOKIE, "")
+        key = hashlib.sha256(session.encode()).hexdigest()
+        now = time.monotonic()
+        attempts = [instant for instant in reveal_failures.get(key, []) if now - instant < 900]
+        if len(attempts) >= 5:
+            raise HTTPException(status_code=429, detail="Troppi tentativi. Riprova più tardi")
+        if set(payload) != {"admin_password"} or not user_auth.verify("admin", str(payload["admin_password"])):
+            reveal_failures[key] = attempts + [now]
+            raise HTTPException(status_code=403, detail="Password admin non valida")
+        reveal_failures.pop(key, None)
+        user = user_auth.account(username)
+        if not user or username == "admin" or not user["active"]:
+            raise HTTPException(status_code=404, detail="Utente attivo non trovato")
+        try:
+            record = sip_accounts.allocate(username)
+            stanza = sip_accounts.asterisk_stanza(record["extension"], record["password"], user["name"])
+        except ValueError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+        return JSONResponse({"extension": record["extension"], "provisioned": record["provisioned"], "asterisk_config": stanza}, headers={"Cache-Control": "no-store, private"})
+
+    @app.put("/api/admin/intercom/sip/accounts/{username}/provisioned")
+    async def admin_confirm_sip(username: str, request: Request, payload: dict) -> dict:
+        require_admin(request)
+        if set(payload) != {"provisioned"} or not isinstance(payload["provisioned"], bool):
+            raise HTTPException(status_code=400, detail="Conferma non valida")
+        if not user_auth.account(username) or username == "admin":
+            raise HTTPException(status_code=404, detail="Utente non trovato")
+        try:
+            record = sip_accounts.mark_provisioned(username, payload["provisioned"])
+        except ValueError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+        return {"extension": record["extension"], "provisioned": record["provisioned"]}
 
     @app.post("/api/admin/intercom/doorbird/check")
     async def admin_check_doorbird(request: Request) -> Response:
@@ -284,7 +337,7 @@ def create_app() -> FastAPI:
         origin = websocket.headers.get("origin", "")
         if (
             not user_auth.enabled()
-            or user_auth.session_user(websocket.cookies.get(user_auth.COOKIE)) != "admin"
+            or not user_auth.session_user(websocket.cookies.get(user_auth.COOKIE))
             or urlsplit(origin).netloc != websocket.headers.get("host")
         ):
             await websocket.close(code=1008)
@@ -371,7 +424,8 @@ def create_app() -> FastAPI:
 
     @app.get("/intercom", include_in_schema=False)
     async def intercom_page(request: Request) -> FileResponse:
-        require_admin(request)
+        if not user_auth.session_user(request.cookies.get(user_auth.COOKIE)):
+            raise HTTPException(status_code=401, detail="Accesso richiesto")
         return FileResponse(STATIC / "intercom.html", headers={"Cache-Control": "no-store"})
 
     async def resolved_provider(config, slug: str, port: int, timeout: float):

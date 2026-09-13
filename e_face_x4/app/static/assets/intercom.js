@@ -158,16 +158,17 @@
     if (!window.JsSIP) { error('Il client SIP non è disponibile.'); return }
     error('')
     try {
-      if (!password) {
-        const response = await fetch(new URL('api/intercom/sip/credential', root), {cache:'no-store', credentials:'same-origin'})
-        const data = await response.json().catch(() => ({}))
-        if (!response.ok) throw new Error(data.detail || 'Credenziale SIP 8301 non disponibile in e-Face')
-        password = data.password
-      }
-      if (!password) throw new Error('Password SIP 8301 mancante')
+      const response = await fetch(new URL('api/intercom/sip/credential', root), {cache:'no-store', credentials:'same-origin'})
+      const data = await response.json().catch(() => ({}))
+      if (!response.ok) throw new Error(data.detail || 'Credenziale SIP non disponibile in e-Face')
+      const extension = data.username
+      if (!/^[0-9]{4}$/.test(extension)) throw new Error('Interno SIP non valido')
+      if (!password) password = data.password
+      if (!password) throw new Error('Password SIP mancante')
+      $('#sip-extension').textContent = `INTERNO ${extension}`
       await loadIce()
       const socket = new JsSIP.WebSocketInterface(socketUrl.toString())
-      phone = new JsSIP.UA({sockets:[socket], uri:'sip:8301@asterisk', authorization_user:'8301', password, display_name:'e-Face Test', register:true, session_timers:false})
+      phone = new JsSIP.UA({sockets:[socket], uri:`sip:${extension}@asterisk`, authorization_user:extension, password, display_name:'e-Face', register:true, session_timers:false})
       $('#sip-password').value = ''
       connection(false, 'Connessione in corso…')
       $('#sip-connect').disabled = true
