@@ -101,6 +101,30 @@ def test_admin_accounts_are_isolated_and_sessions_can_be_revoked(monkeypatch, tm
     assert admin.patch("/api/admin/users/admin", json={"active": False}).status_code == 400
 
 
+def test_admin_ami_probe_does_not_store_or_expose_secret(monkeypatch, tmp_path) -> None:
+    monkeypatch.setenv("EFACE_AUTH_DIR", str(tmp_path / "auth"))
+    from app.user_auth import create_admin
+    from app import asterisk_ami
+    create_admin("password-admin-lunga")
+    client = TestClient(create_app())
+    assert client.post("/api/admin/intercom/ami/test", json={"secret": "private"}).status_code == 401
+    assert client.post("/api/auth/login", json={"username": "admin", "password": "password-admin-lunga"}).status_code == 200
+    assert client.post("/api/admin/intercom/ami/test", json={"secret": ""}).status_code == 400
+    calls = []
+
+    async def fake_probe(host, port, username, secret):
+        calls.append((host, port, username, secret))
+        return {"Response": "Success", "Line-000000": "username=8301"}
+
+    monkeypatch.setattr(asterisk_ami, "read_8301_auth", fake_probe)
+    response = client.post("/api/admin/intercom/ami/test", json={"secret": "private"})
+    assert response.status_code == 200
+    assert response.json() == {"ami_connected": True, "auth_8301_found": True}
+    assert response.headers["cache-control"] == "no-store, private"
+    assert "private" not in response.text
+    assert calls == [("192.168.3.24", 5038, "eface", "private")]
+
+
 def test_intercom_dashboard_stores_only_local_settings(monkeypatch, tmp_path) -> None:
     monkeypatch.setenv("EFACE_AUTH_DIR", str(tmp_path / "auth"))
     monkeypatch.setenv("EFACE_INTERCOM_SETTINGS", str(tmp_path / "intercom.json"))

@@ -28,6 +28,7 @@ from . import user_auth
 from . import intercom_settings
 from . import installation
 from . import credential_inventory
+from . import asterisk_ami
 from .media_preferences import apply_preferences, load_preferences, save_preferences
 from .source_icons import delete_source_icon, load_builtin_source_icon, load_source_icon, save_source_icon
 from .backgrounds import CARD_THEMES, PRESETS, load_background, load_background_image, load_backgrounds, load_card_theme, load_card_glow, load_room_order, load_security_order, save_background_image, save_card_theme, save_card_glow, save_room_order, save_security_order, save_inherit, save_preset
@@ -37,7 +38,7 @@ from .connectors.control4_media import cached_control4_icon, cached_control4_ico
 from .connectors.supervisor import discover_addon_url, discover_host_url
 from .demo import dashboard as demo_dashboard
 
-VERSION = "2.20.47"
+VERSION = "2.20.48"
 STATIC = Path(__file__).parent / "static"
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s [e-face-x4] %(message)s")
 
@@ -235,6 +236,19 @@ def create_app() -> FastAPI:
             reachable(settings["doorbird_host"], settings["doorbird_port"]),
         )
         return {"asterisk_reachable": asterisk, "doorbird_reachable": doorbird, "sip_ready": False}
+
+    @app.post("/api/admin/intercom/ami/test")
+    async def admin_test_asterisk_ami(request: Request, payload: dict) -> Response:
+        require_admin(request)
+        if set(payload) != {"secret"} or not isinstance(payload["secret"], str) or not payload["secret"]:
+            raise HTTPException(status_code=400, detail="Password AMI richiesta")
+        settings = intercom_settings.load()
+        try:
+            result = await asterisk_ami.read_8301_auth(settings["asterisk_host"], 5038, "eface", payload["secret"])
+        except (OSError, TimeoutError, asterisk_ami.AMIError) as exc:
+            logging.warning("AMI e-Face test failed: %s", type(exc).__name__)
+            raise HTTPException(status_code=502, detail="Accesso AMI non riuscito: controlla indirizzo autorizzato e password") from exc
+        return JSONResponse({"ami_connected": True, "auth_8301_found": any(value == "username=8301" for value in result.values())}, headers={"Cache-Control": "no-store, private"})
 
     @app.websocket("/api/intercom/sip")
     async def intercom_sip_socket(websocket: WebSocket) -> None:

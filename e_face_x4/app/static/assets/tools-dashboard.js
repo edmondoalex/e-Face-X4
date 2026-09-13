@@ -137,6 +137,23 @@ async function intercom() {
 
 $('#intercom-tool').addEventListener('click', async () => { try { await intercom(); openPanel('intercom-config') } catch(error) { message(error.message) } })
 $('#intercom-back').addEventListener('click', () => closePanel('intercom-config'))
+const amiTestForm = document.createElement('form')
+amiTestForm.className = 'admin-form'
+amiTestForm.innerHTML = '<div class="admin-info"><b>Accesso Asterisk dedicato</b><p>Verifica l’utente AMI eface e la configurazione dell’interno 8301. Questo test non cambia password né chiamate. La password non viene salvata.</p></div><label>Password AMI eface<input id="intercom-ami-secret" type="password" autocomplete="off" required></label><div class="admin-form-actions"><button type="submit">VERIFICA ACCESSO AMI</button></div><div id="intercom-ami-result" class="admin-status" role="status" hidden></div>'
+$('#intercom-config').append(amiTestForm)
+amiTestForm.addEventListener('submit', async (event) => {
+  event.preventDefault()
+  const button = amiTestForm.querySelector('button[type=submit]')
+  const secret = $('#intercom-ami-secret').value
+  $('#intercom-ami-secret').value = ''
+  button.disabled = true
+  try {
+    const data = await request('api/admin/intercom/ami/test', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({secret})})
+    $('#intercom-ami-result').textContent = data.auth_8301_found ? 'Accesso AMI riuscito; auth 8301 trovata.' : 'Accesso AMI riuscito; auth 8301 non trovata.'
+    $('#intercom-ami-result').hidden = false
+  } catch(error) { $('#intercom-ami-result').textContent = error.message; $('#intercom-ami-result').hidden = false }
+  finally { button.disabled = false }
+})
 $('#intercom-form').addEventListener('submit', async (event) => {
   event.preventDefault()
   const payload = {
