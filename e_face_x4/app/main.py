@@ -25,6 +25,7 @@ from starlette.responses import RedirectResponse
 
 from .config import load_settings
 from .control4 import control4_director, load_control4_config, public_control4_config, save_control4_config, test_control4_connection
+from .control4_msp import tunein_browse, tunein_action
 from .installer_auth import COOKIE, create_session, valid_session
 from . import user_auth
 from . import intercom_settings
@@ -42,7 +43,7 @@ from .connectors.control4_media import cached_control4_icon, cached_control4_ico
 from .connectors.supervisor import discover_addon_url, discover_host_url
 from .demo import dashboard as demo_dashboard
 
-VERSION = "2.20.84"
+VERSION = "2.20.85"
 STATIC = Path(__file__).parent / "static"
 logging.basicConfig(level=logging.WARNING, format="%(asctime)s %(levelname)s [e-face-x4] %(message)s")
 _reconnect_warning_at: dict[str, float] = {}
@@ -348,10 +349,42 @@ def create_app() -> FastAPI:
             if not name or not str(item.get("id") or "").isdigit():
                 continue
             key = name.casefold()
-            if key not in by_name or "deviceOrder" not in item:
-                by_name[key] = {"name": name, "status": "ready" if key == "amazon music" else "test" if key in {"tidal", "tunein"} else "external" if key in {"spotify connect", "shairbridge"} else "pending"}
+            if key not in by_name or "deviceOrder" in item:
+                by_name[key] = {"name": name, "proxy_id": int(item["id"]), "status": "ready" if key in {"amazon music", "tunein"} else "test" if key == "tidal" else "external" if key in {"spotify connect", "shairbridge"} else "pending"}
         services = sorted(by_name.values(), key=lambda service: str(service["name"]).casefold())
         return JSONResponse({"services": services}, headers={"Cache-Control": "no-store, private"})
+
+    @app.post("/api/control4/music/tunein/navigate")
+    async def control4_tunein_navigate(request: Request, payload: dict) -> Response:
+        if not user_auth.session_user(request.cookies.get(user_auth.COOKIE)):
+            raise HTTPException(status_code=401, detail="Accesso richiesto")
+        try:
+            proxy_id, room_id = int(payload.get("proxy_id")), int(payload.get("room_id"))
+            if proxy_id <= 0 or room_id <= 0:
+                raise ValueError
+            director, _ = await control4_director(load_control4_config())
+            info = await director.get_item_info(proxy_id)
+            source = info[0] if isinstance(info, list) and info else info
+            if not isinstance(source, dict) or str(source.get("name") or "").casefold() != "tunein" or source.get("proxy") != "media_service":
+                raise ValueError
+            tab = str(payload.get("tab") or "Home")
+            parent = str(payload.get("parent") or "") or None
+            offset = int(payload.get("offset") or 0)
+            search = str(payload.get("search") or "")
+            if payload.get("action"):
+                result = await tunein_action(proxy_id, room_id, tab, str(payload.get("item_id") or ""), str(payload["action"]))
+            else:
+                result = await tunein_browse(proxy_id, room_id, tab, parent, offset, search)
+            return JSONResponse(result, headers={"Cache-Control": "no-store, private"})
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail="Navigazione TuneIn non valida o voce scaduta") from exc
+        except asyncio.TimeoutError as exc:
+            raise HTTPException(status_code=504, detail="TuneIn non ha risposto: riprova") from exc
+        except HTTPException:
+            raise
+        except Exception as exc:
+            logging.warning("Navigazione TuneIn non disponibile (%s)", type(exc).__name__)
+            raise HTTPException(status_code=502, detail="Navigazione TuneIn non disponibile") from exc
 
     @app.get("/api/admin/control4/artwork-diagnostic")
     async def admin_control4_artwork_diagnostic(request: Request) -> dict:

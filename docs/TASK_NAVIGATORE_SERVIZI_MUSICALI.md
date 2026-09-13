@@ -18,7 +18,7 @@ Stato al 13 settembre 2026: **non completato**. Il popup provvisorio della 2.20.
 - La UI del driver definisce `Tabs`, `Screens`, `DataCommand`, `DefaultAction`, `ItemActionIdsProperty` e `ItemDefaultActionProperty`. Gli `ARGS` degli elementi vengono dalla selezione, non da un elenco di comandi universale.
 - Le foto e il log Composer del sistema reale mostrano `GetTabList`, `Browse` (`screenId=HomeScreen` per Amazon), `GetSettingsScreen`, `GetSettings`; il driver restituisce il link di autenticazione con eventi separati.
 
-## Punto tecnico ancora da verificare sul Director reale
+## Diagnosi storica precedente alla verifica live
 
 Il test reale su TuneIn 614 ha escluso la normale API `POST /api/v1/items/{id}/commands` come ingresso sufficiente per il Navigator: `GetTabList` restituisce `result: 1` (intero), senza XML né `NAVID`; sul canale `dataToUi` compaiono eventi `LUA_OUTPUT` e aggiornamenti proprietà, non una risposta MSP correlata. Non convertire un `200` del comando in «navigazione riuscita».
 
@@ -32,3 +32,11 @@ Dettaglio verificato nell'APK: `MediaService.observeResponse()` ha annotazione `
 2. Costruire un adattatore backend per sessione `NAVID` per coppia stanza/servizio, correlazione `SEQ`, timeout, parsing XML sicuro e whitelist di comandi/azioni realmente dichiarati dal driver.
 3. Rendere in e-Face le schede e i contenuti ricevuti, con back stack, ricerca, loading/errori, cover via proxy immagini già esistente e azioni per elemento.
 4. Verificare su TuneIn, Amazon e TIDAL: apertura sorgente senza audio, ricerca e scelta contenuto, Play, preferito servizio, preferito stanza, ritorno al player e chiusura esterna.
+
+## Verifica sul Director del 14/09/2026 e prima integrazione
+
+- TuneIn v26 installato: dispositivo Lua `614`, proxy UI `media_service` `615` con binding `5001`. Il secondo Ã¨ il target REST per la navigazione.
+- Il file `driver.xml` della v26 conferma `GetTabList`, `GetBrowseScreen`, i tab `Home`, `Browse`, `Favorites`, `Settings` e il filtro di ricerca `fulltextsearch`.
+- `ARGS` non puÃ² essere vuoto: il driver produce `LUA_ERROR parsedArgs nil`. Con XML `<args/>`, `GetTabList` ha restituito sul WebSocket `OnDataToUI` del proxy `615` il campo `data.RESPONSE = {NAVID, SEQ, DATA}` e quattro tab reali.
+- `GetBrowseScreen` richiede `screenId=BrowseScreen`, `tabId`, `offset` e `limit` dentro gli `<arg name="...">`; senza paginazione `DATA` Ã¨ vuoto. Verificati live Browse con otto categorie e figlio Local Radio con stazioni reali. Ricerca verificata con `search=relax` e `filter=fulltextsearch`.
+- La versione 2.20.85 introduce il primo popup TuneIn e l'adattatore backend. `Url` e `GuideId` rimangono nel server sotto ID temporanei: non sono trasmessi al browser. Ancora da collaudare dopo installazione della versione: Play, Follow/Unfollow, preferito stanza e comportamento visuale del popup. Amazon e TIDAL richiedono l'analisi dei rispettivi `driver.xml` prima di estendere l'adattatore.

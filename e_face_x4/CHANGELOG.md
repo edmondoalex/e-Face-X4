@@ -1,5 +1,8 @@
 # Changelog
 
+## 2.20.85 — 2026-09-14
+- Navigatore TuneIn reale nel popup di Ascolta: Home, Sfoglia, Preferiti, ricerca, categorie, paginazione e azioni del driver. Comunicazione MSP verificata sul Director con XML ARGS e risposta WebSocket correlata; URL interni protetti sul server.
+
 ## 2.20.84 — 2026-09-13
 - Rimossi da Strumenti i controlli diagnostici musicali non più necessari e le relative API di prova. Restano i flussi di associazione account e la diagnostica cover.
 

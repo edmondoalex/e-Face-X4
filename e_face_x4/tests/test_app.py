@@ -536,7 +536,7 @@ def test_x4_shell_and_brand_assets_are_served() -> None:
     assert "now-playing" not in page.text
     assert 'id="detail-view"' in page.text
     assert 'id="detail-back"' in page.text
-    assert page.text.count('<dialog') == 6
+    assert page.text.count('<dialog') == 7
     assert 'id="media-browser-dialog"' not in page.text
     assert 'id="security-area-dialog"' in page.text
     assert 'id="security-pin-dialog"' in page.text
@@ -1028,6 +1028,7 @@ def test_music_account_services_lists_installed_drivers_for_user(monkeypatch, tm
                 {"id": 1644, "name": "Amazon Music", "proxy": "media_service", "deviceOrder": 1},
                 {"id": 1648, "name": "TIDAL", "proxy": "media_service"},
                 {"id": 614, "name": "TuneIn", "proxy": "media_service"},
+                {"id": 615, "name": "TuneIn", "proxy": "media_service", "deviceOrder": 1},
                 {"id": 1569, "name": "Spotify Connect", "proxy": "media_service"},
                 {"id": 4, "name": "Unknown Device", "proxy": "light"},
             ]
@@ -1043,10 +1044,10 @@ def test_music_account_services_lists_installed_drivers_for_user(monkeypatch, tm
     response = client.get(path)
     assert response.status_code == 200
     assert response.json() == {"services": [
-        {"name": "Amazon Music", "status": "ready"},
-        {"name": "Spotify Connect", "status": "external"},
-        {"name": "TIDAL", "status": "test"},
-        {"name": "TuneIn", "status": "test"},
+        {"name": "Amazon Music", "proxy_id": 1644, "status": "ready"},
+        {"name": "Spotify Connect", "proxy_id": 1569, "status": "external"},
+        {"name": "TIDAL", "proxy_id": 1648, "status": "test"},
+        {"name": "TuneIn", "proxy_id": 615, "status": "ready"},
     ]}
     assert "director-secret" not in response.text
 
