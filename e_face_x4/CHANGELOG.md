@@ -1,5 +1,9 @@
 # Changelog
 
+## 2.20.72 — 2026-09-13
+- La prova Amazon Music esegue una diagnosi completa in un clic: individua il link nella risposta del comando, nella scheda driver o nelle variabili e segnala se è cambiato dopo l'azione, senza esporre il valore.
+- La diagnostica distingue inoltre le letture non disponibili dai campi leggibili ma privi del link.
+
 ## 2.20.71 — 2026-09-13
 - Aggiunta in Admin Control4 la prova dell'azione Composer Amazon Music `LUA_ACTION / GetLinkForAPIAuthentication`, confermata sul driver reale. Mostra solo la struttura della risposta, senza esporre il collegamento temporaneo.
 - Documentata la proprietà Composer `Authentication URL` come possibile fonte del link; la lettura via API Director resta da verificare prima di pubblicare il login cliente.

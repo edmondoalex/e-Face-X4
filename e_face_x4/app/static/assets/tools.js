@@ -190,7 +190,7 @@ pairingControls.addEventListener('click', async (event) => {
       const response = await fetch(apiUrl('../api/admin/control4/amazon-auth-action-probe'), { method: 'POST', cache: 'no-store' })
       const data = await response.json().catch(() => ({}))
       if (!response.ok) throw new Error(data.detail || `HTTP ${response.status}`)
-      $('#control4-result').innerHTML = `<b>Amazon Music · driver ${Number(data.driver_id)} · azione inviata</b><span>Risposta: ${esc((data.response_fields || []).join(', ') || 'nessun campo')} · result: ${esc(data.result_format || 'unknown')}. Nessun link mostrato dalla diagnostica.</span>`
+      $('#control4-result').innerHTML = `<b>Amazon Music · driver ${Number(data.driver_id)} · azione inviata</b><span>Risposta: ${esc((data.response_fields || []).join(', ') || 'nessun campo')} · result: ${esc(data.result_format || 'unknown')}</span><span>Link nella risposta: ${data.link_in_response ? 'SÌ' : 'NO'} · nella scheda driver: ${data.link_in_item_info ? 'SÌ' : 'NO'} (nuovo: ${data.item_info_link_changed ? 'SÌ' : 'NO'}) · nelle variabili: ${data.link_in_variables ? 'SÌ' : 'NO'} (nuovo: ${data.variable_link_changed ? 'SÌ' : 'NO'})</span><span>Lettura scheda: ${data.item_info_readable ? 'OK' : 'non disponibile'} · variabili: ${data.variables_readable ? 'OK' : 'non disponibili'}. Il link non viene mostrato.</span>`
       $('#control4-result').hidden = false
     } catch (error) { notice(error.message) } finally { button.disabled = false }
     return

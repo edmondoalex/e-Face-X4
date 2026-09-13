@@ -1044,6 +1044,14 @@ def test_control4_music_pairing_probe_xml_only_returns_tag_names(monkeypatch, tm
         async def get_all_item_info(self):
             return [{"id": 1643, "name": "Amazon Music", "proxy": "media_service"}]
 
+        async def get_item_info(self, item_id):
+            assert item_id == 1643
+            return [{"id": 1643, "name": "Amazon Music"}]
+
+        async def get_item_variables(self, item_id):
+            assert item_id == 1643
+            return []
+
         async def get_item_setup(self, item_id):
             return {"name": "GET_SETUP", "result": '<setup><registration code="secret-pairing-code"><url>https://secret.example</url></registration></setup>', "seq": 1}
 
@@ -1090,8 +1098,49 @@ def test_amazon_auth_action_probe_redacts_pairing_link(monkeypatch, tmp_path) ->
     assert response.status_code == 200
     assert response.json()["response_fields"] == ["name", "result", "seq"]
     assert response.json()["result_format"] == "text"
+    assert response.json()["link_in_response"] is True
+    assert response.json()["link_in_item_info"] is False
+    assert response.json()["link_in_variables"] is False
     assert "private-pairing" not in response.text
     assert "director-secret" not in response.text
+
+
+def test_amazon_auth_action_probe_detects_property_link_without_returning_it(monkeypatch, tmp_path) -> None:
+    import app.main as main_module
+    from app.user_auth import create_admin
+
+    monkeypatch.setenv("EFACE_AUTH_DIR", str(tmp_path / "auth"))
+    create_admin("password-admin-lunga")
+    monkeypatch.setattr(main_module, "load_control4_config", lambda: {"host": "192.168.3.10", "username": "private", "password": "director-secret"})
+
+    class Director:
+        action_called = False
+
+        async def get_all_item_info(self):
+            return [{"id": 1643, "name": "Amazon Music", "proxy": "media_service"}]
+
+        async def get_item_info(self, item_id):
+            return {"properties": {"Authentication URL": "https://link.ctrl4.co/secret-new" if self.action_called else "https://link.ctrl4.co/secret-old"}}
+
+        async def get_item_variables(self, item_id):
+            return []
+
+        async def send_post_request(self, uri, command, params, is_async):
+            self.action_called = True
+            return '{"name":"LUA_ACTION","result":"true","seq":12}'
+
+    async def director(config):
+        return Director(), "director-token"
+
+    monkeypatch.setattr(main_module, "control4_director", director)
+    client = TestClient(main_module.create_app())
+    assert client.post("/api/auth/login", json={"username": "admin", "password": "password-admin-lunga"}).status_code == 200
+    response = client.post("/api/admin/control4/amazon-auth-action-probe")
+    assert response.status_code == 200
+    assert response.json()["link_in_response"] is False
+    assert response.json()["link_in_item_info"] is True
+    assert response.json()["item_info_link_changed"] is True
+    assert "secret-old" not in response.text and "secret-new" not in response.text
 
 
 def test_control4_command_does_not_require_evoice_enabled(monkeypatch, tmp_path) -> None:

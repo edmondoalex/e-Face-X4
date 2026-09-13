@@ -41,7 +41,7 @@ from .connectors.control4_media import cached_control4_icon, cached_control4_ico
 from .connectors.supervisor import discover_addon_url, discover_host_url
 from .demo import dashboard as demo_dashboard
 
-VERSION = "2.20.71"
+VERSION = "2.20.72"
 STATIC = Path(__file__).parent / "static"
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s [e-face-x4] %(message)s")
 
@@ -371,6 +371,31 @@ def create_app() -> FastAPI:
         config = load_control4_config()
         if not config.get("username") or not config.get("password"):
             raise HTTPException(status_code=409, detail="Control4 non configurato in e-Face")
+
+        def pairing_links(value: object, depth: int = 0) -> set[str]:
+            if depth > 8:
+                return set()
+            if isinstance(value, str):
+                if len(value) > 100_000:
+                    return set()
+                return set(re.findall(r"https://link\.ctrl4\.co/[A-Za-z0-9_/-]{1,160}", value))
+            if isinstance(value, dict):
+                return set().union(*(pairing_links(child, depth + 1) for child in list(value.values())[:100]))
+            if isinstance(value, list):
+                return set().union(*(pairing_links(child, depth + 1) for child in value[:100]))
+            return set()
+
+        async def inspect_driver(director: object, item_id: int) -> dict[str, object]:
+            async def read(method: str) -> object:
+                try:
+                    return await getattr(director, method)(item_id)
+                except Exception:
+                    return None
+
+            info, variables = await asyncio.gather(read("get_item_info"), read("get_item_variables"))
+            return {"item_info_readable": info is not None, "variables_readable": variables is not None,
+                    "item_info_links": pairing_links(info), "variable_links": pairing_links(variables)}
+
         try:
             director, _ = await control4_director(config)
             all_items = await director.get_all_item_info()
@@ -378,10 +403,16 @@ def create_app() -> FastAPI:
             driver = next((item for item in candidates if "deviceOrder" not in item), candidates[0] if candidates else None)
             if not driver:
                 raise HTTPException(status_code=404, detail="Driver Amazon Music non trovato")
+            driver_id = int(driver["id"])
+            before = await inspect_driver(director, driver_id)
             raw = await director.send_post_request(
-                f"/api/v1/items/{int(driver['id'])}/commands",
+                f"/api/v1/items/{driver_id}/commands",
                 "LUA_ACTION", {"ACTION": "GetLinkForAPIAuthentication"}, False,
             )
+            after = await inspect_driver(director, driver_id)
+            if not after["item_info_links"] and not after["variable_links"]:
+                await asyncio.sleep(1)
+                after = await inspect_driver(director, driver_id)
         except HTTPException:
             raise
         except Exception as exc:
@@ -394,7 +425,15 @@ def create_app() -> FastAPI:
         fields = sorted(str(key) for key in reply if re.fullmatch(r"[A-Za-z_][A-Za-z0-9_-]{0,49}", str(key))) if isinstance(reply, dict) else []
         result = reply.get("result") if isinstance(reply, dict) else None
         result_format = "empty" if result in (None, "") else "json" if isinstance(result, (dict, list)) or (isinstance(result, str) and result.lstrip().startswith(("{", "["))) else "text"
-        return JSONResponse({"driver_id": int(driver["id"]), "response_fields": fields, "result_format": result_format, "note": "Azione eseguita. Nessun valore o link restituito dalla diagnostica."}, headers={"Cache-Control": "no-store, private"})
+        return JSONResponse({
+            "driver_id": driver_id, "response_fields": fields, "result_format": result_format,
+            "link_in_response": bool(pairing_links(reply)),
+            "item_info_readable": after["item_info_readable"], "variables_readable": after["variables_readable"],
+            "link_in_item_info": bool(after["item_info_links"]), "link_in_variables": bool(after["variable_links"]),
+            "item_info_link_changed": bool(after["item_info_links"] - before["item_info_links"]),
+            "variable_link_changed": bool(after["variable_links"] - before["variable_links"]),
+            "note": "Diagnostica riservata: restituisce solo presenza e variazione del link, mai il link stesso.",
+        }, headers={"Cache-Control": "no-store, private"})
 
     @app.get("/api/admin/control4/artwork-diagnostic")
     async def admin_control4_artwork_diagnostic(request: Request) -> dict:
