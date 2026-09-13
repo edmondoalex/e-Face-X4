@@ -24,6 +24,14 @@ Se un driver non espone un flusso integrabile, segnare esplicitamente il servizi
 
 Prossima verifica tecnica: ottenere documentazione o collaborazione del produttore del driver su un'interfaccia supportata di autorizzazione/riassociazione, partendo da TuneIn, e provarla su un account di test prima di creare la UI cliente. Se non esiste, la soluzione richiede un'integrazione media diversa che mantenga la riproduzione sui dispositivi desiderati; non basta duplicare le credenziali in e-Face.
 
+## Traccia Deezer reale (2026-09-13)
+
+Il driver Deezer usa l'azione Composer `LUA_ACTION` con `ACTION=Login` e parametri `username`/`password`. Il Navigator usa invece il proxy 5001 con `SettingChanged` per i due campi e poi `LogInCommand`; dopo il tentativo fallito è stato osservato `ConfirmAuthenticationRequired`. L'account Free usato nel test non è idoneo: Control4 richiede Premium o superiore per Deezer. Questo errore non permette quindi di validare un login riuscito.
+
+Questa traccia riguarda **solo Deezer**. TuneIn usa un meccanismo di associazione distinto, documentato come Join/Drop/Update Status; non riutilizzare `LUA_ACTION Login` né imporre un form email/password universale. L'interfaccia e-Face potrà avere una sezione account comune, ma l'implementazione dovrà essere un adattatore specifico per ogni servizio e driver.
+
+**Blocco di sicurezza:** la traccia Lua del driver registra in chiaro i parametri dell'azione e anche il valore del campo password inserito nel Navigator. La password presente nella traccia condivisa va ruotata e non deve essere copiata nel repository, nei test, nei ticket o nei log e-Face. Non abilitare il login cliente tramite `LUA_ACTION` finché non è verificato che il logging del driver sia disattivabile o che esista un flusso di autorizzazione alternativo che non scrive la password in chiaro. La forma dell'azione vista in Composer non dimostra ancora che `LUA_ACTION` sia accettata dall'endpoint REST del Director per il driver Deezer.
+
 ## Criteri di completamento
 
 1. Il cliente rinnova un account scaduto usando solo e-Face e il provider, senza UI Control4; la stessa sorgente riproduce poi musica.
