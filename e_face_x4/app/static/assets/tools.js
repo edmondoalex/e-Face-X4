@@ -224,8 +224,23 @@ $('#control4-service-link').addEventListener('click', async (event) => {
 const pairingControls = document.createElement('div')
 pairingControls.className = 'control4-actions'
 pairingControls.innerHTML = '<button type="button" data-music-pairing-probe="tunein">VERIFICA ASSOCIAZIONE TUNEIN</button><button type="button" data-music-pairing-probe="amazon">VERIFICA ASSOCIAZIONE AMAZON</button><button type="button" data-music-pairing-probe="tidal">VERIFICA ASSOCIAZIONE TIDAL</button><button type="button" id="amazon-auth-action-probe">PROVA LINK AMAZON</button><button type="button" id="music-navigator-probe">DIAGNOSI LOGIN SERVIZI</button><label>Comando Amazon<select id="amazon-debug-trigger"><option value="composer_action">Azione Composer</option><option value="navigator_login">Login Navigator</option></select></label><label>Ascolto (secondi)<input id="amazon-observe-seconds" type="number" min="1" max="30" value="15"></label><button type="button" id="amazon-event-probe">DIAGNOSI EVENTI AMAZON</button>'
+pairingControls.insertAdjacentHTML('beforeend', '<label>Stanza MSP<input id="music-nav-room-id" type="number" min="1" value="51"></label><button type="button" id="music-nav-live-probe">PROVA NAVIGAZIONE TUNEIN</button>')
 $('#control4-result').before(pairingControls)
 pairingControls.addEventListener('click', async (event) => {
+  if (event.target.closest('#music-nav-live-probe')) {
+    const button = event.target.closest('#music-nav-live-probe')
+    button.disabled = true
+    try {
+      const roomId = Number($('#music-nav-room-id').value)
+      if (!Number.isInteger(roomId) || roomId < 1) throw new Error('Inserisci un ID stanza valido')
+      const response = await fetch(apiUrl(`../api/admin/control4/music-navigator-live-probe?service=TuneIn&room_id=${roomId}`), { method: 'POST', cache: 'no-store' })
+      const data = await response.json().catch(() => ({}))
+      if (!response.ok) throw new Error(data.detail || `HTTP ${response.status}`)
+      $('#control4-result').innerHTML = `<b>TuneIn · GetTabList · risposta correlata: ${data.correlated_response ? 'SÌ' : 'NO'}</b><span>Driver ${Number(data.driver_id)} · risposta comando: ${esc((data.command_fields || []).join(', ') || 'nessun campo')}</span>${(data.events || []).map(item => `<span>Evento ${esc(item.event || '-')} · comando ${esc(item.command || '-')} · NAVID/SEQ ${item.nav_match ? 'OK' : 'non trovati'} · XML ${item.has_xml ? 'SÌ' : 'NO'} · campi ${esc((item.data_fields || []).join(', ') || '-')} · payload ${esc((item.payload_fields || []).join(', ') || '-')}</span>`).join('')}<span>Nessun dato account o contenuto viene mostrato.</span>`
+      $('#control4-result').hidden = false
+    } catch (error) { notice(error.message) } finally { button.disabled = false }
+    return
+  }
   if (event.target.closest('#amazon-event-probe')) {
     const button = event.target.closest('#amazon-event-probe')
     button.disabled = true

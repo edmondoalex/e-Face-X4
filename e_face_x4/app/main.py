@@ -42,7 +42,7 @@ from .connectors.control4_media import cached_control4_icon, cached_control4_ico
 from .connectors.supervisor import discover_addon_url, discover_host_url
 from .demo import dashboard as demo_dashboard
 
-VERSION = "2.20.81"
+VERSION = "2.20.82"
 STATIC = Path(__file__).parent / "static"
 logging.basicConfig(level=logging.WARNING, format="%(asctime)s %(levelname)s [e-face-x4] %(message)s")
 _reconnect_warning_at: dict[str, float] = {}
@@ -500,6 +500,88 @@ def create_app() -> FastAPI:
                 entry["get_settings_after_login"] = await run(item_id, "GetSettings", {})
             results.append(entry)
         return JSONResponse({"drivers": results, "note": "Solo struttura ed esito dei comandi; nessun valore, password o link."}, headers={"Cache-Control": "no-store, private"})
+
+    @app.post("/api/admin/control4/music-navigator-live-probe")
+    async def admin_control4_music_navigator_live_probe(
+        request: Request,
+        service: str = Query("TuneIn", pattern="^(TuneIn|Amazon Music|TIDAL)$"),
+        room_id: int = Query(..., ge=1),
+    ) -> Response:
+        """Test one MSP request with the event listener armed before sending it.
+
+        Return metadata only: driver responses may include private account data.
+        """
+        require_admin(request)
+        config = load_control4_config()
+        if not config.get("username") or not config.get("password"):
+            raise HTTPException(status_code=409, detail="Control4 non configurato")
+        director, token = await control4_director(config)
+        all_items = await director.get_all_item_info()
+        candidates = [item for item in all_items if isinstance(item, dict)
+                      and str(item.get("name") or "").casefold() == service.casefold()
+                      and str(item.get("proxy") or "").lower() == "media_service"
+                      and str(item.get("id") or "").isdigit()] if isinstance(all_items, list) else []
+        driver = next((item for item in candidates if "deviceOrder" not in item), candidates[0] if candidates else None)
+        if not driver:
+            raise HTTPException(status_code=404, detail="Servizio non trovato")
+        driver_id = int(driver["id"])
+        nav_id = str(uuid.uuid4())
+        seq = 1
+        seen: list[dict[str, object]] = []
+        matched = asyncio.Event()
+
+        def has_correlation(value: object, depth: int = 0) -> bool:
+            if depth > 8:
+                return False
+            if isinstance(value, dict):
+                if str(value.get("NAVID") or value.get("navId") or "") == nav_id and str(value.get("SEQ") or value.get("seq") or "") == str(seq):
+                    return True
+                return any(has_correlation(child, depth + 1) for child in value.values())
+            if isinstance(value, list):
+                return any(has_correlation(child, depth + 1) for child in value[:50])
+            return False
+
+        async def on_event(item_id: int, message: object) -> None:
+            if len(seen) >= 30:
+                return
+            data = message.get("data") if isinstance(message, dict) else None
+            device_command = data.get("devicecommand") if isinstance(data, dict) else None
+            command = device_command.get("command") if isinstance(device_command, dict) else None
+            payload = device_command.get("params") if isinstance(device_command, dict) else None
+            serialized = json.dumps(message, ensure_ascii=False, default=str)[:200_000]
+            is_match = has_correlation(message) or (nav_id in serialized and f'<SEQ>{seq}</SEQ>' in serialized)
+            seen.append({"item_id": item_id, "event": str(message.get("evtName") or "")[:60] if isinstance(message, dict) else "",
+                         "command": str(command or "")[:60], "fields": sorted(str(key) for key in message) if isinstance(message, dict) else [],
+                         "data_fields": sorted(str(key) for key in data) if isinstance(data, dict) else [],
+                         "payload_fields": sorted(str(key) for key in payload) if isinstance(payload, dict) else [],
+                         "has_xml": "<" in serialized and ">" in serialized, "nav_match": is_match})
+            if is_match:
+                matched.set()
+
+        socket = C4Websocket(config["host"])
+        for item_id in {driver_id, driver_id + 1}:
+            socket.add_item_callback(item_id, on_event)
+        try:
+            await asyncio.wait_for(socket.sio_connect(token), timeout=10)
+            raw = await director.send_post_request(
+                f"/api/v1/items/{driver_id}/commands", "GetTabList",
+                {"ROOMID": room_id, "NAVID": nav_id, "SEQ": seq, "LOCALE": "it_IT"}, False,
+            )
+            try:
+                await asyncio.wait_for(matched.wait(), timeout=8)
+            except asyncio.TimeoutError:
+                pass
+        finally:
+            await socket.sio_disconnect()
+        try:
+            envelope = json.loads(raw) if isinstance(raw, str) else raw
+        except (TypeError, ValueError):
+            envelope = raw
+        return JSONResponse({"service": service, "driver_id": driver_id,
+                             "command_fields": sorted(str(key) for key in envelope) if isinstance(envelope, dict) else [],
+                             "events": seen, "correlated_response": matched.is_set(),
+                             "note": "Nessun dato grezzo, account, link o token viene restituito."},
+                            headers={"Cache-Control": "no-store, private"})
 
     @app.post("/api/admin/control4/amazon-event-probe")
     async def admin_control4_amazon_event_probe(

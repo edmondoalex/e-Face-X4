@@ -1,5 +1,8 @@
 # Changelog
 
+## 2.20.82 — 2026-09-13
+- Diagnostica MSP TuneIn: ascolta gli eventi del driver prima di inviare `GetTabList` e verifica la correlazione `NAVID`/`SEQ` senza esporre dati privati.
+
 ## 2.20.81 — 2026-09-13
 - Ripristinati gli «Ascoltati di recente» sotto il player in Ascolta: la richiesta precedente riguardava soltanto il popup del servizio, non questa sezione. Nessuna cronologia viene mostrata nel popup.
 - La striscia dei recenti ora si scorre trascinando col mouse su Windows, senza barra visibile; la rotella mantiene lo scorrimento normale della pagina.

@@ -1203,6 +1203,58 @@ def test_music_navigator_probe_redacts_settings_and_pairing_url(monkeypatch, tmp
         assert secret not in response.text
 
 
+def test_music_navigator_live_probe_correlates_without_exposing_data(monkeypatch, tmp_path) -> None:
+    import app.main as main_module
+    from app.user_auth import create_admin
+
+    monkeypatch.setenv("EFACE_AUTH_DIR", str(tmp_path / "auth"))
+    create_admin("password-admin-lunga")
+    monkeypatch.setattr(main_module, "load_control4_config", lambda: {"host": "192.168.3.10", "username": "private", "password": "director-secret"})
+
+    class FakeSocket:
+        instance = None
+
+        def __init__(self, host):
+            self.callbacks = {}
+            FakeSocket.instance = self
+
+        def add_item_callback(self, item_id, callback):
+            self.callbacks[item_id] = callback
+
+        async def sio_connect(self, token):
+            assert token == "director-token"
+
+        async def sio_disconnect(self):
+            pass
+
+    class Director:
+        async def get_all_item_info(self):
+            return [{"id": 614, "name": "TuneIn", "proxy": "media_service"}]
+
+        async def send_post_request(self, uri, command, params, is_async):
+            assert uri == "/api/v1/items/614/commands"
+            assert command == "GetTabList" and params["ROOMID"] == 51
+            assert FakeSocket.instance.callbacks
+            await FakeSocket.instance.callbacks[614](614, {"evtName": "dataToUi", "data": {"devicecommand": {"command": "DATA_RECEIVED", "params": {"NAVID": params["NAVID"], "SEQ": params["SEQ"], "DATA": "<List><item>private-station</item></List>"}}}})
+            return '{"name":"GetTabList","result":"private-account","seq":1}'
+
+    async def director(config):
+        return Director(), "director-token"
+
+    monkeypatch.setattr(main_module, "control4_director", director)
+    monkeypatch.setattr(main_module, "C4Websocket", FakeSocket)
+    client = TestClient(main_module.create_app())
+    path = "/api/admin/control4/music-navigator-live-probe?service=TuneIn&room_id=51"
+    assert client.post(path).status_code == 401
+    assert client.post("/api/auth/login", json={"username": "admin", "password": "password-admin-lunga"}).status_code == 200
+    response = client.post(path)
+    assert response.status_code == 200
+    assert response.json()["correlated_response"] is True
+    assert response.json()["events"][0]["command"] == "DATA_RECEIVED"
+    for secret in ("private-station", "private-account", "director-secret", "director-token"):
+        assert secret not in response.text
+
+
 def test_amazon_event_probe_detects_link_without_exposing_it(monkeypatch, tmp_path) -> None:
     import app.main as main_module
     from app.user_auth import create_admin
