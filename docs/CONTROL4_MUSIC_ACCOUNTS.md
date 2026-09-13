@@ -54,11 +54,19 @@ Esito reale della prova 2.20.72: il comando REST viene accettato, ma il link non
 
 ## Analisi del pacchetto TuneIn.c4z fornito (2026-09-13)
 
-Il pacchetto fornito contiene `driver.xml` e `driver.lua`; il manifest dichiara versione **131**, modificata il 2022-10-06. Non è stato eseguito. Occorre confermare che sia esattamente la versione installata nel Director prima di usarlo come base per il comportamento attuale.
+Il pacchetto fornito contiene `driver.xml` e `driver.lua`; il manifest dichiara versione **131**, modificata il 2022-10-06. Non è stato eseguito. L'installatore ha chiarito che è il **driver legacy OS2**, non il driver TuneIn attivo. La sua procedura non va usata come base per implementare il TuneIn attuale in e-Face.
 
 Questo driver **non contiene** l'azione Amazon `GetLinkForAPIAuthentication`, né una proprietà `Authentication URL`, né riferimenti a `link.ctrl4.co`. Il suo percorso utente passa dal menu Navigator **Settings**: `GetBrowseSettingsMenu` richiede una pagina TuneIn e, quando riceve `Register.aspx`, estrae un codice di registrazione dalla risposta e lo presenta all'utente. Il codice viene quindi associato sul sito TuneIn; non richiede che e-Face gestisca la password TuneIn. Il pacchetto definisce anche una proprietà `Status`, aggiornata dall'azione `UpdateStatus`, ma la visibilità di tale proprietà tramite Director REST non è dimostrata.
 
 Le azioni Composer `Join`/`Drop` operano diversamente: `Join` usa Username e Password del driver e invia la password come parametro di un URL verso TuneIn. **Non usare questo percorso per il self-service e-Face** e non raccogliere password TuneIn nell'admin e-Face. Per un'integrazione sicura occorre verificare se il menu Settings e la risposta del codice siano raggiungibili tramite l'interfaccia Control4 che e-Face può usare, oppure ottenere un'interfaccia supportata del produttore. Non assimilare questo pacchetto al flusso Amazon/TIDAL solo sulla base di schermate visivamente simili.
+
+## Analisi pacchetti Amazon, Deezer e Qobuz (2026-09-13)
+
+Sono stati letti, senza eseguirli, i tre `.c4z` forniti. I manifest dichiarano Amazon Music v70, Deezer v148 e Qobuz v23; lo screenshot Composer di Amazon mostra invece Driver Version 79. Quindi almeno il pacchetto Amazon non coincide con il driver attivo e i dettagli vanno verificati sul sistema reale prima dell'implementazione.
+
+I tre pacchetti contengono Lua cifrato (`lua/squished.lua.encrypted`): il comportamento interno non è direttamente ispezionabile. I manifest XML e la documentazione inclusa confermano però che Amazon ha l'azione `GetLinkForAPIAuthentication`, la proprietà `Authentication URL` e uno schermo Navigator `GetSettings`/`LogInCommand` con parametri `username` e `password` fissi come segnaposto. Il link di login è visibile anche nella UI media-service Control4 secondo la documentazione del pacchetto. Deezer e Qobuz espongono invece l'azione `Login` con parametri reali `username`/`password` e, nel Navigator, campi credenziali e `LogInCommand`. Tutti e tre hanno `GetSettings` come comando **PROTOCOL** per lo stato account, ma il manifest non dimostra che sia invocabile via REST Director né che il suo risultato possa essere letto da e-Face.
+
+La documentazione Deezer del pacchetto conferma che un account a pagamento è richiesto. Il file XML indica `Debug Mode` per tutti e tre, con default `Off`; questo non prova che disattivarlo impedisca il logging in chiaro della password, già osservato nel driver Deezer attivo. Nessun form credenziali cliente va esposto finché tale rischio non è risolto.
 
 ## Criteri di completamento
 
