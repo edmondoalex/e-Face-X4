@@ -164,7 +164,7 @@ def test_intercom_dashboard_stores_only_local_settings(monkeypatch, tmp_path) ->
     assert 'id="tools-admin-nav"' in page
     assert 'id="intercom-tool"' in page
     assert 'id="users-tool"' in page
-    assert "tools-dashboard.js?v=2.20.50" in page
+    assert "tools-dashboard.js?v=2.20.52" in page
 
 
 def test_intercom_uses_admin_verified_8301_copy(monkeypatch, tmp_path) -> None:
@@ -188,6 +188,31 @@ def test_intercom_uses_admin_verified_8301_copy(monkeypatch, tmp_path) -> None:
     assert response.headers["cache-control"] == "no-store, private"
     assert response.headers["vary"] == "Cookie"
     assert "api/intercom/sip/credential" in admin.get("/assets/intercom.js").text
+
+
+def test_admin_doorbird_check_uses_stored_credential_without_exposing_it(monkeypatch, tmp_path) -> None:
+    monkeypatch.setenv("EFACE_AUTH_DIR", str(tmp_path / "auth"))
+    monkeypatch.setenv("EFACE_CREDENTIAL_INVENTORY", str(tmp_path / "inventory.json"))
+    from app.user_auth import create_admin
+    from app import credential_inventory, doorbird_api
+    create_admin("password-admin-lunga")
+    client = TestClient(create_app())
+    assert client.post("/api/admin/intercom/doorbird/check").status_code == 401
+    assert client.post("/api/auth/login", json={"username": "admin", "password": "password-admin-lunga"}).status_code == 200
+    assert client.post("/api/admin/intercom/doorbird/check").status_code == 409
+    credential_inventory.save("doorbird", "doorbird-admin", "doorbird-secret")
+    calls = []
+
+    async def fake_check(host, port, username, password):
+        calls.append((host, port, username, password))
+        return {"reachable": True, "authenticated": True, "reason": "ok"}
+
+    monkeypatch.setattr(doorbird_api, "check_identity", fake_check)
+    response = client.post("/api/admin/intercom/doorbird/check")
+    assert response.json() == {"reachable": True, "authenticated": True, "reason": "ok"}
+    assert response.headers["cache-control"] == "no-store, private"
+    assert "doorbird-secret" not in response.text
+    assert calls == [("192.168.2.30", 80, "doorbird-admin", "doorbird-secret")]
 
 
 def test_intercom_test_phone_requires_admin_and_same_origin(monkeypatch, tmp_path) -> None:

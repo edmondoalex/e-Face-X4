@@ -141,6 +141,23 @@ const amiTestForm = document.createElement('form')
 amiTestForm.className = 'admin-form'
 amiTestForm.innerHTML = '<div class="admin-info"><b>Accesso Asterisk dedicato</b><p>Verifica l’utente AMI eface e la configurazione dell’interno 8301. Questo test non cambia password né chiamate. Usa la password AMI dedicata, non quella SIP o admin e-Face.</p></div><label>Password AMI eface<input id="intercom-ami-secret" type="password" autocomplete="new-password" autocapitalize="off" spellcheck="false" data-lpignore="true" required></label><div class="admin-form-actions"><button type="submit">VERIFICA ACCESSO AMI</button></div><div id="intercom-ami-result" class="admin-status" role="status" hidden></div>'
 $('#intercom-config').append(amiTestForm)
+const doorbirdCheck = document.createElement('div')
+doorbirdCheck.className = 'admin-form'
+doorbirdCheck.innerHTML = '<div class="admin-info"><b>DoorBird</b><p>Verifica la credenziale salvata in e-Face leggendo le informazioni del dispositivo. Non modifica SIP, pulsante o relè.</p></div><div class="admin-form-actions"><button type="button">VERIFICA CREDENZIALE DOORBIRD</button></div><div class="admin-status" role="status" hidden></div>'
+$('#intercom-config').append(doorbirdCheck)
+doorbirdCheck.querySelector('button').addEventListener('click', async () => {
+  const button = doorbirdCheck.querySelector('button')
+  const status = doorbirdCheck.querySelector('[role=status]')
+  button.disabled = true
+  try {
+    const data = await request('api/admin/intercom/doorbird/check', {method:'POST'})
+    status.textContent = data.authenticated ? 'Credenziale DoorBird valida.'
+      : data.reason === 'authentication' ? 'DoorBird raggiungibile, ma credenziale rifiutata.'
+      : data.reason === 'network' ? 'DoorBird non raggiungibile.'
+      : 'DoorBird raggiungibile, risposta non verificata.'
+  } catch(error) { status.textContent = error.message }
+  finally { status.hidden = false; button.disabled = false }
+})
 amiTestForm.addEventListener('submit', async (event) => {
   event.preventDefault()
   const button = amiTestForm.querySelector('button[type=submit]')

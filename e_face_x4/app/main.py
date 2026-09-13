@@ -29,6 +29,7 @@ from . import intercom_settings
 from . import installation
 from . import credential_inventory
 from . import asterisk_ami
+from . import doorbird_api
 from .media_preferences import apply_preferences, load_preferences, save_preferences
 from .source_icons import delete_source_icon, load_builtin_source_icon, load_source_icon, save_source_icon
 from .backgrounds import CARD_THEMES, PRESETS, load_background, load_background_image, load_backgrounds, load_card_theme, load_card_glow, load_room_order, load_security_order, save_background_image, save_card_theme, save_card_glow, save_room_order, save_security_order, save_inherit, save_preset
@@ -38,7 +39,7 @@ from .connectors.control4_media import cached_control4_icon, cached_control4_ico
 from .connectors.supervisor import discover_addon_url, discover_host_url
 from .demo import dashboard as demo_dashboard
 
-VERSION = "2.20.51"
+VERSION = "2.20.52"
 STATIC = Path(__file__).parent / "static"
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s [e-face-x4] %(message)s")
 
@@ -218,6 +219,16 @@ def create_app() -> FastAPI:
             {"username": "8301", "password": account["password"]},
             headers={"Cache-Control": "no-store, private", "Pragma": "no-cache", "Vary": "Cookie", "X-Content-Type-Options": "nosniff"},
         )
+
+    @app.post("/api/admin/intercom/doorbird/check")
+    async def admin_check_doorbird(request: Request) -> Response:
+        require_admin(request)
+        account = credential_inventory.load().get("doorbird", {})
+        if not account.get("username") or not account.get("password"):
+            raise HTTPException(status_code=409, detail="Credenziale amministrazione DoorBird non configurata")
+        settings = intercom_settings.load()
+        result = await doorbird_api.check_identity(settings["doorbird_host"], settings["doorbird_port"], account["username"], account["password"])
+        return JSONResponse(result, headers={"Cache-Control": "no-store, private"})
 
     @app.put("/api/admin/intercom")
     async def admin_save_intercom(request: Request, payload: dict) -> dict:
