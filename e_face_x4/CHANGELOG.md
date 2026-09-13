@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.20.68 — 2026-09-13
+- I portoni `cover.*` restano visibili anche in Sicurezza, nella sezione «Accessi e portoni», oltre che in Oscuranti; i comandi rimangono quelli cover.
+- Aggiunto nell'admin Control4 un controllo mirato della configurazione di associazione TuneIn e Amazon Music. Mostra soltanto i nomi dei campi, mai valori, codici, token o password.
+- Deezer resta escluso da questo controllo: il suo flusso usa credenziali e il driver ha esposto la password nei log durante il test.
+
 ## 2.20.67 — 2026-09-13
 - I portoni configurati come `cover.*` vengono trattati come cover anche se e-HDL li classifica come serrature: compaiono in Oscuranti con comandi Apri, Stop e Chiudi.
 - Corretto l'instradamento dei comandi dei portoni verso l'API cover e-HDL, evitando HTTP 400; i vecchi comandi lock/unlock restano compatibili durante l'aggiornamento.

@@ -987,6 +987,42 @@ def test_control4_service_discovery_is_read_only_and_redacts_values(monkeypatch,
     assert client.get(link).json()["services"][1]["name"] == "Qobuz"
     assert client.get(link).status_code == 404
 
+
+def test_control4_music_pairing_probe_returns_structure_without_values(monkeypatch, tmp_path) -> None:
+    import app.main as main_module
+    from app.user_auth import create_admin
+
+    monkeypatch.setenv("EFACE_AUTH_DIR", str(tmp_path / "auth"))
+    create_admin("password-admin-lunga")
+    monkeypatch.setattr(main_module, "load_control4_config", lambda: {"host": "192.168.3.10", "username": "private", "password": "director-secret"})
+
+    class Director:
+        async def get_all_item_info(self):
+            return [
+                {"id": 615, "name": "TuneIn", "proxy": "media_service", "deviceOrder": 1},
+                {"id": 614, "name": "TuneIn", "proxy": "media_service"},
+                {"id": 1643, "name": "Amazon Music", "proxy": "media_service"},
+            ]
+
+        async def get_item_setup(self, item_id):
+            assert item_id == 614
+            return {"registration": {"code": "secret-pairing-code", "url": "https://secret.example/activate"}, "password": "private-password"}
+
+    async def director(config):
+        return Director(), "director-token"
+
+    monkeypatch.setattr(main_module, "control4_director", director)
+    client = TestClient(main_module.create_app())
+    path = "/api/admin/control4/music-pairing-probe?service=tunein"
+    assert client.post(path).status_code == 401
+    assert client.post("/api/auth/login", json={"username": "admin", "password": "password-admin-lunga"}).status_code == 200
+    response = client.post(path)
+    assert response.status_code == 200
+    assert response.json()["driver_id"] == 614
+    assert response.json()["field_names"] == ["password", "registration", "registration.code", "registration.url"]
+    assert all(secret not in response.text for secret in ("secret-pairing-code", "secret.example", "private-password", "director-secret", "director-token"))
+    assert client.post("/api/admin/control4/music-pairing-probe?service=deezer").status_code == 400
+
 def test_control4_command_does_not_require_evoice_enabled(monkeypatch, tmp_path) -> None:
     import app.main as main_module
 

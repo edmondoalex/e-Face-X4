@@ -41,7 +41,7 @@ from .connectors.control4_media import cached_control4_icon, cached_control4_ico
 from .connectors.supervisor import discover_addon_url, discover_host_url
 from .demo import dashboard as demo_dashboard
 
-VERSION = "2.20.67"
+VERSION = "2.20.68"
 STATIC = Path(__file__).parent / "static"
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s [e-face-x4] %(message)s")
 
@@ -298,6 +298,50 @@ def create_app() -> FastAPI:
     async def admin_control4_service_discovery(request: Request) -> Response:
         require_admin(request)
         return JSONResponse(await control4_service_discovery(), headers={"Cache-Control": "no-store, private"})
+
+    @app.post("/api/admin/control4/music-pairing-probe")
+    async def admin_control4_music_pairing_probe(request: Request, service: str = Query(...)) -> Response:
+        require_admin(request)
+        service_name = {"tunein": "TuneIn", "amazon": "Amazon Music"}.get(service.lower())
+        if not service_name:
+            raise HTTPException(status_code=400, detail="Servizio non supportato dalla ricognizione")
+        config = load_control4_config()
+        if not config.get("username") or not config.get("password"):
+            raise HTTPException(status_code=409, detail="Control4 non configurato in e-Face")
+        try:
+            director, _ = await control4_director(config)
+            all_items = await director.get_all_item_info()
+        except Exception as exc:
+            logging.warning("Ricognizione associazione Control4: %s", type(exc).__name__)
+            raise HTTPException(status_code=502, detail="Director non raggiungibile") from exc
+        candidates = [item for item in all_items if isinstance(item, dict) and str(item.get("name") or "").casefold() == service_name.casefold() and str(item.get("proxy") or "").lower() == "media_service" and str(item.get("id") or "").isdigit()] if isinstance(all_items, list) else []
+        driver = next((item for item in candidates if "deviceOrder" not in item), candidates[0] if candidates else None)
+        if not driver:
+            raise HTTPException(status_code=404, detail="Driver musicale non trovato")
+        try:
+            setup = await director.get_item_setup(int(driver["id"]))
+        except Exception as exc:
+            logging.warning("Configurazione driver musicale non disponibile: %s", type(exc).__name__)
+            raise HTTPException(status_code=502, detail="Il driver non espone la configurazione tramite Director") from exc
+        fields: set[str] = set()
+
+        def collect(value: object, prefix: str = "", depth: int = 0) -> None:
+            if depth > 5 or len(fields) >= 100:
+                return
+            if isinstance(value, dict):
+                for key, child in value.items():
+                    label = str(key)
+                    if not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_-]{0,49}", label):
+                        continue
+                    path = f"{prefix}.{label}" if prefix else label
+                    fields.add(path)
+                    collect(child, path, depth + 1)
+            elif isinstance(value, list):
+                for child in value[:5]:
+                    collect(child, f"{prefix}[]", depth + 1)
+
+        collect(setup)
+        return JSONResponse({"service": service_name, "driver_id": int(driver["id"]), "field_names": sorted(fields), "note": "Solo nomi dei campi; nessun valore, codice, token o password."}, headers={"Cache-Control": "no-store, private"})
 
     @app.get("/api/admin/control4/artwork-diagnostic")
     async def admin_control4_artwork_diagnostic(request: Request) -> dict:

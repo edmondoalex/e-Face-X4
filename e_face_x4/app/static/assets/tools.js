@@ -178,6 +178,23 @@ $('#control4-service-link').addEventListener('click', async (event) => {
     try { await navigator.clipboard.writeText(url.href); notice('Link copiato negli appunti') } catch (_) { notice('Copia il link visualizzato') }
   } catch (error) { notice(error.message) } finally { button.disabled = false }
 })
+const pairingControls = document.createElement('div')
+pairingControls.className = 'control4-actions'
+pairingControls.innerHTML = '<button type="button" data-music-pairing-probe="tunein">VERIFICA ASSOCIAZIONE TUNEIN</button><button type="button" data-music-pairing-probe="amazon">VERIFICA ASSOCIAZIONE AMAZON</button>'
+$('#control4-result').before(pairingControls)
+pairingControls.addEventListener('click', async (event) => {
+  const button = event.target.closest('[data-music-pairing-probe]')
+  if (!button) return
+  button.disabled = true
+  try {
+    const service = button.dataset.musicPairingProbe
+    const response = await fetch(apiUrl(`../api/admin/control4/music-pairing-probe?service=${encodeURIComponent(service)}`), { method: 'POST', cache: 'no-store' })
+    const data = await response.json().catch(() => ({}))
+    if (!response.ok) throw new Error(data.detail || `HTTP ${response.status}`)
+    $('#control4-result').innerHTML = `<b>${esc(data.service)} · driver ${Number(data.driver_id)} · soli nomi dei campi</b><span>${esc((data.field_names || []).join(', ') || 'Nessun campo esposto dal driver')}</span>`
+    $('#control4-result').hidden = false
+  } catch (error) { notice(error.message) } finally { button.disabled = false }
+})
 $('#media-back').addEventListener('click', () => { $('#media-config').hidden = true })
 $('#logout').addEventListener('click', async () => { await fetch(apiUrl('../api/installer/logout'), {method:'POST'}); const status=await fetch(apiUrl('../api/auth/status')).then((res)=>res.json()); if(status.enabled){await fetch(apiUrl('../api/auth/logout'),{method:'POST'});location.href=apiUrl('../login');return} $('#admin-tools').hidden=true; $('#admin-locked').hidden=false })
 $('#save-players').addEventListener('click', async (event) => { event.currentTarget.disabled=true; try { const players={}; document.querySelectorAll('.player-row').forEach((row, order) => { players[row.dataset.player]={...Object.fromEntries([...row.querySelectorAll('input[data-field]')].map((input)=>[input.dataset.field,input.type==='checkbox'?input.checked:input.value.trim()])),order} }); const response=await fetch(apiUrl('../api/installer/media-players'),{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({players})}); if(!response.ok) throw new Error((await response.json()).detail); notice('Configurazione salvata'); setTimeout(()=>location.href='./',700) } catch(error){notice(error.message)} finally{event.currentTarget.disabled=false} })

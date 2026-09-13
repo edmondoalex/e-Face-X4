@@ -31,6 +31,7 @@ let energyRefreshRunning = false
 const securitySections = { areas: false, zones: false }
 let currentSecurityOrder = ['scenarios', 'areas', 'zones', 'locks']
 const mediaSections = { rooms: true, playing: true }
+const isSecurityGarage = (device) => device.kind === 'cover' && /garage|portone/i.test(`${device.icon || ''} ${device.name || ''}`)
 const mediaTransportOverrides = new Map()
 const recentCache = new Map()
 const recentPending = new Map()
@@ -209,7 +210,7 @@ function renderHomeStatusCounters() {
     { kind: 'lights', label: 'Luci', icon: 'mdi:lightbulb', color: 'yellow', devices: currentDevices.filter((device) => device.kind === 'light'), active: (device) => lightIsOn(device) },
     { kind: 'extra', label: 'Extra', icon: 'mdi:power-socket-eu', color: 'red', devices: currentDevices.filter((device) => device.kind === 'switch'), active: stateIsActive },
     { kind: 'covers', label: 'Oscuranti', icon: 'mdi:blinds-horizontal', color: 'cyan', devices: currentDevices.filter((device) => device.kind === 'cover'), active: (device) => stateIsActive(device) || Number(device.position) > 0 },
-    { kind: 'security', label: 'Sicurezza', icon: 'mdi:shield-home', color: 'red', devices: currentDevices.filter((device) => ['lock','alarm_partition','alarm_zone'].includes(device.kind)), active: (device) => ['OPEN','OPENING','UNLOCKED','ARMED','ALARM','TAMPER'].includes(String(device.state ?? '').trim().toUpperCase()) },
+    { kind: 'security', label: 'Sicurezza', icon: 'mdi:shield-home', color: 'red', devices: currentDevices.filter((device) => ['lock','alarm_partition','alarm_zone'].includes(device.kind) || isSecurityGarage(device)), active: (device) => ['OPEN','OPENING','UNLOCKED','ARMED','ALARM','TAMPER'].includes(String(device.state ?? '').trim().toUpperCase()) },
   ]
   $('#widgets').innerHTML = statusCounters.map((counter) => {
     const count = counter.devices.filter(counter.active).length
@@ -369,7 +370,7 @@ function wheelColor(event) {
 }
 
 function renderDeviceList(devices) {
-  if (devices.length && devices.every((device) => ['lock','alarm_partition','alarm_zone','alarm_scenario','alarm_system'].includes(device.kind))) {
+  if (devices.length && devices.every((device) => ['lock','alarm_partition','alarm_zone','alarm_scenario','alarm_system'].includes(device.kind) || isSecurityGarage(device))) {
     renderSecurityDevices(devices)
     return
   }
@@ -391,7 +392,7 @@ function renderSecurityDevices(devices) {
   const partitions = devices.filter((device) => device.kind === 'alarm_partition')
   const zones = devices.filter((device) => device.kind === 'alarm_zone')
   const scenarios = devices.filter((device) => device.kind === 'alarm_scenario')
-  const locks = devices.filter((device) => device.kind === 'lock')
+  const locks = devices.filter((device) => device.kind === 'lock' || isSecurityGarage(device))
   const system = devices.find((device) => device.kind === 'alarm_system')
   const issueCount = [...partitions, ...zones].filter((item) => ['ALARM','TAMPER'].includes(String(item.state).toUpperCase())).length
   const memoryCount = partitions.filter((area) => area.alarm_memory || area.tamper_memory).length
@@ -439,7 +440,7 @@ function renderSecurityDevices(devices) {
     scenarios: scenarios.length ? `<section class="security-section"><h3>Scenari di inserimento</h3><div class="security-scenario-grid">${scenarioCards}</div></section>` : '',
     areas: partitions.length ? section('areas', 'Stato aree', areaCards, 'security-area-grid') : '',
     zones: zones.length ? section('zones', 'Zone', zoneCards, 'security-zone-grid') : '',
-    locks: locks.length ? `<section class="security-section"><h3>Serrature</h3><div class="security-zone-grid">${lockCards}</div></section>` : ''
+    locks: locks.length ? `<section class="security-section"><h3>Accessi e portoni</h3><div class="security-zone-grid">${lockCards}</div></section>` : ''
   }
   const container = $('#device-list')
   const desired = document.createElement('div')
@@ -1437,7 +1438,7 @@ document.querySelectorAll('.rail button').forEach((button) => button.addEventLis
   if (button.dataset.view === 'covers') openDevices('Oscuranti', currentDevices.filter((device) => device.kind === 'cover'), { filters: true })
   if (button.dataset.view === 'comfort') openDevices('Comfort', currentDevices.filter((device) => ['climate', 'temp', 'temperature', 'humidity', 'air', 'air_quality'].includes(device.kind)), { filters: true })
   if (button.dataset.view === 'energy') openEnergy()
-  if (button.dataset.view === 'security') openDevices('Sicurezza', currentDevices.filter((device) => ['lock','alarm_partition','alarm_zone','alarm_scenario','alarm_system'].includes(device.kind)))
+  if (button.dataset.view === 'security') openDevices('Sicurezza', currentDevices.filter((device) => ['lock','alarm_partition','alarm_zone','alarm_scenario','alarm_system'].includes(device.kind) || isSecurityGarage(device)))
 }))
 $('#widgets').addEventListener('click', (event) => {
   const button = event.target.closest('[data-kind]')
@@ -1447,7 +1448,7 @@ $('#widgets').addEventListener('click', (event) => {
   openDevices(button.dataset.label || 'Dispositivi', currentDevices.filter((device) => kinds.includes(device.kind)), { filters: true, lights: button.dataset.kind === 'lights' })
 })
 $('#home-comfort-summary').addEventListener('click', () => openDevices('Comfort', currentDevices.filter((device) => ['climate', 'temp', 'temperature', 'humidity', 'air', 'air_quality'].includes(device.kind)), { filters: true }))
-$('#home-security-summary').addEventListener('click', () => openDevices('Sicurezza', currentDevices.filter((device) => ['lock','alarm_partition','alarm_zone','alarm_scenario','alarm_system'].includes(device.kind))))
+$('#home-security-summary').addEventListener('click', () => openDevices('Sicurezza', currentDevices.filter((device) => ['lock','alarm_partition','alarm_zone','alarm_scenario','alarm_system'].includes(device.kind) || isSecurityGarage(device))))
 $('#detail-view').addEventListener('click', (event) => {
   if ([$('#detail-view'), $('#device-list'), $('#scenario-panel')].includes(event.target)) showHome()
 })
