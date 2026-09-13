@@ -5,7 +5,26 @@
   socketUrl.protocol = location.protocol === 'https:' ? 'wss:' : 'ws:'
   let phone = null
   let call = null
-  let activeStream = null
+  let audioContext = null
+  let speakerGain = null
+  let micInput = null
+  let micOutput = null
+  let micSource = null
+  let micGain = null
+
+  async function prepareSpeaker() {
+    if (!audioContext) {
+      const AudioContextClass = window.AudioContext || window.webkitAudioContext
+      if (!AudioContextClass) return
+      audioContext = new AudioContextClass()
+      const source = audioContext.createMediaElementSource($('#remote-audio'))
+      speakerGain = audioContext.createGain()
+      source.connect(speakerGain)
+      speakerGain.connect(audioContext.destination)
+      speakerGain.gain.value = Number($('#speaker-gain').value) / 100
+    }
+    if (audioContext.state !== 'running') await audioContext.resume()
+  }
 
   function error(message) {
     $('#intercom-error').textContent = message
@@ -22,13 +41,46 @@
 
   function clearCall(text) {
     call = null
-    if (activeStream) activeStream.getTracks().forEach((track) => track.stop())
-    activeStream = null
+    releaseMicrophone()
     $('#remote-audio').srcObject = null
     $('#call-status').textContent = text
     $('#call-answer').disabled = true
     $('#call-hangup').disabled = true
     $('#call-control4').disabled = !phone || !phone.isRegistered()
+  }
+
+  $('#speaker-gain').addEventListener('input', () => {
+    const percent = Number($('#speaker-gain').value)
+    $('#speaker-gain-value').textContent = `${percent}%`
+    if (speakerGain) speakerGain.gain.value = percent / 100
+    else $('#remote-audio').volume = Math.min(percent / 100, 1)
+  })
+
+  $('#microphone-gain').addEventListener('input', () => {
+    const percent = Number($('#microphone-gain').value)
+    $('#microphone-gain-value').textContent = `${percent}%`
+    if (micGain) micGain.gain.value = percent / 100
+  })
+
+  function releaseMicrophone() {
+    if (micSource) micSource.disconnect()
+    if (micGain) micGain.disconnect()
+    if (micOutput) micOutput.getTracks().forEach((track) => track.stop())
+    if (micInput) micInput.getTracks().forEach((track) => track.stop())
+    micInput = micOutput = micSource = micGain = null
+  }
+
+  async function preparedMicrophone() {
+    micInput = await microphone()
+    if (!audioContext) return micInput
+    micSource = audioContext.createMediaStreamSource(micInput)
+    micGain = audioContext.createGain()
+    micGain.gain.value = Number($('#microphone-gain').value) / 100
+    const destination = audioContext.createMediaStreamDestination()
+    micSource.connect(micGain)
+    micGain.connect(destination)
+    micOutput = destination.stream
+    return micOutput
   }
 
   function track(session) {
@@ -121,26 +173,31 @@
     error('')
     $('#call-control4').disabled = true
     $('#call-status').textContent = 'Richiesta accesso al microfono…'
-    let stream = null
     try {
-      stream = await microphone()
-      if (!phone?.isRegistered() || call) { stream.getTracks().forEach((track) => track.stop()); return }
+      await prepareSpeaker()
+      const stream = await preparedMicrophone()
+      if (!phone?.isRegistered() || call) { releaseMicrophone(); return }
       phone.call('sip:8290@asterisk', {mediaStream:stream, mediaConstraints:{audio:true, video:false}, pcConfig:{iceServers:[]}})
-      activeStream = stream
     } catch (exception) {
-      if (stream) stream.getTracks().forEach((track) => track.stop())
+      releaseMicrophone()
       $('#call-status').textContent = 'Chiamata non avviata.'
       $('#call-control4').disabled = !phone?.isRegistered()
       error(exception.message)
     }
   })
 
-  $('#call-answer').addEventListener('click', () => {
+  $('#call-answer').addEventListener('click', async () => {
     if (!call || call.direction !== 'incoming') return
     error('')
-    try { call.answer({mediaConstraints:{audio:true, video:false}, pcConfig:{iceServers:[]}}) }
-    catch (exception) { error(exception.message) }
-    $('#call-answer').disabled = true
+    const incoming = call
+    try {
+      await prepareSpeaker()
+      const stream = await preparedMicrophone()
+      if (call !== incoming) { releaseMicrophone(); return }
+      incoming.answer({mediaStream:stream, mediaConstraints:{audio:true, video:false}, pcConfig:{iceServers:[]}})
+      $('#call-answer').disabled = true
+    }
+    catch (exception) { releaseMicrophone(); error(exception.message) }
   })
 
   $('#call-hangup').addEventListener('click', () => { if (call) call.terminate() })
