@@ -18,6 +18,7 @@ Rendere possibile l'audio WebRTC della postazione e-Face 8301 anche fuori dalla 
 - Coturn `active`, listener sulla sola interfaccia pubblica VPS; autenticazione e inoltro di prova riusciti sulla VPS con `turnutils_uclient`, 0 pacchetti persi.
 - Porta TCP 3478 raggiungibile dal PC esterno. La raggiungibilità UDP dalla rete mobile resta da verificare.
 - Test applicativi e-Face: `73 passed`.
+- Verifica finale eseguita dall'utente dopo l'aggiornamento: Android su rete mobile, chiamata simulata `Local/8290@doorbird-inbound application Echo`, risposta e audio di ritorno chiaro. Il percorso remoto funziona.
 
 ## Attivazione e prova finale
 
