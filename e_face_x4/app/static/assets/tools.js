@@ -180,7 +180,7 @@ $('#control4-service-link').addEventListener('click', async (event) => {
 })
 const pairingControls = document.createElement('div')
 pairingControls.className = 'control4-actions'
-pairingControls.innerHTML = '<button type="button" data-music-pairing-probe="tunein">VERIFICA ASSOCIAZIONE TUNEIN</button><button type="button" data-music-pairing-probe="amazon">VERIFICA ASSOCIAZIONE AMAZON</button>'
+pairingControls.innerHTML = '<button type="button" data-music-pairing-probe="tunein">VERIFICA ASSOCIAZIONE TUNEIN</button><button type="button" data-music-pairing-probe="amazon">VERIFICA ASSOCIAZIONE AMAZON</button><button type="button" data-music-pairing-probe="tidal">VERIFICA ASSOCIAZIONE TIDAL</button>'
 $('#control4-result').before(pairingControls)
 pairingControls.addEventListener('click', async (event) => {
   const button = event.target.closest('[data-music-pairing-probe]')

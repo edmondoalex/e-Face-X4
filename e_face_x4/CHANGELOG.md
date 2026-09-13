@@ -1,5 +1,9 @@
 # Changelog
 
+## 2.20.70 — 2026-09-13
+- Aggiunta TIDAL alla verifica in sola lettura dell'associazione dei servizi musicali, seguendo il flusso esterno osservato nell'impianto e non il login password del driver Deezer.
+- Registrato Qobuz come driver a credenziali distinto da TuneIn/Amazon/TIDAL; nessun login password viene ancora attivato.
+
 ## 2.20.69 — 2026-09-13
 - La verifica di associazione TuneIn/Amazon legge anche la struttura interna del campo `result` quando il Director la restituisce come JSON o XML, senza mostrare valori o codici.
 

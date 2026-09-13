@@ -1002,9 +1002,12 @@ def test_control4_music_pairing_probe_returns_structure_without_values(monkeypat
                 {"id": 615, "name": "TuneIn", "proxy": "media_service", "deviceOrder": 1},
                 {"id": 614, "name": "TuneIn", "proxy": "media_service"},
                 {"id": 1643, "name": "Amazon Music", "proxy": "media_service"},
+                {"id": 1649, "name": "TIDAL", "proxy": "media_service"},
             ]
 
         async def get_item_setup(self, item_id):
+            if item_id == 1649:
+                return {"name": "GET_SETUP", "result": '{"pairing":{"device_code":"tidal-secret-code"}}', "seq": 13}
             assert item_id == 614
             return {"name": "GET_SETUP", "result": '{"registration":{"code":"secret-pairing-code","url":"https://secret.example/activate"},"password":"private-password"}', "seq": 12}
 
@@ -1022,6 +1025,10 @@ def test_control4_music_pairing_probe_returns_structure_without_values(monkeypat
     assert response.json()["result_format"] == "json"
     assert response.json()["field_names"] == ["name", "result", "result.password", "result.registration", "result.registration.code", "result.registration.url", "seq"]
     assert all(secret not in response.text for secret in ("secret-pairing-code", "secret.example", "private-password", "director-secret", "director-token"))
+    tidal = client.post("/api/admin/control4/music-pairing-probe?service=tidal")
+    assert tidal.status_code == 200
+    assert tidal.json()["driver_id"] == 1649
+    assert "tidal-secret-code" not in tidal.text
     assert client.post("/api/admin/control4/music-pairing-probe?service=deezer").status_code == 400
 
 

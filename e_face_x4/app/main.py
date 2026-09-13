@@ -41,7 +41,7 @@ from .connectors.control4_media import cached_control4_icon, cached_control4_ico
 from .connectors.supervisor import discover_addon_url, discover_host_url
 from .demo import dashboard as demo_dashboard
 
-VERSION = "2.20.69"
+VERSION = "2.20.70"
 STATIC = Path(__file__).parent / "static"
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s [e-face-x4] %(message)s")
 
@@ -302,7 +302,7 @@ def create_app() -> FastAPI:
     @app.post("/api/admin/control4/music-pairing-probe")
     async def admin_control4_music_pairing_probe(request: Request, service: str = Query(...)) -> Response:
         require_admin(request)
-        service_name = {"tunein": "TuneIn", "amazon": "Amazon Music"}.get(service.lower())
+        service_name = {"tunein": "TuneIn", "amazon": "Amazon Music", "tidal": "TIDAL"}.get(service.lower())
         if not service_name:
             raise HTTPException(status_code=400, detail="Servizio non supportato dalla ricognizione")
         config = load_control4_config()
