@@ -2,8 +2,8 @@
 .page-device-list article.device-light-on{background:linear-gradient(100deg,rgba(255,211,78,var(--card-glow,.32)),transparent 72%),var(--user-card)!important}
 .page-device-list article.device-switch-on{background:linear-gradient(100deg,rgba(255,82,109,.24),transparent 72%),var(--user-card)!important}
 .page-device-list article.device-cover-open{background:linear-gradient(100deg,rgba(97,216,242,var(--card-glow,.24)),transparent 72%),var(--user-card)!important}
-.page-device-list article.device-climate-heat{background:linear-gradient(100deg,rgba(97,216,242,.24),transparent 72%),var(--user-card)!important}
-.page-device-list article.device-climate-cool{background:linear-gradient(100deg,rgba(255,192,69,.24),transparent 72%),var(--user-card)!important}
+.page-device-list article.device-climate-heat{background:linear-gradient(100deg,rgba(255,192,69,.24),transparent 72%),var(--user-card)!important}
+.page-device-list article.device-climate-cool{background:linear-gradient(100deg,rgba(97,216,242,.24),transparent 72%),var(--user-card)!important}
 .scenario-card.active,.security-scenario.active{background:linear-gradient(100deg,rgba(255,211,78,.23),transparent 72%),var(--user-card)!important}
 .security-area.ready{background:linear-gradient(100deg,rgba(101,234,174,.20),transparent 72%),var(--user-card)!important}
 .security-area.armed-delayed{background:linear-gradient(100deg,rgba(255,192,69,.22),transparent 72%),var(--user-card)!important}
@@ -12,8 +12,8 @@
 .security-area.ready>.mdi-mask{color:#65eaae}
 .security-lock.security-lock-locked{background:linear-gradient(100deg,rgba(101,234,174,.16),transparent 72%),var(--user-card)!important}
 .security-lock.security-lock-unlocked{background:linear-gradient(100deg,rgba(255,82,109,.19),transparent 72%),var(--user-card)!important}
-.page-device-list article.device-climate-heat .device-glyph{color:#61d8f2}
-.page-device-list article.device-climate-cool .device-glyph{color:#ffc045}
+.page-device-list article.device-climate-heat .device-glyph{color:#ffc045}
+.page-device-list article.device-climate-cool .device-glyph{color:#61d8f2}
 .page-device-list article.device-light-on,.page-device-list article.device-switch-on,.page-device-list article.device-cover-open,.page-device-list article.device-climate-heat,.page-device-list article.device-climate-cool,.scenario-card.active,.security-scenario.active,.security-area,.security-lock{border:0!important;box-shadow:none!important}
 .security-lock>.device-actions button{display:flex;align-items:center;justify-content:center;gap:5px}
 .security-lock>.device-actions button .mdi-mask{width:16px;height:16px;flex:none}
