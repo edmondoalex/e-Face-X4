@@ -1,5 +1,9 @@
 # Changelog
 
+## 2.20.75 — 2026-09-13
+- La diagnosi eventi Amazon si collega al flusso Director prima di inviare l'azione Composer reale `LUA_ACTION / GetLinkForAPIAuthentication` e attende fino a 15 secondi un eventuale link. La precedente prova inviava `LogInCommand`, quindi non verificava il comportamento dell'azione mostrata in Composer.
+- La diagnostica continua a restituire solo presenza e struttura degli eventi, senza URL o token. Il login cliente resta disabilitato finché il test sul controller reale non conferma il flusso.
+
 ## 2.20.74 — 2026-09-13
 - Aggiunta una diagnosi riservata degli eventi Amazon Music: apre il flusso `dataToUi` prima del comando Navigator e rileva se il link di associazione arriva come evento, senza esporre URL, token o dati account.
 - Il canale è quello già usato da e-Face per gli aggiornamenti multimediali; il login cliente resta disabilitato finché l'esito reale non conferma il collegamento.

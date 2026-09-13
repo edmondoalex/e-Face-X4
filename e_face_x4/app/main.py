@@ -42,7 +42,7 @@ from .connectors.control4_media import cached_control4_icon, cached_control4_ico
 from .connectors.supervisor import discover_addon_url, discover_host_url
 from .demo import dashboard as demo_dashboard
 
-VERSION = "2.20.74"
+VERSION = "2.20.75"
 STATIC = Path(__file__).parent / "static"
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s [e-face-x4] %(message)s")
 
@@ -536,11 +536,10 @@ def create_app() -> FastAPI:
             socket.add_item_callback(item_id, on_event)
         try:
             await asyncio.wait_for(socket.sio_connect(token), timeout=10)
-            await asyncio.sleep(1)
             try:
                 raw = await director.send_post_request(
-                    f"/api/v1/items/{driver_id}/commands", "LogInCommand",
-                    {"username": "username", "password": "password"}, False,
+                    f"/api/v1/items/{driver_id}/commands", "LUA_ACTION",
+                    {"ACTION": "GetLinkForAPIAuthentication"}, False,
                 )
                 command_accepted = True
                 envelope = json.loads(raw) if isinstance(raw, str) else raw
@@ -549,7 +548,7 @@ def create_app() -> FastAPI:
                 command_accepted = False
                 command_fields = []
             try:
-                await asyncio.wait_for(link_found.wait(), timeout=6)
+                await asyncio.wait_for(link_found.wait(), timeout=15)
             except asyncio.TimeoutError:
                 pass
         except Exception as exc:

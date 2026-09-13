@@ -1216,9 +1216,10 @@ def test_amazon_event_probe_detects_link_without_exposing_it(monkeypatch, tmp_pa
             return [{"id": 1643, "name": "Amazon Music", "proxy": "media_service"}]
 
         async def send_post_request(self, uri, command, params, is_async):
-            assert command == "LogInCommand" and params == {"username": "username", "password": "password"}
+            assert uri == "/api/v1/items/1643/commands"
+            assert command == "LUA_ACTION" and params == {"ACTION": "GetLinkForAPIAuthentication"}
             await FakeSocket.instance.callbacks[1643](1643, {"iddevice": 1643, "data": {"devicecommand": {"command": "AuthenticationRequired", "url": "https://link.ctrl4.co/private-code"}}})
-            return '{"name":"LogInCommand","result":"ok","seq":1}'
+            return '{"name":"LUA_ACTION","result":"ok","seq":1}'
 
     async def director(config):
         return Director(), "director-token"
