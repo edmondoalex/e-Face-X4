@@ -13,12 +13,17 @@ Procedura tecnica da conservare per le nuove installazioni e per gli altri drive
 
 La pista di ascoltare gli eventi prima del comando è stata suggerita da **Gemini**: grazie per la dritta, confermata dal test reale.
 
+## Risultato confermato: TIDAL e TuneIn
+
+Con e-Face 2.20.78, i pulsanti di prova TIDAL e TuneIn in **Strumenti → Account musicali** hanno aperto la pagina di autenticazione e mostrato la conferma finale, come Amazon Music. È confermato il percorso e-Face → link → callback per entrambi; la riproduzione dopo l'associazione non è stata ancora riferita.
+
 ## Da completare tassativamente
 
 - [ ] Verificare nel Director che Amazon Music risulti collegato dopo la callback `Success!` (la riproduzione è già confermata).
 - [x] Avviare una traccia Amazon Music da e-Face e confermare la riproduzione.
 - [ ] Mostrare in e-Face lo stato account effettivo e un messaggio di conferma/errore dopo il ritorno dal browser, senza dedurlo dalla sola callback.
-- [ ] Verificare TIDAL sul controller reale: il `.c4z` fornito ha la stessa azione e proprietà di Amazon; il pulsante in Strumenti è marcato come prova, non come funzionalità già confermata.
-- [ ] Verificare TuneIn sul controller reale con il pulsante di prova in Strumenti: il `.c4z` disponibile è legacy OS2 e non documenta il driver attuale. La prova tenta il flusso a link senza chiedere password.
+- [x] Verificare che TIDAL apra il link e completi la callback dal pulsante e-Face.
+- [x] Verificare che TuneIn apra il link e completi la callback dal pulsante e-Face; il `.c4z` disponibile è legacy OS2 e non documenta il driver attuale.
+- [ ] Confermare la riproduzione da e-Face dopo il ricollegamento di TIDAL e TuneIn.
 - [ ] Verificare driver per driver Deezer, Qobuz e Apple Music: azione di login, evento/link o campi credenziali, logout, errori e riproduzione. Deezer e Qobuz dichiarano login con credenziali, non il link Amazon; non inviare password finché il logging in chiaro del driver non è risolto.
 - [ ] Mantenere Spotify Connect e ShairBridge fuori da un login generico; preservare il requisito che i clienti usino e-Face senza accesso all'app Control4.
