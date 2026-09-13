@@ -520,7 +520,8 @@ def test_x4_shell_and_brand_assets_are_served() -> None:
     assert "now-playing" not in page.text
     assert 'id="detail-view"' in page.text
     assert 'id="detail-back"' in page.text
-    assert page.text.count('<dialog') == 6
+    assert page.text.count('<dialog') == 7
+    assert 'id="media-browser-dialog"' in page.text
     assert 'id="security-area-dialog"' in page.text
     assert 'id="security-pin-dialog"' in page.text
     assert 'id="rgb-dialog"' in page.text

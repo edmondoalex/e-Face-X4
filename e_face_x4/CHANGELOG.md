@@ -1,5 +1,9 @@
 # Changelog
 
+## 2.20.79 — 2026-09-13
+- La cover del player Control4 in Ascolta apre un popup contestuale alla stanza e alla sorgente attiva. Clic fuori, Esc o Chiudi richiudono il popup senza fermare la riproduzione.
+- Nel popup sono richiamabili gli ascolti recenti del servizio attivo. La navigazione MSP di Sfoglia, Cerca e Preferiti non è ancora collegata: il popup lo dichiara esplicitamente, senza mostrare controlli fittizi.
+
 ## 2.20.78 — 2026-09-13
 - Aggiunta in Strumenti → Account musicali una prova TuneIn sul driver attivo: prima tenta l'azione di generazione link usata da Amazon/TIDAL, poi il login Navigator con i segnaposto del protocollo se non arriva un link. Il link viene preso solo dagli eventi del controller e mai salvato.
 - Il metodo specifico del TuneIn installato resta da confermare sul controller reale; nessuna credenziale TuneIn viene richiesta o trasmessa.

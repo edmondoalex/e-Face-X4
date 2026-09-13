@@ -485,7 +485,10 @@ function renderMediaExperience(devices) {
   const ttsPlayers = currentDevices.filter((device) => device.kind === 'media_player' && device.provider === 'evoice' && device.tts_enabled)
   const ttsVolume = Math.max(0, Math.min(100, Number(localStorage.getItem('eface-tts-volume') ?? 50)))
   const voicePanel = selected.provider === 'evoice' && selected.tts_enabled && ttsPlayers.length ? `<section class="evoice-panel"><div class="evoice-heading"><h3>Messaggio vocale</h3><label><input type="checkbox" data-tts-select-all ${ttsPlayers.length === 1 ? 'checked' : ''}> Seleziona tutti</label></div><div class="evoice-targets">${ttsPlayers.map((device) => `<div class="evoice-target"><label><input type="checkbox" data-tts-target value="${esc(device.id)}" ${device.id === selected.id ? 'checked' : ''}><span>${esc(device.name)}</span><small>${esc(device.room)}</small></label>${device.dnd_available ? `<button class="evoice-dnd ${device.dnd ? 'active' : ''}" data-dnd-device="${esc(device.id)}" data-dnd-value="${device.dnd ? 'false' : 'true'}">DND</button>` : ''}</div>`).join('')}</div><label class="evoice-volume"><span>Volume messaggio</span><input type="range" min="0" max="100" value="${ttsVolume}" style="--volume:${ttsVolume}%" data-tts-volume><output>${ttsVolume}%</output></label><textarea id="evoice-tts-message" maxlength="500" rows="3" placeholder="Scrivi il messaggio da pronunciare"></textarea><button class="evoice-send" data-tts-send>INVIA MESSAGGIO</button></section>` : ''
-  $('#device-list').innerHTML = `<article class="media-session ${experienceClass} ${deviceVisualClass(selected)}" data-device-id="${esc(selected.id)}">${mainArtwork}${activeMediaSourceMarkup(selected, 'device-glyph', mainIcon)}<div class="media-session-info"><strong>${esc(selected.title || selected.source || selected.name)}</strong><small>${esc(selected.artist || selected.source || selected.room)}</small><span class="media-track">${esc(selected.album || selected.name)}</span></div>${power}${deviceActions(selected, { hidePower: true })}</article>${voicePanel}${recent}<div class="media-library media-room-library"><button class="media-library-toggle" data-media-section-toggle="rooms" aria-expanded="${mediaSections.rooms}"><strong>Stanze</strong><span class="mdi-mask" style="${mdiStyle(mediaSections.rooms ? 'mdi:chevron-up' : 'mdi:chevron-down', 'chevron-down')}"></span></button><div class="media-service-grid" ${mediaSections.rooms ? '' : 'hidden'}>${players}</div></div><div class="media-library media-source-library"><h3>Sorgenti e servizi</h3><div class="media-service-grid">${sources || '<span class="empty-state">Nessuna sorgente disponibile</span>'}</div></div>`
+  const cover = selected.provider === 'control4' && selected.active_experience !== 'watch'
+    ? `<button type="button" class="media-cover-open" data-media-browser-open aria-label="Esplora ${esc(selected.source || 'servizio musicale')}" title="Esplora ${esc(selected.source || 'servizio musicale')}">${mainArtwork}</button>`
+    : mainArtwork
+  $('#device-list').innerHTML = `<article class="media-session ${experienceClass} ${deviceVisualClass(selected)}" data-device-id="${esc(selected.id)}">${cover}${activeMediaSourceMarkup(selected, 'device-glyph', mainIcon)}<div class="media-session-info"><strong>${esc(selected.title || selected.source || selected.name)}</strong><small>${esc(selected.artist || selected.source || selected.room)}</small><span class="media-track">${esc(selected.album || selected.name)}</span></div>${power}${deviceActions(selected, { hidePower: true })}</article>${voicePanel}${recent}<div class="media-library media-room-library"><button class="media-library-toggle" data-media-section-toggle="rooms" aria-expanded="${mediaSections.rooms}"><strong>Stanze</strong><span class="mdi-mask" style="${mdiStyle(mediaSections.rooms ? 'mdi:chevron-up' : 'mdi:chevron-down', 'chevron-down')}"></span></button><div class="media-service-grid" ${mediaSections.rooms ? '' : 'hidden'}>${players}</div></div><div class="media-library media-source-library"><h3>Sorgenti e servizi</h3><div class="media-service-grid">${sources || '<span class="empty-state">Nessuna sorgente disponibile</span>'}</div></div>`
   if (recent) loadRecentlyPlayed(selected)
 }
 
@@ -523,11 +526,36 @@ function recentlyPlayedHtml(items, roomId) {
   }).join('')
 }
 
+async function openMediaBrowser(player) {
+  const dialog = $('#media-browser-dialog')
+  const body = $('#media-browser-body')
+  const roomId = Number(String(player.registry_id || '').replace('c4room:', ''))
+  const sourceId = Number(player.active_source_id)
+  $('#media-browser-title').textContent = player.source || 'Ascolta'
+  body.innerHTML = '<p class="empty-state">Caricamento…</p>'
+  if (!dialog.open) dialog.showModal()
+  if (!roomId || !sourceId) {
+    body.innerHTML = '<p class="empty-state">Seleziona una sorgente musicale per esplorarla.</p>'
+    return
+  }
+  try {
+    const response = await fetch(apiUrl(`api/control4/recently-played?room_id=${roomId}`), { cache: 'no-store' })
+    if (!response.ok) throw new Error('Cronologia non disponibile')
+    const data = await response.json()
+    if (!dialog.open || $('#media-browser-title').textContent !== (player.source || 'Ascolta')) return
+    const items = (Array.isArray(data.items) ? data.items : []).filter((item) => Math.abs(Number(item.driver_id) - sourceId) <= 1)
+    body.innerHTML = `<div class="media-browser-context">${esc(player.room || '')}</div><h3>Ascoltati di recente</h3>${items.length ? `<div class="media-browser-recents">${recentlyPlayedHtml(items, roomId)}</div>` : '<p class="empty-state">Nessun ascolto recente per questa sorgente.</p>'}<p class="media-browser-next">Sfoglia, Cerca e Preferiti saranno disponibili dopo il collegamento al navigatore del driver Control4.</p>`
+  } catch (error) {
+    if (dialog.open) body.innerHTML = `<p class="empty-state">${esc(error.message || 'Contenuti non disponibili')}</p>`
+  }
+}
+
 async function selectRecentlyPlayed(button) {
   button.disabled = true
   try {
     const response = await fetch(apiUrl('api/control4/recently-played/select'), { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({room_id:Number(button.dataset.recentRoom), key:button.dataset.recentKey}) })
     if (!response.ok) throw new Error((await response.json().catch(()=>({}))).detail || 'Avvio non riuscito')
+    if ($('#media-browser-dialog').open) $('#media-browser-dialog').close()
     recentCache.delete(button.closest('[data-recently-played]')?.dataset.recentScope || '')
     await new Promise((resolve) => setTimeout(resolve, 500))
     await refresh()
@@ -1532,6 +1560,11 @@ $('#scenario-list').addEventListener('click', (event) => {
 })
 $('#device-list').addEventListener('click', (event) => {
   if (devicePointerGesture?.moved) { devicePointerGesture = null; return }
+  if (event.target.closest('[data-media-browser-open]')) {
+    const card = event.target.closest('[data-device-id]')
+    const player = currentDevices.find((item) => String(item.id) === card?.dataset.deviceId)
+    if (player) return openMediaBrowser(player)
+  }
   const mediaSectionToggle = event.target.closest('[data-media-section-toggle]')
   if (mediaSectionToggle) {
     const key = mediaSectionToggle.dataset.mediaSectionToggle
@@ -1683,6 +1716,11 @@ $('#rgb-dialog').addEventListener('click', (event) => { if (event.target === $('
 $('#media-zones-close').addEventListener('click', () => $('#media-zones-dialog').close())
 $('#global-media-session').addEventListener('click', openMediaSessions)
 $('#media-sessions-close').addEventListener('click', () => $('#media-sessions-dialog').close())
+$('#media-browser-close').addEventListener('click', () => $('#media-browser-dialog').close())
+$('#media-browser-body').addEventListener('click', (event) => {
+  const button = event.target.closest('[data-recent-key]')
+  if (button) return selectRecentlyPlayed(button)
+})
 $('#media-sessions-list').addEventListener('click', (event) => { const row = event.target.closest('[data-session-device]'); if (!row || event.target.closest('[data-session-volume]')) return; const player = currentDevices.find((item) => String(item.id) === row.dataset.sessionDevice); if (!player) return; const power = event.target.closest('[data-session-power]'); if (power) { const session = activeMediaSessions().find(({player:item}) => String(item.id) === power.dataset.sessionPower); return powerOffMediaSession(power, (session?.members || [player]).map((item) => item.id)) } if (event.target.closest('.media-artwork')) { $('#media-sessions-dialog').close(); return openMediaRoomControl(player) } if (event.target.closest('.media-session-row-rooms')) { $('#media-sessions-dialog').close(); return openMediaZones(player) } $('#media-sessions-dialog').close(); player.active_experience === 'watch' ? openVideoRemote(player) : openMediaZones(player) })
 $('#media-sessions-list').addEventListener('input', (event) => { if (event.target.matches('[data-session-volume]')) { event.target.style.setProperty('--volume', `${event.target.value}%`); event.target.nextElementSibling.textContent = `${event.target.value}%` } })
 $('#media-sessions-list').addEventListener('change', (event) => { if (event.target.matches('[data-session-volume]')) setSessionVolume(event.target) })
