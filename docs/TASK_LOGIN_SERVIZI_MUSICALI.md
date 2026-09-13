@@ -19,5 +19,6 @@ La pista di ascoltare gli eventi prima del comando è stata suggerita da **Gemin
 - [x] Avviare una traccia Amazon Music da e-Face e confermare la riproduzione.
 - [ ] Mostrare in e-Face lo stato account effettivo e un messaggio di conferma/errore dopo il ritorno dal browser, senza dedurlo dalla sola callback.
 - [ ] Verificare TIDAL sul controller reale: il `.c4z` fornito ha la stessa azione e proprietà di Amazon; il pulsante in Strumenti è marcato come prova, non come funzionalità già confermata.
-- [ ] Verificare driver per driver TuneIn, Deezer, Qobuz e Apple Music: azione di login, evento/link o campi credenziali, logout, errori e riproduzione. Il TuneIn `.c4z` disponibile è legacy OS2; non applicare automaticamente la soluzione Amazon agli altri.
+- [ ] Verificare TuneIn sul controller reale con il pulsante di prova in Strumenti: il `.c4z` disponibile è legacy OS2 e non documenta il driver attuale. La prova tenta il flusso a link senza chiedere password.
+- [ ] Verificare driver per driver Deezer, Qobuz e Apple Music: azione di login, evento/link o campi credenziali, logout, errori e riproduzione. Deezer e Qobuz dichiarano login con credenziali, non il link Amazon; non inviare password finché il logging in chiaro del driver non è risolto.
 - [ ] Mantenere Spotify Connect e ShairBridge fuori da un login generico; preservare il requisito che i clienti usino e-Face senza accesso all'app Control4.

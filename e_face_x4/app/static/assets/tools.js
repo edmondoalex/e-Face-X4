@@ -51,7 +51,7 @@ musicAccountsCard.addEventListener('click', async () => {
     if (!response.ok) throw new Error(data.detail || `HTTP ${response.status}`)
     $('#music-accounts-list').innerHTML = (data.services || []).map((service) => {
       const status = service.status === 'ready' ? 'Collegamento disponibile' : service.status === 'test' ? 'Flusso a link da verificare sul controller' : service.status === 'external' ? 'Accesso gestito dal servizio' : 'Collegamento in preparazione'
-      const key = service.name.toLowerCase() === 'amazon music' ? 'amazon' : service.name.toLowerCase() === 'tidal' ? 'tidal' : ''
+      const key = service.name.toLowerCase() === 'amazon music' ? 'amazon' : service.name.toLowerCase() === 'tidal' ? 'tidal' : service.name.toLowerCase() === 'tunein' ? 'tunein' : ''
       const action = key && ['ready', 'test'].includes(service.status) ? `<button type="button" data-music-account="${key}">${service.status === 'test' ? 'Prova collegamento' : 'Ricollega'}</button>` : ''
       return `<div class="music-account-row"><div><strong>${esc(service.name)}</strong><small>${status}</small></div>${action}</div>`
     }).join('') || '<p>Nessun servizio musicale Control4 trovato.</p>'
@@ -61,7 +61,7 @@ $('#music-accounts-back').addEventListener('click', () => { musicAccountsPanel.h
 musicAccountsPanel.addEventListener('click', async (event) => {
   const button = event.target.closest('[data-music-account]')
   if (!button) return
-  const service = button.dataset.musicAccount === 'tidal' ? 'tidal' : 'amazon'
+  const service = ['tidal', 'tunein'].includes(button.dataset.musicAccount) ? button.dataset.musicAccount : 'amazon'
   button.disabled = true
   try {
     const response = await fetch(apiUrl(`../api/control4/music/${service}/auth-link`), { method: 'POST', cache: 'no-store' })

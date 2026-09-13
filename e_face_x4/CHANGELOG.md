@@ -1,5 +1,9 @@
 # Changelog
 
+## 2.20.78 — 2026-09-13
+- Aggiunta in Strumenti → Account musicali una prova TuneIn sul driver attivo: prima tenta l'azione di generazione link usata da Amazon/TIDAL, poi il login Navigator con i segnaposto del protocollo se non arriva un link. Il link viene preso solo dagli eventi del controller e mai salvato.
+- Il metodo specifico del TuneIn installato resta da confermare sul controller reale; nessuna credenziale TuneIn viene richiesta o trasmessa.
+
 ## 2.20.77 — 2026-09-13
 - Spostato il ricollegamento dei servizi da Ascolta a **Strumenti → Account musicali**, accessibile anche agli utenti non amministratori. L'area raggruppa i driver musicali rilevati sul controller e distingue i servizi disponibili da quelli ancora da integrare.
 - Amazon Music resta operativo; la riproduzione da e-Face è stata confermata dopo la callback di autorizzazione.

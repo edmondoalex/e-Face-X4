@@ -1367,7 +1367,7 @@ def test_music_account_services_lists_installed_drivers_for_user(monkeypatch, tm
         {"name": "Amazon Music", "status": "ready"},
         {"name": "Spotify Connect", "status": "external"},
         {"name": "TIDAL", "status": "test"},
-        {"name": "TuneIn", "status": "pending"},
+        {"name": "TuneIn", "status": "test"},
     ]}
     assert "director-secret" not in response.text
 
@@ -1416,6 +1416,52 @@ def test_tidal_auth_link_uses_tidal_driver(monkeypatch, tmp_path) -> None:
     response = client.post("/api/control4/music/tidal/auth-link")
     assert response.status_code == 200
     assert response.json() == {"url": "https://link.ctrl4.co/tidal-private"}
+
+
+def test_tunein_auth_link_uses_tunein_driver(monkeypatch, tmp_path) -> None:
+    import app.main as main_module
+    from app.user_auth import create_admin
+
+    monkeypatch.setenv("EFACE_AUTH_DIR", str(tmp_path / "auth"))
+    create_admin("password-admin-lunga")
+    monkeypatch.setattr(main_module, "load_control4_config", lambda: {"host": "192.168.3.10", "username": "private", "password": "director-secret"})
+
+    class FakeSocket:
+        instance = None
+
+        def __init__(self, host):
+            self.callbacks = {}
+            FakeSocket.instance = self
+
+        def add_item_callback(self, item_id, callback):
+            self.callbacks[item_id] = callback
+
+        async def sio_connect(self, token):
+            pass
+
+        async def sio_disconnect(self):
+            pass
+
+    class Director:
+        async def get_all_item_info(self):
+            return [{"id": 614, "name": "TuneIn", "proxy": "media_service"}]
+
+        async def send_post_request(self, uri, command, params, is_async):
+            assert uri == "/api/v1/items/614/commands"
+            assert command == "LUA_ACTION" and params == {"ACTION": "GetLinkForAPIAuthentication"}
+            await FakeSocket.instance.callbacks[614](614, {"data": {"url": "https://link.ctrl4.co/tunein-private"}})
+            return '{"name":"LUA_ACTION","result":"ok","seq":1}'
+
+    async def director(config):
+        return Director(), "director-token"
+
+    monkeypatch.setattr(main_module, "control4_director", director)
+    monkeypatch.setattr(main_module, "C4Websocket", FakeSocket)
+    client = TestClient(main_module.create_app())
+    assert client.post("/api/auth/login", json={"username": "admin", "password": "password-admin-lunga"}).status_code == 200
+    response = client.post("/api/control4/music/tunein/auth-link")
+    assert response.status_code == 200
+    assert response.json() == {"url": "https://link.ctrl4.co/tunein-private"}
 
 
 def test_control4_command_does_not_require_evoice_enabled(monkeypatch, tmp_path) -> None:

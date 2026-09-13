@@ -42,7 +42,7 @@ from .connectors.control4_media import cached_control4_icon, cached_control4_ico
 from .connectors.supervisor import discover_addon_url, discover_host_url
 from .demo import dashboard as demo_dashboard
 
-VERSION = "2.20.77"
+VERSION = "2.20.78"
 STATIC = Path(__file__).parent / "static"
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s [e-face-x4] %(message)s")
 
@@ -590,10 +590,11 @@ def create_app() -> FastAPI:
 
     @app.post("/api/control4/music/amazon/auth-link")
     @app.post("/api/control4/music/tidal/auth-link")
+    @app.post("/api/control4/music/tunein/auth-link")
     async def control4_music_auth_link(request: Request) -> Response:
         if not user_auth.session_user(request.cookies.get(user_auth.COOKIE)):
             raise HTTPException(status_code=401, detail="Accesso richiesto")
-        service_name = "TIDAL" if request.url.path.endswith("/tidal/auth-link") else "Amazon Music"
+        service_name = "TIDAL" if request.url.path.endswith("/tidal/auth-link") else "TuneIn" if request.url.path.endswith("/tunein/auth-link") else "Amazon Music"
         config = load_control4_config()
         if not config.get("username") or not config.get("password"):
             raise HTTPException(status_code=409, detail="Control4 non configurato")
@@ -633,13 +634,27 @@ def create_app() -> FastAPI:
         try:
             await asyncio.wait_for(socket.sio_connect(token), timeout=10)
             armed = True
-            raw = await director.send_post_request(
-                f"/api/v1/items/{driver_id}/commands", "LUA_ACTION",
-                {"ACTION": "GetLinkForAPIAuthentication"}, False,
-            )
-            capture(raw)
+            try:
+                raw = await director.send_post_request(
+                    f"/api/v1/items/{driver_id}/commands", "LUA_ACTION",
+                    {"ACTION": "GetLinkForAPIAuthentication"}, False,
+                )
+                capture(raw)
+            except Exception:
+                if service_name != "TuneIn":
+                    raise
             if not found.is_set():
-                await asyncio.wait_for(found.wait(), timeout=25)
+                if service_name == "TuneIn":
+                    try:
+                        await asyncio.wait_for(found.wait(), timeout=8)
+                    except asyncio.TimeoutError:
+                        raw = await director.send_post_request(
+                            f"/api/v1/items/{driver_id}/commands", "LogInCommand",
+                            {"username": "username", "password": "password"}, False,
+                        )
+                        capture(raw)
+                if not found.is_set():
+                    await asyncio.wait_for(found.wait(), timeout=17 if service_name == "TuneIn" else 25)
         except asyncio.TimeoutError as exc:
             raise HTTPException(status_code=504, detail=f"Il link {service_name} non è arrivato dal controller; riprova") from exc
         except Exception as exc:
@@ -671,7 +686,7 @@ def create_app() -> FastAPI:
                 continue
             key = name.casefold()
             if key not in by_name or "deviceOrder" not in item:
-                by_name[key] = {"name": name, "status": "ready" if key == "amazon music" else "test" if key == "tidal" else "external" if key in {"spotify connect", "shairbridge"} else "pending"}
+                by_name[key] = {"name": name, "status": "ready" if key == "amazon music" else "test" if key in {"tidal", "tunein"} else "external" if key in {"spotify connect", "shairbridge"} else "pending"}
         services = sorted(by_name.values(), key=lambda service: str(service["name"]).casefold())
         return JSONResponse({"services": services}, headers={"Cache-Control": "no-store, private"})
 
