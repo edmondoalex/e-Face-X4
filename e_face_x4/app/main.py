@@ -24,6 +24,7 @@ from .config import load_settings
 from .control4 import load_control4_config, public_control4_config, save_control4_config, test_control4_connection
 from .installer_auth import COOKIE, create_session, valid_session
 from . import user_auth
+from . import intercom_settings
 from .media_preferences import apply_preferences, load_preferences, save_preferences
 from .source_icons import delete_source_icon, load_builtin_source_icon, load_source_icon, save_source_icon
 from .backgrounds import CARD_THEMES, PRESETS, load_background, load_background_image, load_backgrounds, load_card_theme, load_card_glow, load_room_order, load_security_order, save_background_image, save_card_theme, save_card_glow, save_room_order, save_security_order, save_inherit, save_preset
@@ -33,7 +34,7 @@ from .connectors.control4_media import cached_control4_icon, cached_control4_ico
 from .connectors.supervisor import discover_addon_url, discover_host_url
 from .demo import dashboard as demo_dashboard
 
-VERSION = "2.20.35"
+VERSION = "2.20.36"
 STATIC = Path(__file__).parent / "static"
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s [e-face-x4] %(message)s")
 
@@ -70,7 +71,79 @@ def create_app() -> FastAPI:
 
     @app.get("/api/auth/status")
     async def auth_status(request: Request) -> dict:
-        return {"enabled": user_auth.enabled(), "user": user_auth.session_user(request.cookies.get(user_auth.COOKIE)) if user_auth.enabled() else None}
+        username = user_auth.session_user(request.cookies.get(user_auth.COOKIE)) if user_auth.enabled() else None
+        return {"enabled": user_auth.enabled(), "user": username, "role": user_auth.account(username)["role"] if username else None}
+
+    def require_admin(request: Request) -> str:
+        username = user_auth.session_user(request.cookies.get(user_auth.COOKIE))
+        if username != "admin":
+            raise HTTPException(status_code=403, detail="Accesso amministratore richiesto")
+        return username
+
+    @app.get("/api/admin/users")
+    async def admin_users(request: Request) -> dict:
+        require_admin(request)
+        return {"users": user_auth.accounts()}
+
+    @app.post("/api/admin/users")
+    async def admin_create_user(request: Request, payload: dict) -> dict:
+        require_admin(request)
+        try:
+            user = user_auth.create_account(str(payload.get("username") or ""), str(payload.get("name") or ""), str(payload.get("password") or ""))
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        return {"user": user}
+
+    @app.patch("/api/admin/users/{username}")
+    async def admin_update_user(username: str, request: Request, payload: dict) -> dict:
+        require_admin(request)
+        if not payload or set(payload) - {"name", "password", "active"}:
+            raise HTTPException(status_code=400, detail="Campi non validi")
+        if "active" in payload and not isinstance(payload["active"], bool):
+            raise HTTPException(status_code=400, detail="Stato non valido")
+        if "name" in payload and not isinstance(payload["name"], str):
+            raise HTTPException(status_code=400, detail="Nome non valido")
+        if "password" in payload and not isinstance(payload["password"], str):
+            raise HTTPException(status_code=400, detail="Password non valida")
+        try:
+            user = user_auth.update_account(username, name=payload.get("name"), password=payload.get("password"), active=payload.get("active"))
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        return {"user": user}
+
+    @app.get("/api/admin/intercom")
+    async def admin_intercom(request: Request) -> dict:
+        require_admin(request)
+        return {"settings": intercom_settings.load(), "sip_ready": False}
+
+    @app.put("/api/admin/intercom")
+    async def admin_save_intercom(request: Request, payload: dict) -> dict:
+        require_admin(request)
+        try:
+            value = intercom_settings.save(payload)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        return {"settings": value, "sip_ready": False}
+
+    @app.post("/api/admin/intercom/test")
+    async def admin_test_intercom(request: Request) -> dict:
+        require_admin(request)
+        settings = intercom_settings.load()
+
+        async def reachable(host: str, port: int) -> bool:
+            try:
+                reader, writer = await asyncio.wait_for(asyncio.open_connection(host, port), timeout=2)
+                writer.close()
+                await writer.wait_closed()
+                return True
+            except (OSError, asyncio.TimeoutError):
+                return False
+
+        asterisk, doorbird = await asyncio.gather(
+            reachable(settings["asterisk_host"], settings["asterisk_port"]),
+            reachable(settings["doorbird_host"], settings["doorbird_port"]),
+        )
+        return {"asterisk_reachable": asterisk, "doorbird_reachable": doorbird, "sip_ready": False}
 
     @app.post("/api/auth/setup")
     async def auth_setup(request: Request, payload: dict) -> JSONResponse:
@@ -263,7 +336,9 @@ def create_app() -> FastAPI:
         }
 
     def require_installer(request: Request) -> None:
-        if not valid_session(request.cookies.get(COOKIE)) and not (user_auth.enabled() and user_auth.session_user(request.cookies.get(user_auth.COOKIE)) == "admin"):
+        if user_auth.enabled():
+            require_admin(request)
+        elif not valid_session(request.cookies.get(COOKIE)):
             raise HTTPException(status_code=401, detail="Accesso installatore richiesto")
 
     @app.get("/api/installer/status")

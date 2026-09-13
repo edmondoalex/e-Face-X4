@@ -45,13 +45,13 @@ def test_admin_migration_guards_pages_apis_and_websocket(monkeypatch, tmp_path) 
     options.write_text(json.dumps({"installer_password": "vecchia-password"}), encoding="utf-8")
     monkeypatch.setenv("EFACE_OPTIONS", str(options))
     client = TestClient(create_app())
-    assert client.get("/api/auth/status").json() == {"enabled": False, "user": None}
+    assert client.get("/api/auth/status").json() == {"enabled": False, "user": None, "role": None}
     assert client.get("/").status_code == 200
     assert client.post("/api/auth/setup", json={"password": "nuova-password-lunga"}).status_code == 401
     assert client.post("/api/installer/login", json={"password": "vecchia-password"}).status_code == 200
     assert client.post("/api/auth/setup", json={"password": "breve"}).status_code == 400
     assert client.post("/api/auth/setup", json={"password": "nuova-password-lunga"}).status_code == 200
-    assert client.get("/api/auth/status").json() == {"enabled": True, "user": "admin"}
+    assert client.get("/api/auth/status").json() == {"enabled": True, "user": "admin", "role": "admin"}
     assert client.get("/api/user/appearance").status_code == 200
     assert client.post("/api/auth/setup", json={"password": "altra-password-lunga"}).status_code == 409
     client.post("/api/auth/logout")
@@ -75,6 +75,66 @@ def test_admin_login_rate_limit(monkeypatch, tmp_path) -> None:
     for _ in range(5):
         assert client.post("/api/auth/login", json={"username": "admin", "password": "errata"}).status_code == 401
     assert client.post("/api/auth/login", json={"username": "admin", "password": "password-abbastanza-lunga"}).status_code == 429
+
+
+def test_admin_accounts_are_isolated_and_sessions_can_be_revoked(monkeypatch, tmp_path) -> None:
+    monkeypatch.setenv("EFACE_AUTH_DIR", str(tmp_path / "auth"))
+    from app.user_auth import create_admin
+    create_admin("password-admin-lunga")
+    admin = TestClient(create_app())
+    person = TestClient(create_app())
+    assert admin.post("/api/auth/login", json={"username": "admin", "password": "password-admin-lunga"}).status_code == 200
+    created = admin.post("/api/admin/users", json={"username": "mario", "name": "Mario Rossi", "password": "password-mario-lunga"})
+    assert created.status_code == 200
+    assert created.json()["user"] == {"username": "mario", "name": "Mario Rossi", "role": "user", "active": True}
+    assert person.post("/api/auth/login", json={"username": "mario", "password": "password-mario-lunga"}).status_code == 200
+    assert person.get("/api/auth/status").json()["role"] == "user"
+    assert person.get("/api/admin/users").status_code == 403
+    assert person.get("/api/admin/intercom").status_code == 403
+    assert person.get("/api/installer/control4").status_code == 403
+    assert admin.patch("/api/admin/users/mario", json={"password": "password-mario-nuova"}).status_code == 200
+    assert person.get("/api/user/appearance").status_code == 401
+    assert person.post("/api/auth/login", json={"username": "mario", "password": "password-mario-nuova"}).status_code == 200
+    assert admin.patch("/api/admin/users/mario", json={"active": False}).status_code == 200
+    assert person.get("/api/user/appearance").status_code == 401
+    assert person.post("/api/auth/login", json={"username": "mario", "password": "password-mario-nuova"}).status_code == 401
+    assert admin.patch("/api/admin/users/admin", json={"active": False}).status_code == 400
+
+
+def test_intercom_dashboard_stores_only_local_settings(monkeypatch, tmp_path) -> None:
+    monkeypatch.setenv("EFACE_AUTH_DIR", str(tmp_path / "auth"))
+    monkeypatch.setenv("EFACE_INTERCOM_SETTINGS", str(tmp_path / "intercom.json"))
+    from app.user_auth import create_admin
+    create_admin("password-admin-lunga")
+    client = TestClient(create_app())
+    assert client.post("/api/auth/login", json={"username": "admin", "password": "password-admin-lunga"}).status_code == 200
+    default = client.get("/api/admin/intercom").json()
+    assert default["settings"]["ring_extension"] == "8290"
+    assert default["sip_ready"] is False
+    settings = {**default["settings"], "asterisk_host": "192.168.3.24", "doorbird_host": "192.168.2.30"}
+    assert client.put("/api/admin/intercom", json=settings).status_code == 200
+    assert (tmp_path / "intercom.json").is_file()
+    assert client.put("/api/admin/intercom", json={**settings, "asterisk_host": "8.8.8.8"}).status_code == 400
+    page = client.get("/tools").text
+    assert 'id="tools-admin-nav"' in page
+    assert 'id="intercom-tool"' in page
+    assert 'id="users-tool"' in page
+    assert "tools-dashboard.js?v=2.20.36" in page
+
+
+def test_install_brand_and_theme_are_consistent() -> None:
+    from pathlib import Path
+    import hashlib
+    root = Path(__file__).parents[1]
+    icon = root / "icon.png"
+    brand = root / "app/static/assets/brand-icon.png"
+    assert hashlib.sha256(icon.read_bytes()).digest() == hashlib.sha256(brand.read_bytes()).digest()
+    client = TestClient(create_app())
+    manifest = client.get("/assets/manifest.webmanifest").json()
+    assert manifest["theme_color"] == "#263f48"
+    assert manifest["icons"][0]["src"] == "brand-icon.png?v=2.20.36"
+    assert "brand-icon.png?v=2.20.36" in client.get("/").text
+    assert 'rel="manifest"' in client.get("/login").text
 
 
 def test_tools_page_starts_with_selected_background_and_card_theme(monkeypatch, tmp_path) -> None:
@@ -277,7 +337,7 @@ def test_x4_shell_and_brand_assets_are_served() -> None:
     assert "grid-template-columns:repeat(4" in client.get("/assets/home-status.css").text
     assert "event.target !== dialog" in app_js
     assert client.get("/tools").status_code == 200
-    assert "Admin / Installatore" in client.get("/tools").text
+    assert "Amministrazione" in client.get("/tools").text
     css = client.get("/assets/app.css").text
     assert ".layout>main,.detail-view,.scenario-panel,.scenario-list{min-width:0;max-width:100%}" in css
     assert ".scenario-list{display:grid" in css
