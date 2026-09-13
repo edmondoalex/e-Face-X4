@@ -1,5 +1,129 @@
 # Changelog
 
+## 2.20.62 — 2026-09-13
+- Recuperate tutte le note di rilascio mancanti dalla 2.20.22 alla 2.20.61.
+- Aggiunto un controllo automatico che richiede una voce changelog per la versione corrente.
+
+## 2.20.61 — 2026-09-13
+- Le cover Control4 possono provenire da qualsiasi CDN pubblico; gli indirizzi interni restano soggetti alle regole di sicurezza LAN.
+
+## 2.20.60 — 2026-09-13
+- Aggiunto il dominio Sonos Radio osservato per le cover, prima della regola generale della 2.20.61.
+
+## 2.20.59 — 2026-09-13
+- Mostrato il logo dell'apparato Control4 attivo accanto alla cover; supportato il nome Sonos esteso del controller.
+
+## 2.20.58 — 2026-09-13
+- Supportate le porte applicative alte dei server cover LAN; aggiunti porta e schema alla diagnosi e un link diagnostico monouso.
+
+## 2.20.57 — 2026-09-13
+- Consentite cover da apparati nella rete del Director e da altri IP privati autorizzati nell'admin.
+
+## 2.20.56 — 2026-09-13
+- Documentate le porte Control4 nell'admin; aggiunto il pulsante Diagnosi cover e il riuso del nuovo token dopo il test connessione.
+
+## 2.20.55 — 2026-09-13
+- Introdotta la diagnostica admin delle cover Control4 e la gestione dei redirect verso host consentiti.
+
+## 2.20.54 — 2026-09-13
+- Preparata l'assegnazione degli interni SIP personali; l'attivazione automatica su Asterisk resta da completare.
+
+## 2.20.53 — 2026-09-13
+- Memorizzata sul dispositivo la scelta tra connessione audio locale e remota.
+
+## 2.20.52 — 2026-09-13
+- Aggiunta la verifica delle credenziali DoorBird conservate nell'admin e-Face.
+
+## 2.20.51 — 2026-09-13
+- La postazione SIP e-Face usa la credenziale salvata nell'inventario admin.
+
+## 2.20.50 — 2026-09-13
+- Chiariti gli errori di lettura AMI e normalizzato l'input di verifica.
+
+## 2.20.49 — 2026-09-13
+- Mostrati la fase della diagnostica AMI e l'IP sorgente di e-Face.
+
+## 2.20.48 — 2026-09-13
+- Aggiunta una sonda AMI dedicata per la diagnostica Asterisk, senza alterare le chiamate.
+
+## 2.20.47 — 2026-09-13
+- Chiarito che le credenziali importate sono copie non verificate; aggiunta la loro rimozione sicura.
+
+## 2.20.46 — 2026-09-13
+- Creato l'inventario centralizzato delle credenziali con visualizzazione protetta nell'admin.
+
+## 2.20.45 — 2026-09-13
+- Aggiunto il controllo preliminare di sola lettura per l'installazione in campo.
+
+## 2.20.44 — 2026-09-13
+- Aggiunto il relay TURN separato per l'audio del citofono da remoto.
+
+## 2.20.43 — 2026-09-13
+- Aggiunti i controlli di guadagno per altoparlante e microfono nel browser.
+
+## 2.20.42 — 2026-09-13
+- Inviata l'offerta SIP locale dopo il primo candidato ICE utilizzabile.
+
+## 2.20.41 — 2026-09-13
+- Rimossa l'attesa STUN esterna dalla prova citofono in LAN.
+
+## 2.20.40 — 2026-09-13
+- Mostrati gli errori del microfono prima di avviare una chiamata.
+
+## 2.20.39 — 2026-09-13
+- Aggiunta la postazione SIP e-Face di prova e un ponte WebSocket autenticato verso Asterisk.
+
+## 2.20.38 — 2026-09-13
+- Aggiornate icona Android e favicon con un nuovo percorso dell'asset.
+
+## 2.20.37 — 2026-09-13
+- Aggiornato il logo della scheda add-on e-Face.
+
+## 2.20.36 — 2026-09-13
+- Riorganizzata la pagina Strumenti; aggiunti gestione utenti admin e nuovo branding dell'app.
+
+## 2.20.35 — 2026-09-13
+- Reindirizzato alla Home il vecchio URL di avvio dell'app Android.
+
+## 2.20.34 — 2026-09-13
+- Il logo nella pagina Strumenti torna alla Home.
+
+## 2.20.33 — 2026-09-13
+- Corretto l'URL di avvio della PWA Android.
+
+## 2.20.32 — 2026-09-13
+- Aggiunto il login admin opzionale per e-Face X4.
+
+## 2.20.31 — 2026-09-13
+- Evitata la creazione di una stanza Clima fittizia per dispositivi privi di stanza.
+
+## 2.20.30 — 2026-09-13
+- Aggiunto l'ordinamento delle sezioni Sicurezza e stabilizzate le schede scenario.
+
+## 2.20.29 — 2026-09-13
+- Allineate le icone delle serrature ai dispositivi e centrati i comandi.
+
+## 2.20.28 — 2026-09-13
+- Allineata la modalità allarme totale allo scenario Away e differenziati i colori per categoria.
+
+## 2.20.27 — 2026-09-13
+- Caricato lo sfondo di Strumenti prima della visualizzazione iniziale.
+
+## 2.20.26 — 2026-09-13
+- Aggiunto il riordino degli ambienti trascinando le schede e applicato il tema scelto.
+
+## 2.20.25 — 2026-09-13
+- Corretti i colori delle schede termostato in riscaldamento e raffrescamento.
+
+## 2.20.24 — 2026-09-13
+- Conservate le differenze di volume tra stanze Control4 e aggiunto il mute delle zone.
+
+## 2.20.23 — 2026-09-13
+- Ripristinate le schede senza bordi e le icone delle serrature sorgente.
+
+## 2.20.22 — 2026-09-13
+- Aggiunti l'ordine configurabile degli ambienti e il bagliore di stato delle schede.
+
 ## 2.20.20 — 2026-09-12
 
 - Rimossa la scheda Comfort dalla barra dei contatori Home, lasciando la sezione Comfort principale invariata.

@@ -2,6 +2,7 @@ from fastapi.testclient import TestClient
 from starlette.websockets import WebSocketDisconnect
 import pytest
 import json
+from pathlib import Path
 from urllib.parse import urljoin
 
 from app.main import create_app
@@ -17,6 +18,14 @@ from app.media_preferences import apply_preferences, load_preferences, save_pref
 from app.control4 import load_control4_config, public_control4_config, save_control4_config, summarize_ui_configuration
 from app.source_icons import delete_source_icon, load_builtin_source_icon, load_source_icon, save_source_icon
 from app.backgrounds import load_background, load_background_image, load_backgrounds, save_background_image, save_card_theme, save_inherit, save_preset
+
+
+def test_release_changelog_matches_addon_version() -> None:
+    root = Path(__file__).resolve().parents[1]
+    version = next(line.split(":", 1)[1].strip() for line in (root / "config.yaml").read_text(encoding="utf-8").splitlines() if line.startswith("version:"))
+    changelog = (root / "CHANGELOG.md").read_text(encoding="utf-8").splitlines()
+    assert changelog[0] == "# Changelog"
+    assert changelog[2].startswith(f"## {version} — ")
 
 
 def test_health() -> None:
