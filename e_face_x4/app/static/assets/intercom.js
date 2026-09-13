@@ -33,6 +33,7 @@
 
   function track(session) {
     call = session
+    let iceReadyTimer = null
     $('#call-status').textContent = session.direction === 'incoming' ? `Chiamata da ${session.remote_identity?.display_name || session.remote_identity?.uri?.user || 'sconosciuto'}` : 'Chiamata in uscita…'
     $('#call-answer').disabled = session.direction !== 'incoming'
     $('#call-hangup').disabled = false
@@ -44,9 +45,20 @@
         $('#remote-audio').play().catch(() => error('Tocca lo schermo per abilitare la riproduzione audio.'))
       })
     })
+    session.on('connecting', () => { $('#call-status').textContent = 'Preparazione rete audio…' })
+    session.on('icecandidate', ({candidate, ready}) => {
+      if (!$('#fast-ice').checked || iceReadyTimer || candidate?.type !== 'host' || candidate?.protocol?.toLowerCase() !== 'udp') return
+      iceReadyTimer = setTimeout(() => {
+        iceReadyTimer = null
+        ready()
+      }, 1500)
+    })
+    session.on('sdp', ({originator}) => { if (originator === 'local') clearTimeout(iceReadyTimer) })
+    session.on('sending', () => { $('#call-status').textContent = 'INVITE inviato ad Asterisk…' })
+    session.on('progress', () => { $('#call-status').textContent = 'I tablet stanno squillando…' })
     session.on('confirmed', () => { $('#call-status').textContent = 'In conversazione' })
-    session.on('ended', () => clearCall('Chiamata terminata.'))
-    session.on('failed', ({cause}) => clearCall(`Chiamata non riuscita: ${cause || 'errore sconosciuto'}`))
+    session.on('ended', () => { clearTimeout(iceReadyTimer); clearCall('Chiamata terminata.') })
+    session.on('failed', ({cause}) => { clearTimeout(iceReadyTimer); clearCall(`Chiamata non riuscita: ${cause || 'errore sconosciuto'}`) })
     session.on('getusermediafailed', ({name, message}) => error(`Microfono: ${name || 'errore'} ${message || ''}`))
   }
 

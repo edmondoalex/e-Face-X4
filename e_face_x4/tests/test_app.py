@@ -133,8 +133,10 @@ def test_intercom_test_phone_requires_admin_and_same_origin(monkeypatch, tmp_pat
     assert person.post("/api/auth/login", json={"username": "mario", "password": "password-mario-lunga"}).status_code == 200
     assert person.get("/intercom").status_code == 403
     assert "Postazione SIP" in admin.get("/intercom").text
+    assert 'id="fast-ice"' in admin.get("/intercom").text
     assert admin.get("/assets/intercom.js").status_code == 200
     assert "pcConfig:{iceServers:[]}" in admin.get("/assets/intercom.js").text
+    assert "session.on('icecandidate'" in admin.get("/assets/intercom.js").text
     assert admin.get("/assets/jssip-3.13.8.js").status_code == 200
     with pytest.raises(WebSocketDisconnect) as denied:
         with person.websocket_connect("/api/intercom/sip", headers={"origin": "http://testserver"}, subprotocols=["sip"]):
