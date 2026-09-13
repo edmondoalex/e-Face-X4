@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.20.77 — 2026-09-13
+- Spostato il ricollegamento dei servizi da Ascolta a **Strumenti → Account musicali**, accessibile anche agli utenti non amministratori. L'area raggruppa i driver musicali rilevati sul controller e distingue i servizi disponibili da quelli ancora da integrare.
+- Amazon Music resta operativo; la riproduzione da e-Face è stata confermata dopo la callback di autorizzazione.
+- Predisposto TIDAL nello stesso flusso a link perché il pacchetto fornito dichiara la medesima azione `GetLinkForAPIAuthentication`; in UI è marcato come prova finché il controller reale non conferma il risultato. TuneIn legacy, Deezer e Qobuz non vengono trattati come equivalenti senza verifica.
+
 ## 2.20.76 — 2026-09-13
 - Confermato sul controller reale che `LUA_ACTION / GetLinkForAPIAuthentication` produce un link nel flusso eventi Director; tra gli eventi osservati compare anche `UPDATE_PROPERTY`.
 - In Ascolta, quando Amazon Music è tra le sorgenti Control4, gli utenti e-Face possono richiedere un link temporaneo e aprirlo nel browser per ricollegare l'account. Il link non viene salvato né scritto nei log.

@@ -30,6 +30,49 @@ async function loadToolsBackground() {
 
 function notice(message) { $('#tools-notice').textContent = message; $('#tools-notice').hidden = false; setTimeout(() => { $('#tools-notice').hidden = true }, 3500) }
 
+const musicAccountsCard = document.createElement('button')
+musicAccountsCard.type = 'button'
+musicAccountsCard.className = 'tool-card'
+musicAccountsCard.innerHTML = '<span>♫</span><div><b>Account musicali</b><small>Collega e gestisci le sorgenti</small></div><i>›</i>'
+$('#tools-user-section .tools-grid').append(musicAccountsCard)
+const musicAccountsPanel = document.createElement('section')
+musicAccountsPanel.id = 'music-accounts-config'
+musicAccountsPanel.className = 'media-config music-accounts-config'
+musicAccountsPanel.hidden = true
+musicAccountsPanel.innerHTML = '<header><button type="button" id="music-accounts-back" aria-label="Torna a Strumenti">‹</button><div><small>STRUMENTI</small><h2>Account musicali</h2></div></header><p>Gestisci qui gli accessi alle sorgenti Control4, senza aprire l’app Control4.</p><div id="music-accounts-list" class="music-accounts-list"></div>'
+$('.tools-shell').append(musicAccountsPanel)
+
+musicAccountsCard.addEventListener('click', async () => {
+  musicAccountsPanel.hidden = false
+  $('#music-accounts-list').innerHTML = '<p>Caricamento servizi…</p>'
+  try {
+    const response = await fetch(apiUrl('../api/control4/music/account-services'), { cache: 'no-store' })
+    const data = await response.json().catch(() => ({}))
+    if (!response.ok) throw new Error(data.detail || `HTTP ${response.status}`)
+    $('#music-accounts-list').innerHTML = (data.services || []).map((service) => {
+      const status = service.status === 'ready' ? 'Collegamento disponibile' : service.status === 'test' ? 'Flusso a link da verificare sul controller' : service.status === 'external' ? 'Accesso gestito dal servizio' : 'Collegamento in preparazione'
+      const key = service.name.toLowerCase() === 'amazon music' ? 'amazon' : service.name.toLowerCase() === 'tidal' ? 'tidal' : ''
+      const action = key && ['ready', 'test'].includes(service.status) ? `<button type="button" data-music-account="${key}">${service.status === 'test' ? 'Prova collegamento' : 'Ricollega'}</button>` : ''
+      return `<div class="music-account-row"><div><strong>${esc(service.name)}</strong><small>${status}</small></div>${action}</div>`
+    }).join('') || '<p>Nessun servizio musicale Control4 trovato.</p>'
+  } catch (error) { $('#music-accounts-list').innerHTML = `<p>${esc(error.message)}</p>` }
+})
+$('#music-accounts-back').addEventListener('click', () => { musicAccountsPanel.hidden = true })
+musicAccountsPanel.addEventListener('click', async (event) => {
+  const button = event.target.closest('[data-music-account]')
+  if (!button) return
+  const service = button.dataset.musicAccount === 'tidal' ? 'tidal' : 'amazon'
+  button.disabled = true
+  try {
+    const response = await fetch(apiUrl(`../api/control4/music/${service}/auth-link`), { method: 'POST', cache: 'no-store' })
+    const data = await response.json().catch(() => ({}))
+    if (!response.ok) throw new Error(data.detail || `HTTP ${response.status}`)
+    const url = new URL(data.url)
+    if (url.protocol !== 'https:' || url.hostname !== 'link.ctrl4.co') throw new Error('Link musicale non valido')
+    window.location.assign(url.href)
+  } catch (error) { notice(error.message); button.disabled = false }
+})
+
 async function loadBackgrounds(refreshImage = false) {
   const activeRoom=$('#background-room')?.value||''
   const [settingsResponse, bootstrapResponse] = await Promise.all([fetch(apiUrl('../api/user/background'), {cache:'no-store'}), fetch(apiUrl('../api/bootstrap'), {cache:'no-store'})])

@@ -1,0 +1,6 @@
+.music-accounts-list{display:grid;gap:10px;margin:18px 0}
+.music-account-row{display:flex;align-items:center;justify-content:space-between;gap:14px;min-height:74px;padding:15px 18px;border:1px solid var(--line);border-radius:11px;background:rgba(7,35,40,.88)}
+.music-account-row strong,.music-account-row small{display:block}
+.music-account-row small{margin-top:5px;color:var(--muted)}
+.music-account-row button{padding:10px 14px;border:1px solid rgba(111,225,205,.5);border-radius:8px;background:rgba(111,225,205,.14);color:#e1fff8;font-weight:700;cursor:pointer}
+.music-account-row button:disabled{opacity:.55;cursor:wait}

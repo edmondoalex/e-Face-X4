@@ -42,7 +42,7 @@ from .connectors.control4_media import cached_control4_icon, cached_control4_ico
 from .connectors.supervisor import discover_addon_url, discover_host_url
 from .demo import dashboard as demo_dashboard
 
-VERSION = "2.20.76"
+VERSION = "2.20.77"
 STATIC = Path(__file__).parent / "static"
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s [e-face-x4] %(message)s")
 
@@ -589,9 +589,11 @@ def create_app() -> FastAPI:
                             headers={"Cache-Control": "no-store, private"})
 
     @app.post("/api/control4/music/amazon/auth-link")
-    async def control4_amazon_auth_link(request: Request) -> Response:
+    @app.post("/api/control4/music/tidal/auth-link")
+    async def control4_music_auth_link(request: Request) -> Response:
         if not user_auth.session_user(request.cookies.get(user_auth.COOKIE)):
             raise HTTPException(status_code=401, detail="Accesso richiesto")
+        service_name = "TIDAL" if request.url.path.endswith("/tidal/auth-link") else "Amazon Music"
         config = load_control4_config()
         if not config.get("username") or not config.get("password"):
             raise HTTPException(status_code=409, detail="Control4 non configurato")
@@ -599,12 +601,12 @@ def create_app() -> FastAPI:
             director, token = await control4_director(config)
             all_items = await director.get_all_item_info()
         except Exception as exc:
-            logging.warning("Login Amazon: Director non raggiungibile (%s)", type(exc).__name__)
+            logging.warning("Login servizio musicale: Director non raggiungibile (%s)", type(exc).__name__)
             raise HTTPException(status_code=502, detail="Controller Control4 non raggiungibile") from exc
-        candidates = [item for item in all_items if isinstance(item, dict) and str(item.get("name") or "").casefold() == "amazon music" and str(item.get("proxy") or "").lower() == "media_service" and str(item.get("id") or "").isdigit()] if isinstance(all_items, list) else []
+        candidates = [item for item in all_items if isinstance(item, dict) and str(item.get("name") or "").casefold() == service_name.casefold() and str(item.get("proxy") or "").lower() == "media_service" and str(item.get("id") or "").isdigit()] if isinstance(all_items, list) else []
         driver = next((item for item in candidates if "deviceOrder" not in item), candidates[0] if candidates else None)
         if not driver:
-            raise HTTPException(status_code=404, detail="Amazon Music non presente nell'impianto")
+            raise HTTPException(status_code=404, detail=f"{service_name} non presente nell'impianto")
         driver_id = int(driver["id"])
         found = asyncio.Event()
         link = ""
@@ -639,13 +641,39 @@ def create_app() -> FastAPI:
             if not found.is_set():
                 await asyncio.wait_for(found.wait(), timeout=25)
         except asyncio.TimeoutError as exc:
-            raise HTTPException(status_code=504, detail="Il link Amazon non è arrivato dal controller; riprova") from exc
+            raise HTTPException(status_code=504, detail=f"Il link {service_name} non è arrivato dal controller; riprova") from exc
         except Exception as exc:
-            logging.warning("Login Amazon non disponibile (%s)", type(exc).__name__)
-            raise HTTPException(status_code=502, detail="Generazione link Amazon non disponibile") from exc
+            logging.warning("Login servizio musicale non disponibile (%s)", type(exc).__name__)
+            raise HTTPException(status_code=502, detail=f"Generazione link {service_name} non disponibile") from exc
         finally:
             await socket.sio_disconnect()
         return JSONResponse({"url": link}, headers={"Cache-Control": "no-store, private", "Pragma": "no-cache", "Referrer-Policy": "no-referrer", "X-Content-Type-Options": "nosniff"})
+
+    @app.get("/api/control4/music/account-services")
+    async def control4_music_account_services(request: Request) -> Response:
+        if not user_auth.session_user(request.cookies.get(user_auth.COOKIE)):
+            raise HTTPException(status_code=401, detail="Accesso richiesto")
+        config = load_control4_config()
+        if not config.get("username") or not config.get("password"):
+            return JSONResponse({"services": []}, headers={"Cache-Control": "no-store, private"})
+        try:
+            director, _ = await control4_director(config)
+            all_items = await director.get_all_item_info()
+        except Exception as exc:
+            logging.warning("Elenco servizi musicali non disponibile (%s)", type(exc).__name__)
+            raise HTTPException(status_code=502, detail="Servizi Control4 non disponibili") from exc
+        by_name: dict[str, dict[str, object]] = {}
+        for item in all_items if isinstance(all_items, list) else []:
+            if not isinstance(item, dict) or str(item.get("proxy") or "").lower() != "media_service":
+                continue
+            name = str(item.get("name") or "").strip()
+            if not name or not str(item.get("id") or "").isdigit():
+                continue
+            key = name.casefold()
+            if key not in by_name or "deviceOrder" not in item:
+                by_name[key] = {"name": name, "status": "ready" if key == "amazon music" else "test" if key == "tidal" else "external" if key in {"spotify connect", "shairbridge"} else "pending"}
+        services = sorted(by_name.values(), key=lambda service: str(service["name"]).casefold())
+        return JSONResponse({"services": services}, headers={"Cache-Control": "no-store, private"})
 
     @app.get("/api/admin/control4/artwork-diagnostic")
     async def admin_control4_artwork_diagnostic(request: Request) -> dict:

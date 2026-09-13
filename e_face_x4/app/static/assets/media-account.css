@@ -1,4 +1,0 @@
-.media-account-action{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin:14px 0 4px;padding:12px;border:1px solid rgba(255,255,255,.12);border-radius:10px;background:rgba(255,255,255,.04)}
-.media-account-action button{padding:10px 14px;border:1px solid rgba(111,225,205,.45);border-radius:8px;background:rgba(111,225,205,.12);color:#dffcf5;font-weight:700;cursor:pointer}
-.media-account-action button:disabled{opacity:.55;cursor:wait}
-.media-account-action small{color:var(--muted)}
