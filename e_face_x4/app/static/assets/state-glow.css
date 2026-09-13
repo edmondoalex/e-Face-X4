@@ -18,6 +18,7 @@
 .page-device-list article.device-climate-cool .device-glyph{color:#61d8f2}
 .page-device-list article.device-light-on,.page-device-list article.device-switch-on,.page-device-list article.device-cover-open,.page-device-list article.device-climate-heat,.page-device-list article.device-climate-cool,.scenario-card.active,.security-scenario.active,.security-area,.security-lock{border:0!important;box-shadow:none!important}
 .security-lock>.device-actions button{display:flex;align-items:center;justify-content:center;gap:5px}
+.security-lock>.device-actions{grid-column:1/-1;justify-content:center;width:min(100%,180px);margin-inline:auto}
 .security-lock>.device-actions button .mdi-mask{width:16px;height:16px;flex:none}
 .security-lock-battery{display:inline-flex;align-items:center;gap:3px;margin-left:7px;color:#aebabc;font-size:9px;white-space:nowrap}
 .security-lock-battery i{width:12px;height:12px}

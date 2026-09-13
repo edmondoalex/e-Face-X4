@@ -91,10 +91,10 @@ function deviceGlyph(device) {
 }
 
 function lockActionIcon(device, open) {
-  const identity = `${device.name || ''} ${device.icon || ''}`.toLocaleLowerCase('it')
-  if (/cancello|gate/.test(identity)) return open ? 'mdi:gate-open' : 'mdi:gate'
-  if (/garage|portone|garagedoor/.test(identity)) return open ? 'mdi:garage-open' : 'mdi:garage'
-  if (/porta|door/.test(identity)) return open ? 'mdi:door-open' : 'mdi:door-closed'
+  const icon = String(device.icon || '').toLocaleLowerCase('it')
+  if (/gate|cancello/.test(icon)) return open ? 'mdi:gate-open' : 'mdi:gate'
+  if (/garage|portone/.test(icon)) return open ? 'mdi:garage-open' : 'mdi:garage'
+  if (/door|porta/.test(icon) && !/lock/.test(icon)) return open ? 'mdi:door-open' : 'mdi:door-closed'
   return open ? 'mdi:lock-open-outline' : 'mdi:lock-outline'
 }
 
