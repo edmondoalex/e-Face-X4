@@ -210,12 +210,25 @@ class Control4MediaConnector(Connector):
         if not cached or cached[0] != fingerprint:
             return httpx.Response(404)
         url = httpx.URL(cached[1])
-        host = (url.host or "").lower()
-        if url.scheme not in {"http", "https"} or not any(host == allowed or host.endswith(f".{allowed}") for allowed in _ARTWORK_HOSTS):
-            return httpx.Response(415)
         headers = {"If-None-Match": if_none_match} if if_none_match else {}
         async with httpx.AsyncClient(timeout=5, follow_redirects=False) as client:
-            return await client.get(url, headers=headers)
+            for _ in range(4):
+                host = (url.host or "").lower()
+                if url.scheme not in {"http", "https"} or url.username or url.password or not any(host == allowed or host.endswith(f".{allowed}") for allowed in _ARTWORK_HOSTS):
+                    return httpx.Response(415)
+                response = await client.get(url, headers=headers)
+                if response.status_code not in {301, 302, 303, 307, 308}:
+                    return response
+                location = response.headers.get("location")
+                if not location:
+                    return httpx.Response(502)
+                url = url.join(location)
+        return httpx.Response(502)
+
+    @staticmethod
+    def artwork_host(registry_id: str, fingerprint: str) -> str:
+        cached = _artwork_urls.get(registry_id)
+        return (httpx.URL(cached[1]).host or "") if cached and cached[0] == fingerprint else ""
 
     async def events(self) -> AsyncIterator[dict[str, Any]]:
         snapshot = await self.snapshot()

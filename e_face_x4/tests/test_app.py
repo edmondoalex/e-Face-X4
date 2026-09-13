@@ -795,6 +795,67 @@ def test_control4_current_media_info_exposes_metadata_and_safe_artwork_fingerpri
     assert players[0]["capabilities"]["grouping"] is False
 
 
+@pytest.mark.asyncio
+async def test_control4_cover_follows_only_trusted_image_redirects(monkeypatch) -> None:
+    import httpx
+    from app.connectors import control4_media
+
+    url = "https://opml.radiotime.com/redirect-cover"
+    fingerprint = "fingerprint-test"
+    control4_media._artwork_urls["c4room:51"] = (fingerprint, url)
+    # The initial host must be trusted too; a source outside the allowlist is rejected.
+    assert (await Control4MediaConnector({}).artwork("c4room:51", fingerprint)).status_code == 415
+
+    control4_media._artwork_urls["c4room:51"] = (fingerprint, "https://cdn-profiles.tunein.com/start")
+    seen = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.append(str(request.url))
+        if request.url.path == "/start":
+            return httpx.Response(302, headers={"Location": "https://cdn-profiles.tunein.com/final.jpg"})
+        return httpx.Response(200, content=b"jpeg", headers={"Content-Type": "image/jpeg"})
+
+    original = httpx.AsyncClient
+    transport = httpx.MockTransport(handler)
+    monkeypatch.setattr(control4_media.httpx, "AsyncClient", lambda **kwargs: original(transport=transport, **kwargs))
+    response = await Control4MediaConnector({}).artwork("c4room:51", fingerprint)
+    assert response.status_code == 200
+    assert len(seen) == 2
+
+    def unsafe(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(302, headers={"Location": "http://192.168.3.10/private"})
+
+    transport = httpx.MockTransport(unsafe)
+    assert (await Control4MediaConnector({}).artwork("c4room:51", fingerprint)).status_code == 415
+
+
+
+def test_control4_cover_diagnostic_uses_saved_login_without_leaking_url(monkeypatch, tmp_path) -> None:
+    import httpx
+    import app.main as main_module
+
+    monkeypatch.setenv("EFACE_AUTH_DIR", str(tmp_path / "auth"))
+    from app.user_auth import create_admin
+    create_admin("password-admin-lunga")
+    monkeypatch.setattr(main_module, "load_control4_config", lambda: {"host": "192.168.3.10", "username": "private", "password": "private-secret"})
+
+    async def snapshot(self):
+        return {"items": [{"provider": "control4", "state": "playing", "registry_id": "c4room:51", "room": "Ufficio Alex", "title": "Brano", "source": "Radio RapTz", "content_fingerprint": "fingerprint-test"}]}
+
+    async def artwork(self, registry_id, fingerprint, if_none_match=None):
+        return httpx.Response(415)
+
+    monkeypatch.setattr(main_module.Control4MediaConnector, "snapshot", snapshot)
+    monkeypatch.setattr(main_module.Control4MediaConnector, "artwork", artwork)
+    monkeypatch.setattr(main_module.Control4MediaConnector, "artwork_host", staticmethod(lambda *args: "images.example.test"))
+    client = TestClient(main_module.create_app())
+    assert client.get("/api/admin/control4/artwork-diagnostic").status_code == 401
+    client.post("/api/auth/login", json={"username": "admin", "password": "password-admin-lunga"})
+    response = client.get("/api/admin/control4/artwork-diagnostic")
+    assert response.status_code == 200
+    assert response.json()["players"][0]["artwork_status"] == 415
+    assert "private-secret" not in response.text
+
 def test_control4_command_does_not_require_evoice_enabled(monkeypatch, tmp_path) -> None:
     import app.main as main_module
 

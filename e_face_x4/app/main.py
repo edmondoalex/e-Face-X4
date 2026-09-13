@@ -191,6 +191,36 @@ def create_app() -> FastAPI:
         turn = intercom_settings.load_turn()
         return {"settings": intercom_settings.load(), "turn": {"turn_url": turn["turn_url"], "turn_username": turn["turn_username"], "password_configured": bool(turn["turn_password"])}, "sip_ready": False}
 
+    @app.get("/api/admin/control4/artwork-diagnostic")
+    async def admin_control4_artwork_diagnostic(request: Request) -> dict:
+        require_admin(request)
+        config = load_control4_config()
+        if not config.get("username") or not config.get("password"):
+            raise HTTPException(status_code=409, detail="Control4 non configurato in e-Face")
+        connector = Control4MediaConnector(config)
+        try:
+            snapshot = await connector.snapshot()
+        except Exception as exc:
+            logging.warning("Diagnostica cover Control4: %s", type(exc).__name__)
+            raise HTTPException(status_code=502, detail="Control4 non raggiungibile da e-Face") from exc
+        results = []
+        for player in snapshot.get("items", []):
+            if player.get("provider") != "control4" or player.get("state") not in {"playing", "paused"}:
+                continue
+            registry_id = str(player.get("registry_id") or "")
+            fingerprint = str(player.get("content_fingerprint") or "")
+            item = {"room": player.get("room"), "title": player.get("title"), "source": player.get("source"), "artwork_host": connector.artwork_host(registry_id, fingerprint) if fingerprint else "", "artwork_status": "missing_metadata" if not fingerprint else "pending"}
+            if fingerprint:
+                try:
+                    upstream = await connector.artwork(registry_id, fingerprint)
+                    item["artwork_status"] = upstream.status_code
+                    item["content_type"] = upstream.headers.get("content-type", "").split(";", 1)[0]
+                    item["bytes"] = len(upstream.content)
+                except httpx.HTTPError as exc:
+                    item["artwork_status"] = type(exc).__name__
+            results.append(item)
+        return {"players": results}
+
     @app.put("/api/admin/intercom/turn")
     async def admin_save_intercom_turn(request: Request, payload: dict) -> dict:
         require_admin(request)
