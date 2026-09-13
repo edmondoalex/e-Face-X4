@@ -188,6 +188,9 @@ def test_intercom_uses_admin_verified_8301_copy(monkeypatch, tmp_path) -> None:
     assert response.headers["cache-control"] == "no-store, private"
     assert response.headers["vary"] == "Cookie"
     assert "api/intercom/sip/credential" in admin.get("/assets/intercom.js").text
+    script = admin.get("/assets/intercom.js").text
+    assert "eface-intercom-fast-ice-v1" in script
+    assert "if (icePreference === null) $('#fast-ice').checked = iceServers.length === 0" in script
 
 
 def test_admin_doorbird_check_uses_stored_credential_without_exposing_it(monkeypatch, tmp_path) -> None:

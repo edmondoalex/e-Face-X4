@@ -12,6 +12,17 @@
   let micSource = null
   let micGain = null
   let iceServers = []
+  const icePreferenceKey = 'eface-intercom-fast-ice-v1'
+  let icePreference = null
+  try { icePreference = localStorage.getItem(icePreferenceKey) } catch (_) { /* storage unavailable */ }
+  if (icePreference === '1' || icePreference === '0') $('#fast-ice').checked = icePreference === '1'
+  $('#fast-ice').addEventListener('change', () => {
+    icePreference = $('#fast-ice').checked ? '1' : '0'
+    try { localStorage.setItem(icePreferenceKey, icePreference) } catch (_) { /* storage unavailable */ }
+  })
+  const iceHint = document.createElement('small')
+  iceHint.textContent = 'In rete locale: attiva per far squillare subito. Da remoto: disattiva per usare TURN. La scelta resta su questo dispositivo.'
+  $('#fast-ice').closest('label').after(iceHint)
   $('#sip-password').parentElement.firstChild.textContent = 'Password SIP alternativa (facoltativa)'
   $('#sip-password').placeholder = 'Vuoto = usa la credenziale salvata in e-Face'
 
@@ -19,7 +30,7 @@
     const response = await fetch(new URL('api/intercom/ice', root), {cache:'no-store'})
     if (!response.ok) throw new Error('Configurazione audio remoto non disponibile')
     iceServers = (await response.json()).iceServers || []
-    if (iceServers.length) $('#fast-ice').checked = false
+    if (icePreference === null) $('#fast-ice').checked = iceServers.length === 0
   }
 
   function peerConfig() {
