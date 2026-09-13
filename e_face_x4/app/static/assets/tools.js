@@ -135,8 +135,21 @@ $('#control4-artwork-diagnostic').addEventListener('click', async (event) => {
     const data = await response.json().catch(() => ({}))
     if (!response.ok) throw new Error(data.detail || `HTTP ${response.status}`)
     const players = data.players || []
-    $('#control4-result').innerHTML = `<b>Diagnosi cover</b>${players.length ? players.map(player => `<span>${esc(player.room || 'Stanza')} · ${esc(player.title || player.source || 'Sorgente')}: ${esc(player.artwork_host || 'nessun URL')} · ${esc(player.artwork_status)}${player.content_type ? ` · ${esc(player.content_type)}` : ''}${player.bytes != null ? ` · ${Number(player.bytes)} byte` : ''}</span>`).join('') : '<span>Nessuna riproduzione Control4 attiva, oppure Control4 non raggiungibile.</span>'}`
+    $('#control4-result').innerHTML = `<b>Diagnosi cover</b>${players.length ? players.map(player => `<span>${esc(player.room || 'Stanza')} · ${esc(player.title || player.source || 'Sorgente')}: ${esc(player.artwork_origin?.scheme || '')}://${esc(player.artwork_host || 'nessun URL')}${player.artwork_origin?.port ? `:${Number(player.artwork_origin.port)}` : ''} · ${esc(player.artwork_status)}${player.content_type ? ` · ${esc(player.content_type)}` : ''}${player.bytes != null ? ` · ${Number(player.bytes)} byte` : ''}</span>`).join('') : '<span>Nessuna riproduzione Control4 attiva, oppure Control4 non raggiungibile.</span>'}`
     $('#control4-result').hidden = false
+  } catch (error) { notice(error.message) } finally { button.disabled = false }
+})
+$('#control4-support-link').addEventListener('click', async (event) => {
+  const button = event.currentTarget
+  button.disabled = true
+  try {
+    const response = await fetch(apiUrl('../api/admin/control4/artwork-support-link'), { method: 'POST' })
+    const data = await response.json().catch(() => ({}))
+    if (!response.ok) throw new Error(data.detail || `HTTP ${response.status}`)
+    const url = new URL(data.path, location.origin).href
+    $('#control4-result').innerHTML = `<b>Link diagnostico valido 10 minuti, una sola lettura</b><span style="overflow-wrap:anywhere">${esc(url)}</span>`
+    $('#control4-result').hidden = false
+    try { await navigator.clipboard.writeText(url); notice('Link copiato negli appunti') } catch (_) { notice('Copia il link visualizzato') }
   } catch (error) { notice(error.message) } finally { button.disabled = false }
 })
 $('#media-back').addEventListener('click', () => { $('#media-config').hidden = true })

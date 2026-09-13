@@ -10,6 +10,8 @@ Stato: **DA FARE**. Questo task non riguarda la sola cover: deve rendere ripetib
 - `Strumenti → Amministrazione → Control4 → TEST CONNESSIONE` ottiene un nuovo token Director con le credenziali già salvate e lo riusa per le chiamate successive. La password può restare vuota nel modulo se è già configurata.
 - `DIAGNOSI COVER` interroga il Director dall'add-on e verifica l'URL dell'immagine; il risultato è accessibile solo all'admin e non espone URL completi, token o password.
 - Diagnosi reale della cover Radio RapTz in Ufficio Alex: host `192.168.3.36`, HTTP `415`, 0 byte. Il rifiuto nasce dalla allowlist e-Face, non dal token Director. Il fix consente host immagini privati nella stessa `/24` del Director e IP privati aggiuntivi autorizzati esplicitamente in Strumenti; resta da confermare la cover visibile dopo aggiornamento.
+- Dopo la 2.20.57 il `415` persisteva. La prima diagnostica mostrava solo l'host e nascondeva la porta dell'URL: la 2.20.58 mostra schema e porta e ammette porte applicative alte (>=1024) per gli host LAN autorizzati. L'ipotesi della porta non è ancora confermata dalla diagnosi reale.
+- La 2.20.58 introduce un link diagnostico **monouso di 10 minuti**, creato da admin e-Face, che restituisce soltanto lo stato delle cover. È un primo canale di lettura per il supporto, non un accesso generale al Director: il task di accesso tecnico completo resta aperto.
 
 ## Procedura provvisoria per una sessione di sviluppo
 

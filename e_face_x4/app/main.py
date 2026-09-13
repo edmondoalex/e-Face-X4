@@ -6,6 +6,7 @@ import hmac
 import json
 import logging
 import re
+import secrets
 import time
 import uuid
 from html import escape
@@ -40,7 +41,7 @@ from .connectors.control4_media import cached_control4_icon, cached_control4_ico
 from .connectors.supervisor import discover_addon_url, discover_host_url
 from .demo import dashboard as demo_dashboard
 
-VERSION = "2.20.57"
+VERSION = "2.20.58"
 STATIC = Path(__file__).parent / "static"
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s [e-face-x4] %(message)s")
 
@@ -57,6 +58,7 @@ def create_app() -> FastAPI:
     app.mount("/assets", AppAssets(directory=STATIC / "assets"), name="assets")
     login_failures: dict[tuple[str, str], list[float]] = {}
     reveal_failures: dict[str, list[float]] = {}
+    control4_support_tokens: dict[str, float] = {}
 
     def secure_cookie(request: Request) -> bool:
         return request.url.scheme == "https" or request.headers.get("x-forwarded-proto", "").lower() == "https"
@@ -67,7 +69,7 @@ def create_app() -> FastAPI:
         origin = request.headers.get("origin")
         if request.method not in {"GET", "HEAD", "OPTIONS"} and origin and urlsplit(origin).netloc != request.headers.get("host"):
             return JSONResponse({"detail": "Origine non consentita"}, status_code=403)
-        if not user_auth.enabled() or path == "/health" or path == "/login" or path.startswith("/api/auth/") or path.startswith("/assets/"):
+        if not user_auth.enabled() or path == "/health" or path == "/login" or path.startswith("/api/auth/") or path.startswith("/assets/") or path.startswith("/api/support/control4/artwork/"):
             return await call_next(request)
         username = user_auth.session_user(request.cookies.get(user_auth.COOKIE))
         if not username:
@@ -191,9 +193,7 @@ def create_app() -> FastAPI:
         turn = intercom_settings.load_turn()
         return {"settings": intercom_settings.load(), "turn": {"turn_url": turn["turn_url"], "turn_username": turn["turn_username"], "password_configured": bool(turn["turn_password"])}, "sip_ready": False}
 
-    @app.get("/api/admin/control4/artwork-diagnostic")
-    async def admin_control4_artwork_diagnostic(request: Request) -> dict:
-        require_admin(request)
+    async def control4_artwork_diagnostic() -> dict:
         config = load_control4_config()
         if not config.get("username") or not config.get("password"):
             raise HTTPException(status_code=409, detail="Control4 non configurato in e-Face")
@@ -211,7 +211,7 @@ def create_app() -> FastAPI:
                 continue
             registry_id = str(player.get("registry_id") or "")
             fingerprint = str(player.get("content_fingerprint") or "")
-            item = {"room": player.get("room"), "title": player.get("title"), "source": player.get("source"), "artwork_host": connector.artwork_host(registry_id, fingerprint) if fingerprint else "", "artwork_status": "missing_metadata" if not fingerprint else "pending"}
+            item = {"room": player.get("room"), "title": player.get("title"), "source": player.get("source"), "artwork_host": connector.artwork_host(registry_id, fingerprint) if fingerprint else "", "artwork_origin": connector.artwork_origin(registry_id, fingerprint) if fingerprint else {}, "artwork_status": "missing_metadata" if not fingerprint else "pending"}
             if fingerprint:
                 try:
                     upstream = await connector.artwork(registry_id, fingerprint)
@@ -222,6 +222,26 @@ def create_app() -> FastAPI:
                     item["artwork_status"] = type(exc).__name__
             results.append(item)
         return {"players": results}
+
+    @app.get("/api/admin/control4/artwork-diagnostic")
+    async def admin_control4_artwork_diagnostic(request: Request) -> dict:
+        require_admin(request)
+        return await control4_artwork_diagnostic()
+
+    @app.post("/api/admin/control4/artwork-support-link")
+    async def admin_control4_artwork_support_link(request: Request) -> Response:
+        require_admin(request)
+        control4_support_tokens.clear()
+        token = secrets.token_urlsafe(32)
+        control4_support_tokens[token] = time.monotonic() + 600
+        return JSONResponse({"path": f"/api/support/control4/artwork/{token}", "expires_seconds": 600}, headers={"Cache-Control": "no-store, private"})
+
+    @app.get("/api/support/control4/artwork/{token}")
+    async def control4_artwork_support(token: str) -> Response:
+        expires = control4_support_tokens.pop(token, 0)
+        if expires < time.monotonic():
+            raise HTTPException(status_code=404, detail="Link diagnostico scaduto o già usato")
+        return JSONResponse(await control4_artwork_diagnostic(), headers={"Cache-Control": "no-store", "X-Content-Type-Options": "nosniff", "Referrer-Policy": "no-referrer"})
 
     @app.put("/api/admin/intercom/turn")
     async def admin_save_intercom_turn(request: Request, payload: dict) -> dict:

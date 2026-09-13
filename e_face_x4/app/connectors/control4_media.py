@@ -27,17 +27,22 @@ _ARTWORK_HOSTS = ("i.scdn.co", "mosaic.scdn.co", "spotifycdn.com", "mzstatic.com
 
 
 def _trusted_artwork_url(url: httpx.URL, controller_host: str, extra_hosts: str = "") -> bool:
-    if url.scheme not in {"http", "https"} or url.username or url.password or (url.port is not None and url.port not in {80, 443}):
+    if url.scheme not in {"http", "https"} or url.username or url.password:
         return False
     host = (url.host or "").lower()
     if any(host == allowed or host.endswith(f".{allowed}") for allowed in _ARTWORK_HOSTS):
-        return True
+        return url.port is None or url.port in {80, 443}
+    # Local media servers often publish artwork on an application-specific high port.
+    # Keep privileged ports blocked; never fetch from the Director itself.
+    if url.port is not None and url.port not in {80, 443} and url.port < 1024:
+        return False
     if host in {item.strip() for item in extra_hosts.split(",") if item.strip()}:
         try:
             target = ipaddress.ip_address(host)
+            controller = ipaddress.ip_address(controller_host)
         except ValueError:
             return False
-        return target.is_private and not (target.is_loopback or target.is_multicast or target.is_unspecified)
+        return target.is_private and target != controller and not (target.is_loopback or target.is_multicast or target.is_unspecified)
     try:
         controller = ipaddress.ip_address(controller_host)
         target = ipaddress.ip_address(host)
@@ -258,6 +263,14 @@ class Control4MediaConnector(Connector):
     def artwork_host(registry_id: str, fingerprint: str) -> str:
         cached = _artwork_urls.get(registry_id)
         return (httpx.URL(cached[1]).host or "") if cached and cached[0] == fingerprint else ""
+
+    @staticmethod
+    def artwork_origin(registry_id: str, fingerprint: str) -> dict[str, Any]:
+        cached = _artwork_urls.get(registry_id)
+        if not cached or cached[0] != fingerprint:
+            return {}
+        url = httpx.URL(cached[1])
+        return {"scheme": url.scheme, "port": url.port or (443 if url.scheme == "https" else 80)}
 
     async def events(self) -> AsyncIterator[dict[str, Any]]:
         snapshot = await self.snapshot()

@@ -847,10 +847,12 @@ async def test_control4_cover_accepts_local_media_host_only_on_controller_subnet
     connector = Control4MediaConnector({"host": "192.168.3.10"})
     assert (await connector.artwork("c4room:51", fingerprint)).status_code == 200
     assert seen == ["http://192.168.3.36/cover.jpg"]
-    for url in ("http://192.168.4.36/cover.jpg", "http://192.168.3.10/private", "http://192.168.3.36:8080/private", "http://127.0.0.1/cover.jpg"):
+    for url in ("http://192.168.4.36/cover.jpg", "http://192.168.3.10/private", "http://192.168.3.36:22/private", "http://127.0.0.1/cover.jpg"):
         control4_media._artwork_urls["c4room:51"] = (fingerprint, url)
         assert (await connector.artwork("c4room:51", fingerprint)).status_code == 415
     assert len(seen) == 1
+    control4_media._artwork_urls["c4room:51"] = (fingerprint, "http://192.168.3.36:8080/cover.jpg")
+    assert (await connector.artwork("c4room:51", fingerprint)).status_code == 200
     control4_media._artwork_urls["c4room:51"] = (fingerprint, "http://192.168.4.36/cover.jpg")
     extra_connector = Control4MediaConnector({"host": "192.168.3.10", "artwork_hosts": "192.168.4.36"})
     assert (await extra_connector.artwork("c4room:51", fingerprint)).status_code == 200
@@ -877,11 +879,18 @@ def test_control4_cover_diagnostic_uses_saved_login_without_leaking_url(monkeypa
     monkeypatch.setattr(main_module.Control4MediaConnector, "artwork_host", staticmethod(lambda *args: "images.example.test"))
     client = TestClient(main_module.create_app())
     assert client.get("/api/admin/control4/artwork-diagnostic").status_code == 401
+    assert client.post("/api/admin/control4/artwork-support-link").status_code == 401
     client.post("/api/auth/login", json={"username": "admin", "password": "password-admin-lunga"})
     response = client.get("/api/admin/control4/artwork-diagnostic")
     assert response.status_code == 200
     assert response.json()["players"][0]["artwork_status"] == 415
     assert "private-secret" not in response.text
+    link_response = client.post("/api/admin/control4/artwork-support-link")
+    assert link_response.status_code == 200
+    link = link_response.json()["path"]
+    assert client.get(link).json()["players"][0]["artwork_status"] == 415
+    assert client.get(link).status_code == 404
+    assert "private-secret" not in link_response.text
 
 def test_control4_command_does_not_require_evoice_enabled(monkeypatch, tmp_path) -> None:
     import app.main as main_module
