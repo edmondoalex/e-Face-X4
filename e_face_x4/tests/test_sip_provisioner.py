@@ -35,3 +35,25 @@ async def test_activate_needs_positive_response(monkeypatch) -> None:
         await sip_provisioner.activate("mario", "8302", "secret", "Mario")
     assert received[0].headers["Authorization"] == "Bearer " + "a" * 48
     assert received[0].url.path == "/v1/phones/mario"
+
+
+@pytest.mark.asyncio
+async def test_pair_saves_key_only_after_valid_response(monkeypatch, tmp_path) -> None:
+    monkeypatch.setenv("EFACE_PROVISION_SECRET_PATH", str(tmp_path / "provisioner.json"))
+    monkeypatch.delenv("EFACE_PROVISION_TOKEN", raising=False)
+    monkeypatch.setenv("EFACE_PROVISION_URL", "http://127.0.0.1:8350")
+    response_value = {"token": "short"}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.url.path == "/v1/pair"
+        return httpx.Response(200, json=response_value)
+
+    original = httpx.AsyncClient
+    transport = httpx.MockTransport(handler)
+    monkeypatch.setattr(sip_provisioner.httpx, "AsyncClient", lambda **kwargs: original(transport=transport, **kwargs))
+    with pytest.raises(RuntimeError, match="non valida"):
+        await sip_provisioner.pair("A" * 16)
+    assert not (tmp_path / "provisioner.json").exists()
+    response_value["token"] = "k" * 48
+    await sip_provisioner.pair("A" * 16)
+    assert sip_provisioner.settings() == ("http://127.0.0.1:8350", "k" * 48)

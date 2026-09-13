@@ -238,6 +238,21 @@ def create_app() -> FastAPI:
         assigned = sip_accounts.load()
         return {"automatic_provisioning": sip_provisioner.settings() is not None, "users": [{**user, "extension": assigned.get(user["username"], {}).get("extension"), "provisioned": bool(assigned.get(user["username"], {}).get("provisioned"))} for user in user_auth.accounts() if user["username"] != "admin"]}
 
+    @app.post("/api/admin/intercom/sip/pair")
+    async def admin_pair_sip(request: Request, payload: dict) -> dict:
+        require_admin(request)
+        if set(payload) != {"code", "admin_password"} or not user_auth.verify("admin", str(payload["admin_password"])):
+            raise HTTPException(status_code=403, detail="Password admin non valida")
+        code = str(payload["code"]).strip().upper()
+        if not re.fullmatch(r"[A-F0-9]{16}", code):
+            raise HTTPException(status_code=400, detail="Codice di associazione non valido")
+        try:
+            await sip_provisioner.pair(code)
+        except (RuntimeError, httpx.HTTPError, OSError) as exc:
+            logging.warning("Associazione Asterisk fallita: %s", type(exc).__name__)
+            raise HTTPException(status_code=503, detail="Associazione Asterisk non riuscita") from exc
+        return {"paired": True}
+
     @app.post("/api/admin/intercom/sip/accounts/{username}/activate")
     async def admin_activate_sip(username: str, request: Request) -> dict:
         require_admin(request)

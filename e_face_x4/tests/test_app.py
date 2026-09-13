@@ -268,6 +268,28 @@ def test_personal_sip_automatic_activation_waits_for_verified_provisioner(monkey
     assert person.get("/api/intercom/sip/credential").status_code == 200
 
 
+def test_pairing_requires_admin_password_and_does_not_expose_key(monkeypatch, tmp_path) -> None:
+    monkeypatch.setenv("EFACE_AUTH_DIR", str(tmp_path / "auth"))
+    from app.user_auth import create_admin
+    from app import sip_provisioner
+
+    create_admin("password-admin-lunga")
+    admin = TestClient(create_app())
+    admin.post("/api/auth/login", json={"username": "admin", "password": "password-admin-lunga"})
+    endpoint = "/api/admin/intercom/sip/pair"
+    assert admin.post(endpoint, json={"code": "A" * 16, "admin_password": "wrong"}).status_code == 403
+    assert admin.post(endpoint, json={"code": "bad", "admin_password": "password-admin-lunga"}).status_code == 400
+    seen = []
+
+    async def fake_pair(code: str) -> None:
+        seen.append(code)
+
+    monkeypatch.setattr(sip_provisioner, "pair", fake_pair)
+    result = admin.post(endpoint, json={"code": "a" * 16, "admin_password": "password-admin-lunga"})
+    assert result.json() == {"paired": True}
+    assert seen == ["A" * 16]
+
+
 def test_admin_doorbird_check_uses_stored_credential_without_exposing_it(monkeypatch, tmp_path) -> None:
     monkeypatch.setenv("EFACE_AUTH_DIR", str(tmp_path / "auth"))
     monkeypatch.setenv("EFACE_CREDENTIAL_INVENTORY", str(tmp_path / "inventory.json"))

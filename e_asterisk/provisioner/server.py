@@ -12,10 +12,12 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
 from managed_config import ManagedConfig
+from pairing import Pairing
 
 MAX_BODY = 4096
 PHONE_PATH = re.compile(r"/v1/phones/([a-z][a-z0-9_-]{2,31})\Z")
 CONFIG = ManagedConfig(Path("/config/asterisk/eface"))
+PAIRING = Pairing(Path("/config/asterisk/eface/access.json"), Path("/data/eface-pairing.json"))
 INCLUDE = "#include /config/asterisk/eface/pjsip.conf"
 
 
@@ -27,6 +29,9 @@ def _include_ready() -> bool:
 
 
 def _token() -> str:
+    paired = PAIRING.token()
+    if paired:
+        return paired
     try:
         options = json.loads(Path("/data/options.json").read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError):
@@ -87,10 +92,34 @@ class Handler(BaseHTTPRequestHandler):
             return
         try:
             _asterisk("core", "show", "uptime")
-            ready = _include_ready() and bool(_token())
-            self._reply(200 if ready else 503, {"ready": ready})
+            ready = _include_ready()
+            paired = bool(_token())
+            if not paired:
+                PAIRING.ensure_code()
+            self._reply(200 if ready else 503, {"ready": ready, "paired": paired})
         except (OSError, RuntimeError, subprocess.TimeoutExpired):
             self._reply(503, {"ready": False})
+
+    def do_POST(self) -> None:
+        if self.path != "/v1/pair":
+            self._reply(404, {"error": "not_found"})
+            return
+        length = self.headers.get("Content-Length", "")
+        if self.headers.get("Content-Type", "").split(";", 1)[0].strip() != "application/json" or not length.isdigit() or not 1 <= int(length) <= 128:
+            self._reply(400, {"error": "invalid_request"})
+            return
+        try:
+            payload = json.loads(self.rfile.read(int(length)))
+            if not isinstance(payload, dict) or set(payload) != {"code"} or not isinstance(payload["code"], str) or not re.fullmatch(r"[A-F0-9]{16}", payload["code"]):
+                raise ValueError("invalid")
+            token = PAIRING.consume(payload["code"])
+        except (ValueError, TypeError):
+            self._reply(403, {"error": "pairing_failed"})
+            return
+        except (OSError, RuntimeError):
+            self._reply(503, {"error": "pairing_unavailable"})
+            return
+        self._reply(200, {"token": token})
 
     def do_PUT(self) -> None:
         if not self._authorized():
@@ -139,7 +168,7 @@ class Handler(BaseHTTPRequestHandler):
 def main() -> None:
     CONFIG.reconcile_file()
     if not _token():
-        raise SystemExit("e-Face provisioner disabled: unique token missing")
+        PAIRING.ensure_code()
     host = os.environ.get("EFACE_PROVISION_BIND", "172.30.32.1")
     ThreadingHTTPServer((host, 8350), Handler).serve_forever()
 

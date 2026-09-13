@@ -22,4 +22,4 @@ jobs:
         working-directory: e_face_x4
         run: |
           python3 -m pip install --user pytest pytest-asyncio httpx fastapi pyyaml
-          python3 -m pytest tests/test_managed_asterisk_config.py tests/test_provisioner_api.py tests/test_sip_provisioner.py tests/test_asterisk_include.py -q
+          python3 -m pytest tests/test_managed_asterisk_config.py tests/test_provisioner_api.py tests/test_provisioner_pairing.py tests/test_sip_provisioner.py tests/test_asterisk_include.py -q
