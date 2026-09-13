@@ -113,7 +113,7 @@
     try {
       stream = await microphone()
       if (!phone?.isRegistered() || call) { stream.getTracks().forEach((track) => track.stop()); return }
-      phone.call('sip:8290@asterisk', {mediaStream:stream, mediaConstraints:{audio:true, video:false}, pcConfig:{iceServers:[{urls:'stun:stun.l.google.com:19302'}]}})
+      phone.call('sip:8290@asterisk', {mediaStream:stream, mediaConstraints:{audio:true, video:false}, pcConfig:{iceServers:[]}})
       activeStream = stream
     } catch (exception) {
       if (stream) stream.getTracks().forEach((track) => track.stop())
@@ -126,7 +126,7 @@
   $('#call-answer').addEventListener('click', () => {
     if (!call || call.direction !== 'incoming') return
     error('')
-    try { call.answer({mediaConstraints:{audio:true, video:false}, pcConfig:{iceServers:[{urls:'stun:stun.l.google.com:19302'}]}}) }
+    try { call.answer({mediaConstraints:{audio:true, video:false}, pcConfig:{iceServers:[]}}) }
     catch (exception) { error(exception.message) }
     $('#call-answer').disabled = true
   })
