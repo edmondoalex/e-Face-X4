@@ -1990,10 +1990,13 @@ def test_media_ui_has_room_selection_and_typed_controls() -> None:
     media_css = client.get("/assets/media-x4.css").text
     assert ".media-session.media-session-listen .media-volume input{accent-color:#20df6b}" in media_css
     assert ".media-session.media-session-watch .media-volume input{accent-color:#61d8f2}" in media_css
-    assert "Ascoltati di recente" not in script
-    assert "api/control4/recently-played" not in script
-    assert "const recentCache = new Map()" not in script
-    assert "const recentPending = new Map()" not in script
+    assert "Ascoltati di recente" in script
+    assert "api/control4/recently-played" in script
+    assert "const recentCache = new Map()" in script
+    assert "const recentPending = new Map()" in script
+    assert "strip.setPointerCapture(event.pointerId)" in script
+    assert "recentDrag.strip.scrollLeft = recentDrag.left - delta" in script
+    assert "addEventListener('wheel'" not in script
 
 
 def test_control4_recently_played_decodes_native_payload(monkeypatch) -> None:

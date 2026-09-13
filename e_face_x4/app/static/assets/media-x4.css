@@ -11,3 +11,5 @@
 .media-session{border:0!important;border-radius:12px!important}.media-session>.media-artwork{border-radius:9px}.media-service-grid{gap:6px}.media-service-tile{border:0;border-radius:9px}.media-recent-item img,.media-recent-art{border-radius:8px}
 .media-session.media-session-listen .media-volume input{accent-color:#20df6b}.media-session.media-session-watch .media-volume input{accent-color:#61d8f2}
 .rail button[data-view="watch"] .nav-icon{color:#929da0;filter:none}.rail button[data-view="listen"] .nav-icon{color:#92d6b1;filter:none}.rail button[data-view="watch"].status-cyan .nav-icon{color:#61d8f2;filter:drop-shadow(0 0 7px rgba(97,216,242,.65))}.rail button[data-view="listen"].status-green .nav-icon{color:#20df6b;filter:drop-shadow(0 0 7px rgba(32,223,107,.65))}
+.media-recent-strip{cursor:grab;user-select:none;-webkit-user-select:none}
+.media-recent-strip:active{cursor:grabbing}

@@ -1,5 +1,9 @@
 # Changelog
 
+## 2.20.81 — 2026-09-13
+- Ripristinati gli «Ascoltati di recente» sotto il player in Ascolta: la richiesta precedente riguardava soltanto il popup del servizio, non questa sezione. Nessuna cronologia viene mostrata nel popup.
+- La striscia dei recenti ora si scorre trascinando col mouse su Windows, senza barra visibile; la rotella mantiene lo scorrimento normale della pagina.
+
 ## 2.20.80 — 2026-09-13
 - Rimosso il popup provvisorio aperto dalla cover: non era il navigatore MSP richiesto e compariva anche per sorgenti generiche come MP3. La navigazione dei servizi resta da integrare con dati e azioni reali del driver.
 - Ridotta la verbosità predefinita a WARNING, disabilitati anche i log informativi Uvicorn e limitati a uno al minuto per sorgente gli avvisi di riconnessione realtime. Riconnessioni fallite usano un backoff progressivo fino a 30 secondi.
