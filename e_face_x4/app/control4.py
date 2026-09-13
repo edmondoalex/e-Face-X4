@@ -88,6 +88,12 @@ async def test_control4_connection(config: dict[str, str]) -> dict[str, Any]:
     ui_configuration, all_items = await asyncio.gather(
         director.get_ui_configuration(), director.get_all_item_info()
     )
+    # The explicit connection test obtains a fresh Director token. Reuse it for
+    # subsequent snapshots instead of retaining an older cached session.
+    import time
+    _director_cache.clear()
+    key = f"{config['host']}\0{config['username']}\0{config['password']}"
+    _director_cache[key] = (time.monotonic() + 20 * 60 * 60, str(token))
     summary = summarize_ui_configuration(ui_configuration, all_items)
     os_version = await account.get_controller_os_version(str(controller_href)) if controller_href else ""
     return {
