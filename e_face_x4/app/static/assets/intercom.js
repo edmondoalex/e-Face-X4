@@ -5,6 +5,7 @@
   socketUrl.protocol = location.protocol === 'https:' ? 'wss:' : 'ws:'
   let phone = null
   let call = null
+  let activeStream = null
 
   function error(message) {
     $('#intercom-error').textContent = message
@@ -21,6 +22,8 @@
 
   function clearCall(text) {
     call = null
+    if (activeStream) activeStream.getTracks().forEach((track) => track.stop())
+    activeStream = null
     $('#remote-audio').srcObject = null
     $('#call-status').textContent = text
     $('#call-answer').disabled = true
@@ -44,6 +47,21 @@
     session.on('confirmed', () => { $('#call-status').textContent = 'In conversazione' })
     session.on('ended', () => clearCall('Chiamata terminata.'))
     session.on('failed', ({cause}) => clearCall(`Chiamata non riuscita: ${cause || 'errore sconosciuto'}`))
+    session.on('getusermediafailed', ({name, message}) => error(`Microfono: ${name || 'errore'} ${message || ''}`))
+  }
+
+  async function microphone() {
+    if (!window.isSecureContext || !navigator.mediaDevices?.getUserMedia) {
+      throw new Error('Microfono non disponibile: apri e-Face direttamente tramite HTTPS, fuori dalla finestra Home Assistant.')
+    }
+    try {
+      return await navigator.mediaDevices.getUserMedia({audio:true, video:false})
+    } catch (exception) {
+      if (exception.name === 'NotAllowedError' || exception.name === 'PermissionDeniedError') {
+        throw new Error('Permesso microfono negato. Abilitalo nelle impostazioni del sito e-Face in Chrome.')
+      }
+      throw new Error(`Microfono non disponibile: ${exception.name || exception.message}`)
+    }
   }
 
   $('#sip-connect').addEventListener('click', () => {
@@ -86,12 +104,23 @@
     connection(false, 'Non collegato')
   })
 
-  $('#call-control4').addEventListener('click', () => {
+  $('#call-control4').addEventListener('click', async () => {
     if (!phone?.isRegistered() || call) return
     error('')
+    $('#call-control4').disabled = true
+    $('#call-status').textContent = 'Richiesta accesso al microfono…'
+    let stream = null
     try {
-      phone.call('sip:8290@asterisk', {mediaConstraints:{audio:true, video:false}, pcConfig:{iceServers:[{urls:'stun:stun.l.google.com:19302'}]}})
-    } catch (exception) { error(exception.message) }
+      stream = await microphone()
+      if (!phone?.isRegistered() || call) { stream.getTracks().forEach((track) => track.stop()); return }
+      phone.call('sip:8290@asterisk', {mediaStream:stream, mediaConstraints:{audio:true, video:false}, pcConfig:{iceServers:[{urls:'stun:stun.l.google.com:19302'}]}})
+      activeStream = stream
+    } catch (exception) {
+      if (stream) stream.getTracks().forEach((track) => track.stop())
+      $('#call-status').textContent = 'Chiamata non avviata.'
+      $('#call-control4').disabled = !phone?.isRegistered()
+      error(exception.message)
+    }
   })
 
   $('#call-answer').addEventListener('click', () => {
