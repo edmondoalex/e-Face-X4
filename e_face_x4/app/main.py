@@ -33,14 +33,21 @@ from .connectors.control4_media import cached_control4_icon, cached_control4_ico
 from .connectors.supervisor import discover_addon_url, discover_host_url
 from .demo import dashboard as demo_dashboard
 
-VERSION = "2.20.34"
+VERSION = "2.20.35"
 STATIC = Path(__file__).parent / "static"
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s [e-face-x4] %(message)s")
 
 
+class AppAssets(StaticFiles):
+    async def get_response(self, path: str, scope: dict) -> Response:
+        if path in {"", ".", "/"}:
+            return RedirectResponse("../", status_code=307)
+        return await super().get_response(path, scope)
+
+
 def create_app() -> FastAPI:
     app = FastAPI(title="e-Face X4", version=VERSION, docs_url=None, redoc_url=None)
-    app.mount("/assets", StaticFiles(directory=STATIC / "assets"), name="assets")
+    app.mount("/assets", AppAssets(directory=STATIC / "assets"), name="assets")
     login_failures: dict[tuple[str, str], list[float]] = {}
 
     def secure_cookie(request: Request) -> bool:

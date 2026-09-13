@@ -34,6 +34,9 @@ def test_installed_app_starts_at_dashboard() -> None:
     ):
         assert urljoin(base, manifest["start_url"]) == dashboard
         assert urljoin(base, manifest["scope"]) == dashboard
+    old_install = client.get("/assets/", follow_redirects=False)
+    assert old_install.status_code == 307
+    assert old_install.headers["location"] == "../"
 
 
 def test_admin_migration_guards_pages_apis_and_websocket(monkeypatch, tmp_path) -> None:
