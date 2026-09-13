@@ -1,5 +1,9 @@
 # Changelog
 
+## 2.20.67 — 2026-09-13
+- I portoni configurati come `cover.*` vengono trattati come cover anche se e-HDL li classifica come serrature: compaiono in Oscuranti con comandi Apri, Stop e Chiudi.
+- Corretto l'instradamento dei comandi dei portoni verso l'API cover e-HDL, evitando HTTP 400; i vecchi comandi lock/unlock restano compatibili durante l'aggiornamento.
+
 ## 2.20.66 — 2026-09-13
 - La ricognizione ora cerca anche i driver musicali nell'inventario del Director, oltre alle sorgenti Ascolta, e mostra i nomi dei comandi e delle variabili pertinenti.
 - Resta una diagnosi di sola lettura: nessun login, logout o valore di credenziale viene esposto.

@@ -42,7 +42,8 @@ def normalize_snapshot(payload: dict[str, Any]) -> dict[str, Any]:
         # e-HDL stores BusPro outputs as type=light, but category=Switch belongs to Extra.
         raw_kind = str(raw.get("type") or raw.get("domain") or "light").strip().lower()
         category = str(raw.get("category") or raw.get("page") or "").strip()
-        kind = "switch" if category.casefold() == "switch" else raw_kind
+        entity_domain = str(raw.get("entity_id") or "").split(".", 1)[0].lower()
+        kind = "cover" if raw_kind == "lock" and entity_domain == "cover" else ("switch" if category.casefold() == "switch" else raw_kind)
         room = str(raw.get("group") or "Senza stanza").strip() or "Senza stanza"
         name = str(raw.get("name") or raw.get("entity_id") or f"Dispositivo {index + 1}").strip()
         if kind == "light":
@@ -199,6 +200,11 @@ class BusproConnector(Connector):
                     path = f"/api/control/ha/{domain}/{entity_id}"
                 elif domain == "cover" and action in {"open", "close", "stop"}:
                     path, body = f"/api/control/ha/cover/{entity_id}", {"command": action.upper()}
+                elif domain == "cover" and kind == "lock" and action in {"lock", "unlock"}:
+                    # Garage doors can be presented as security locks while their
+                    # Home Assistant entity still belongs to the cover domain.
+                    command = "CLOSE" if action == "lock" else "OPEN"
+                    path, body = f"/api/control/ha/cover/{entity_id}", {"command": command}
                 elif kind == "lock" and action in {"lock", "unlock", "open"}:
                     path, body = f"/api/control/ha/lock/{entity_id}", {"command": action.upper()}
                 else:

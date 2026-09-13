@@ -6,7 +6,7 @@ from pathlib import Path
 from urllib.parse import urljoin
 
 from app.main import artwork_media_type, create_app
-from app.connectors.buspro import normalize_snapshot
+from app.connectors.buspro import BusproConnector, normalize_snapshot
 from app.connectors.etherm import normalize_thermostats
 from app.connectors.ksenia import normalize_ksenia
 from app.connectors.media import EkonexMediaConnector, EvoiceLocalMediaConnector, normalize_local_player, normalize_player
@@ -1193,6 +1193,38 @@ def test_buspro_lock_battery_comes_from_hdl_metrics() -> None:
         "ha_states": {"lock.porta_ufficio": {"state": "locked", "metrics": {"battery_level": 76, "battery_low": False}}},
     })
     assert normalized["devices"][0]["battery_percent"] == 76
+
+
+@pytest.mark.asyncio
+async def test_buspro_garage_locks_use_cover_commands(monkeypatch) -> None:
+    import httpx
+    from app.config import ProviderConfig
+    from app.connectors import buspro as buspro_module
+
+    devices = [
+        {"name": "Portone Alex", "type": "lock", "domain": "cover", "entity_id": "cover.e_safe_out_50"},
+        {"name": "Portone Luca", "type": "lock", "domain": "cover", "entity_id": "cover.e_safe_out_51"},
+    ]
+    normalized = normalize_snapshot({"devices": devices})
+    assert [item["kind"] for item in normalized["devices"]] == ["cover", "cover"]
+    assert normalized["counts"]["covers"] == 2
+    commands = []
+
+    def handler(request):
+        if request.method == "GET":
+            return httpx.Response(200, json={"devices": devices})
+        commands.append((request.url.path, json.loads(request.content)))
+        return httpx.Response(200, json={"ok": True})
+
+    original = httpx.AsyncClient
+    monkeypatch.setattr(buspro_module.httpx, "AsyncClient", lambda **kwargs: original(transport=httpx.MockTransport(handler), **kwargs))
+    connector = BusproConnector(ProviderConfig(enabled=True, base_url="http://hdl", token=""), 4)
+    await connector.command("cover.e_safe_out_50", "open")
+    await connector.command("cover.e_safe_out_51", "close")
+    assert commands == [
+        ("/api/control/ha/cover/cover.e_safe_out_50", {"command": "OPEN"}),
+        ("/api/control/ha/cover/cover.e_safe_out_51", {"command": "CLOSE"}),
+    ]
 
 
 def test_supervisor_addon_slug_becomes_internal_dns_name() -> None:
