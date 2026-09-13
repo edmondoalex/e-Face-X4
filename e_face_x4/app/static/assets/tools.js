@@ -120,7 +120,7 @@ loadCardThemes().catch(()=>{})
 
 let orderedRooms = []
 function renderRoomOrder() {
-  $('#room-order-list').innerHTML = orderedRooms.map((name, index) => `<div class="room-order-row" data-index="${index}"><strong>${esc(name.toLocaleUpperCase('it'))}</strong><button type="button" data-move="up" aria-label="Sposta ${esc(name)} su" ${index === 0 ? 'disabled' : ''}>↑</button><button type="button" data-move="down" aria-label="Sposta ${esc(name)} giù" ${index === orderedRooms.length - 1 ? 'disabled' : ''}>↓</button></div>`).join('') || '<p>Nessun ambiente disponibile</p>'
+  $('#room-order-list').innerHTML = orderedRooms.map((name, index) => `<div class="room-order-row" data-index="${index}"><button type="button" class="drag-handle room-drag-handle" aria-label="Trascina ${esc(name)} per riordinare" title="Trascina per riordinare">☰</button><strong>${esc(name.toLocaleUpperCase('it'))}</strong></div>`).join('') || '<p>Nessun ambiente disponibile</p>'
 }
 async function loadRoomOrder() {
   const [bootstrapResponse, appearanceResponse] = await Promise.all([fetch(apiUrl('../api/bootstrap'), {cache:'no-store'}), fetch(apiUrl('../api/user/appearance'), {cache:'no-store'})])
@@ -133,7 +133,13 @@ async function loadRoomOrder() {
 }
 $('#room-order-tool').addEventListener('click', async () => { try { await loadRoomOrder(); $('#room-order-config').hidden = false } catch (error) { notice(error.message) } })
 $('#room-order-back').addEventListener('click', () => { $('#room-order-config').hidden = true })
-$('#room-order-list').addEventListener('click', (event) => { const button = event.target.closest('[data-move]'); if (!button) return; const index = Number(button.closest('[data-index]').dataset.index); const other = index + (button.dataset.move === 'up' ? -1 : 1); if (other < 0 || other >= orderedRooms.length) return; [orderedRooms[index], orderedRooms[other]] = [orderedRooms[other], orderedRooms[index]]; renderRoomOrder() })
+let draggedRoom = null
+$('#room-order-list').addEventListener('pointerdown', (event) => { const handle = event.target.closest('.room-drag-handle'); if (!handle) return; draggedRoom = handle.closest('.room-order-row'); draggedRoom.classList.add('dragging'); handle.setPointerCapture(event.pointerId); event.preventDefault() })
+$('#room-order-list').addEventListener('pointermove', (event) => { if (!draggedRoom) return; const target = document.elementFromPoint(event.clientX, event.clientY)?.closest('.room-order-row'); if (!target || target === draggedRoom || target.parentElement !== $('#room-order-list')) return; const rect = target.getBoundingClientRect(); $('#room-order-list').insertBefore(draggedRoom, event.clientY < rect.top + rect.height / 2 ? target : target.nextSibling) })
+const finishRoomDrag = () => { if (!draggedRoom) return; draggedRoom.classList.remove('dragging'); draggedRoom = null; orderedRooms = [...$('#room-order-list').querySelectorAll('.room-order-row')].map((row) => orderedRooms[Number(row.dataset.index)]); renderRoomOrder() }
+$('#room-order-list').addEventListener('pointerup', finishRoomDrag)
+$('#room-order-list').addEventListener('pointercancel', finishRoomDrag)
+$('#room-order-list').addEventListener('keydown', (event) => { if (!event.target.matches('.room-drag-handle') || !['ArrowUp','ArrowDown'].includes(event.key)) return; event.preventDefault(); const index = Number(event.target.closest('.room-order-row').dataset.index); const other = index + (event.key === 'ArrowUp' ? -1 : 1); if (other < 0 || other >= orderedRooms.length) return; [orderedRooms[index], orderedRooms[other]] = [orderedRooms[other], orderedRooms[index]]; renderRoomOrder(); $('#room-order-list').querySelectorAll('.room-drag-handle')[other]?.focus() })
 $('#room-order-save').addEventListener('click', async () => { try { const response = await fetch(apiUrl('../api/user/appearance'), {method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify({room_order:orderedRooms})}); if (!response.ok) throw new Error((await response.json()).detail); notice('Ordine ambienti salvato'); $('#room-order-config').hidden = true } catch (error) { notice(error.message) } })
 $('#card-glow-tool').addEventListener('click', async () => { try { const response = await fetch(apiUrl('../api/user/appearance'), {cache:'no-store'}); if (!response.ok) throw new Error(`HTTP ${response.status}`); $('#card-glow-enabled').checked = (await response.json()).card_glow !== false; $('#card-glow-config').hidden = false } catch (error) { notice(error.message) } })
 $('#card-glow-back').addEventListener('click', () => { $('#card-glow-config').hidden = true })

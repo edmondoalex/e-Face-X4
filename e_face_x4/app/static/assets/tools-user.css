@@ -1,8 +1,10 @@
 .room-order-list{display:grid;gap:6px;margin-top:14px}
-.room-order-row{display:grid;grid-template-columns:minmax(0,1fr) 42px 42px;align-items:center;gap:7px;min-height:54px;padding:6px 9px;border:1px solid var(--line);border-radius:9px;background:#15353a}
+.room-order-row{position:relative;display:grid;grid-template-columns:minmax(0,1fr);align-items:center;gap:7px;min-height:54px;padding:6px 12px 6px 50px;border:0;border-radius:9px;background:var(--user-card);touch-action:pan-y}
 .room-order-row strong{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.room-order-row button{height:40px;border:1px solid var(--line);border-radius:8px;color:#fff;background:#ffffff12;font-size:23px}
-.room-order-row button:disabled{opacity:.3}
+.room-order-row.dragging{z-index:2;opacity:.72;background:var(--user-card-soft)}
+.room-order-row .room-drag-handle{left:7px;color:#d8e4e6}
+.room-order-row .room-drag-handle:focus-visible{outline:2px solid var(--cyan);outline-offset:-3px}
+.player-row.dragging{background:var(--user-card-soft)!important}
 .user-save{width:100%;min-height:48px;border:0;border-radius:9px;color:#06252a;background:var(--cyan);font-weight:800}
-.glow-option{display:flex;align-items:center;justify-content:space-between;gap:14px;margin-top:18px;padding:17px;border:1px solid var(--line);border-radius:10px;background:#15353a}
+.glow-option{display:flex;align-items:center;justify-content:space-between;gap:14px;margin-top:18px;padding:17px;border:0;border-radius:10px;background:var(--user-card)}
 .glow-option input{width:25px;height:25px;flex:none;accent-color:var(--cyan)}
