@@ -41,12 +41,40 @@ async function saveBackground(payload) {
   const response=await fetch(apiUrl('../api/user/background'),{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({...payload,room:$('#background-room').value})});if(!response.ok)throw new Error((await response.json()).detail);await loadBackgrounds(payload.mode==='custom');notice('Sfondo salvato')
 }
 
+async function unlockTools() {
+  const status = await fetch(apiUrl('../api/installer/status'), {cache:'no-store'})
+  if (!status.ok) { $('#admin-locked').hidden = false; $('#admin-tools').hidden = true; return false }
+  $('#admin-locked').hidden = true; $('#admin-tools').hidden = false
+  const authStatus = await fetch(apiUrl('../api/auth/status'), {cache:'no-store'}).then((res) => res.json())
+  let setup = $('#admin-setup')
+  if (!setup) {
+    setup = document.createElement('div')
+    setup.id = 'admin-setup'
+    setup.className = 'login-card'
+    setup.innerHTML = '<h3>Crea account admin</h3><p>Nuova password per e-Face: almeno 12 caratteri. Prova il login prima di eliminare la vecchia password installatore.</p><form id="admin-setup-form"><input id="admin-new-password" type="password" autocomplete="new-password" minlength="12" placeholder="Nuova password admin" required><button>CREA ADMIN</button></form>'
+    $('#admin-tools').prepend(setup)
+    setup.querySelector('form').addEventListener('submit', async (event) => {
+      event.preventDefault()
+      const button = event.currentTarget.querySelector('button')
+      button.disabled = true
+      try {
+        const response = await fetch(apiUrl('../api/auth/setup'), {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({password:$('#admin-new-password').value})})
+        if (!response.ok) throw new Error((await response.json()).detail)
+        $('#admin-new-password').value = ''
+        await unlockTools()
+        notice('Admin creato. Prova il login in una finestra privata prima di togliere la vecchia password installatore.')
+      } catch(error) { notice(error.message) } finally { button.disabled = false }
+    })
+  }
+  setup.hidden = authStatus.enabled
+  return true
+}
+
 async function loadPlayers() {
+  if (!await unlockTools()) return false
   const response = await fetch(apiUrl('../api/installer/media-players'), { cache: 'no-store' })
-  if (response.status === 401) { $('#admin-locked').hidden = false; $('#admin-tools').hidden = true; return false }
   if (!response.ok) throw new Error((await response.json().catch(() => ({}))).detail || `HTTP ${response.status}`)
   const data = await response.json()
-  $('#admin-locked').hidden = true; $('#admin-tools').hidden = false
   $('#player-list').innerHTML = data.items.map((player) => `<div class="player-row ${player.device_type === 'echo' ? 'player-echo' : ''}" data-player="${esc(player.registry_id)}"><button class="drag-handle" type="button" aria-label="Trascina ${esc(player.original_name)}">☰</button><span class="player-identity"><b>${esc(player.original_name)}</b><small>${esc(player.device_type === 'echo' ? 'ECHO' : 'MEDIA PLAYER')} · ${esc(player.entity_id)}</small><span class="player-fields"><label>Nome e-Face<input type="text" maxlength="80" data-field="name" value="${esc(player.name)}" placeholder="${esc(player.original_name)}"></label><label>Stanza<input type="text" maxlength="80" data-field="room" value="${esc(player.room)}" placeholder="${esc(player.original_room)}"></label></span></span><label title="Mostra"><input type="checkbox" data-field="visible" ${player.visible ? 'checked' : ''}></label><label title="Audio"><input type="checkbox" data-field="audio" ${player.audio ? 'checked' : ''}></label><label title="Video"><input type="checkbox" data-field="video" ${player.video ? 'checked' : ''}></label><label title="TTS"><input type="checkbox" data-field="tts" ${player.provider === 'evoice' && player.tts_available && player.tts ? 'checked' : ''} ${player.provider === 'evoice' && player.tts_available ? '' : 'disabled'}></label></div>`).join('') || '<p>Nessun player disponibile</p>'
   return true
 }
@@ -84,14 +112,14 @@ async function sendControl4(path, button) {
   } catch (error) { notice(error.message) } finally { button.disabled = false }
 }
 
-$('#login-form').addEventListener('submit', async (event) => { event.preventDefault(); try { const response = await fetch(apiUrl('../api/installer/login'), { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({password:$('#installer-password').value}) }); if (!response.ok) throw new Error((await response.json()).detail); $('#installer-password').value=''; await loadPlayers() } catch(error){ notice(error.message) } })
+$('#login-form').addEventListener('submit', async (event) => { event.preventDefault(); try { const response = await fetch(apiUrl('../api/installer/login'), { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({password:$('#installer-password').value}) }); if (!response.ok) throw new Error((await response.json()).detail); $('#installer-password').value=''; await unlockTools() } catch(error){ notice(error.message) } })
 $('#media-tool').addEventListener('click', async () => { try { if (await loadPlayers()) { await loadSourceIcons(); $('#media-config').hidden = false } } catch(error){ notice(error.message) } })
 $('#control4-tool').addEventListener('click', async () => { try { await loadControl4(); $('#control4-config').hidden=false } catch(error){ notice(error.message) } })
 $('#control4-back').addEventListener('click', () => { $('#control4-config').hidden=true })
 $('#control4-save').addEventListener('click', (event) => sendControl4('', event.currentTarget))
 $('#control4-form').addEventListener('submit', (event) => { event.preventDefault(); sendControl4('/test', $('#control4-test')) })
 $('#media-back').addEventListener('click', () => { $('#media-config').hidden = true })
-$('#logout').addEventListener('click', async () => { await fetch(apiUrl('../api/installer/logout'), {method:'POST'}); $('#admin-tools').hidden=true; $('#admin-locked').hidden=false })
+$('#logout').addEventListener('click', async () => { await fetch(apiUrl('../api/installer/logout'), {method:'POST'}); const status=await fetch(apiUrl('../api/auth/status')).then((res)=>res.json()); if(status.enabled){await fetch(apiUrl('../api/auth/logout'),{method:'POST'});location.href=apiUrl('../login');return} $('#admin-tools').hidden=true; $('#admin-locked').hidden=false })
 $('#save-players').addEventListener('click', async (event) => { event.currentTarget.disabled=true; try { const players={}; document.querySelectorAll('.player-row').forEach((row, order) => { players[row.dataset.player]={...Object.fromEntries([...row.querySelectorAll('input[data-field]')].map((input)=>[input.dataset.field,input.type==='checkbox'?input.checked:input.value.trim()])),order} }); const response=await fetch(apiUrl('../api/installer/media-players'),{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({players})}); if(!response.ok) throw new Error((await response.json()).detail); notice('Configurazione salvata'); setTimeout(()=>location.href='./',700) } catch(error){notice(error.message)} finally{event.currentTarget.disabled=false} })
 $('#player-list').addEventListener('change',(event)=>{const row=event.target.closest('.player-row');if(!row)return;const visible=row.querySelector('[data-field=visible]');const modes=[...row.querySelectorAll('[data-field=audio],[data-field=video],[data-field=tts]')];if(event.target===visible&&!visible.checked)modes.forEach((input)=>{input.checked=false});if(modes.includes(event.target)){if(event.target.checked)visible.checked=true;else if(!modes.some((input)=>input.checked))visible.checked=false}})
 $('#source-icon-list').addEventListener('change', async (event) => { const input=event.target.closest('input[type=file]');if(!input?.files[0])return;const file=input.files[0];if(file.size>500000)return notice('Icona superiore a 500 KB');const row=input.closest('[data-source-id]');const data=await new Promise((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve(String(reader.result).split(',',2)[1]);reader.onerror=reject;reader.readAsDataURL(file)});try{const response=await fetch(apiUrl(`../api/installer/media-source-icons/${row.dataset.sourceId}`),{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({mime:file.type,data})});if(!response.ok)throw new Error((await response.json()).detail);notice('Icona sostituita');await loadSourceIcons()}catch(error){notice(error.message)} })
@@ -114,7 +142,7 @@ $('#player-list').addEventListener('pointermove', (event) => { if(!draggedRow)re
 const finishDrag = () => { if(draggedRow)draggedRow.classList.remove('dragging'); draggedRow=null }
 $('#player-list').addEventListener('pointerup', finishDrag)
 $('#player-list').addEventListener('pointercancel', finishDrag)
-loadPlayers().catch(()=>{})
+unlockTools().catch(()=>{})
 loadToolsBackground().catch(()=>{})
 loadCardThemes().catch(()=>{})
 

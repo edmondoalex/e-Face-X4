@@ -5,10 +5,12 @@ import hmac
 import json
 import logging
 import re
+import time
 import uuid
 from html import escape
 from pathlib import Path
 from dataclasses import replace
+from urllib.parse import urlsplit
 
 import httpx
 import uvicorn
@@ -16,10 +18,12 @@ import websockets
 from fastapi import FastAPI, Header, HTTPException, Query, Request, Response, WebSocket
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
+from starlette.responses import RedirectResponse
 
 from .config import load_settings
 from .control4 import load_control4_config, public_control4_config, save_control4_config, test_control4_connection
 from .installer_auth import COOKIE, create_session, valid_session
+from . import user_auth
 from .media_preferences import apply_preferences, load_preferences, save_preferences
 from .source_icons import delete_source_icon, load_builtin_source_icon, load_source_icon, save_source_icon
 from .backgrounds import CARD_THEMES, PRESETS, load_background, load_background_image, load_backgrounds, load_card_theme, load_card_glow, load_room_order, load_security_order, save_background_image, save_card_theme, save_card_glow, save_room_order, save_security_order, save_inherit, save_preset
@@ -29,7 +33,7 @@ from .connectors.control4_media import cached_control4_icon, cached_control4_ico
 from .connectors.supervisor import discover_addon_url, discover_host_url
 from .demo import dashboard as demo_dashboard
 
-VERSION = "2.20.31"
+VERSION = "2.20.32"
 STATIC = Path(__file__).parent / "static"
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s [e-face-x4] %(message)s")
 
@@ -37,6 +41,70 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s [e-fac
 def create_app() -> FastAPI:
     app = FastAPI(title="e-Face X4", version=VERSION, docs_url=None, redoc_url=None)
     app.mount("/assets", StaticFiles(directory=STATIC / "assets"), name="assets")
+    login_failures: dict[tuple[str, str], list[float]] = {}
+
+    def secure_cookie(request: Request) -> bool:
+        return request.url.scheme == "https" or request.headers.get("x-forwarded-proto", "").lower() == "https"
+
+    @app.middleware("http")
+    async def user_login_guard(request: Request, call_next):
+        path = request.url.path
+        origin = request.headers.get("origin")
+        if request.method not in {"GET", "HEAD", "OPTIONS"} and origin and urlsplit(origin).netloc != request.headers.get("host"):
+            return JSONResponse({"detail": "Origine non consentita"}, status_code=403)
+        if not user_auth.enabled() or path == "/health" or path == "/login" or path.startswith("/api/auth/") or path.startswith("/assets/"):
+            return await call_next(request)
+        username = user_auth.session_user(request.cookies.get(user_auth.COOKIE))
+        if not username:
+            if path.startswith("/api/"):
+                return JSONResponse({"detail": "Accesso richiesto"}, status_code=401)
+            return RedirectResponse("login", status_code=303)
+        return await call_next(request)
+
+    @app.get("/api/auth/status")
+    async def auth_status(request: Request) -> dict:
+        return {"enabled": user_auth.enabled(), "user": user_auth.session_user(request.cookies.get(user_auth.COOKIE)) if user_auth.enabled() else None}
+
+    @app.post("/api/auth/setup")
+    async def auth_setup(request: Request, payload: dict) -> JSONResponse:
+        if user_auth.enabled():
+            raise HTTPException(status_code=409, detail="Account già inizializzato")
+        if not valid_session(request.cookies.get(COOKIE)) or not load_settings().installer_password:
+            raise HTTPException(status_code=401, detail="Accedi prima agli Strumenti con la password installatore")
+        try:
+            user_auth.create_admin(str(payload.get("password") or ""))
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        response = JSONResponse({"ok": True})
+        response.set_cookie(user_auth.COOKIE, user_auth.create_session("admin"), max_age=user_auth.SESSION_SECONDS, httponly=True, samesite="strict", secure=secure_cookie(request), path="/")
+        return response
+
+    @app.post("/api/auth/login")
+    async def auth_login(request: Request, payload: dict) -> JSONResponse:
+        username = str(payload.get("username") or "")
+        password = str(payload.get("password") or "")
+        key = ((request.client.host if request.client else "unknown"), username)
+        now = time.monotonic()
+        failures = [moment for moment in login_failures.get(key, []) if now - moment < 300]
+        if len(failures) >= 5:
+            raise HTTPException(status_code=429, detail="Troppi tentativi; riprova fra qualche minuto")
+        if not user_auth.enabled() or len(password) > 256 or not user_auth.verify(username, password):
+            login_failures[key] = [*failures, now]
+            raise HTTPException(status_code=401, detail="Credenziali non valide")
+        login_failures.pop(key, None)
+        response = JSONResponse({"ok": True})
+        response.set_cookie(user_auth.COOKIE, user_auth.create_session(username), max_age=user_auth.SESSION_SECONDS, httponly=True, samesite="strict", secure=secure_cookie(request), path="/")
+        return response
+
+    @app.post("/api/auth/logout")
+    async def auth_logout() -> JSONResponse:
+        response = JSONResponse({"ok": True})
+        response.delete_cookie(user_auth.COOKIE, path="/")
+        return response
+
+    @app.get("/login", include_in_schema=False)
+    async def login_page() -> FileResponse:
+        return FileResponse(STATIC / "login.html", headers={"Cache-Control": "no-store"})
 
     async def resolved_provider(config, slug: str, port: int, timeout: float):
         manual = str(config.base_url or "").lower()
@@ -188,8 +256,13 @@ def create_app() -> FastAPI:
         }
 
     def require_installer(request: Request) -> None:
-        if not valid_session(request.cookies.get(COOKIE)):
+        if not valid_session(request.cookies.get(COOKIE)) and not (user_auth.enabled() and user_auth.session_user(request.cookies.get(user_auth.COOKIE)) == "admin"):
             raise HTTPException(status_code=401, detail="Accesso installatore richiesto")
+
+    @app.get("/api/installer/status")
+    async def installer_status(request: Request) -> dict:
+        require_installer(request)
+        return {"ok": True}
 
     @app.get("/tools", include_in_schema=False)
     @app.get("/installer", include_in_schema=False)
@@ -210,6 +283,10 @@ def create_app() -> FastAPI:
     @app.post("/api/installer/login")
     async def installer_login(payload: dict) -> JSONResponse:
         configured = load_settings().installer_password
+        if user_auth.enabled() and user_auth.verify("admin", str(payload.get("password") or "")):
+            response = JSONResponse({"ok": True})
+            response.set_cookie(COOKIE, create_session(), max_age=8 * 60 * 60, httponly=True, samesite="strict", secure=False, path="/")
+            return response
         if not configured:
             raise HTTPException(status_code=503, detail="Imposta prima la password installatore nelle opzioni dell'add-on")
         if not hmac.compare_digest(str(payload.get("password") or ""), configured):
@@ -606,6 +683,9 @@ def create_app() -> FastAPI:
 
     @app.websocket("/api/realtime")
     async def realtime(websocket: WebSocket) -> None:
+        if user_auth.enabled() and not user_auth.session_user(websocket.cookies.get(user_auth.COOKIE)):
+            await websocket.close(code=1008)
+            return
         await websocket.accept()
         settings = load_settings()
         buspro, etherm, ksenia = await asyncio.gather(

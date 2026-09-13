@@ -1,4 +1,7 @@
 from fastapi.testclient import TestClient
+from starlette.websockets import WebSocketDisconnect
+import pytest
+import json
 
 from app.main import create_app
 from app.connectors.buspro import normalize_snapshot
@@ -19,6 +22,44 @@ def test_health() -> None:
     response = TestClient(create_app()).get("/health")
     assert response.status_code == 200
     assert response.json()["ok"] is True
+
+
+def test_admin_migration_guards_pages_apis_and_websocket(monkeypatch, tmp_path) -> None:
+    monkeypatch.setenv("EFACE_AUTH_DIR", str(tmp_path / "auth"))
+    options = tmp_path / "options.json"
+    options.write_text(json.dumps({"installer_password": "vecchia-password"}), encoding="utf-8")
+    monkeypatch.setenv("EFACE_OPTIONS", str(options))
+    client = TestClient(create_app())
+    assert client.get("/api/auth/status").json() == {"enabled": False, "user": None}
+    assert client.get("/").status_code == 200
+    assert client.post("/api/auth/setup", json={"password": "nuova-password-lunga"}).status_code == 401
+    assert client.post("/api/installer/login", json={"password": "vecchia-password"}).status_code == 200
+    assert client.post("/api/auth/setup", json={"password": "breve"}).status_code == 400
+    assert client.post("/api/auth/setup", json={"password": "nuova-password-lunga"}).status_code == 200
+    assert client.get("/api/auth/status").json() == {"enabled": True, "user": "admin"}
+    assert client.get("/api/user/appearance").status_code == 200
+    assert client.post("/api/auth/setup", json={"password": "altra-password-lunga"}).status_code == 409
+    client.post("/api/auth/logout")
+    assert client.get("/api/user/appearance").status_code == 401
+    assert client.get("/", follow_redirects=False).headers["location"] == "login"
+    assert client.post("/api/auth/login", json={"username": "admin", "password": "errata"}).status_code == 401
+    assert client.post("/api/auth/login", headers={"Origin": "https://evil.example"}, json={"username": "admin", "password": "nuova-password-lunga"}).status_code == 403
+    with pytest.raises(WebSocketDisconnect):
+        with client.websocket_connect("/api/realtime"):
+            pass
+    assert client.post("/api/auth/login", json={"username": "admin", "password": "nuova-password-lunga"}).status_code == 200
+    options.write_text(json.dumps({"installer_password": ""}), encoding="utf-8")
+    assert client.get("/api/installer/control4").status_code == 200
+
+
+def test_admin_login_rate_limit(monkeypatch, tmp_path) -> None:
+    monkeypatch.setenv("EFACE_AUTH_DIR", str(tmp_path / "auth"))
+    from app.user_auth import create_admin
+    create_admin("password-abbastanza-lunga")
+    client = TestClient(create_app())
+    for _ in range(5):
+        assert client.post("/api/auth/login", json={"username": "admin", "password": "errata"}).status_code == 401
+    assert client.post("/api/auth/login", json={"username": "admin", "password": "password-abbastanza-lunga"}).status_code == 429
 
 
 def test_tools_page_starts_with_selected_background_and_card_theme(monkeypatch, tmp_path) -> None:
