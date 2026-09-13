@@ -34,12 +34,14 @@ def test_tools_page_starts_with_selected_background_and_card_theme(monkeypatch, 
 def test_user_appearance_persists_room_order_and_glow(monkeypatch, tmp_path) -> None:
     monkeypatch.setenv("EFACE_BACKGROUNDS", str(tmp_path / "backgrounds"))
     client = TestClient(create_app())
-    assert client.get("/api/user/appearance").json() == {"card_glow": True, "room_order": []}
-    response = client.put("/api/user/appearance", json={"card_glow": False, "room_order": ["Sala", "Ufficio Alex"]})
+    assert client.get("/api/user/appearance").json() == {"card_glow": True, "room_order": [], "security_order": ["scenarios", "areas", "zones", "locks"]}
+    response = client.put("/api/user/appearance", json={"card_glow": False, "room_order": ["Sala", "Ufficio Alex"], "security_order": ["locks", "zones", "areas", "scenarios"]})
     assert response.status_code == 200
-    assert client.get("/api/user/appearance").json() == {"card_glow": False, "room_order": ["Sala", "Ufficio Alex"]}
+    assert client.get("/api/user/appearance").json() == {"card_glow": False, "room_order": ["Sala", "Ufficio Alex"], "security_order": ["locks", "zones", "areas", "scenarios"]}
     assert client.put("/api/user/appearance", json={"room_order": ["Sala", "sala"]}).status_code == 400
     assert client.put("/api/user/appearance", json={"card_glow": "false"}).status_code == 400
+    assert client.put("/api/user/appearance", json={"security_order": ["locks", "zones", "zones", "scenarios"]}).status_code == 400
+    assert client.put("/api/user/appearance", json={"security_order": [{}, "zones", "areas", "scenarios"]}).status_code == 400
 
 
 def test_ksenia_normalizes_partitions_and_zones() -> None:

@@ -22,14 +22,14 @@ from .control4 import load_control4_config, public_control4_config, save_control
 from .installer_auth import COOKIE, create_session, valid_session
 from .media_preferences import apply_preferences, load_preferences, save_preferences
 from .source_icons import delete_source_icon, load_builtin_source_icon, load_source_icon, save_source_icon
-from .backgrounds import CARD_THEMES, PRESETS, load_background, load_background_image, load_backgrounds, load_card_theme, load_card_glow, load_room_order, save_background_image, save_card_theme, save_card_glow, save_room_order, save_inherit, save_preset
+from .backgrounds import CARD_THEMES, PRESETS, load_background, load_background_image, load_backgrounds, load_card_theme, load_card_glow, load_room_order, load_security_order, save_background_image, save_card_theme, save_card_glow, save_room_order, save_security_order, save_inherit, save_preset
 from .connectors import BusproConnector, Control4MediaConnector, EThermConnector, EkonexMediaConnector, EvoiceLocalMediaConnector, KseniaConnector
 from .connectors.ksenia import normalize_ksenia
 from .connectors.control4_media import cached_control4_icon, cached_control4_icon_path, cached_control4_source_label, control4_icon_path
 from .connectors.supervisor import discover_addon_url, discover_host_url
 from .demo import dashboard as demo_dashboard
 
-VERSION = "2.20.29"
+VERSION = "2.20.30"
 STATIC = Path(__file__).parent / "static"
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s [e-face-x4] %(message)s")
 
@@ -180,7 +180,7 @@ def create_app() -> FastAPI:
         return {
             "version": VERSION,
             "backgrounds": load_backgrounds(),
-            "appearance": {"card_theme": load_card_theme(), "card_glow": load_card_glow(), "room_order": load_room_order()},
+            "appearance": {"card_theme": load_card_theme(), "card_glow": load_card_glow(), "room_order": load_room_order(), "security_order": load_security_order()},
             "nav_icons": settings.nav_icons,
             "mode": "demo" if settings.demo_mode else "live",
             "dashboard": dashboard,
@@ -234,15 +234,16 @@ def create_app() -> FastAPI:
 
     @app.get("/api/user/appearance")
     async def user_appearance() -> dict:
-        return {"card_glow": load_card_glow(), "room_order": load_room_order()}
+        return {"card_glow": load_card_glow(), "room_order": load_room_order(), "security_order": load_security_order()}
 
     @app.put("/api/user/appearance")
     async def user_save_appearance(payload: dict) -> dict:
         try:
             if "card_glow" in payload: save_card_glow(payload["card_glow"])
             if "room_order" in payload: save_room_order(payload["room_order"])
+            if "security_order" in payload: save_security_order(payload["security_order"])
         except ValueError as exc: raise HTTPException(status_code=400, detail=str(exc))
-        return {"card_glow": load_card_glow(), "room_order": load_room_order()}
+        return {"card_glow": load_card_glow(), "room_order": load_room_order(), "security_order": load_security_order()}
 
     @app.put("/api/user/card-theme")
     async def user_save_card_theme(payload: dict) -> dict:

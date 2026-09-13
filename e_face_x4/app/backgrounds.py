@@ -5,6 +5,7 @@ from pathlib import Path
 
 PRESETS = {"teal", "midnight", "graphite", "ocean", "warm"}
 CARD_THEMES = {"graphite", "petrol", "midnight", "slate", "warm"}
+SECURITY_ORDER = ["scenarios", "areas", "zones", "locks"]
 MIME_SUFFIX = {"image/png": ".png", "image/jpeg": ".jpg", "image/webp": ".webp"}
 
 def _directory() -> Path: return Path(os.environ.get("EFACE_BACKGROUNDS", "/data/backgrounds"))
@@ -44,6 +45,15 @@ def save_room_order(names: list[str]) -> None:
     if len({name.casefold() for name in names}) != len(names):
         raise ValueError("Ambienti duplicati")
     raw = _config(); raw["room_order"] = names; _write(raw)
+
+def load_security_order() -> list[str]:
+    value = _config().get("security_order")
+    return value if isinstance(value, list) and len(value) == len(SECURITY_ORDER) and all(isinstance(item, str) for item in value) and set(value) == set(SECURITY_ORDER) else SECURITY_ORDER.copy()
+
+def save_security_order(order: list[str]) -> None:
+    if not isinstance(order, list) or len(order) != len(SECURITY_ORDER) or not all(isinstance(item, str) for item in order) or set(order) != set(SECURITY_ORDER):
+        raise ValueError("Ordine sicurezza non valido")
+    raw = _config(); raw["security_order"] = order; _write(raw)
 
 def load_card_glow() -> bool:
     return _config().get("card_glow", True) is not False

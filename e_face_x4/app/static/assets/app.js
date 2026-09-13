@@ -29,6 +29,7 @@ let activeEnergyDashboard = null
 let energyRefreshTimer = null
 let energyRefreshRunning = false
 const securitySections = { areas: false, zones: false }
+let currentSecurityOrder = ['scenarios', 'areas', 'zones', 'locks']
 const mediaSections = { rooms: true, playing: true }
 const mediaTransportOverrides = new Map()
 const recentCache = new Map()
@@ -127,6 +128,7 @@ function render(data) {
   currentBackgrounds = data.backgrounds || currentBackgrounds
   document.body.dataset.cardTheme = data.appearance?.card_theme || 'graphite'
   document.body.dataset.cardGlow = data.appearance?.card_glow === false ? 'off' : 'on'
+  currentSecurityOrder = data.appearance?.security_order || currentSecurityOrder
   applyBackground()
   const dashboard = data.dashboard || {}
   const home = dashboard.home || {}
@@ -426,7 +428,23 @@ function renderSecurityDevices(devices) {
   }).join('')
   const scenarioCards = scenarios.map((device) => { const disarm = device.category === 'DISARM'; const partial = device.category === 'PARTIAL'; const active = String(device.id) === activeScenarioId; return `<button class="security-scenario ${disarm ? 'disarm' : partial ? 'partial' : 'arm'} ${active ? 'active' : ''}" data-security-scenario data-device-id="${esc(device.id)}" data-action="execute"><span class="mdi-mask" style="${mdiStyle(disarm ? 'mdi:shield-off-outline' : partial ? 'mdi:shield-half-full' : 'mdi:shield-lock-outline', 'shield-key-outline')}"></span><strong>${esc(device.name)}</strong></button>` }).join('')
   const section = (key, title, content, className) => `<section class="security-section security-collapsible"><button class="security-section-toggle" data-security-toggle="${key}" aria-expanded="${securitySections[key]}"><strong>${title}</strong><span class="mdi-mask" style="${mdiStyle(securitySections[key] ? 'mdi:chevron-up' : 'mdi:chevron-down', 'chevron-down')}"></span></button><div class="${className}" ${securitySections[key] ? '' : 'hidden'}>${content}</div></section>`
-  $('#device-list').innerHTML = `${summary}${scenarios.length ? `<section class="security-section"><h3>Scenari di inserimento</h3><div class="security-scenario-grid">${scenarioCards}</div></section>` : ''}${partitions.length ? section('areas', 'Stato aree', areaCards, 'security-area-grid') : ''}${zones.length ? section('zones', 'Zone', zoneCards, 'security-zone-grid') : ''}${locks.length ? `<section class="security-section"><h3>Serrature</h3><div class="security-zone-grid">${lockCards}</div></section>` : ''}`
+  const blocks = {
+    scenarios: scenarios.length ? `<section class="security-section"><h3>Scenari di inserimento</h3><div class="security-scenario-grid">${scenarioCards}</div></section>` : '',
+    areas: partitions.length ? section('areas', 'Stato aree', areaCards, 'security-area-grid') : '',
+    zones: zones.length ? section('zones', 'Zone', zoneCards, 'security-zone-grid') : '',
+    locks: locks.length ? `<section class="security-section"><h3>Serrature</h3><div class="security-zone-grid">${lockCards}</div></section>` : ''
+  }
+  const container = $('#device-list')
+  const desired = document.createElement('div')
+  desired.innerHTML = summary + currentSecurityOrder.map((key) => blocks[key] || '').join('')
+  const nextChildren = [...desired.children]
+  // Preserve unchanged cards: replacing the whole list on every state update restarts their visual transitions.
+  nextChildren.forEach((next, index) => {
+    const previous = container.children[index]
+    if (!previous) container.append(next)
+    else if (previous.outerHTML !== next.outerHTML) previous.replaceWith(next)
+  })
+  while (container.children.length > nextChildren.length) container.lastElementChild.remove()
 }
 
 function renderMediaExperience(devices) {
@@ -609,7 +627,7 @@ function renderActiveDeviceList() {
     if (lightFilterActive) devices = devices.filter(deviceIsActiveForFilter)
   }
   if (!$('#av-filters').hidden && avRoom) devices = devices.filter((device) => device.room === avRoom)
-  const signature = JSON.stringify({devices, selectedMediaId, currentMediaExperience, activeMediaRoom, avRoom, lightFilterRoom, lightFilterActive, sectionFilterMode, securitySections, mediaSections})
+  const signature = JSON.stringify({devices, selectedMediaId, currentMediaExperience, activeMediaRoom, avRoom, lightFilterRoom, lightFilterActive, sectionFilterMode, securitySections, currentSecurityOrder, mediaSections})
   if (signature === lastDetailSignature && $('#device-list').childElementCount) return
   lastDetailSignature = signature
   renderDeviceList(devices)
