@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import base64
 import hashlib
+import ipaddress
 import json
 import re
 from typing import Any, AsyncIterator
@@ -23,6 +24,35 @@ _source_labels: dict[int, str] = {}
 _source_remote_actions: dict[int, set[str]] = {}
 _source_custom_buttons: dict[int, tuple[int, set[str]]] = {}
 _ARTWORK_HOSTS = ("i.scdn.co", "mosaic.scdn.co", "spotifycdn.com", "mzstatic.com", "media-amazon.com", "tunein.com")
+
+
+def _trusted_artwork_url(url: httpx.URL, controller_host: str, extra_hosts: str = "") -> bool:
+    if url.scheme not in {"http", "https"} or url.username or url.password or (url.port is not None and url.port not in {80, 443}):
+        return False
+    host = (url.host or "").lower()
+    if any(host == allowed or host.endswith(f".{allowed}") for allowed in _ARTWORK_HOSTS):
+        return True
+    if host in {item.strip() for item in extra_hosts.split(",") if item.strip()}:
+        try:
+            target = ipaddress.ip_address(host)
+        except ValueError:
+            return False
+        return target.is_private and not (target.is_loopback or target.is_multicast or target.is_unspecified)
+    try:
+        controller = ipaddress.ip_address(controller_host)
+        target = ipaddress.ip_address(host)
+    except ValueError:
+        return False
+    return (
+        isinstance(controller, ipaddress.IPv4Address)
+        and isinstance(target, ipaddress.IPv4Address)
+        and controller.is_private
+        and target in ipaddress.ip_network(f"{controller}/24", strict=False)
+        and target != controller
+        and not target.is_loopback
+        and not target.is_multicast
+        and not target.is_unspecified
+    )
 
 REMOTE_COMMANDS = {
     "play": (2, "PLAY"), "stop": (3, "STOP"), "pause": (4, "PAUSE"), "skip_fwd": (5, "SKIP_FWD"), "skip_rev": (6, "SKIP_REV"),
@@ -213,8 +243,7 @@ class Control4MediaConnector(Connector):
         headers = {"If-None-Match": if_none_match} if if_none_match else {}
         async with httpx.AsyncClient(timeout=5, follow_redirects=False) as client:
             for _ in range(4):
-                host = (url.host or "").lower()
-                if url.scheme not in {"http", "https"} or url.username or url.password or not any(host == allowed or host.endswith(f".{allowed}") for allowed in _ARTWORK_HOSTS):
+                if not _trusted_artwork_url(url, str(self.config.get("host") or ""), str(self.config.get("artwork_hosts") or "")):
                     return httpx.Response(415)
                 response = await client.get(url, headers=headers)
                 if response.status_code not in {301, 302, 303, 307, 308}:

@@ -18,13 +18,13 @@ def load_control4_config() -> dict[str, str]:
     try:
         raw = json.loads(_path().read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError):
-        return {"host": "192.168.3.10", "username": "", "password": ""}
-    return {key: str(raw.get(key) or "") for key in ("host", "username", "password")}
+        return {"host": "192.168.3.10", "username": "", "password": "", "artwork_hosts": ""}
+    return {key: str(raw.get(key) or "") for key in ("host", "username", "password", "artwork_hosts")}
 
 
 def public_control4_config() -> dict[str, Any]:
     value = load_control4_config()
-    return {"host": value["host"], "username": value["username"], "password_configured": bool(value["password"])}
+    return {"host": value["host"], "username": value["username"], "artwork_hosts": value["artwork_hosts"], "password_configured": bool(value["password"])}
 
 
 def save_control4_config(raw: Any) -> dict[str, str]:
@@ -42,7 +42,21 @@ def save_control4_config(raw: Any) -> dict[str, str]:
         password = previous["password"]
     if not username or not password or len(username) > 254 or len(password) > 512:
         raise ValueError("Email e password Control4 obbligatorie")
-    value = {"host": host, "username": username, "password": password}
+    previous_hosts = previous.get("artwork_hosts", "")
+    host_input = raw.get("artwork_hosts", previous_hosts)
+    hosts = [part.strip() for part in str(host_input or "").split(",") if part.strip()]
+    if len(hosts) > 16:
+        raise ValueError("Massimo 16 host cover Control4")
+    normalized_hosts = []
+    for item in hosts:
+        try:
+            address = ipaddress.ip_address(item)
+        except ValueError as exc:
+            raise ValueError("Gli host cover devono essere indirizzi IP") from exc
+        if not address.is_private or address.is_loopback or address.is_multicast or address.is_unspecified:
+            raise ValueError("Host cover non ammesso")
+        normalized_hosts.append(str(address))
+    value = {"host": host, "username": username, "password": password, "artwork_hosts": ",".join(dict.fromkeys(normalized_hosts))}
     path = _path()
     path.parent.mkdir(parents=True, exist_ok=True)
     temporary = path.with_suffix(".tmp")

@@ -92,6 +92,7 @@ async function loadControl4() {
   if (!response.ok) throw new Error((await response.json().catch(() => ({}))).detail || `HTTP ${response.status}`)
   const data = await response.json()
   $('#control4-host').value = data.host || '192.168.3.10'
+  $('#control4-artwork-hosts').value = data.artwork_hosts || ''
   $('#control4-username').value = data.username || ''
   $('#control4-password').placeholder = data.password_configured ? 'Password già salvata' : 'Password Control4'
 }
@@ -103,7 +104,7 @@ async function loadSourceIcons() {
   $('#source-icon-list').innerHTML = data.items.map((source) => `<div class="source-icon-row" data-source-id="${Number(source.source_id)}"><img src="${apiUrl(`../api/control4/source-icon/${Number(source.source_id)}?admin=${Date.now()}`)}" alt="" onerror="this.classList.add('missing')"><b>${esc(source.name)}</b><label>CAMBIA<input type="file" accept="image/png,image/jpeg,image/webp,image/gif"></label><button type="button" data-source-reset ${source.custom ? '' : 'disabled'}>RIPRISTINA</button></div>`).join('') || '<p>Nessuna sorgente disponibile</p>'
 }
 
-function control4Payload() { return { host: $('#control4-host').value.trim(), username: $('#control4-username').value.trim(), password: $('#control4-password').value } }
+function control4Payload() { return { host: $('#control4-host').value.trim(), username: $('#control4-username').value.trim(), password: $('#control4-password').value, artwork_hosts: $('#control4-artwork-hosts').value.trim() } }
 
 async function sendControl4(path, button) {
   button.disabled = true

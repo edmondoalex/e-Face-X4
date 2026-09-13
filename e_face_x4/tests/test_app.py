@@ -667,7 +667,7 @@ def test_control4_credentials_are_local_and_never_returned(monkeypatch, tmp_path
     save_control4_config({"host": "192.168.3.10", "username": "user@example.com", "password": "secret"})
     assert load_control4_config()["password"] == "secret"
     public = public_control4_config()
-    assert public == {"host": "192.168.3.10", "username": "user@example.com", "password_configured": True}
+    assert public == {"host": "192.168.3.10", "username": "user@example.com", "artwork_hosts": "", "password_configured": True}
     assert "secret" not in str(public)
     save_control4_config({"host": "192.168.3.10", "username": "user@example.com", "password": ""})
     assert load_control4_config()["password"] == "secret"
@@ -827,6 +827,33 @@ async def test_control4_cover_follows_only_trusted_image_redirects(monkeypatch) 
 
     transport = httpx.MockTransport(unsafe)
     assert (await Control4MediaConnector({}).artwork("c4room:51", fingerprint)).status_code == 415
+
+
+@pytest.mark.asyncio
+async def test_control4_cover_accepts_local_media_host_only_on_controller_subnet(monkeypatch) -> None:
+    import httpx
+    from app.connectors import control4_media
+
+    fingerprint = "fingerprint-local"
+    control4_media._artwork_urls["c4room:51"] = (fingerprint, "http://192.168.3.36/cover.jpg")
+    seen = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.append(str(request.url))
+        return httpx.Response(200, content=b"jpeg", headers={"Content-Type": "image/jpeg"})
+
+    original = httpx.AsyncClient
+    monkeypatch.setattr(control4_media.httpx, "AsyncClient", lambda **kwargs: original(transport=httpx.MockTransport(handler), **kwargs))
+    connector = Control4MediaConnector({"host": "192.168.3.10"})
+    assert (await connector.artwork("c4room:51", fingerprint)).status_code == 200
+    assert seen == ["http://192.168.3.36/cover.jpg"]
+    for url in ("http://192.168.4.36/cover.jpg", "http://192.168.3.10/private", "http://192.168.3.36:8080/private", "http://127.0.0.1/cover.jpg"):
+        control4_media._artwork_urls["c4room:51"] = (fingerprint, url)
+        assert (await connector.artwork("c4room:51", fingerprint)).status_code == 415
+    assert len(seen) == 1
+    control4_media._artwork_urls["c4room:51"] = (fingerprint, "http://192.168.4.36/cover.jpg")
+    extra_connector = Control4MediaConnector({"host": "192.168.3.10", "artwork_hosts": "192.168.4.36"})
+    assert (await extra_connector.artwork("c4room:51", fingerprint)).status_code == 200
 
 
 
