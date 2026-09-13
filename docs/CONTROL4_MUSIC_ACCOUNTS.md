@@ -30,6 +30,8 @@ Il driver Deezer usa l'azione Composer `LUA_ACTION` con `ACTION=Login` e paramet
 
 Questa traccia riguarda **solo Deezer**. TuneIn usa un meccanismo di associazione distinto, documentato come Join/Drop/Update Status; non riutilizzare `LUA_ACTION Login` né imporre un form email/password universale. L'interfaccia e-Face potrà avere una sezione account comune, ma l'implementazione dovrà essere un adattatore specifico per ogni servizio e driver.
 
+La guida Control4 TuneIn Quick Setup descrive anche un flusso tramite **codice di registrazione**: il Navigator mostra il codice e l'utente lo inserisce nel proprio account TuneIn sotto My Info > Devices > Add Reg. Code. La guida è storica (OS 2.4, 2013), perciò la presenza di quel flusso nel driver installato va verificata prima di implementarlo. Se ancora disponibile, e-Face potrebbe mostrare il codice senza trattare la password TuneIn; questo è il candidato preferibile per il self-service. Fonte: https://docs.control4.com/docs/product/tunein/quick-setup/latest
+
 **Blocco di sicurezza:** la traccia Lua del driver registra in chiaro i parametri dell'azione e anche il valore del campo password inserito nel Navigator. La password presente nella traccia condivisa va ruotata e non deve essere copiata nel repository, nei test, nei ticket o nei log e-Face. Non abilitare il login cliente tramite `LUA_ACTION` finché non è verificato che il logging del driver sia disattivabile o che esista un flusso di autorizzazione alternativo che non scrive la password in chiaro. La forma dell'azione vista in Composer non dimostra ancora che `LUA_ACTION` sia accettata dall'endpoint REST del Director per il driver Deezer.
 
 ## Criteri di completamento
