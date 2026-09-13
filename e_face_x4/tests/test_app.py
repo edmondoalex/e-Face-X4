@@ -119,7 +119,30 @@ def test_intercom_dashboard_stores_only_local_settings(monkeypatch, tmp_path) ->
     assert 'id="tools-admin-nav"' in page
     assert 'id="intercom-tool"' in page
     assert 'id="users-tool"' in page
-    assert "tools-dashboard.js?v=2.20.36" in page
+    assert "tools-dashboard.js?v=2.20.39" in page
+
+
+def test_intercom_test_phone_requires_admin_and_same_origin(monkeypatch, tmp_path) -> None:
+    monkeypatch.setenv("EFACE_AUTH_DIR", str(tmp_path / "auth"))
+    from app.user_auth import create_admin
+    create_admin("password-admin-lunga")
+    admin = TestClient(create_app())
+    person = TestClient(create_app())
+    assert admin.post("/api/auth/login", json={"username": "admin", "password": "password-admin-lunga"}).status_code == 200
+    assert admin.post("/api/admin/users", json={"username": "mario", "name": "Mario", "password": "password-mario-lunga"}).status_code == 200
+    assert person.post("/api/auth/login", json={"username": "mario", "password": "password-mario-lunga"}).status_code == 200
+    assert person.get("/intercom").status_code == 403
+    assert "Postazione SIP" in admin.get("/intercom").text
+    assert admin.get("/assets/intercom.js").status_code == 200
+    assert admin.get("/assets/jssip-3.13.8.js").status_code == 200
+    with pytest.raises(WebSocketDisconnect) as denied:
+        with person.websocket_connect("/api/intercom/sip", headers={"origin": "http://testserver"}, subprotocols=["sip"]):
+            pass
+    assert denied.value.code == 1008
+    with pytest.raises(WebSocketDisconnect) as denied:
+        with admin.websocket_connect("/api/intercom/sip", headers={"origin": "https://evil.example"}, subprotocols=["sip"]):
+            pass
+    assert denied.value.code == 1008
 
 
 def test_install_brand_and_theme_are_consistent() -> None:

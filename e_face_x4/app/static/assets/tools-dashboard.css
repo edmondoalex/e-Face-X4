@@ -24,6 +24,7 @@ body{background:radial-gradient(circle at 14% -20%,rgba(80,151,165,.22),transpar
 .tools-section-intro p{margin:7px 0 0;color:#aab9bd;font-size:13px}
 .tools-grid{gap:12px}
 .tool-card{min-height:92px;border-color:var(--dash-border);background:#273237;cursor:pointer;transition:background .15s,border-color .15s,transform .15s}
+a.tool-card{color:inherit;text-decoration:none}
 .tool-card:hover{border-color:rgba(105,220,188,.45);background:#304044;transform:translateY(-1px)}
 .tool-card:focus-visible,.tools-sidebar button:focus-visible{outline:2px solid var(--dash-accent);outline-offset:2px}
 .tool-card>span{width:43px;height:43px;display:grid;place-items:center;border-radius:10px;color:var(--dash-accent);background:rgba(105,220,188,.1);font-size:21px}

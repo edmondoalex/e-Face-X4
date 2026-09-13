@@ -34,7 +34,7 @@ from .connectors.control4_media import cached_control4_icon, cached_control4_ico
 from .connectors.supervisor import discover_addon_url, discover_host_url
 from .demo import dashboard as demo_dashboard
 
-VERSION = "2.20.38"
+VERSION = "2.20.39"
 STATIC = Path(__file__).parent / "static"
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s [e-face-x4] %(message)s")
 
@@ -145,6 +145,55 @@ def create_app() -> FastAPI:
         )
         return {"asterisk_reachable": asterisk, "doorbird_reachable": doorbird, "sip_ready": False}
 
+    @app.websocket("/api/intercom/sip")
+    async def intercom_sip_socket(websocket: WebSocket) -> None:
+        origin = websocket.headers.get("origin", "")
+        if (
+            not user_auth.enabled()
+            or user_auth.session_user(websocket.cookies.get(user_auth.COOKIE)) != "admin"
+            or urlsplit(origin).netloc != websocket.headers.get("host")
+        ):
+            await websocket.close(code=1008)
+            return
+        if "sip" not in websocket.scope.get("subprotocols", []):
+            await websocket.close(code=1002)
+            return
+        settings = intercom_settings.load()
+        target = f'ws://{settings["asterisk_host"]}:{settings["asterisk_port"]}/ws'
+        try:
+            async with websockets.connect(target, subprotocols=["sip"], open_timeout=4, max_size=1024 * 1024) as upstream:
+                if upstream.subprotocol != "sip":
+                    await websocket.close(code=1011)
+                    return
+                await websocket.accept(subprotocol="sip")
+
+                async def to_asterisk() -> None:
+                    while True:
+                        event = await websocket.receive()
+                        if event["type"] == "websocket.disconnect":
+                            return
+                        payload = event.get("text") if event.get("text") is not None else event.get("bytes")
+                        if payload is not None:
+                            await upstream.send(payload)
+
+                async def to_browser() -> None:
+                    async for payload in upstream:
+                        if isinstance(payload, str):
+                            await websocket.send_text(payload)
+                        else:
+                            await websocket.send_bytes(payload)
+
+                tasks = (asyncio.create_task(to_asterisk()), asyncio.create_task(to_browser()))
+                done, pending = await asyncio.wait(tasks, return_when=asyncio.FIRST_COMPLETED)
+                for task in pending:
+                    task.cancel()
+                await asyncio.gather(*pending, return_exceptions=True)
+                for task in done:
+                    if not task.cancelled():
+                        task.exception()
+        except (OSError, asyncio.TimeoutError, websockets.exceptions.WebSocketException):
+            await websocket.close(code=1011)
+
     @app.post("/api/auth/setup")
     async def auth_setup(request: Request, payload: dict) -> JSONResponse:
         if user_auth.enabled():
@@ -185,6 +234,11 @@ def create_app() -> FastAPI:
     @app.get("/login", include_in_schema=False)
     async def login_page() -> FileResponse:
         return FileResponse(STATIC / "login.html", headers={"Cache-Control": "no-store"})
+
+    @app.get("/intercom", include_in_schema=False)
+    async def intercom_page(request: Request) -> FileResponse:
+        require_admin(request)
+        return FileResponse(STATIC / "intercom.html", headers={"Cache-Control": "no-store"})
 
     async def resolved_provider(config, slug: str, port: int, timeout: float):
         manual = str(config.base_url or "").lower()

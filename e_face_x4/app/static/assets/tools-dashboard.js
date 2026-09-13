@@ -159,6 +159,23 @@ $('#intercom-test').addEventListener('click', async () => {
 async function initialize() {
   const status = await request('api/auth/status')
   $('#tools-admin-nav').hidden = status.enabled && status.role !== 'admin'
+  if (status.enabled && status.role === 'admin') {
+    const link = document.createElement('a')
+    link.href = api('intercom')
+    link.className = 'tool-card'
+    const icon = document.createElement('span')
+    icon.textContent = '☎'
+    const description = document.createElement('div')
+    const title = document.createElement('b')
+    title.textContent = 'Postazione SIP di prova'
+    const detail = document.createElement('small')
+    detail.textContent = 'Audio e-Face in rete locale'
+    description.append(title, detail)
+    const arrow = document.createElement('i')
+    arrow.textContent = '›'
+    link.append(icon, description, arrow)
+    $('#admin-tools .tools-grid').append(link)
+  }
   $('#tools-admin-section').querySelector('#admin-locked p').textContent = status.enabled ? 'Solo l’account admin può gestire impianto e accessi.' : 'Inserisci la password installatore configurata nelle opzioni dell’add-on.'
   if (location.hash === '#admin' && !$('#tools-admin-nav').hidden) view('admin')
   try { const health = await request('health'); $('#tools-version').textContent = health.version } catch { /* Versione opzionale */ }
