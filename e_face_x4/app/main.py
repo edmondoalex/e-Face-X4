@@ -29,6 +29,7 @@ from . import intercom_settings
 from . import installation
 from . import credential_inventory
 from . import sip_accounts
+from . import sip_provisioner
 from . import asterisk_ami
 from . import doorbird_api
 from .media_preferences import apply_preferences, load_preferences, save_preferences
@@ -235,7 +236,28 @@ def create_app() -> FastAPI:
     async def admin_sip_accounts(request: Request) -> dict:
         require_admin(request)
         assigned = sip_accounts.load()
-        return {"users": [{**user, "extension": assigned.get(user["username"], {}).get("extension"), "provisioned": bool(assigned.get(user["username"], {}).get("provisioned"))} for user in user_auth.accounts() if user["username"] != "admin"]}
+        return {"automatic_provisioning": sip_provisioner.settings() is not None, "users": [{**user, "extension": assigned.get(user["username"], {}).get("extension"), "provisioned": bool(assigned.get(user["username"], {}).get("provisioned"))} for user in user_auth.accounts() if user["username"] != "admin"]}
+
+    @app.post("/api/admin/intercom/sip/accounts/{username}/activate")
+    async def admin_activate_sip(username: str, request: Request) -> dict:
+        require_admin(request)
+        user = user_auth.account(username)
+        if not user or username == "admin" or not user["active"]:
+            raise HTTPException(status_code=404, detail="Utente attivo non trovato")
+        record = sip_accounts.load().get(username)
+        if not record:
+            raise HTTPException(status_code=409, detail="Assegna prima un interno personale")
+        if record.get("provisioned"):
+            return {"extension": record["extension"], "provisioned": True}
+        if sip_provisioner.settings() is None:
+            raise HTTPException(status_code=503, detail="Provisioner Asterisk non associato; nessuna modifica eseguita")
+        try:
+            await sip_provisioner.activate(username, record["extension"], record["password"], user["name"])
+            sip_accounts.mark_provisioned(username, True)
+        except (RuntimeError, httpx.HTTPError, OSError) as exc:
+            logging.warning("Attivazione SIP personale fallita per %s: %s", username, type(exc).__name__)
+            raise HTTPException(status_code=503, detail="Attivazione Asterisk non riuscita; interno rimasto in attesa") from exc
+        return {"extension": record["extension"], "provisioned": True}
 
     @app.post("/api/admin/intercom/sip/accounts/{username}")
     async def admin_allocate_sip(username: str, request: Request, payload: dict) -> Response:

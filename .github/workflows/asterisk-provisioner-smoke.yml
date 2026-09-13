@@ -1,0 +1,25 @@
+name: Asterisk provisioner smoke test
+
+on:
+  push:
+    branches: [dev/asterisk-provisioner]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build isolated development add-on
+        run: docker build --pull -t eface-asterisk-smoke ./e_asterisk
+      - name: Check Python runtime, paths and managed include
+        run: |
+          docker run --rm --entrypoint python3 eface-asterisk-smoke -c 'import pathlib, sys; assert sys.version_info >= (3, 10); assert pathlib.Path("/opt/eface-provisioner/server.py").is_file(); assert pathlib.Path("/etc/services.d/eface-provisioner/run").is_file(); assert "#include /config/asterisk/eface/pjsip.conf" in pathlib.Path("/etc/asterisk/pjsip.conf").read_text()'
+      - name: Run isolated provisioning tests
+        working-directory: e_face_x4
+        run: |
+          python3 -m pip install --user pytest httpx fastapi pyyaml
+          python3 -m pytest tests/test_managed_asterisk_config.py tests/test_provisioner_api.py tests/test_sip_provisioner.py -q

@@ -137,7 +137,7 @@ async function intercom() {
 }
 
 async function sipAccounts() {
-  const {users} = await request('api/admin/intercom/sip/accounts')
+  const {users, automatic_provisioning} = await request('api/admin/intercom/sip/accounts')
   const list = $('#sip-accounts-list')
   list.replaceChildren()
   for (const user of users) {
@@ -166,11 +166,16 @@ async function sipAccounts() {
       const confirm = document.createElement('button')
       confirm.type = 'button'
       confirm.className = 'secondary'
-      confirm.textContent = user.provisioned ? 'DISATTIVA IN E-FACE' : 'CONFERMA SU ASTERISK'
+      confirm.textContent = automatic_provisioning ? (user.provisioned ? 'ATTIVO SU ASTERISK' : 'ATTIVA SU ASTERISK') : (user.provisioned ? 'DISATTIVA IN E-FACE' : 'CONFERMA SU ASTERISK')
+      confirm.disabled = automatic_provisioning && user.provisioned
       confirm.addEventListener('click', async () => {
-        if (!user.provisioned && !window.confirm(`Confermi che l'interno ${user.extension} è già configurato e registrabile su Asterisk?`)) return
         try {
-          await request(`api/admin/intercom/sip/accounts/${encodeURIComponent(user.username)}/provisioned`, {method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify({provisioned:!user.provisioned})})
+          if (automatic_provisioning) {
+            await request(`api/admin/intercom/sip/accounts/${encodeURIComponent(user.username)}/activate`, {method:'POST'})
+          } else {
+            if (!user.provisioned && !window.confirm(`Confermi che l'interno ${user.extension} è già configurato e registrabile su Asterisk?`)) return
+            await request(`api/admin/intercom/sip/accounts/${encodeURIComponent(user.username)}/provisioned`, {method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify({provisioned:!user.provisioned})})
+          }
           await sipAccounts()
         } catch(error) { message(error.message) }
       })

@@ -229,6 +229,45 @@ def test_personal_sip_accounts_require_provisioning_and_keep_8301_private(monkey
     assert admin.post(endpoint, json={"admin_password": "password-admin-lunga"}).json()["asterisk_config"] == data["asterisk_config"]
 
 
+def test_personal_sip_automatic_activation_waits_for_verified_provisioner(monkeypatch, tmp_path) -> None:
+    monkeypatch.setenv("EFACE_AUTH_DIR", str(tmp_path / "auth"))
+    monkeypatch.setenv("EFACE_SIP_ACCOUNTS", str(tmp_path / "sip_accounts.json"))
+    from app.user_auth import create_admin, create_account
+    from app import sip_provisioner
+
+    create_admin("password-admin-lunga")
+    create_account("mario", "Mario Rossi", "password-mario-lunga")
+    admin = TestClient(create_app())
+    person = TestClient(create_app())
+    admin.post("/api/auth/login", json={"username": "admin", "password": "password-admin-lunga"})
+    person.post("/api/auth/login", json={"username": "mario", "password": "password-mario-lunga"})
+    endpoint = "/api/admin/intercom/sip/accounts/mario"
+    assert admin.post(endpoint, json={"admin_password": "password-admin-lunga"}).status_code == 200
+    assert admin.post(endpoint + "/activate").status_code == 503
+    assert person.get("/api/intercom/sip/credential").status_code == 409
+
+    monkeypatch.setenv("EFACE_PROVISION_URL", "http://127.0.0.1:8350")
+    monkeypatch.setenv("EFACE_PROVISION_TOKEN", "a" * 48)
+    called = []
+
+    async def fails(*args):
+        called.append(args)
+        raise RuntimeError("test failure")
+
+    monkeypatch.setattr(sip_provisioner, "activate", fails)
+    assert admin.post(endpoint + "/activate").status_code == 503
+    assert person.get("/api/intercom/sip/credential").status_code == 409
+
+    async def succeeds(*args):
+        called.append(args)
+
+    monkeypatch.setattr(sip_provisioner, "activate", succeeds)
+    assert person.post(endpoint + "/activate").status_code == 403
+    assert admin.post(endpoint + "/activate").json() == {"extension": "8302", "provisioned": True}
+    assert called[-1][0:2] == ("mario", "8302")
+    assert person.get("/api/intercom/sip/credential").status_code == 200
+
+
 def test_admin_doorbird_check_uses_stored_credential_without_exposing_it(monkeypatch, tmp_path) -> None:
     monkeypatch.setenv("EFACE_AUTH_DIR", str(tmp_path / "auth"))
     monkeypatch.setenv("EFACE_CREDENTIAL_INVENTORY", str(tmp_path / "inventory.json"))
