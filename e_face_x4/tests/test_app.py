@@ -129,6 +129,7 @@ def test_install_brand_and_theme_are_consistent() -> None:
     icon = root / "icon.png"
     brand = root / "app/static/assets/brand-icon.png"
     assert hashlib.sha256(icon.read_bytes()).digest() == hashlib.sha256(brand.read_bytes()).digest()
+    assert hashlib.sha256((root / "logo.png").read_bytes()).digest() == hashlib.sha256(icon.read_bytes()).digest()
     client = TestClient(create_app())
     manifest = client.get("/assets/manifest.webmanifest").json()
     assert manifest["theme_color"] == "#263f48"
