@@ -1,0 +1,7 @@
+{
+  "ami_password": "ci-only-not-for-production-Secret_123",
+  "auto_add": false,
+  "generate_ssl_cert": true,
+  "additional_sounds": [],
+  "mailbox": false
+}

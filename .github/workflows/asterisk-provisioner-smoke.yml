@@ -18,6 +18,9 @@ jobs:
       - name: Check Python runtime, paths and managed include
         run: |
           docker run --rm --entrypoint python3 eface-asterisk-smoke -c 'import pathlib, sys; assert sys.version_info >= (3, 10); assert pathlib.Path("/opt/eface-provisioner/server.py").is_file(); assert pathlib.Path("/etc/services.d/eface-provisioner/run").is_file(); assert "#include /config/asterisk/eface/pjsip.conf" in pathlib.Path("/etc/asterisk/pjsip.conf").read_text()'
+      - name: Start Asterisk, provision a phone and recreate the container
+        timeout-minutes: 6
+        run: bash e_asterisk/tests/smoke_container.sh
       - name: Run isolated provisioning tests
         working-directory: e_face_x4
         run: |
