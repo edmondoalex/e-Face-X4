@@ -644,6 +644,7 @@ def test_builtin_control4_source_icons_are_packaged() -> None:
         assert icon[0] == "image/png"
         assert icon[1].startswith(b"\x89PNG\r\n\x1a\n")
     assert load_builtin_source_icon("Sorgente sconosciuta") is None
+    assert load_builtin_source_icon("Sonos Rack Audio Sonos") == load_builtin_source_icon("Sonos")
 
 
 def test_backgrounds_are_persistent_globally_and_per_room(monkeypatch, tmp_path) -> None:

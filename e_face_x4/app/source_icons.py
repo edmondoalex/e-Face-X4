@@ -47,6 +47,8 @@ def load_builtin_source_icon(label: str | None) -> tuple[str, bytes] | None:
     """Return an icon shipped with the add-on, without network dependencies."""
     normalized = re.sub(r"[^a-z0-9]+", " ", str(label or "").casefold()).strip()
     filename = BUILTIN_ICONS.get(normalized)
+    if not filename and "sonos" in normalized.split():
+        filename = "sonos.png"
     if not filename:
         return None
     try:

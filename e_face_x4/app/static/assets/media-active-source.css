@@ -1,0 +1,4 @@
+.media-active-source{position:relative;display:block;flex:none}
+.media-active-source>.mdi-mask,.media-active-source>img{position:absolute;inset:0;width:100%;height:100%;margin:0}
+.media-active-source>img{object-fit:contain}
+.media-active-source.loaded>.mdi-mask{display:none}
