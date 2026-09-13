@@ -117,3 +117,24 @@ $('#player-list').addEventListener('pointercancel', finishDrag)
 loadPlayers().catch(()=>{})
 loadToolsBackground().catch(()=>{})
 loadCardThemes().catch(()=>{})
+
+let orderedRooms = []
+function renderRoomOrder() {
+  $('#room-order-list').innerHTML = orderedRooms.map((name, index) => `<div class="room-order-row" data-index="${index}"><strong>${esc(name.toLocaleUpperCase('it'))}</strong><button type="button" data-move="up" aria-label="Sposta ${esc(name)} su" ${index === 0 ? 'disabled' : ''}>↑</button><button type="button" data-move="down" aria-label="Sposta ${esc(name)} giù" ${index === orderedRooms.length - 1 ? 'disabled' : ''}>↓</button></div>`).join('') || '<p>Nessun ambiente disponibile</p>'
+}
+async function loadRoomOrder() {
+  const [bootstrapResponse, appearanceResponse] = await Promise.all([fetch(apiUrl('../api/bootstrap'), {cache:'no-store'}), fetch(apiUrl('../api/user/appearance'), {cache:'no-store'})])
+  if (!bootstrapResponse.ok || !appearanceResponse.ok) throw new Error('Ambienti non disponibili')
+  const bootstrap = await bootstrapResponse.json(); const appearance = await appearanceResponse.json()
+  const names = [...new Map((bootstrap.dashboard?.rooms || []).map((room) => String(room.name || '').trim()).filter(Boolean).map((name) => [name.toLocaleLowerCase('it'), name])).values()]
+  const ranks = new Map((appearance.room_order || []).map((name, index) => [String(name).toLocaleLowerCase('it'), index]))
+  orderedRooms = names.sort((a, b) => (ranks.get(a.toLocaleLowerCase('it')) ?? Number.MAX_SAFE_INTEGER) - (ranks.get(b.toLocaleLowerCase('it')) ?? Number.MAX_SAFE_INTEGER) || a.localeCompare(b, 'it'))
+  renderRoomOrder()
+}
+$('#room-order-tool').addEventListener('click', async () => { try { await loadRoomOrder(); $('#room-order-config').hidden = false } catch (error) { notice(error.message) } })
+$('#room-order-back').addEventListener('click', () => { $('#room-order-config').hidden = true })
+$('#room-order-list').addEventListener('click', (event) => { const button = event.target.closest('[data-move]'); if (!button) return; const index = Number(button.closest('[data-index]').dataset.index); const other = index + (button.dataset.move === 'up' ? -1 : 1); if (other < 0 || other >= orderedRooms.length) return; [orderedRooms[index], orderedRooms[other]] = [orderedRooms[other], orderedRooms[index]]; renderRoomOrder() })
+$('#room-order-save').addEventListener('click', async () => { try { const response = await fetch(apiUrl('../api/user/appearance'), {method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify({room_order:orderedRooms})}); if (!response.ok) throw new Error((await response.json()).detail); notice('Ordine ambienti salvato'); $('#room-order-config').hidden = true } catch (error) { notice(error.message) } })
+$('#card-glow-tool').addEventListener('click', async () => { try { const response = await fetch(apiUrl('../api/user/appearance'), {cache:'no-store'}); if (!response.ok) throw new Error(`HTTP ${response.status}`); $('#card-glow-enabled').checked = (await response.json()).card_glow !== false; $('#card-glow-config').hidden = false } catch (error) { notice(error.message) } })
+$('#card-glow-back').addEventListener('click', () => { $('#card-glow-config').hidden = true })
+$('#card-glow-enabled').addEventListener('change', async (event) => { const enabled = event.target.checked; try { const response = await fetch(apiUrl('../api/user/appearance'), {method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify({card_glow:enabled})}); if (!response.ok) throw new Error((await response.json()).detail); notice(enabled ? 'Illuminazione schede attivata' : 'Illuminazione schede disattivata') } catch (error) { event.target.checked = !enabled; notice(error.message) } })

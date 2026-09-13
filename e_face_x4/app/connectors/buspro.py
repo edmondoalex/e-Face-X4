@@ -64,6 +64,7 @@ def normalize_snapshot(payload: dict[str, Any]) -> dict[str, Any]:
         unit = ""
         position: Any = None
         brightness: Any = None
+        battery: Any = raw.get("battery_percent", raw.get("battery_percentage", raw.get("battery_level", raw.get("battery"))))
         entity_id = str(raw.get("entity_id") or "").lower()
         if entity_id and isinstance(ha_states.get(entity_id), dict):
             ha_state = ha_states[entity_id]
@@ -72,6 +73,7 @@ def normalize_snapshot(payload: dict[str, Any]) -> dict[str, Any]:
             unit = str(attributes.get("unit_of_measurement") or "")
             position = attributes.get("current_position")
             brightness = attributes.get("brightness")
+            battery = attributes.get("battery_level", attributes.get("battery_percentage", attributes.get("battery", battery)))
         if state is None:
             source = cover_states if kind == "cover" else light_states
             if kind in sensor_sources:
@@ -84,6 +86,7 @@ def normalize_snapshot(payload: dict[str, Any]) -> dict[str, Any]:
                 state = raw_state.get("value") if raw_state.get("value") is not None else raw_state.get("state")
                 position = raw_state.get("position")
                 brightness = raw_state.get("brightness")
+                battery = raw_state.get("battery_level", raw_state.get("battery_percent", raw_state.get("battery", battery)))
             else:
                 state = raw_state
         normalized.append({
@@ -92,6 +95,7 @@ def normalize_snapshot(payload: dict[str, Any]) -> dict[str, Any]:
             "category": category,
             "state_key": entity_id or address,
             "dimmable": bool(raw.get("dimmable")), "brightness": brightness,
+            "battery_percent": battery if kind == "lock" else None,
             "rgb_group": str(raw.get("rgb_group") or "").strip(),
             "rgb_channel": str(raw.get("rgb_channel") or "").strip().lower(),
         })

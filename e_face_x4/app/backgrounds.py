@@ -34,6 +34,24 @@ def save_card_theme(theme: str) -> None:
     if theme not in CARD_THEMES: raise ValueError("Colore card non valido")
     raw = _config(); raw["card_theme"] = theme; _write(raw)
 
+def load_room_order() -> list[str]:
+    value = _config().get("room_order")
+    return [name for name in value if isinstance(name, str) and name.strip()][:200] if isinstance(value, list) else []
+
+def save_room_order(names: list[str]) -> None:
+    if not isinstance(names, list) or len(names) > 200 or any(not isinstance(name, str) or not name.strip() or len(name) > 100 for name in names):
+        raise ValueError("Ordine ambienti non valido")
+    if len({name.casefold() for name in names}) != len(names):
+        raise ValueError("Ambienti duplicati")
+    raw = _config(); raw["room_order"] = names; _write(raw)
+
+def load_card_glow() -> bool:
+    return _config().get("card_glow", True) is not False
+
+def save_card_glow(enabled: bool) -> None:
+    if not isinstance(enabled, bool): raise ValueError("Valore illuminazione non valido")
+    raw = _config(); raw["card_glow"] = enabled; _write(raw)
+
 def save_preset(preset: str, room: str | None = None) -> None:
     if preset not in PRESETS: raise ValueError("Sfondo predefinito non valido")
     _save_selection({"mode": "preset", "preset": preset}, room)

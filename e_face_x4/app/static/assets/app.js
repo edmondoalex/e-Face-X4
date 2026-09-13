@@ -86,8 +86,11 @@ function mediaSourceMarkup(source, provider = '') {
 }
 
 function deviceGlyph(device) {
-  const fallback = device.kind === 'climate' ? 'thermostat' : device.kind === 'cover' ? 'blinds-horizontal' : device.kind === 'lock' ? 'lock' : device.kind === 'media_player' ? 'speaker' : 'lightbulb'
-  return `<span class="device-glyph mdi-mask" style="${mdiStyle(device.icon, fallback)}"></span>`
+  const unlocked = ['UNLOCKED', 'OPEN', 'OPENING', 'UNLOCKING', 'ON', '1'].includes(String(device.state ?? '').trim().toUpperCase())
+  const lockIdentity = `${device.name || ''} ${device.icon || ''}`.toLocaleLowerCase('it')
+  const lockIcon = /cancello|gate/.test(lockIdentity) ? (unlocked ? 'gate-open' : 'gate') : /garage|portone|garagedoor/.test(lockIdentity) ? (unlocked ? 'garage-open' : 'garage') : /porta|door/.test(lockIdentity) ? (unlocked ? 'door-open' : 'door-closed') : (unlocked ? 'lock-open-outline' : 'lock-outline')
+  const fallback = device.kind === 'climate' ? 'thermostat' : device.kind === 'cover' ? 'blinds-horizontal' : device.kind === 'lock' ? lockIcon : device.kind === 'media_player' ? 'speaker' : 'lightbulb'
+  return `<span class="device-glyph mdi-mask" style="${mdiStyle(device.kind === 'lock' ? `mdi:${lockIcon}` : device.icon, fallback)}"></span>`
 }
 
 const roomFeatureDefinitions = [
@@ -118,6 +121,7 @@ function render(data) {
   appVersion = data.version || appVersion
   currentBackgrounds = data.backgrounds || currentBackgrounds
   document.body.dataset.cardTheme = data.appearance?.card_theme || 'graphite'
+  document.body.dataset.cardGlow = data.appearance?.card_glow === false ? 'off' : 'on'
   applyBackground()
   const dashboard = data.dashboard || {}
   const home = dashboard.home || {}
@@ -173,9 +177,14 @@ function render(data) {
     .filter((device) => !['alarm_partition', 'alarm_scenario', 'alarm_system'].includes(device.kind))
     .map((device) => String(device.room || '').trim().toLocaleLowerCase('it'))
     .filter(Boolean))
-  const visibleRooms = (dashboard.rooms || []).filter((room) => visibleRoomNames.has(String(room.name || '').trim().toLocaleLowerCase('it')))
+  const roomOrder = new Map((data.appearance?.room_order || []).map((name, index) => [String(name).trim().toLocaleLowerCase('it'), index]))
+  const visibleRooms = (dashboard.rooms || []).filter((room) => visibleRoomNames.has(String(room.name || '').trim().toLocaleLowerCase('it'))).sort((a, b) => {
+    const aOrder = roomOrder.get(String(a.name || '').trim().toLocaleLowerCase('it')) ?? Number.MAX_SAFE_INTEGER
+    const bOrder = roomOrder.get(String(b.name || '').trim().toLocaleLowerCase('it')) ?? Number.MAX_SAFE_INTEGER
+    return aOrder - bOrder || String(a.name || '').localeCompare(String(b.name || ''), 'it')
+  })
   $('#rooms').innerHTML = visibleRooms.map((room) => `
-    <button class="room-card" data-room="${esc(room.name)}"><span>${esc(room.name)}</span><small class="room-features">${roomFeatureIcons(room.name)}</small></button>
+    <button class="room-card" data-room="${esc(room.name)}"><span>${esc(String(room.name).toLocaleUpperCase('it'))}</span><small class="room-features">${roomFeatureIcons(room.name)}</small></button>
   `).join('') || '<span class="empty-state">Nessun ambiente disponibile</span>'
   $('#app').classList.remove('loading')
   if (!failedProvider) $('#notice').hidden = true
@@ -404,9 +413,12 @@ function renderSecurityDevices(devices) {
   const lockCards = locks.map((device) => {
     const state = String(device.state || '').trim().toUpperCase()
     const stateClass = ['LOCKED','CLOSED','OFF','0'].includes(state) ? 'locked' : ['UNLOCKED','UNLOCKING','LOCKING','OPEN','OPENING','CLOSING','ON','1'].includes(state) ? 'unlocked' : 'unknown'
-    return `<article class="security-lock security-lock-${stateClass}" data-device-id="${esc(device.id)}">${deviceGlyph(device)}<div class="security-lock-name"><strong>${esc(device.name)}</strong><small>${esc(device.room)}</small></div><b>${esc(stateLabel(device))}</b>${deviceActions(device)}</article>`
+    const rawBattery = device.battery_percent ?? device.battery_percentage ?? device.battery_level ?? device.battery
+    const battery = rawBattery !== null && rawBattery !== undefined && rawBattery !== '' && Number.isFinite(Number(rawBattery)) ? Math.max(0, Math.min(100, Math.round(Number(rawBattery)))) : null
+    const batteryMarkup = battery === null ? '' : `<span class="security-lock-battery ${battery <= 20 ? 'low' : ''}" title="Batteria ${battery}%"><i class="mdi-mask" style="${mdiStyle(battery <= 20 ? 'mdi:battery-alert-variant-outline' : 'mdi:battery', 'battery')}"></i>${battery}%</span>`
+    return `<article class="security-lock security-lock-${stateClass}" data-device-id="${esc(device.id)}">${deviceGlyph(device)}<div class="security-lock-name"><strong>${esc(device.name)}</strong><small>${esc(device.room)}</small></div><b>${esc(stateLabel(device))}${batteryMarkup}</b>${deviceActions(device)}</article>`
   }).join('')
-  const scenarioCards = scenarios.map((device) => { const disarm = device.category === 'DISARM'; const partial = device.category === 'PARTIAL'; return `<button class="security-scenario ${disarm ? 'disarm' : partial ? 'partial' : 'arm'}" data-security-scenario data-device-id="${esc(device.id)}" data-action="execute"><span class="mdi-mask" style="${mdiStyle(disarm ? 'mdi:shield-off-outline' : partial ? 'mdi:shield-half-full' : 'mdi:shield-lock-outline', 'shield-key-outline')}"></span><strong>${esc(device.name)}</strong></button>` }).join('')
+  const scenarioCards = scenarios.map((device) => { const disarm = device.category === 'DISARM'; const partial = device.category === 'PARTIAL'; const active = ['ON','ACTIVE','1','TRUE'].includes(String(device.state ?? '').toUpperCase()); return `<button class="security-scenario ${disarm ? 'disarm' : partial ? 'partial' : 'arm'} ${active ? 'active' : ''}" data-security-scenario data-device-id="${esc(device.id)}" data-action="execute"><span class="mdi-mask" style="${mdiStyle(disarm ? 'mdi:shield-off-outline' : partial ? 'mdi:shield-half-full' : 'mdi:shield-lock-outline', 'shield-key-outline')}"></span><strong>${esc(device.name)}</strong></button>` }).join('')
   const section = (key, title, content, className) => `<section class="security-section security-collapsible"><button class="security-section-toggle" data-security-toggle="${key}" aria-expanded="${securitySections[key]}"><strong>${title}</strong><span class="mdi-mask" style="${mdiStyle(securitySections[key] ? 'mdi:chevron-up' : 'mdi:chevron-down', 'chevron-down')}"></span></button><div class="${className}" ${securitySections[key] ? '' : 'hidden'}>${content}</div></section>`
   $('#device-list').innerHTML = `${summary}${scenarios.length ? `<section class="security-section"><h3>Scenari di inserimento</h3><div class="security-scenario-grid">${scenarioCards}</div></section>` : ''}${partitions.length ? section('areas', 'Stato aree', areaCards, 'security-area-grid') : ''}${zones.length ? section('zones', 'Zone', zoneCards, 'security-zone-grid') : ''}${locks.length ? `<section class="security-section"><h3>Serrature</h3><div class="security-zone-grid">${lockCards}</div></section>` : ''}`
 }
@@ -628,7 +640,7 @@ function deviceCardStyle(device) {
     const from = [151, 160, 163]
     const to = [255, 211, 78]
     const color = from.map((channel, index) => Math.round(channel + (to[index] - channel) * mix))
-    return `--light-color:rgb(${color.join(',')});--light-glow:${(1 + 11 * mix).toFixed(1)}px;--light-alpha:${(.08 + .72 * mix).toFixed(2)}`
+    return `--light-color:rgb(${color.join(',')});--light-glow:${(1 + 11 * mix).toFixed(1)}px;--light-alpha:${(.08 + .72 * mix).toFixed(2)};--card-glow:${(.07 + .44 * mix).toFixed(2)};--card-halo:${(5 + 21 * mix).toFixed(1)}px`
   }
   if (device.kind !== 'cover') return ''
   const hasPosition = device.position !== null && device.position !== undefined && device.position !== '' && Number.isFinite(Number(device.position))
@@ -637,7 +649,7 @@ function deviceCardStyle(device) {
   const from = [170, 181, 184]
   const to = [97, 216, 242]
   const color = from.map((channel, index) => Math.round(channel + (to[index] - channel) * mix))
-  return `--cover-color:rgb(${color.join(',')});--cover-glow:${(2 + 5 * mix).toFixed(1)}px;--cover-alpha:${(.12 + .3 * mix).toFixed(2)}`
+  return `--cover-color:rgb(${color.join(',')});--cover-glow:${(2 + 5 * mix).toFixed(1)}px;--cover-alpha:${(.12 + .3 * mix).toFixed(2)};--card-glow:${(.09 + .31 * mix).toFixed(2)}`
 }
 
 function deviceVisualClass(device) {
