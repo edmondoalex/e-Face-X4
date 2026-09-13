@@ -1006,7 +1006,7 @@ def test_control4_music_pairing_probe_returns_structure_without_values(monkeypat
 
         async def get_item_setup(self, item_id):
             assert item_id == 614
-            return {"registration": {"code": "secret-pairing-code", "url": "https://secret.example/activate"}, "password": "private-password"}
+            return {"name": "GET_SETUP", "result": '{"registration":{"code":"secret-pairing-code","url":"https://secret.example/activate"},"password":"private-password"}', "seq": 12}
 
     async def director(config):
         return Director(), "director-token"
@@ -1019,9 +1019,38 @@ def test_control4_music_pairing_probe_returns_structure_without_values(monkeypat
     response = client.post(path)
     assert response.status_code == 200
     assert response.json()["driver_id"] == 614
-    assert response.json()["field_names"] == ["password", "registration", "registration.code", "registration.url"]
+    assert response.json()["result_format"] == "json"
+    assert response.json()["field_names"] == ["name", "result", "result.password", "result.registration", "result.registration.code", "result.registration.url", "seq"]
     assert all(secret not in response.text for secret in ("secret-pairing-code", "secret.example", "private-password", "director-secret", "director-token"))
     assert client.post("/api/admin/control4/music-pairing-probe?service=deezer").status_code == 400
+
+
+def test_control4_music_pairing_probe_xml_only_returns_tag_names(monkeypatch, tmp_path) -> None:
+    import app.main as main_module
+    from app.user_auth import create_admin
+
+    monkeypatch.setenv("EFACE_AUTH_DIR", str(tmp_path / "auth"))
+    create_admin("password-admin-lunga")
+    monkeypatch.setattr(main_module, "load_control4_config", lambda: {"host": "192.168.3.10", "username": "private", "password": "director-secret"})
+
+    class Director:
+        async def get_all_item_info(self):
+            return [{"id": 1643, "name": "Amazon Music", "proxy": "media_service"}]
+
+        async def get_item_setup(self, item_id):
+            return {"name": "GET_SETUP", "result": '<setup><registration code="secret-pairing-code"><url>https://secret.example</url></registration></setup>', "seq": 1}
+
+    async def director(config):
+        return Director(), "director-token"
+
+    monkeypatch.setattr(main_module, "control4_director", director)
+    client = TestClient(main_module.create_app())
+    assert client.post("/api/auth/login", json={"username": "admin", "password": "password-admin-lunga"}).status_code == 200
+    response = client.post("/api/admin/control4/music-pairing-probe?service=amazon")
+    assert response.status_code == 200
+    assert response.json()["result_format"] == "xml"
+    assert {"result.setup", "result.registration", "result.url"}.issubset(set(response.json()["field_names"]))
+    assert "secret-pairing-code" not in response.text and "secret.example" not in response.text
 
 def test_control4_command_does_not_require_evoice_enabled(monkeypatch, tmp_path) -> None:
     import app.main as main_module

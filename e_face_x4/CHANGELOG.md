@@ -1,5 +1,8 @@
 # Changelog
 
+## 2.20.69 — 2026-09-13
+- La verifica di associazione TuneIn/Amazon legge anche la struttura interna del campo `result` quando il Director la restituisce come JSON o XML, senza mostrare valori o codici.
+
 ## 2.20.68 — 2026-09-13
 - I portoni `cover.*` restano visibili anche in Sicurezza, nella sezione «Accessi e portoni», oltre che in Oscuranti; i comandi rimangono quelli cover.
 - Aggiunto nell'admin Control4 un controllo mirato della configurazione di associazione TuneIn e Amazon Music. Mostra soltanto i nomi dei campi, mai valori, codici, token o password.

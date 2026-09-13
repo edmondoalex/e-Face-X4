@@ -191,7 +191,7 @@ pairingControls.addEventListener('click', async (event) => {
     const response = await fetch(apiUrl(`../api/admin/control4/music-pairing-probe?service=${encodeURIComponent(service)}`), { method: 'POST', cache: 'no-store' })
     const data = await response.json().catch(() => ({}))
     if (!response.ok) throw new Error(data.detail || `HTTP ${response.status}`)
-    $('#control4-result').innerHTML = `<b>${esc(data.service)} · driver ${Number(data.driver_id)} · soli nomi dei campi</b><span>${esc((data.field_names || []).join(', ') || 'Nessun campo esposto dal driver')}</span>`
+    $('#control4-result').innerHTML = `<b>${esc(data.service)} · driver ${Number(data.driver_id)} · formato result: ${esc(data.result_format || 'unknown')} · soli nomi dei campi</b><span>${esc((data.field_names || []).join(', ') || 'Nessun campo esposto dal driver')}</span>`
     $('#control4-result').hidden = false
   } catch (error) { notice(error.message) } finally { button.disabled = false }
 })

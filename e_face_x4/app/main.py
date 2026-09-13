@@ -41,7 +41,7 @@ from .connectors.control4_media import cached_control4_icon, cached_control4_ico
 from .connectors.supervisor import discover_addon_url, discover_host_url
 from .demo import dashboard as demo_dashboard
 
-VERSION = "2.20.68"
+VERSION = "2.20.69"
 STATIC = Path(__file__).parent / "static"
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s [e-face-x4] %(message)s")
 
@@ -324,8 +324,10 @@ def create_app() -> FastAPI:
             logging.warning("Configurazione driver musicale non disponibile: %s", type(exc).__name__)
             raise HTTPException(status_code=502, detail="Il driver non espone la configurazione tramite Director") from exc
         fields: set[str] = set()
+        result_format = "unknown"
 
         def collect(value: object, prefix: str = "", depth: int = 0) -> None:
+            nonlocal result_format
             if depth > 5 or len(fields) >= 100:
                 return
             if isinstance(value, dict):
@@ -339,9 +341,29 @@ def create_app() -> FastAPI:
             elif isinstance(value, list):
                 for child in value[:5]:
                     collect(child, f"{prefix}[]", depth + 1)
+            elif isinstance(value, str) and prefix == "result":
+                text = value.strip()
+                if not text:
+                    result_format = "empty"
+                elif len(text) > 100_000:
+                    result_format = "too_large"
+                elif text.startswith(("{", "[")):
+                    try:
+                        parsed = json.loads(text)
+                    except (ValueError, TypeError):
+                        result_format = "text"
+                    else:
+                        result_format = "json"
+                        collect(parsed, prefix, depth + 1)
+                elif text.startswith("<"):
+                    result_format = "xml"
+                    for tag in re.findall(r"<\s*([A-Za-z_][A-Za-z0-9_.:-]{0,49})(?:\s|>|/)", text)[:100]:
+                        fields.add(f"result.{tag}")
+                else:
+                    result_format = "text"
 
         collect(setup)
-        return JSONResponse({"service": service_name, "driver_id": int(driver["id"]), "field_names": sorted(fields), "note": "Solo nomi dei campi; nessun valore, codice, token o password."}, headers={"Cache-Control": "no-store, private"})
+        return JSONResponse({"service": service_name, "driver_id": int(driver["id"]), "result_format": result_format, "field_names": sorted(fields), "note": "Solo nomi dei campi; nessun valore, codice, token o password."}, headers={"Cache-Control": "no-store, private"})
 
     @app.get("/api/admin/control4/artwork-diagnostic")
     async def admin_control4_artwork_diagnostic(request: Request) -> dict:
