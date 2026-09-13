@@ -147,8 +147,8 @@ class Control4MediaConnector(Connector):
         if not members:
             raise ValueError("Volume della sessione non disponibile")
         target = max(0, min(100, int(target)))
-        average = round(sum(item["volume"] for item in members) / len(members))
-        delta = target - average
+        reference = next((item for item in members if item["registry_id"] == group.get("owner_registry_id")), members[0])
+        delta = target - reference["volume"]
         director, _ = await control4_director(self.config)
         results = []
         for item in members:

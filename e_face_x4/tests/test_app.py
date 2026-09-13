@@ -945,7 +945,7 @@ def test_control4_shared_audio_route_becomes_one_session_without_queue() -> None
     assert players[2].get("group") is None
 
 
-def test_control4_group_volume_applies_delta_instead_of_equalizing(monkeypatch) -> None:
+def test_control4_group_volume_uses_owner_as_reference(monkeypatch) -> None:
     import asyncio
     from app.connectors import control4_media
 
@@ -964,18 +964,18 @@ def test_control4_group_volume_applies_delta_instead_of_equalizing(monkeypatch) 
     connector = Control4MediaConnector({})
 
     async def snapshot():
-        group = {"group_id": "c4route:210:test", "member_registry_ids": ["c4room:50", "c4room:51"]}
+        group = {"group_id": "c4route:210:test", "owner_registry_id": "c4room:50", "member_registry_ids": ["c4room:50", "c4room:51"]}
         return {"groups": [group], "items": [
-            {"registry_id": "c4room:50", "volume": 40},
-            {"registry_id": "c4room:51", "volume": 50},
+            {"registry_id": "c4room:50", "volume": 41},
+            {"registry_id": "c4room:51", "volume": 37},
         ]}
 
     connector.snapshot = snapshot
     monkeypatch.setattr(control4_media, "control4_director", director)
     monkeypatch.setattr(control4_media, "C4Room", Room)
-    result = asyncio.run(connector.group_volume("c4route:210:test", 55))
-    assert levels == {50: 50, 51: 60}
-    assert [item["volume"] for item in result["members"]] == [50, 60]
+    result = asyncio.run(connector.group_volume("c4route:210:test", 50))
+    assert levels == {50: 50, 51: 46}
+    assert [item["volume"] for item in result["members"]] == [50, 46]
 
 
 def test_local_home_assistant_media_snapshot_is_normalized() -> None:

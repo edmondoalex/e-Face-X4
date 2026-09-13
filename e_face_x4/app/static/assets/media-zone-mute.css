@@ -1,0 +1,6 @@
+.media-session-master-level{display:grid;grid-template-columns:30px minmax(0,1fr) 44px;align-items:center;gap:10px;margin-top:7px}
+.media-session-master-level output{text-align:right;color:#eef3f4}
+.media-zone-mute{display:grid;place-items:center;width:30px;height:34px;padding:0;border:0;color:#eef3f4;background:transparent;cursor:pointer}
+.media-zone-mute .mdi-mask{width:24px;height:24px}
+.media-zone-mute:disabled{opacity:.4;cursor:default}
+.media-zone-mute:focus-visible{outline:2px solid #61d8f2;outline-offset:2px;border-radius:5px}
