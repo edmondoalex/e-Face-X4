@@ -120,7 +120,7 @@ def test_intercom_dashboard_stores_only_local_settings(monkeypatch, tmp_path) ->
     assert 'id="tools-admin-nav"' in page
     assert 'id="intercom-tool"' in page
     assert 'id="users-tool"' in page
-    assert "tools-dashboard.js?v=2.20.45" in page
+    assert "tools-dashboard.js?v=2.20.46" in page
 
 
 def test_intercom_test_phone_requires_admin_and_same_origin(monkeypatch, tmp_path) -> None:
@@ -183,6 +183,49 @@ def test_installation_preflight_is_admin_only_and_read_only(monkeypatch, tmp_pat
     assert result["turn_udp"] is True
     assert result["provisioning_available"] is False
     assert "test-secret" not in str(result)
+
+
+def test_admin_credential_inventory_requires_reauth_to_reveal(monkeypatch, tmp_path) -> None:
+    monkeypatch.setenv("EFACE_AUTH_DIR", str(tmp_path / "auth"))
+    monkeypatch.setenv("EFACE_CREDENTIAL_INVENTORY", str(tmp_path / "inventory.json"))
+    monkeypatch.setenv("EFACE_INTERCOM_TURN_SETTINGS", str(tmp_path / "turn.json"))
+    monkeypatch.setenv("EFACE_CONTROL4_CONFIG", str(tmp_path / "control4.json"))
+    from app import intercom_settings
+    from app.control4 import save_control4_config
+    from app.user_auth import create_admin
+
+    create_admin("password-admin-lunga")
+    intercom_settings.save_turn({"turn_url": "turn:169.58.200.54:3478?transport=udp", "turn_username": "eface", "turn_password": "turn-secret"})
+    save_control4_config({"host": "192.168.3.10", "username": "installer@example.test", "password": "c4-secret"})
+    admin = TestClient(create_app())
+    assert admin.get("/api/admin/credentials").status_code == 401
+    assert admin.post("/api/auth/login", json={"username": "admin", "password": "password-admin-lunga"}).status_code == 200
+
+    overview = admin.get("/api/admin/credentials")
+    assert overview.status_code == 200
+    assert overview.headers["cache-control"] == "no-store, private"
+    assert "turn-secret" not in overview.text
+    assert "c4-secret" not in overview.text
+    assert "sip_eface" in overview.text
+    assert admin.post("/api/admin/credentials/turn/reveal", json={"admin_password": "wrong"}).status_code == 403
+    revealed = admin.post("/api/admin/credentials/turn/reveal", json={"admin_password": "password-admin-lunga"})
+    assert revealed.json() == {"password": "turn-secret"}
+    assert revealed.headers["cache-control"] == "no-store, private"
+    assert admin.post("/api/admin/credentials/eface_admin/reveal", json={"admin_password": "password-admin-lunga"}).status_code == 400
+
+    saved = admin.put("/api/admin/credentials/sip_eface", json={"username": "8301", "password": "sip-secret"})
+    assert saved.json() == {"configured": True, "synchronized": False}
+    assert "sip-secret" not in admin.get("/api/admin/credentials").text
+    assert admin.post("/api/admin/credentials/sip_eface/reveal", json={"admin_password": "password-admin-lunga"}).json() == {"password": "sip-secret"}
+    assert admin.put("/api/admin/credentials/unknown", json={"username": "x", "password": "y"}).status_code == 400
+    assert admin.post("/api/admin/users", json={"username": "mario", "name": "Mario", "password": "password-mario-lunga"}).status_code == 200
+    person = TestClient(create_app())
+    assert person.post("/api/auth/login", json={"username": "mario", "password": "password-mario-lunga"}).status_code == 200
+    assert person.get("/api/admin/credentials").status_code == 403
+    assert person.post("/api/admin/credentials/turn/reveal", json={"admin_password": "password-admin-lunga"}).status_code == 403
+    for _ in range(5):
+        assert admin.post("/api/admin/credentials/control4/reveal", json={"admin_password": "wrong"}).status_code == 403
+    assert admin.post("/api/admin/credentials/control4/reveal", json={"admin_password": "password-admin-lunga"}).status_code == 429
 
 
 def test_install_brand_and_theme_are_consistent() -> None:

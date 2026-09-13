@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import hmac
 import json
 import logging
@@ -26,6 +27,7 @@ from .installer_auth import COOKIE, create_session, valid_session
 from . import user_auth
 from . import intercom_settings
 from . import installation
+from . import credential_inventory
 from .media_preferences import apply_preferences, load_preferences, save_preferences
 from .source_icons import delete_source_icon, load_builtin_source_icon, load_source_icon, save_source_icon
 from .backgrounds import CARD_THEMES, PRESETS, load_background, load_background_image, load_backgrounds, load_card_theme, load_card_glow, load_room_order, load_security_order, save_background_image, save_card_theme, save_card_glow, save_room_order, save_security_order, save_inherit, save_preset
@@ -35,7 +37,7 @@ from .connectors.control4_media import cached_control4_icon, cached_control4_ico
 from .connectors.supervisor import discover_addon_url, discover_host_url
 from .demo import dashboard as demo_dashboard
 
-VERSION = "2.20.45"
+VERSION = "2.20.46"
 STATIC = Path(__file__).parent / "static"
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s [e-face-x4] %(message)s")
 
@@ -51,6 +53,7 @@ def create_app() -> FastAPI:
     app = FastAPI(title="e-Face X4", version=VERSION, docs_url=None, redoc_url=None)
     app.mount("/assets", AppAssets(directory=STATIC / "assets"), name="assets")
     login_failures: dict[tuple[str, str], list[float]] = {}
+    reveal_failures: dict[str, list[float]] = {}
 
     def secure_cookie(request: Request) -> bool:
         return request.url.scheme == "https" or request.headers.get("x-forwarded-proto", "").lower() == "https"
@@ -85,6 +88,59 @@ def create_app() -> FastAPI:
     async def admin_installation_preflight(request: Request) -> dict:
         require_admin(request)
         return await installation.preflight()
+
+    @app.get("/api/admin/credentials")
+    async def admin_credentials(request: Request) -> Response:
+        require_admin(request)
+        turn = intercom_settings.load_turn()
+        control4 = load_control4_config()
+        imported = credential_inventory.load()
+        entries = [
+            {"kind": "eface_admin", "label": "Admin e-Face", "username": "admin", "configured": True, "managed": True, "revealable": False},
+            {"kind": "control4", "label": "Control4", "username": control4["username"], "configured": bool(control4["password"]), "managed": True, "revealable": bool(control4["password"])},
+            {"kind": "turn", "label": "TURN / audio remoto", "username": turn["turn_username"], "configured": bool(turn["turn_password"]), "managed": True, "revealable": bool(turn["turn_password"])},
+            {"kind": "sip_doorbird", "label": "SIP DoorBird / Asterisk", "username": imported.get("sip_doorbird", {}).get("username", ""), "configured": bool(imported.get("sip_doorbird", {}).get("password")), "managed": False, "revealable": bool(imported.get("sip_doorbird", {}).get("password"))},
+            {"kind": "sip_eface", "label": "SIP e-Face 8301", "username": imported.get("sip_eface", {}).get("username", ""), "configured": bool(imported.get("sip_eface", {}).get("password")), "managed": False, "revealable": bool(imported.get("sip_eface", {}).get("password"))},
+            {"kind": "sip_control4", "label": "SIP Control4", "username": imported.get("sip_control4", {}).get("username", ""), "configured": bool(imported.get("sip_control4", {}).get("password")), "managed": False, "revealable": bool(imported.get("sip_control4", {}).get("password"))},
+            {"kind": "doorbird", "label": "DoorBird amministrazione", "username": imported.get("doorbird", {}).get("username", ""), "configured": bool(imported.get("doorbird", {}).get("password")), "managed": False, "revealable": bool(imported.get("doorbird", {}).get("password"))},
+        ]
+        return JSONResponse({"credentials": entries}, headers={"Cache-Control": "no-store, private"})
+
+    @app.put("/api/admin/credentials/{kind}")
+    async def admin_import_credential(kind: str, request: Request, payload: dict) -> Response:
+        require_admin(request)
+        if set(payload) != {"username", "password"}:
+            raise HTTPException(status_code=400, detail="Campi non validi")
+        try:
+            credential_inventory.save(kind, str(payload["username"]), str(payload["password"]))
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        return JSONResponse({"configured": True, "synchronized": False}, headers={"Cache-Control": "no-store, private"})
+
+    @app.post("/api/admin/credentials/{kind}/reveal")
+    async def admin_reveal_credential(kind: str, request: Request, payload: dict) -> Response:
+        require_admin(request)
+        session = request.cookies.get(user_auth.COOKIE, "")
+        key = hashlib.sha256(session.encode()).hexdigest()
+        now = time.monotonic()
+        attempts = [instant for instant in reveal_failures.get(key, []) if now - instant < 900]
+        if len(attempts) >= 5:
+            raise HTTPException(status_code=429, detail="Troppi tentativi. Riprova più tardi")
+        if set(payload) != {"admin_password"} or not user_auth.verify("admin", str(payload["admin_password"])):
+            reveal_failures[key] = attempts + [now]
+            raise HTTPException(status_code=403, detail="Password admin non valida")
+        reveal_failures.pop(key, None)
+        if kind == "turn":
+            secret = intercom_settings.load_turn()["turn_password"]
+        elif kind == "control4":
+            secret = load_control4_config()["password"]
+        elif kind in credential_inventory.KINDS:
+            secret = credential_inventory.load().get(kind, {}).get("password", "")
+        else:
+            raise HTTPException(status_code=400, detail="Questa password non può essere mostrata")
+        if not secret:
+            raise HTTPException(status_code=404, detail="Credenziale non configurata")
+        return JSONResponse({"password": secret}, headers={"Cache-Control": "no-store, private", "Pragma": "no-cache", "X-Content-Type-Options": "nosniff"})
 
     @app.get("/api/admin/users")
     async def admin_users(request: Request) -> dict:

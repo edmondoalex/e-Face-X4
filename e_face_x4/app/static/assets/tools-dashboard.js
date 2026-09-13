@@ -198,10 +198,123 @@ $('#installation-check').addEventListener('click', async (event) => {
   finally { button.disabled = false }
 })
 
+let credentialKind = null
+let credentialRevealTimer = null
+
+function hideCredentialReveal() {
+  clearTimeout(credentialRevealTimer)
+  $('#credential-revealed-password').value = ''
+  $('#credential-admin-password').value = ''
+  $('#credential-revealed').hidden = true
+}
+
+async function credentials() {
+  const {credentials: entries} = await request('api/admin/credentials')
+  const list = $('#credentials-list')
+  list.replaceChildren()
+  for (const entry of entries) {
+    const row = document.createElement('article')
+    row.className = 'admin-user-row'
+    const identity = document.createElement('div')
+    const name = document.createElement('strong')
+    name.textContent = entry.label
+    const detail = document.createElement('small')
+    detail.textContent = `${entry.username || 'Utente non indicato'} · ${entry.configured ? 'Configurata' : 'Da importare'} · ${entry.managed ? 'Gestita da e-Face' : 'Copia di riferimento, non sincronizzata'}`
+    identity.append(name, detail)
+    const actions = document.createElement('div')
+    actions.className = 'admin-user-actions'
+    if (entry.revealable) {
+      const reveal = document.createElement('button')
+      reveal.type = 'button'
+      reveal.className = 'secondary'
+      reveal.textContent = 'Mostra'
+      reveal.addEventListener('click', () => {
+        hideCredentialReveal()
+        $('#credential-import-form').hidden = true
+        credentialKind = entry.kind
+        $('#credential-reveal-title').textContent = `Mostra password · ${entry.label}`
+        $('#credential-reveal-form').hidden = false
+        $('#credential-admin-password').focus()
+      })
+      actions.append(reveal)
+    }
+    const edit = document.createElement('button')
+    edit.type = 'button'
+    edit.className = 'secondary'
+    edit.textContent = entry.managed ? 'Gestisci' : entry.configured ? 'Aggiorna copia' : 'Importa copia'
+    edit.addEventListener('click', async () => {
+      hideCredentialReveal()
+      $('#credential-reveal-form').hidden = true
+      credentialKind = entry.kind
+      if (!entry.managed) {
+        $('#credential-import-title').textContent = `${entry.configured ? 'Aggiorna' : 'Importa'} · ${entry.label}`
+        $('#credential-import-username').value = entry.username || ''
+        $('#credential-import-password').value = ''
+        $('#credential-import-password').required = !entry.configured
+        $('#credential-import-form').hidden = false
+        $('#credential-import-username').focus()
+        return
+      }
+      closePanel('credentials-config')
+      if (entry.kind === 'turn') $('#intercom-tool').click()
+      else if (entry.kind === 'control4') $('#control4-tool').click()
+      else if (entry.kind === 'eface_admin') { await users(); openPanel('users-config') }
+    })
+    actions.append(edit)
+    row.append(identity, actions)
+    list.append(row)
+  }
+}
+
+$('#credentials-back').addEventListener('click', () => {
+  hideCredentialReveal()
+  $('#credential-reveal-form').hidden = true
+  $('#credential-import-form').hidden = true
+  closePanel('credentials-config')
+})
+$('#credential-hide').addEventListener('click', hideCredentialReveal)
+$('#credential-reveal-cancel').addEventListener('click', () => { $('#credential-reveal-form').hidden = true; $('#credential-admin-password').value = '' })
+$('#credential-import-cancel').addEventListener('click', () => { $('#credential-import-form').hidden = true; $('#credential-import-password').value = '' })
+$('#credential-import-form').addEventListener('submit', async (event) => {
+  event.preventDefault()
+  const button = event.currentTarget.querySelector('button[type=submit]')
+  button.disabled = true
+  try {
+    await request(`api/admin/credentials/${credentialKind}`, {method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify({username:$('#credential-import-username').value, password:$('#credential-import-password').value})})
+    $('#credential-import-password').value = ''
+    $('#credential-import-form').hidden = true
+    await credentials()
+    message('Copia salvata in e-Face; il dispositivo non è stato modificato')
+  } catch(error) { message(error.message) }
+  finally { button.disabled = false }
+})
+$('#credential-reveal-form').addEventListener('submit', async (event) => {
+  event.preventDefault()
+  const button = event.currentTarget.querySelector('button[type=submit]')
+  button.disabled = true
+  try {
+    const data = await request(`api/admin/credentials/${credentialKind}/reveal`, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({admin_password:$('#credential-admin-password').value})})
+    $('#credential-admin-password').value = ''
+    $('#credential-reveal-form').hidden = true
+    $('#credential-revealed-password').value = data.password
+    $('#credential-revealed').hidden = false
+    credentialRevealTimer = setTimeout(hideCredentialReveal, 30000)
+  } catch(error) { $('#credential-admin-password').value = ''; message(error.message) }
+  finally { button.disabled = false }
+})
+window.addEventListener('pagehide', hideCredentialReveal)
+
 async function initialize() {
   const status = await request('api/auth/status')
   $('#tools-admin-nav').hidden = status.enabled && status.role !== 'admin'
   if (status.enabled && status.role === 'admin') {
+    const vault = document.createElement('button')
+    vault.type = 'button'
+    vault.id = 'credentials-tool'
+    vault.className = 'tool-card'
+    vault.innerHTML = '<span>⌑</span><div><b>Credenziali impianto</b><small>Account e password in un unico punto</small></div><i>›</i>'
+    vault.addEventListener('click', async () => { try { await credentials(); openPanel('credentials-config') } catch(error) { message(error.message) } })
+    $('#admin-tools .tools-grid').prepend(vault)
     const setup = document.createElement('button')
     setup.type = 'button'
     setup.id = 'installation-tool'
