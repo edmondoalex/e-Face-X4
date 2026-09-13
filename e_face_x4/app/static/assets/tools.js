@@ -152,6 +152,31 @@ $('#control4-support-link').addEventListener('click', async (event) => {
     try { await navigator.clipboard.writeText(url); notice('Link copiato negli appunti') } catch (_) { notice('Copia il link visualizzato') }
   } catch (error) { notice(error.message) } finally { button.disabled = false }
 })
+$('#control4-service-discovery').addEventListener('click', async (event) => {
+  const button = event.currentTarget
+  button.disabled = true
+  try {
+    const response = await fetch(apiUrl('../api/admin/control4/service-discovery'), { cache: 'no-store' })
+    const data = await response.json().catch(() => ({}))
+    if (!response.ok) throw new Error(data.detail || `HTTP ${response.status}`)
+    $('#control4-result').innerHTML = `<b>Ricognizione servizi Ascolta — stato account non ancora determinato</b>${(data.services || []).map(source => `<span>${esc(source.name)} · ID ${Number(source.source_id)} · campi: ${esc((source.variable_names || []).filter(name => /status|account|auth|login|pair/i.test(name)).join(', ') || 'nessun campo di stato evidente')} · comandi: ${esc((source.command_names || []).filter(name => /join|login|auth|account|pair|connect/i.test(name)).join(', ') || 'nessun comando di accesso evidente')}</span>`).join('') || '<span>Nessuna sorgente Ascolta rilevata.</span>'}`
+    $('#control4-result').hidden = false
+  } catch (error) { notice(error.message) } finally { button.disabled = false }
+})
+$('#control4-service-link').addEventListener('click', async (event) => {
+  const button = event.currentTarget
+  button.disabled = true
+  try {
+    const response = await fetch(apiUrl('../api/admin/control4/artwork-support-link'), { method: 'POST' })
+    const data = await response.json().catch(() => ({}))
+    if (!response.ok) throw new Error(data.detail || `HTTP ${response.status}`)
+    const url = new URL(data.path, location.origin)
+    url.searchParams.set('services', 'true')
+    $('#control4-result').innerHTML = `<b>Link ricognizione servizi valido 10 minuti, una sola lettura</b><span style="overflow-wrap:anywhere">${esc(url.href)}</span>`
+    $('#control4-result').hidden = false
+    try { await navigator.clipboard.writeText(url.href); notice('Link copiato negli appunti') } catch (_) { notice('Copia il link visualizzato') }
+  } catch (error) { notice(error.message) } finally { button.disabled = false }
+})
 $('#media-back').addEventListener('click', () => { $('#media-config').hidden = true })
 $('#logout').addEventListener('click', async () => { await fetch(apiUrl('../api/installer/logout'), {method:'POST'}); const status=await fetch(apiUrl('../api/auth/status')).then((res)=>res.json()); if(status.enabled){await fetch(apiUrl('../api/auth/logout'),{method:'POST'});location.href=apiUrl('../login');return} $('#admin-tools').hidden=true; $('#admin-locked').hidden=false })
 $('#save-players').addEventListener('click', async (event) => { event.currentTarget.disabled=true; try { const players={}; document.querySelectorAll('.player-row').forEach((row, order) => { players[row.dataset.player]={...Object.fromEntries([...row.querySelectorAll('input[data-field]')].map((input)=>[input.dataset.field,input.type==='checkbox'?input.checked:input.value.trim()])),order} }); const response=await fetch(apiUrl('../api/installer/media-players'),{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({players})}); if(!response.ok) throw new Error((await response.json()).detail); notice('Configurazione salvata'); setTimeout(()=>location.href='./',700) } catch(error){notice(error.message)} finally{event.currentTarget.disabled=false} })

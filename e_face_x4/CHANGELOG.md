@@ -1,5 +1,9 @@
 # Changelog
 
+## 2.20.65 — 2026-09-13
+- Avviata la ricognizione di sola lettura dei driver musicali Control4: sorgenti Ascolta e nomi di variabili e comandi disponibili, senza valori di account o password.
+- Aggiunto un link diagnostico monouso per analizzare quali servizi possono offrire uno stato di login affidabile.
+
 ## 2.20.64 — 2026-09-13
 - Riconosciute le cover inviate dal Director come `application/octet-stream` quando i byte sono JPEG, PNG, GIF o WebP validi.
 - Se una cover manca o fallisce, il riquadro mostra il logo della sorgente Control4 invece di restare vuoto.

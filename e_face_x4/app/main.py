@@ -23,7 +23,7 @@ from fastapi.staticfiles import StaticFiles
 from starlette.responses import RedirectResponse
 
 from .config import load_settings
-from .control4 import load_control4_config, public_control4_config, save_control4_config, test_control4_connection
+from .control4 import control4_director, load_control4_config, public_control4_config, save_control4_config, test_control4_connection
 from .installer_auth import COOKIE, create_session, valid_session
 from . import user_auth
 from . import intercom_settings
@@ -41,7 +41,7 @@ from .connectors.control4_media import cached_control4_icon, cached_control4_ico
 from .connectors.supervisor import discover_addon_url, discover_host_url
 from .demo import dashboard as demo_dashboard
 
-VERSION = "2.20.64"
+VERSION = "2.20.65"
 STATIC = Path(__file__).parent / "static"
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s [e-face-x4] %(message)s")
 
@@ -241,6 +241,52 @@ def create_app() -> FastAPI:
             results.append(item)
         return {"players": results}
 
+    async def control4_service_discovery() -> dict:
+        config = load_control4_config()
+        if not config.get("username") or not config.get("password"):
+            raise HTTPException(status_code=409, detail="Control4 non configurato in e-Face")
+        try:
+            director, _ = await control4_director(config)
+            ui, all_items = await asyncio.gather(director.get_ui_configuration(), director.get_all_item_info())
+        except Exception as exc:
+            logging.warning("Ricognizione servizi Control4: %s", type(exc).__name__)
+            raise HTTPException(status_code=502, detail="Servizi Control4 non raggiungibili") from exc
+        item_info = {str(item.get("id")): item for item in all_items if isinstance(item, dict) and item.get("id") is not None} if isinstance(all_items, list) else {}
+        experiences = ui.get("experiences", []) if isinstance(ui, dict) else []
+        if isinstance(experiences, dict):
+            experiences = experiences.get("experience", [])
+        sources: dict[int, dict] = {}
+        for experience in experiences if isinstance(experiences, list) else []:
+            if not isinstance(experience, dict) or experience.get("type") != "listen":
+                continue
+            raw = experience.get("sources", {})
+            entries = raw.get("source", []) if isinstance(raw, dict) else []
+            if isinstance(entries, dict):
+                entries = [entries]
+            for source in entries if isinstance(entries, list) else []:
+                if not isinstance(source, dict) or not str(source.get("id") or "").isdigit():
+                    continue
+                source_id = int(source["id"])
+                if source_id > 0 and len(sources) < 60:
+                    info = item_info.get(str(source_id), {})
+                    sources[source_id] = {"source_id": source_id, "name": str(source.get("name") or info.get("name") or source_id)[:100], "source_type": str(source.get("type") or "")[:60]}
+        semaphore = asyncio.Semaphore(4)
+
+        async def inspect(source_id: int, source: dict) -> dict:
+            async with semaphore:
+                variables, commands = await asyncio.gather(director.get_item_variables(source_id), director.get_item_commands(source_id), return_exceptions=True)
+            names = sorted({str(item.get("varName") or item.get("name") or "")[:80] for item in variables if isinstance(item, dict) and (item.get("varName") or item.get("name"))}) if isinstance(variables, list) else []
+            command_names = sorted({str(item.get("name") or item.get("command") or "")[:80] for item in commands if isinstance(item, dict) and (item.get("name") or item.get("command"))}) if isinstance(commands, list) else []
+            info = item_info.get(str(source_id), {})
+            return {**source, "state": "unknown", "variable_names": names[:100], "command_names": command_names[:100], "item_fields": sorted(str(key)[:80] for key in info)[:100]}
+
+        return {"services": await asyncio.gather(*(inspect(source_id, source) for source_id, source in sources.items())), "note": "Solo nomi dei campi; nessuna password, token o valore di account. Stato non ancora verificato."}
+
+    @app.get("/api/admin/control4/service-discovery")
+    async def admin_control4_service_discovery(request: Request) -> Response:
+        require_admin(request)
+        return JSONResponse(await control4_service_discovery(), headers={"Cache-Control": "no-store, private"})
+
     @app.get("/api/admin/control4/artwork-diagnostic")
     async def admin_control4_artwork_diagnostic(request: Request) -> dict:
         require_admin(request)
@@ -255,11 +301,12 @@ def create_app() -> FastAPI:
         return JSONResponse({"path": f"/api/support/control4/artwork/{token}", "expires_seconds": 600}, headers={"Cache-Control": "no-store, private"})
 
     @app.get("/api/support/control4/artwork/{token}")
-    async def control4_artwork_support(token: str) -> Response:
+    async def control4_artwork_support(token: str, services: bool = Query(False)) -> Response:
         expires = control4_support_tokens.pop(token, 0)
         if expires < time.monotonic():
             raise HTTPException(status_code=404, detail="Link diagnostico scaduto o già usato")
-        return JSONResponse(await control4_artwork_diagnostic(), headers={"Cache-Control": "no-store", "X-Content-Type-Options": "nosniff", "Referrer-Policy": "no-referrer"})
+        result = await control4_service_discovery() if services else await control4_artwork_diagnostic()
+        return JSONResponse(result, headers={"Cache-Control": "no-store", "X-Content-Type-Options": "nosniff", "Referrer-Policy": "no-referrer"})
 
     @app.put("/api/admin/intercom/turn")
     async def admin_save_intercom_turn(request: Request, payload: dict) -> dict:

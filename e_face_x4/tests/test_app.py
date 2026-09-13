@@ -945,6 +945,46 @@ def test_control4_cover_diagnostic_uses_saved_login_without_leaking_url(monkeypa
     assert client.get(link).status_code == 404
     assert "private-secret" not in link_response.text
 
+
+def test_control4_service_discovery_is_read_only_and_redacts_values(monkeypatch, tmp_path) -> None:
+    import app.main as main_module
+
+    monkeypatch.setenv("EFACE_AUTH_DIR", str(tmp_path / "auth"))
+    from app.user_auth import create_admin
+    create_admin("password-admin-lunga")
+    monkeypatch.setattr(main_module, "load_control4_config", lambda: {"host": "192.168.3.10", "username": "private", "password": "private-secret"})
+
+    class Director:
+        async def get_ui_configuration(self):
+            return {"experiences": [{"type": "listen", "sources": {"source": [{"id": 100, "name": "TuneIn"}, {"id": 101, "name": "Qobuz"}]}}, {"type": "watch", "sources": {"source": [{"id": 102, "name": "TV"}]}}]}
+
+        async def get_all_item_info(self):
+            return [{"id": 100, "name": "TuneIn", "password": "must-not-leak"}, {"id": 101, "name": "Qobuz"}]
+
+        async def get_item_variables(self, source_id):
+            return [{"varName": "ACCOUNT_STATUS", "value": "secret-token"}, {"varName": "USERNAME", "value": "person@example.com"}]
+
+        async def get_item_commands(self, source_id):
+            return [{"name": "Join", "value": "must-not-leak-command"}]
+
+    async def director(config):
+        return Director(), "private-director-token"
+
+    monkeypatch.setattr(main_module, "control4_director", director)
+    client = TestClient(main_module.create_app())
+    assert client.get("/api/admin/control4/service-discovery").status_code == 401
+    assert client.post("/api/auth/login", json={"username": "admin", "password": "password-admin-lunga"}).status_code == 200
+    response = client.get("/api/admin/control4/service-discovery")
+    assert response.status_code == 200
+    assert [item["name"] for item in response.json()["services"]] == ["TuneIn", "Qobuz"]
+    assert response.json()["services"][0]["state"] == "unknown"
+    assert response.json()["services"][0]["variable_names"] == ["ACCOUNT_STATUS", "USERNAME"]
+    assert response.json()["services"][0]["command_names"] == ["Join"]
+    assert all(secret not in response.text for secret in ("private-secret", "private-director-token", "must-not-leak", "must-not-leak-command", "secret-token", "person@example.com"))
+    link = client.post("/api/admin/control4/artwork-support-link").json()["path"] + "?services=true"
+    assert client.get(link).json()["services"][1]["name"] == "Qobuz"
+    assert client.get(link).status_code == 404
+
 def test_control4_command_does_not_require_evoice_enabled(monkeypatch, tmp_path) -> None:
     import app.main as main_module
 
