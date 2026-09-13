@@ -149,7 +149,13 @@ amiTestForm.addEventListener('submit', async (event) => {
   button.disabled = true
   try {
     const data = await request('api/admin/intercom/ami/test', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({secret})})
-    $('#intercom-ami-result').textContent = data.auth_8301_found ? 'Accesso AMI riuscito; auth 8301 trovata.' : 'Accesso AMI riuscito; auth 8301 non trovata.'
+    const source = data.source_ip ? ` IP e-Face: ${data.source_ip}.` : ''
+    const status = data.issue === 'network' ? 'Asterisk AMI non raggiungibile.'
+      : data.issue === 'authentication' ? 'Login AMI rifiutato: verifica ACL IP e password.'
+      : data.issue === 'config_read' ? 'Login AMI riuscito, ma lettura configurazione negata.'
+      : data.issue === 'protocol' ? 'Errore di protocollo AMI.'
+      : data.auth_8301_found ? 'Accesso AMI riuscito; auth 8301 trovata.' : 'Accesso AMI riuscito; auth 8301 non trovata.'
+    $('#intercom-ami-result').textContent = status + source
     $('#intercom-ami-result').hidden = false
   } catch(error) { $('#intercom-ami-result').textContent = error.message; $('#intercom-ami-result').hidden = false }
   finally { button.disabled = false }

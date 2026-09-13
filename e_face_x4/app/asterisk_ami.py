@@ -15,6 +15,14 @@ class AMIError(RuntimeError):
     pass
 
 
+class AMIAuthenticationError(AMIError):
+    pass
+
+
+class AMIActionError(AMIError):
+    pass
+
+
 _FIELD = re.compile(r"^[A-Za-z][A-Za-z0-9-]*$")
 
 
@@ -54,12 +62,12 @@ async def action(host: str, port: int, username: str, secret: str, fields: Mappi
             await writer.drain()
             login = await _response(reader)
             if login.get("Response") != "Success":
-                raise AMIError("Autenticazione AMI non riuscita")
+                raise AMIAuthenticationError("Autenticazione AMI non riuscita")
             writer.write(_request(fields))
             await writer.drain()
             result = await _response(reader)
             if result.get("Response") != "Success":
-                raise AMIError(result.get("Message", "Azione AMI non riuscita"))
+                raise AMIActionError("Azione AMI non riuscita")
             return result
         finally:
             writer.close()
@@ -72,3 +80,14 @@ async def read_8301_auth(host: str, port: int, username: str, secret: str) -> di
         "Action": "GetConfig", "Filename": "pjsip_custom.conf", "Category": "8301",
         "Filter": "username=8301",
     })
+
+
+async def local_source_ip(host: str, port: int) -> str:
+    """Return the local address selected for the Asterisk route, without login."""
+    async with asyncio.timeout(3):
+        _, writer = await asyncio.open_connection(host, port)
+        try:
+            return str(writer.get_extra_info("sockname")[0])
+        finally:
+            writer.close()
+            await writer.wait_closed()

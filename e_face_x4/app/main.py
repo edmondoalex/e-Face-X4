@@ -38,7 +38,7 @@ from .connectors.control4_media import cached_control4_icon, cached_control4_ico
 from .connectors.supervisor import discover_addon_url, discover_host_url
 from .demo import dashboard as demo_dashboard
 
-VERSION = "2.20.48"
+VERSION = "2.20.49"
 STATIC = Path(__file__).parent / "static"
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s [e-face-x4] %(message)s")
 
@@ -244,11 +244,18 @@ def create_app() -> FastAPI:
             raise HTTPException(status_code=400, detail="Password AMI richiesta")
         settings = intercom_settings.load()
         try:
+            source_ip = await asterisk_ami.local_source_ip(settings["asterisk_host"], 5038)
+        except (OSError, TimeoutError):
+            return JSONResponse({"ami_connected": False, "issue": "network", "source_ip": ""}, headers={"Cache-Control": "no-store, private"})
+        try:
             result = await asterisk_ami.read_8301_auth(settings["asterisk_host"], 5038, "eface", payload["secret"])
-        except (OSError, TimeoutError, asterisk_ami.AMIError) as exc:
-            logging.warning("AMI e-Face test failed: %s", type(exc).__name__)
-            raise HTTPException(status_code=502, detail="Accesso AMI non riuscito: controlla indirizzo autorizzato e password") from exc
-        return JSONResponse({"ami_connected": True, "auth_8301_found": any(value == "username=8301" for value in result.values())}, headers={"Cache-Control": "no-store, private"})
+        except asterisk_ami.AMIAuthenticationError:
+            return JSONResponse({"ami_connected": False, "issue": "authentication", "source_ip": source_ip}, headers={"Cache-Control": "no-store, private"})
+        except asterisk_ami.AMIActionError:
+            return JSONResponse({"ami_connected": True, "issue": "config_read", "source_ip": source_ip}, headers={"Cache-Control": "no-store, private"})
+        except (OSError, TimeoutError, asterisk_ami.AMIError):
+            return JSONResponse({"ami_connected": False, "issue": "protocol", "source_ip": source_ip}, headers={"Cache-Control": "no-store, private"})
+        return JSONResponse({"ami_connected": True, "auth_8301_found": any(value == "username=8301" for value in result.values()), "source_ip": source_ip}, headers={"Cache-Control": "no-store, private"})
 
     @app.websocket("/api/intercom/sip")
     async def intercom_sip_socket(websocket: WebSocket) -> None:

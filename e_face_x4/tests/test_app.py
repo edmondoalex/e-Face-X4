@@ -116,13 +116,26 @@ def test_admin_ami_probe_does_not_store_or_expose_secret(monkeypatch, tmp_path) 
         calls.append((host, port, username, secret))
         return {"Response": "Success", "Line-000000": "username=8301"}
 
+    async def fake_source(host, port):
+        return "172.30.33.5"
+
     monkeypatch.setattr(asterisk_ami, "read_8301_auth", fake_probe)
+    monkeypatch.setattr(asterisk_ami, "local_source_ip", fake_source)
     response = client.post("/api/admin/intercom/ami/test", json={"secret": "private"})
     assert response.status_code == 200
-    assert response.json() == {"ami_connected": True, "auth_8301_found": True}
+    assert response.json() == {"ami_connected": True, "auth_8301_found": True, "source_ip": "172.30.33.5"}
     assert response.headers["cache-control"] == "no-store, private"
     assert "private" not in response.text
     assert calls == [("192.168.3.24", 5038, "eface", "private")]
+
+    async def rejected(host, port, username, secret):
+        raise asterisk_ami.AMIAuthenticationError("denied")
+
+    monkeypatch.setattr(asterisk_ami, "read_8301_auth", rejected)
+    failure = client.post("/api/admin/intercom/ami/test", json={"secret": "private"})
+    assert failure.status_code == 200
+    assert failure.json() == {"ami_connected": False, "issue": "authentication", "source_ip": "172.30.33.5"}
+    assert "private" not in failure.text
 
 
 def test_intercom_dashboard_stores_only_local_settings(monkeypatch, tmp_path) -> None:
@@ -144,7 +157,7 @@ def test_intercom_dashboard_stores_only_local_settings(monkeypatch, tmp_path) ->
     assert 'id="tools-admin-nav"' in page
     assert 'id="intercom-tool"' in page
     assert 'id="users-tool"' in page
-    assert "tools-dashboard.js?v=2.20.47" in page
+    assert "tools-dashboard.js?v=2.20.49" in page
 
 
 def test_intercom_test_phone_requires_admin_and_same_origin(monkeypatch, tmp_path) -> None:
