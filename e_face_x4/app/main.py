@@ -6,6 +6,7 @@ import json
 import logging
 import re
 import uuid
+from html import escape
 from pathlib import Path
 from dataclasses import replace
 
@@ -13,7 +14,7 @@ import httpx
 import uvicorn
 import websockets
 from fastapi import FastAPI, Header, HTTPException, Query, Request, Response, WebSocket
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from .config import load_settings
@@ -28,7 +29,7 @@ from .connectors.control4_media import cached_control4_icon, cached_control4_ico
 from .connectors.supervisor import discover_addon_url, discover_host_url
 from .demo import dashboard as demo_dashboard
 
-VERSION = "2.20.26"
+VERSION = "2.20.27"
 STATIC = Path(__file__).parent / "static"
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s [e-face-x4] %(message)s")
 
@@ -192,8 +193,19 @@ def create_app() -> FastAPI:
 
     @app.get("/tools", include_in_schema=False)
     @app.get("/installer", include_in_schema=False)
-    async def tools_page() -> FileResponse:
-        return FileResponse(STATIC / "tools.html", headers={"Cache-Control": "no-cache"})
+    async def tools_page() -> HTMLResponse:
+        selected = load_background()
+        presets = {
+            "teal": "linear-gradient(135deg,#84bfd5,#137073 58%,#0e4a4e)",
+            "midnight": "radial-gradient(circle at 70% 20%,#263f61,#08121e 65%)",
+            "graphite": "linear-gradient(145deg,#596066,#181c1f 65%)",
+            "ocean": "radial-gradient(circle at 25% 20%,#43a8ca,#075079 48%,#03273e)",
+            "warm": "radial-gradient(circle at 20% 20%,#b77955,#59372f 52%,#24191b)",
+        }
+        background = "linear-gradient(rgba(4,22,26,.28),rgba(4,22,26,.48)),url('api/user/background/image')" if selected["mode"] == "custom" else presets[selected["preset"]]
+        page = (STATIC / "tools.html").read_text(encoding="utf-8")
+        page = page.replace("__TOOLS_BACKGROUND__", escape(background, quote=True)).replace("__CARD_THEME__", escape(load_card_theme(), quote=True))
+        return HTMLResponse(page, headers={"Cache-Control": "no-cache"})
 
     @app.post("/api/installer/login")
     async def installer_login(payload: dict) -> JSONResponse:

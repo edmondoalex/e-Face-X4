@@ -1,6 +1,7 @@
 body,
 .media-config {
-  background-image: var(--tools-background, linear-gradient(135deg,#68a9ba,#14777a 58%,#0c4a50));
+  background-color: #1b2226;
+  background-image: var(--tools-background, linear-gradient(145deg,#30383d,#1b2226 65%));
   background-position: center;
   background-size: cover;
   background-attachment: fixed;

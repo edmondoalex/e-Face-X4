@@ -12,13 +12,23 @@ from app.connectors.supervisor import find_addon_url, find_host_url
 from app.media_preferences import apply_preferences, load_preferences, save_preferences
 from app.control4 import load_control4_config, public_control4_config, save_control4_config, summarize_ui_configuration
 from app.source_icons import delete_source_icon, load_builtin_source_icon, load_source_icon, save_source_icon
-from app.backgrounds import load_background, load_background_image, load_backgrounds, save_background_image, save_inherit, save_preset
+from app.backgrounds import load_background, load_background_image, load_backgrounds, save_background_image, save_card_theme, save_inherit, save_preset
 
 
 def test_health() -> None:
     response = TestClient(create_app()).get("/health")
     assert response.status_code == 200
     assert response.json()["ok"] is True
+
+
+def test_tools_page_starts_with_selected_background_and_card_theme(monkeypatch, tmp_path) -> None:
+    monkeypatch.setenv("EFACE_BACKGROUNDS", str(tmp_path / "backgrounds"))
+    save_preset("midnight")
+    save_card_theme("slate")
+    page = TestClient(create_app()).get("/tools").text
+    assert 'style="--tools-background:radial-gradient(circle at 70% 20%,#263f61,#08121e 65%)"' in page
+    assert '<body data-card-theme="slate">' in page
+    assert "__TOOLS_BACKGROUND__" not in page
 
 
 def test_user_appearance_persists_room_order_and_glow(monkeypatch, tmp_path) -> None:
