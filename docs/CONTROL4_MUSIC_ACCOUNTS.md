@@ -50,6 +50,16 @@ Nel driver Amazon la proprietà **Debug Mode** risulta attiva. Verificare separa
 
 La traccia Lua del 2026-09-13 ha confermato `ExecuteCommand: LUA_ACTION` con `ACTION=GetLinkForAPIAuthentication`. In e-Face 2.20.72 una prova admin invia tale comando al driver e verifica in un solo passaggio, senza restituire URL, se un link `link.ctrl4.co` compare nella risposta REST, nella scheda del driver o nelle variabili e se cambia dopo l'azione. Il primo test REST ha restituito i campi `name`, `result`, `seq` con `result` testuale, ma il valore è stato intenzionalmente oscurato: non prova ancora se il link sia direttamente nella risposta. La nuova prova scioglie questo dubbio senza esporre il collegamento.
 
+Esito reale della prova 2.20.72: il comando REST viene accettato, ma il link non compare né nella risposta, né nella scheda item, né nelle variabili; le ultime due letture sono riuscite. La proprietà `Authentication URL` visibile in Composer non è quindi disponibile tramite queste tre superfici REST. Non aggiungere altri pulsanti cliente basati su queste API: occorre verificare un'interfaccia di lettura proprietà/risposta Navigator supportata dal driver o dal produttore. Un ipotetico driver ponte non è soluzione confermata finché non è dimostrato che possa leggere la proprietà di un altro driver in modo autorizzato.
+
+## Analisi del pacchetto TuneIn.c4z fornito (2026-09-13)
+
+Il pacchetto fornito contiene `driver.xml` e `driver.lua`; il manifest dichiara versione **131**, modificata il 2022-10-06. Non è stato eseguito. Occorre confermare che sia esattamente la versione installata nel Director prima di usarlo come base per il comportamento attuale.
+
+Questo driver **non contiene** l'azione Amazon `GetLinkForAPIAuthentication`, né una proprietà `Authentication URL`, né riferimenti a `link.ctrl4.co`. Il suo percorso utente passa dal menu Navigator **Settings**: `GetBrowseSettingsMenu` richiede una pagina TuneIn e, quando riceve `Register.aspx`, estrae un codice di registrazione dalla risposta e lo presenta all'utente. Il codice viene quindi associato sul sito TuneIn; non richiede che e-Face gestisca la password TuneIn. Il pacchetto definisce anche una proprietà `Status`, aggiornata dall'azione `UpdateStatus`, ma la visibilità di tale proprietà tramite Director REST non è dimostrata.
+
+Le azioni Composer `Join`/`Drop` operano diversamente: `Join` usa Username e Password del driver e invia la password come parametro di un URL verso TuneIn. **Non usare questo percorso per il self-service e-Face** e non raccogliere password TuneIn nell'admin e-Face. Per un'integrazione sicura occorre verificare se il menu Settings e la risposta del codice siano raggiungibili tramite l'interfaccia Control4 che e-Face può usare, oppure ottenere un'interfaccia supportata del produttore. Non assimilare questo pacchetto al flusso Amazon/TIDAL solo sulla base di schermate visivamente simili.
+
 ## Criteri di completamento
 
 1. Il cliente rinnova un account scaduto usando solo e-Face e il provider, senza UI Control4; la stessa sorgente riproduce poi musica.
