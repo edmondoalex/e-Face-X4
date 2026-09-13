@@ -11,6 +11,18 @@
   let micOutput = null
   let micSource = null
   let micGain = null
+  let iceServers = []
+
+  async function loadIce() {
+    const response = await fetch(new URL('api/intercom/ice', root), {cache:'no-store'})
+    if (!response.ok) throw new Error('Configurazione audio remoto non disponibile')
+    iceServers = (await response.json()).iceServers || []
+    if (iceServers.length) $('#fast-ice').checked = false
+  }
+
+  function peerConfig() {
+    return {iceServers: $('#fast-ice').checked ? [] : iceServers}
+  }
 
   async function prepareSpeaker() {
     if (!audioContext) {
@@ -128,12 +140,13 @@
     }
   }
 
-  $('#sip-connect').addEventListener('click', () => {
+  $('#sip-connect').addEventListener('click', async () => {
     const password = $('#sip-password').value
     if (!password) { error('Inserisci la password SIP dell’interno 8301.'); return }
     if (!window.JsSIP) { error('Il client SIP non è disponibile.'); return }
     error('')
     try {
+      await loadIce()
       const socket = new JsSIP.WebSocketInterface(socketUrl.toString())
       phone = new JsSIP.UA({sockets:[socket], uri:'sip:8301@asterisk', authorization_user:'8301', password, display_name:'e-Face Test', register:true, session_timers:false})
       $('#sip-password').value = ''
@@ -177,7 +190,7 @@
       await prepareSpeaker()
       const stream = await preparedMicrophone()
       if (!phone?.isRegistered() || call) { releaseMicrophone(); return }
-      phone.call('sip:8290@asterisk', {mediaStream:stream, mediaConstraints:{audio:true, video:false}, pcConfig:{iceServers:[]}})
+      phone.call('sip:8290@asterisk', {mediaStream:stream, mediaConstraints:{audio:true, video:false}, pcConfig:peerConfig()})
     } catch (exception) {
       releaseMicrophone()
       $('#call-status').textContent = 'Chiamata non avviata.'
@@ -194,7 +207,7 @@
       await prepareSpeaker()
       const stream = await preparedMicrophone()
       if (call !== incoming) { releaseMicrophone(); return }
-      incoming.answer({mediaStream:stream, mediaConstraints:{audio:true, video:false}, pcConfig:{iceServers:[]}})
+      incoming.answer({mediaStream:stream, mediaConstraints:{audio:true, video:false}, pcConfig:peerConfig()})
       $('#call-answer').disabled = true
     }
     catch (exception) { releaseMicrophone(); error(exception.message) }

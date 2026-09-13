@@ -123,12 +123,16 @@ $('#user-create-form').addEventListener('submit', async (event) => {
 })
 
 async function intercom() {
-  const {settings} = await request('api/admin/intercom')
+  const {settings, turn} = await request('api/admin/intercom')
   $('#intercom-asterisk-host').value = settings.asterisk_host
   $('#intercom-asterisk-port').value = settings.asterisk_port
   $('#intercom-doorbird-host').value = settings.doorbird_host
   $('#intercom-doorbird-port').value = settings.doorbird_port
   $('#intercom-ring-extension').value = settings.ring_extension
+  $('#intercom-turn-url').value = turn.turn_url
+  $('#intercom-turn-username').value = turn.turn_username
+  $('#intercom-turn-password').value = ''
+  $('#intercom-turn-password').placeholder = turn.password_configured ? 'Password gia configurata' : 'Password TURN'
 }
 
 $('#intercom-tool').addEventListener('click', async () => { try { await intercom(); openPanel('intercom-config') } catch(error) { message(error.message) } })
@@ -145,6 +149,14 @@ $('#intercom-form').addEventListener('submit', async (event) => {
   try {
     await request('api/admin/intercom', {method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload)})
     message('Impostazioni e-Face salvate; Asterisk non è stato modificato')
+  } catch(error) { message(error.message) }
+})
+$('#intercom-turn-form').addEventListener('submit', async (event) => {
+  event.preventDefault()
+  try {
+    await request('api/admin/intercom/turn', {method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify({turn_url:$('#intercom-turn-url').value.trim(), turn_username:$('#intercom-turn-username').value.trim(), turn_password:$('#intercom-turn-password').value})})
+    $('#intercom-turn-password').value = ''
+    message('Relay TURN salvato; non modifica il dialplan Asterisk')
   } catch(error) { message(error.message) }
 })
 $('#intercom-test').addEventListener('click', async () => {

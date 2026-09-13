@@ -111,6 +111,7 @@ def test_intercom_dashboard_stores_only_local_settings(monkeypatch, tmp_path) ->
     default = client.get("/api/admin/intercom").json()
     assert default["settings"]["ring_extension"] == "8290"
     assert default["sip_ready"] is False
+    assert default["turn"]["password_configured"] is False
     settings = {**default["settings"], "asterisk_host": "192.168.3.24", "doorbird_host": "192.168.2.30"}
     assert client.put("/api/admin/intercom", json=settings).status_code == 200
     assert (tmp_path / "intercom.json").is_file()
@@ -119,11 +120,12 @@ def test_intercom_dashboard_stores_only_local_settings(monkeypatch, tmp_path) ->
     assert 'id="tools-admin-nav"' in page
     assert 'id="intercom-tool"' in page
     assert 'id="users-tool"' in page
-    assert "tools-dashboard.js?v=2.20.39" in page
+    assert "tools-dashboard.js?v=2.20.44" in page
 
 
 def test_intercom_test_phone_requires_admin_and_same_origin(monkeypatch, tmp_path) -> None:
     monkeypatch.setenv("EFACE_AUTH_DIR", str(tmp_path / "auth"))
+    monkeypatch.setenv("EFACE_INTERCOM_TURN_SETTINGS", str(tmp_path / "turn.json"))
     from app.user_auth import create_admin
     create_admin("password-admin-lunga")
     admin = TestClient(create_app())
@@ -137,7 +139,14 @@ def test_intercom_test_phone_requires_admin_and_same_origin(monkeypatch, tmp_pat
     assert 'id="speaker-gain"' in admin.get("/intercom").text
     assert 'id="microphone-gain"' in admin.get("/intercom").text
     assert admin.get("/assets/intercom.js").status_code == 200
-    assert "pcConfig:{iceServers:[]}" in admin.get("/assets/intercom.js").text
+    assert "pcConfig:peerConfig()" in admin.get("/assets/intercom.js").text
+    assert admin.get("/api/intercom/ice").json() == {"iceServers": []}
+    assert person.get("/api/intercom/ice").status_code == 403
+    turn = {"turn_url": "turn:169.58.200.54:3478?transport=udp", "turn_username": "eface", "turn_password": "test-secret"}
+    assert admin.put("/api/admin/intercom/turn", json=turn).status_code == 200
+    assert "turn_password" not in admin.get("/api/admin/intercom").text
+    assert admin.get("/api/intercom/ice").json()["iceServers"][0]["credential"] == "test-secret"
+    assert admin.put("/api/admin/intercom/turn", json={**turn, "turn_url": "https://bad.example"}).status_code == 400
     assert "session.on('icecandidate'" in admin.get("/assets/intercom.js").text
     assert "createMediaStreamDestination" in admin.get("/assets/intercom.js").text
     assert admin.get("/assets/jssip-3.13.8.js").status_code == 200

@@ -1,0 +1,10 @@
+; e-Face X4 remote WebRTC relay. Deployed to Asterisk custom/rtp.conf.
+[general]
+rtpstart=10000
+rtpend=20000
+icesupport=yes
+stunaddr=169.58.200.54:3478
+turnaddr=169.58.200.54
+turnport=3478
+turnusername=eface
+turnpassword=__TURN_PASSWORD__

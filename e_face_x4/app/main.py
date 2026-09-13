@@ -34,7 +34,7 @@ from .connectors.control4_media import cached_control4_icon, cached_control4_ico
 from .connectors.supervisor import discover_addon_url, discover_host_url
 from .demo import dashboard as demo_dashboard
 
-VERSION = "2.20.43"
+VERSION = "2.20.44"
 STATIC = Path(__file__).parent / "static"
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s [e-face-x4] %(message)s")
 
@@ -114,7 +114,27 @@ def create_app() -> FastAPI:
     @app.get("/api/admin/intercom")
     async def admin_intercom(request: Request) -> dict:
         require_admin(request)
-        return {"settings": intercom_settings.load(), "sip_ready": False}
+        turn = intercom_settings.load_turn()
+        return {"settings": intercom_settings.load(), "turn": {"turn_url": turn["turn_url"], "turn_username": turn["turn_username"], "password_configured": bool(turn["turn_password"])}, "sip_ready": False}
+
+    @app.put("/api/admin/intercom/turn")
+    async def admin_save_intercom_turn(request: Request, payload: dict) -> dict:
+        require_admin(request)
+        try:
+            if not payload.get("turn_password") and payload.get("turn_url"):
+                payload = {**payload, "turn_password": intercom_settings.load_turn()["turn_password"]}
+            value = intercom_settings.save_turn(payload)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        return {"turn_url": value["turn_url"], "turn_username": value["turn_username"], "password_configured": bool(value["turn_password"])}
+
+    @app.get("/api/intercom/ice")
+    async def intercom_ice(request: Request) -> dict:
+        require_admin(request)
+        turn = intercom_settings.load_turn()
+        if not all(turn.values()):
+            return {"iceServers": []}
+        return {"iceServers": [{"urls": turn["turn_url"], "username": turn["turn_username"], "credential": turn["turn_password"]}]}
 
     @app.put("/api/admin/intercom")
     async def admin_save_intercom(request: Request, payload: dict) -> dict:
