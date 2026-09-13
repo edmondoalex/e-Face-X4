@@ -6,7 +6,7 @@ Obiettivo: supportare le diverse forme di metadati, icone e cover prodotte da Co
 | --- | --- | --- |
 | Radio RapTz su Sonos | `http://192.168.3.36:1400` | Cover e logo Sonos verificati in e-Face dopo la 2.20.59 |
 | Sonos Radio, brano “Handle Me” | `https://sonosradio.imgix.net:443` | Blocco `415` identificato; regola per host pubblici introdotta nella 2.20.61; utente ha confermato la cover tornata |
-| Audio Cast / Wireless Music Bridge / BubbleUPnP | `http://director:80` | Blocco `415` identificato; alias mappato al Director configurato nella 2.20.63; verifica sul dispositivo ancora da fare |
+| Audio Cast / Wireless Music Bridge / BubbleUPnP | `http://director:80` | Nella 2.20.63 l'alias è stato risolto; diagnosi reale successiva: `200`, `application/octet-stream`, 21.934 byte. La 2.20.64 riconosce le firme immagine e mostra il logo sorgente se la cover non è valida. Verifica visiva ancora da fare. |
 | Altri tre casi citati dall'utente, usati il giorno precedente | Origini e metadati da acquisire | **Da identificare**, non considerati verificati |
 
 Per ogni nuovo caso registrare solo: sorgente Control4, tipo di URL (LAN IP, alias Director, dominio pubblico), schema, porta, HTTP status, MIME, dimensione, eventuale redirect e risultato visivo. Non salvare URL completi se contengono token, password o identificatori sensibili. Il link diagnostico admin è temporaneo e monouso.

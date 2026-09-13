@@ -5,7 +5,7 @@ import json
 from pathlib import Path
 from urllib.parse import urljoin
 
-from app.main import create_app
+from app.main import artwork_media_type, create_app
 from app.connectors.buspro import normalize_snapshot
 from app.connectors.etherm import normalize_thermostats
 from app.connectors.ksenia import normalize_ksenia
@@ -26,6 +26,14 @@ def test_release_changelog_matches_addon_version() -> None:
     changelog = (root / "CHANGELOG.md").read_text(encoding="utf-8").splitlines()
     assert changelog[0] == "# Changelog"
     assert changelog[2].startswith(f"## {version} — ")
+
+
+def test_control4_octet_stream_artwork_uses_image_signature_only() -> None:
+    assert artwork_media_type("application/octet-stream", b"\xff\xd8\xff\xe0jpeg") == "image/jpeg"
+    assert artwork_media_type("application/octet-stream", b"\x89PNG\r\n\x1a\npng") == "image/png"
+    assert artwork_media_type("application/octet-stream", b"GIF89aimage") == "image/gif"
+    assert artwork_media_type("application/octet-stream", b"RIFFxxxxWEBPimage") == "image/webp"
+    assert artwork_media_type("application/octet-stream", b"<html>not an image</html>") == ""
 
 
 def test_health() -> None:

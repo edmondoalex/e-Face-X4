@@ -1,5 +1,9 @@
 # Changelog
 
+## 2.20.64 — 2026-09-13
+- Riconosciute le cover inviate dal Director come `application/octet-stream` quando i byte sono JPEG, PNG, GIF o WebP validi.
+- Se una cover manca o fallisce, il riquadro mostra il logo della sorgente Control4 invece di restare vuoto.
+
 ## 2.20.63 — 2026-09-13
 - Le cover Control4 che usano l'alias locale `http://director` vengono scaricate dall'IP del Director configurato in e-Face.
 - Documentate le modalità di origine cover osservate e aggiunti test di compatibilità per l'alias locale.

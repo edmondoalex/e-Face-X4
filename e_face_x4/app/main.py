@@ -41,9 +41,26 @@ from .connectors.control4_media import cached_control4_icon, cached_control4_ico
 from .connectors.supervisor import discover_addon_url, discover_host_url
 from .demo import dashboard as demo_dashboard
 
-VERSION = "2.20.63"
+VERSION = "2.20.64"
 STATIC = Path(__file__).parent / "static"
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s [e-face-x4] %(message)s")
+
+
+def artwork_media_type(declared: str, content: bytes) -> str:
+    media_type = declared.split(";", 1)[0].strip().lower()
+    if media_type in {"image/jpeg", "image/png", "image/webp", "image/gif"}:
+        return media_type
+    if media_type not in {"", "application/octet-stream"}:
+        return ""
+    if content.startswith(b"\xff\xd8\xff"):
+        return "image/jpeg"
+    if content.startswith(b"\x89PNG\r\n\x1a\n"):
+        return "image/png"
+    if content.startswith((b"GIF87a", b"GIF89a")):
+        return "image/gif"
+    if content.startswith(b"RIFF") and content[8:12] == b"WEBP":
+        return "image/webp"
+    return ""
 
 
 class AppAssets(StaticFiles):
@@ -217,6 +234,7 @@ def create_app() -> FastAPI:
                     upstream = await connector.artwork(registry_id, fingerprint)
                     item["artwork_status"] = upstream.status_code
                     item["content_type"] = upstream.headers.get("content-type", "").split(";", 1)[0]
+                    item["detected_content_type"] = artwork_media_type(item["content_type"], upstream.content)
                     item["bytes"] = len(upstream.content)
                 except httpx.HTTPError as exc:
                     item["artwork_status"] = type(exc).__name__
@@ -962,8 +980,8 @@ def create_app() -> FastAPI:
             return Response(status_code=304, headers={"Cache-Control": "private, max-age=300"})
         if upstream.status_code != 200:
             raise HTTPException(status_code=upstream.status_code, detail="Copertina non disponibile")
-        media_type = upstream.headers.get("content-type", "").split(";", 1)[0]
-        if media_type not in {"image/jpeg", "image/png", "image/webp", "image/gif"} or len(upstream.content) > 700_000:
+        media_type = artwork_media_type(upstream.headers.get("content-type", ""), upstream.content)
+        if not media_type or len(upstream.content) > 700_000:
             raise HTTPException(status_code=415, detail="Copertina non valida")
         headers = {"Cache-Control": "private, max-age=300", "X-Content-Type-Options": "nosniff"}
         if upstream.headers.get("etag"):

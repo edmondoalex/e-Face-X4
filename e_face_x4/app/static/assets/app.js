@@ -615,9 +615,14 @@ function renderHomeMediaSessions() {
 
 function mediaArtwork(device) {
   if (device.kind !== 'media_player') return ''
-  if (!device.content_fingerprint) return '<span class="media-artwork missing" aria-hidden="true"></span>'
+  const sourceId = Number(device.active_source_id || 0)
+  const fallback = device.provider === 'control4' && Number.isSafeInteger(sourceId) && sourceId > 0
+    ? apiUrl(`api/control4/source-icon/${sourceId}?v=${encodeURIComponent(appVersion)}`) : ''
+  if (!device.content_fingerprint) return fallback
+    ? `<img class="media-artwork source-fallback" src="${esc(fallback)}" alt="" onerror="this.classList.add('missing');this.removeAttribute('src')">`
+    : '<span class="media-artwork missing" aria-hidden="true"></span>'
   const source = apiUrl(`api/media/${encodeURIComponent(device.registry_id)}/artwork?fingerprint=${encodeURIComponent(device.content_fingerprint)}`)
-  return `<img class="media-artwork" src="${esc(source)}" alt="" loading="lazy" onerror="this.classList.add('missing');this.removeAttribute('src')">`
+  return `<img class="media-artwork" src="${esc(source)}" alt="" loading="lazy" onerror="${fallback ? `this.classList.add('source-fallback');this.onerror=()=>{this.classList.add('missing');this.removeAttribute('src')};this.src='${esc(fallback)}'` : `this.classList.add('missing');this.removeAttribute('src')`}">`
 }
 
 function lightIsOn(device) {
