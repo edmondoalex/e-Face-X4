@@ -17,6 +17,7 @@ from urllib.parse import urlsplit
 import httpx
 import uvicorn
 import websockets
+from pyControl4.websocket import C4Websocket
 from fastapi import FastAPI, Header, HTTPException, Query, Request, Response, WebSocket
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
@@ -41,7 +42,7 @@ from .connectors.control4_media import cached_control4_icon, cached_control4_ico
 from .connectors.supervisor import discover_addon_url, discover_host_url
 from .demo import dashboard as demo_dashboard
 
-VERSION = "2.20.73"
+VERSION = "2.20.74"
 STATIC = Path(__file__).parent / "static"
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s [e-face-x4] %(message)s")
 
@@ -490,6 +491,78 @@ def create_app() -> FastAPI:
                 entry["get_settings_after_login"] = await run(item_id, "GetSettings", {})
             results.append(entry)
         return JSONResponse({"drivers": results, "note": "Solo struttura ed esito dei comandi; nessun valore, password o link."}, headers={"Cache-Control": "no-store, private"})
+
+    @app.post("/api/admin/control4/amazon-event-probe")
+    async def admin_control4_amazon_event_probe(request: Request) -> Response:
+        require_admin(request)
+        config = load_control4_config()
+        if not config.get("username") or not config.get("password"):
+            raise HTTPException(status_code=409, detail="Control4 non configurato in e-Face")
+        try:
+            director, token = await control4_director(config)
+            all_items = await director.get_all_item_info()
+        except Exception as exc:
+            logging.warning("Diagnosi eventi Amazon non disponibile: %s", type(exc).__name__)
+            raise HTTPException(status_code=502, detail="Director non raggiungibile") from exc
+        candidates = [item for item in all_items if isinstance(item, dict) and str(item.get("name") or "").casefold() == "amazon music" and str(item.get("proxy") or "").lower() == "media_service" and str(item.get("id") or "").isdigit()] if isinstance(all_items, list) else []
+        driver = next((item for item in candidates if "deviceOrder" not in item), candidates[0] if candidates else None)
+        if not driver:
+            raise HTTPException(status_code=404, detail="Driver Amazon Music non trovato")
+        driver_id = int(driver["id"])
+        event_count = 0
+        link_found = asyncio.Event()
+        event_fields: set[str] = set()
+        event_commands: set[str] = set()
+
+        async def on_event(_item_id: int, message: object) -> None:
+            nonlocal event_count
+            event_count += 1
+            if isinstance(message, dict):
+                event_fields.update(str(key) for key in message if re.fullmatch(r"[A-Za-z_][A-Za-z0-9_-]{0,49}", str(key)))
+                data = message.get("data")
+                device_command = data.get("devicecommand") if isinstance(data, dict) else None
+                command = device_command.get("command") if isinstance(device_command, dict) else None
+                if isinstance(command, str) and re.fullmatch(r"[A-Za-z_][A-Za-z0-9_-]{0,49}", command):
+                    event_commands.add(command)
+            try:
+                serial = json.dumps(message, ensure_ascii=False)[:100_000].replace("\\/", "/")
+            except (TypeError, ValueError):
+                serial = ""
+            if re.search(r"https://link\.ctrl4\.co/[A-Za-z0-9_/-]{1,160}", serial):
+                link_found.set()
+
+        socket = C4Websocket(config["host"])
+        for item_id in {driver_id, driver_id + 1}:
+            socket.add_item_callback(item_id, on_event)
+        try:
+            await asyncio.wait_for(socket.sio_connect(token), timeout=10)
+            await asyncio.sleep(1)
+            try:
+                raw = await director.send_post_request(
+                    f"/api/v1/items/{driver_id}/commands", "LogInCommand",
+                    {"username": "username", "password": "password"}, False,
+                )
+                command_accepted = True
+                envelope = json.loads(raw) if isinstance(raw, str) else raw
+                command_fields = sorted(str(key) for key in envelope if re.fullmatch(r"[A-Za-z_][A-Za-z0-9_-]{0,49}", str(key))) if isinstance(envelope, dict) else []
+            except Exception:
+                command_accepted = False
+                command_fields = []
+            try:
+                await asyncio.wait_for(link_found.wait(), timeout=6)
+            except asyncio.TimeoutError:
+                pass
+        except Exception as exc:
+            logging.warning("Flusso eventi Amazon non disponibile: %s", type(exc).__name__)
+            raise HTTPException(status_code=502, detail="Flusso eventi Director non disponibile") from exc
+        finally:
+            await socket.sio_disconnect()
+        return JSONResponse({"driver_id": driver_id, "command_accepted": command_accepted,
+                             "command_fields": command_fields, "event_count": event_count,
+                             "event_fields": sorted(event_fields), "event_commands": sorted(event_commands),
+                             "pairing_link_in_events": link_found.is_set(),
+                             "note": "Nessun evento grezzo, link, token o password viene restituito."},
+                            headers={"Cache-Control": "no-store, private"})
 
     @app.get("/api/admin/control4/artwork-diagnostic")
     async def admin_control4_artwork_diagnostic(request: Request) -> dict:

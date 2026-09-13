@@ -70,6 +70,8 @@ La documentazione Deezer del pacchetto conferma che un account a pagamento è ri
 
 In e-Face 2.20.73 un'unica diagnosi admin prova `GetSettings` per Amazon/Deezer/Qobuz e `LogInCommand` Amazon con i segnaposto dichiarati dal manifest. Restituisce solo esito, nomi di campo e presenza di un eventuale link; non pubblica valori della risposta, account, password o URL. L'esito reale determinerà se i comandi Navigator `PROTOCOL` sono raggiungibili dall'API REST usata da e-Face. Nessun pulsante cliente viene attivato sulla base del solo manifest.
 
+Esito reale: i tre `GetSettings` e il `LogInCommand` Amazon ricevono un envelope REST `name,result,seq`, ma nessuno restituisce direttamente un link; `OK` nella diagnosi significa solo risposta HTTP, non login riuscito. L'ispezione read-only dell'app Control4 sull'emulatore WSA ha mostrato l'endpoint Director `dataToUi`, già presente nella libreria WebSocket usata da e-Face per gli eventi media. Android riceve inoltre il link come intent esterno verso il browser quando l'utente lo apre. In 2.20.74 una prova admin sottoscrive `dataToUi` prima di inviare `LogInCommand` e restituisce solo se un evento contiene un link di associazione. Non usare l'intent Android come interfaccia di produzione: serve confermare il flusso Director sul dispositivo reale.
+
 ## Criteri di completamento
 
 1. Il cliente rinnova un account scaduto usando solo e-Face e il provider, senza UI Control4; la stessa sorgente riproduce poi musica.

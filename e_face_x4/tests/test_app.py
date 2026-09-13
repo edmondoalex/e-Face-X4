@@ -1186,6 +1186,57 @@ def test_music_navigator_probe_redacts_settings_and_pairing_url(monkeypatch, tmp
         assert secret not in response.text
 
 
+def test_amazon_event_probe_detects_link_without_exposing_it(monkeypatch, tmp_path) -> None:
+    import app.main as main_module
+    from app.user_auth import create_admin
+
+    monkeypatch.setenv("EFACE_AUTH_DIR", str(tmp_path / "auth"))
+    create_admin("password-admin-lunga")
+    monkeypatch.setattr(main_module, "load_control4_config", lambda: {"host": "192.168.3.10", "username": "private", "password": "director-secret"})
+
+    class FakeSocket:
+        instance = None
+
+        def __init__(self, host):
+            assert host == "192.168.3.10"
+            self.callbacks = {}
+            FakeSocket.instance = self
+
+        def add_item_callback(self, item_id, callback):
+            self.callbacks[item_id] = callback
+
+        async def sio_connect(self, token):
+            assert token == "director-token"
+
+        async def sio_disconnect(self):
+            pass
+
+    class Director:
+        async def get_all_item_info(self):
+            return [{"id": 1643, "name": "Amazon Music", "proxy": "media_service"}]
+
+        async def send_post_request(self, uri, command, params, is_async):
+            assert command == "LogInCommand" and params == {"username": "username", "password": "password"}
+            await FakeSocket.instance.callbacks[1643](1643, {"iddevice": 1643, "data": {"devicecommand": {"command": "AuthenticationRequired", "url": "https://link.ctrl4.co/private-code"}}})
+            return '{"name":"LogInCommand","result":"ok","seq":1}'
+
+    async def director(config):
+        return Director(), "director-token"
+
+    monkeypatch.setattr(main_module, "control4_director", director)
+    monkeypatch.setattr(main_module, "C4Websocket", FakeSocket)
+    client = TestClient(main_module.create_app())
+    path = "/api/admin/control4/amazon-event-probe"
+    assert client.post(path).status_code == 401
+    assert client.post("/api/auth/login", json={"username": "admin", "password": "password-admin-lunga"}).status_code == 200
+    response = client.post(path)
+    assert response.status_code == 200
+    assert response.json()["pairing_link_in_events"] is True
+    assert response.json()["event_count"] == 1
+    assert response.json()["event_commands"] == ["AuthenticationRequired"]
+    assert "private-code" not in response.text and "director-secret" not in response.text
+
+
 def test_control4_command_does_not_require_evoice_enabled(monkeypatch, tmp_path) -> None:
     import app.main as main_module
 

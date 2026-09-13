@@ -1,5 +1,9 @@
 # Changelog
 
+## 2.20.74 — 2026-09-13
+- Aggiunta una diagnosi riservata degli eventi Amazon Music: apre il flusso `dataToUi` prima del comando Navigator e rileva se il link di associazione arriva come evento, senza esporre URL, token o dati account.
+- Il canale è quello già usato da e-Face per gli aggiornamenti multimediali; il login cliente resta disabilitato finché l'esito reale non conferma il collegamento.
+
 ## 2.20.73 — 2026-09-13
 - Aggiunta una diagnosi riservata dei comandi Navigator `GetSettings` per Amazon Music, Deezer e Qobuz, più `LogInCommand` Amazon con i soli segnaposto del driver. La risposta segnala soltanto esito, struttura e presenza di un link; non espone credenziali né URL.
 - Nessun login cliente attivato: la compatibilità dei comandi PROTOCOL tramite Director REST va verificata sul driver reale.

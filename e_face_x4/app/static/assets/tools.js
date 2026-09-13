@@ -180,9 +180,21 @@ $('#control4-service-link').addEventListener('click', async (event) => {
 })
 const pairingControls = document.createElement('div')
 pairingControls.className = 'control4-actions'
-pairingControls.innerHTML = '<button type="button" data-music-pairing-probe="tunein">VERIFICA ASSOCIAZIONE TUNEIN</button><button type="button" data-music-pairing-probe="amazon">VERIFICA ASSOCIAZIONE AMAZON</button><button type="button" data-music-pairing-probe="tidal">VERIFICA ASSOCIAZIONE TIDAL</button><button type="button" id="amazon-auth-action-probe">PROVA LINK AMAZON</button><button type="button" id="music-navigator-probe">DIAGNOSI LOGIN SERVIZI</button>'
+pairingControls.innerHTML = '<button type="button" data-music-pairing-probe="tunein">VERIFICA ASSOCIAZIONE TUNEIN</button><button type="button" data-music-pairing-probe="amazon">VERIFICA ASSOCIAZIONE AMAZON</button><button type="button" data-music-pairing-probe="tidal">VERIFICA ASSOCIAZIONE TIDAL</button><button type="button" id="amazon-auth-action-probe">PROVA LINK AMAZON</button><button type="button" id="music-navigator-probe">DIAGNOSI LOGIN SERVIZI</button><button type="button" id="amazon-event-probe">DIAGNOSI EVENTI AMAZON</button>'
 $('#control4-result').before(pairingControls)
 pairingControls.addEventListener('click', async (event) => {
+  if (event.target.closest('#amazon-event-probe')) {
+    const button = event.target.closest('#amazon-event-probe')
+    button.disabled = true
+    try {
+      const response = await fetch(apiUrl('../api/admin/control4/amazon-event-probe'), { method: 'POST', cache: 'no-store' })
+      const data = await response.json().catch(() => ({}))
+      if (!response.ok) throw new Error(data.detail || `HTTP ${response.status}`)
+      $('#control4-result').innerHTML = `<b>Eventi Amazon · driver ${Number(data.driver_id)} · link negli eventi: ${data.pairing_link_in_events ? 'SÌ' : 'NO'}</b><span>Comando: ${data.command_accepted ? 'accettato' : 'non disponibile'} · campi: ${esc((data.command_fields || []).join(', ') || 'nessuno')}</span><span>Eventi ricevuti: ${Number(data.event_count)} · campi: ${esc((data.event_fields || []).join(', ') || 'nessuno')} · comandi: ${esc((data.event_commands || []).join(', ') || 'nessuno')}</span><span>Nessun link o dato account mostrato.</span>`
+      $('#control4-result').hidden = false
+    } catch (error) { notice(error.message) } finally { button.disabled = false }
+    return
+  }
   if (event.target.closest('#music-navigator-probe')) {
     const button = event.target.closest('#music-navigator-probe')
     button.disabled = true
