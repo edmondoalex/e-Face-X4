@@ -40,7 +40,7 @@ from .connectors.control4_media import cached_control4_icon, cached_control4_ico
 from .connectors.supervisor import discover_addon_url, discover_host_url
 from .demo import dashboard as demo_dashboard
 
-VERSION = "2.20.55"
+VERSION = "2.20.56"
 STATIC = Path(__file__).parent / "static"
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s [e-face-x4] %(message)s")
 
@@ -203,6 +203,8 @@ def create_app() -> FastAPI:
         except Exception as exc:
             logging.warning("Diagnostica cover Control4: %s", type(exc).__name__)
             raise HTTPException(status_code=502, detail="Control4 non raggiungibile da e-Face") from exc
+        if snapshot.get("status") == "offline":
+            raise HTTPException(status_code=502, detail=f"Control4 non raggiungibile da e-Face ({snapshot.get('reason') or 'errore sconosciuto'})")
         results = []
         for player in snapshot.get("items", []):
             if player.get("provider") != "control4" or player.get("state") not in {"playing", "paused"}:
