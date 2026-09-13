@@ -159,7 +159,8 @@ $('#control4-service-discovery').addEventListener('click', async (event) => {
     const response = await fetch(apiUrl('../api/admin/control4/service-discovery'), { cache: 'no-store' })
     const data = await response.json().catch(() => ({}))
     if (!response.ok) throw new Error(data.detail || `HTTP ${response.status}`)
-    $('#control4-result').innerHTML = `<b>Ricognizione servizi Ascolta — stato account non ancora determinato</b>${(data.services || []).map(source => `<span>${esc(source.name)} · ID ${Number(source.source_id)} · campi: ${esc((source.variable_names || []).filter(name => /status|account|auth|login|pair/i.test(name)).join(', ') || 'nessun campo di stato evidente')} · comandi: ${esc((source.command_names || []).filter(name => /join|login|auth|account|pair|connect/i.test(name)).join(', ') || 'nessun comando di accesso evidente')}</span>`).join('') || '<span>Nessuna sorgente Ascolta rilevata.</span>'}`
+    const candidates = data.driver_candidates || []
+    $('#control4-result').innerHTML = `<b>Driver candidati per login — solo nomi, nessun valore</b>${candidates.map(item => `<span>${esc(item.name)} · ID ${Number(item.source_id)} · tipo ${esc(item.source_type || '?')} · variabili: ${esc((item.variable_names || []).join(', ') || 'nessuna')} · comandi: ${esc((item.command_names || []).join(', ') || 'nessuno')} · campi scheda: ${esc((item.item_fields || []).join(', ') || 'nessuno')}</span>`).join('') || '<span>Nessun driver musicale riconosciuto: serve verificare come il Director li denomina.</span>'}<b>Sorgenti Ascolta: ${(data.services || []).length}</b>`
     $('#control4-result').hidden = false
   } catch (error) { notice(error.message) } finally { button.disabled = false }
 })

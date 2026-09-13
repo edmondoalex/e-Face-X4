@@ -4,7 +4,7 @@ Il cliente usa solo e-Face: deve poter ricollegare i servizi musicali da e-Face,
 
 Servizi con account da verificare: TuneIn, TIDAL, Deezer, Qobuz, Amazon Music, Apple Music e SoundMachine, secondo quelli effettivamente presenti nell'impianto. Spotify Connect e ShairBridge non rientrano nel flusso di login interno e-Face: l'associazione avviene nell'app del servizio o tramite protocollo di cast. Non mostrare loro il pulsante generico «Ricollega account».
 
-## Fase 1 - ricognizione di sola lettura (2.20.65)
+## Fase 1 - ricognizione di sola lettura (2.20.65-2.20.66)
 
 Nell'admin Control4, «Ricognizione servizi musicali» legge le sorgenti Ascolta e i soli nomi di variabili, comandi e campi esposti dai driver. Non trasmette valori, password o token e non esegue login/logout. Lo stato account resta `unknown` finché non è verificato su dati reali. Un link monouso di 10 minuti consente di condividere con il supporto questo inventario redatto. Nessun pulsante cliente di riconnessione va pubblicato sulla sola base di questa ricognizione.
 

@@ -1,5 +1,9 @@
 # Changelog
 
+## 2.20.66 — 2026-09-13
+- La ricognizione ora cerca anche i driver musicali nell'inventario del Director, oltre alle sorgenti Ascolta, e mostra i nomi dei comandi e delle variabili pertinenti.
+- Resta una diagnosi di sola lettura: nessun login, logout o valore di credenziale viene esposto.
+
 ## 2.20.65 — 2026-09-13
 - Avviata la ricognizione di sola lettura dei driver musicali Control4: sorgenti Ascolta e nomi di variabili e comandi disponibili, senza valori di account o password.
 - Aggiunto un link diagnostico monouso per analizzare quali servizi possono offrire uno stato di login affidabile.

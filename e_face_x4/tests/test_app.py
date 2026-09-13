@@ -959,13 +959,13 @@ def test_control4_service_discovery_is_read_only_and_redacts_values(monkeypatch,
             return {"experiences": [{"type": "listen", "sources": {"source": [{"id": 100, "name": "TuneIn"}, {"id": 101, "name": "Qobuz"}]}}, {"type": "watch", "sources": {"source": [{"id": 102, "name": "TV"}]}}]}
 
         async def get_all_item_info(self):
-            return [{"id": 100, "name": "TuneIn", "password": "must-not-leak"}, {"id": 101, "name": "Qobuz"}]
+            return [{"id": 100, "name": "TuneIn", "password": "must-not-leak"}, {"id": 101, "name": "Qobuz"}, {"id": 900, "name": "TuneIn Account Driver", "proxy": "media_service"}]
 
         async def get_item_variables(self, source_id):
             return [{"varName": "ACCOUNT_STATUS", "value": "secret-token"}, {"varName": "USERNAME", "value": "person@example.com"}]
 
         async def get_item_commands(self, source_id):
-            return [{"name": "Join", "value": "must-not-leak-command"}]
+            return [{"commandName": "Join", "value": "must-not-leak-command"}]
 
     async def director(config):
         return Director(), "private-director-token"
@@ -980,6 +980,8 @@ def test_control4_service_discovery_is_read_only_and_redacts_values(monkeypatch,
     assert response.json()["services"][0]["state"] == "unknown"
     assert response.json()["services"][0]["variable_names"] == ["ACCOUNT_STATUS", "USERNAME"]
     assert response.json()["services"][0]["command_names"] == ["Join"]
+    assert [item["source_id"] for item in response.json()["driver_candidates"]] == [100, 101, 900]
+    assert response.json()["driver_candidates"][2]["command_names"] == ["Join"]
     assert all(secret not in response.text for secret in ("private-secret", "private-director-token", "must-not-leak", "must-not-leak-command", "secret-token", "person@example.com"))
     link = client.post("/api/admin/control4/artwork-support-link").json()["path"] + "?services=true"
     assert client.get(link).json()["services"][1]["name"] == "Qobuz"

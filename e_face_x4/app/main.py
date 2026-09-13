@@ -41,7 +41,7 @@ from .connectors.control4_media import cached_control4_icon, cached_control4_ico
 from .connectors.supervisor import discover_addon_url, discover_host_url
 from .demo import dashboard as demo_dashboard
 
-VERSION = "2.20.65"
+VERSION = "2.20.66"
 STATIC = Path(__file__).parent / "static"
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s [e-face-x4] %(message)s")
 
@@ -272,15 +272,27 @@ def create_app() -> FastAPI:
                     sources[source_id] = {"source_id": source_id, "name": str(source.get("name") or info.get("name") or source_id)[:100], "source_type": str(source.get("type") or "")[:60]}
         semaphore = asyncio.Semaphore(4)
 
+        def field_names(items: object, keys: tuple[str, ...]) -> list[str]:
+            if not isinstance(items, list):
+                return []
+            return sorted({str(value)[:80] for item in items if isinstance(item, dict) for key in keys if (value := item.get(key)) and isinstance(value, (str, int))})[:100]
+
         async def inspect(source_id: int, source: dict) -> dict:
             async with semaphore:
                 variables, commands = await asyncio.gather(director.get_item_variables(source_id), director.get_item_commands(source_id), return_exceptions=True)
-            names = sorted({str(item.get("varName") or item.get("name") or "")[:80] for item in variables if isinstance(item, dict) and (item.get("varName") or item.get("name"))}) if isinstance(variables, list) else []
-            command_names = sorted({str(item.get("name") or item.get("command") or "")[:80] for item in commands if isinstance(item, dict) and (item.get("name") or item.get("command"))}) if isinstance(commands, list) else []
             info = item_info.get(str(source_id), {})
-            return {**source, "state": "unknown", "variable_names": names[:100], "command_names": command_names[:100], "item_fields": sorted(str(key)[:80] for key in info)[:100]}
+            return {**source, "state": "unknown", "variable_names": field_names(variables, ("varName", "variableName", "name")), "command_names": field_names(commands, ("name", "command", "commandName", "label")), "item_fields": sorted(str(key)[:80] for key in info)[:100]}
 
-        return {"services": await asyncio.gather(*(inspect(source_id, source) for source_id, source in sources.items())), "note": "Solo nomi dei campi; nessuna password, token o valore di account. Stato non ancora verificato."}
+        account_services = ("tunein", "tidal", "deezer", "qobuz", "amazon music", "apple music", "soundmachine")
+        candidates = {}
+        for item in all_items if isinstance(all_items, list) else []:
+            if not isinstance(item, dict) or not str(item.get("id") or "").isdigit():
+                continue
+            name = str(item.get("name") or "")
+            if any(service in name.casefold() for service in account_services) and len(candidates) < 60:
+                item_id = int(item["id"])
+                candidates[item_id] = {"source_id": item_id, "name": name[:100], "source_type": str(item.get("proxy") or item.get("type") or "")[:60]}
+        return {"services": await asyncio.gather(*(inspect(source_id, source) for source_id, source in sources.items())), "driver_candidates": await asyncio.gather(*(inspect(item_id, candidate) for item_id, candidate in candidates.items())), "note": "Solo nomi dei campi e comandi; nessuna password, token o valore di account. Stato non ancora verificato."}
 
     @app.get("/api/admin/control4/service-discovery")
     async def admin_control4_service_discovery(request: Request) -> Response:
