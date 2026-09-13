@@ -219,7 +219,7 @@ async function credentials() {
     const name = document.createElement('strong')
     name.textContent = entry.label
     const detail = document.createElement('small')
-    detail.textContent = `${entry.username || 'Utente non indicato'} · ${entry.configured ? 'Configurata' : 'Da importare'} · ${entry.managed ? 'Gestita da e-Face' : 'Copia di riferimento, non sincronizzata'}`
+    detail.textContent = `${entry.username || 'Utente non indicato'} · ${entry.managed ? entry.configured ? 'Configurata' : 'Da configurare' : entry.configured ? 'Copia presente, NON verificata' : 'Nessuna copia'} · ${entry.managed ? 'Gestita da e-Face' : 'Non sincronizzata con il dispositivo'}`
     identity.append(name, detail)
     const actions = document.createElement('div')
     actions.className = 'admin-user-actions'
@@ -250,6 +250,7 @@ async function credentials() {
         $('#credential-import-title').textContent = `${entry.configured ? 'Aggiorna' : 'Importa'} · ${entry.label}`
         $('#credential-import-username').value = entry.username || ''
         $('#credential-import-password').value = ''
+        $('#credential-import-confirm').checked = false
         $('#credential-import-password').required = !entry.configured
         $('#credential-import-form').hidden = false
         $('#credential-import-username').focus()
@@ -261,6 +262,24 @@ async function credentials() {
       else if (entry.kind === 'eface_admin') { await users(); openPanel('users-config') }
     })
     actions.append(edit)
+    if (!entry.managed && entry.configured) {
+      const remove = document.createElement('button')
+      remove.type = 'button'
+      remove.className = 'secondary'
+      remove.textContent = 'Rimuovi copia'
+      remove.addEventListener('click', async () => {
+        if (!confirm(`Rimuovere solo la copia ${entry.label} da e-Face? Asterisk e DoorBird non cambiano.`)) return
+        try {
+          hideCredentialReveal()
+          $('#credential-import-form').hidden = true
+          $('#credential-reveal-form').hidden = true
+          await request(`api/admin/credentials/${entry.kind}`, {method:'DELETE'})
+          await credentials()
+          message('Copia rimossa da e-Face; dispositivo invariato')
+        } catch(error) { message(error.message) }
+      })
+      actions.append(remove)
+    }
     row.append(identity, actions)
     list.append(row)
   }
@@ -274,14 +293,15 @@ $('#credentials-back').addEventListener('click', () => {
 })
 $('#credential-hide').addEventListener('click', hideCredentialReveal)
 $('#credential-reveal-cancel').addEventListener('click', () => { $('#credential-reveal-form').hidden = true; $('#credential-admin-password').value = '' })
-$('#credential-import-cancel').addEventListener('click', () => { $('#credential-import-form').hidden = true; $('#credential-import-password').value = '' })
+$('#credential-import-cancel').addEventListener('click', () => { $('#credential-import-form').hidden = true; $('#credential-import-password').value = ''; $('#credential-import-confirm').checked = false })
 $('#credential-import-form').addEventListener('submit', async (event) => {
   event.preventDefault()
   const button = event.currentTarget.querySelector('button[type=submit]')
   button.disabled = true
   try {
-    await request(`api/admin/credentials/${credentialKind}`, {method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify({username:$('#credential-import-username').value, password:$('#credential-import-password').value})})
+    await request(`api/admin/credentials/${credentialKind}`, {method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify({username:$('#credential-import-username').value, password:$('#credential-import-password').value, confirmed:$('#credential-import-confirm').checked})})
     $('#credential-import-password').value = ''
+    $('#credential-import-confirm').checked = false
     $('#credential-import-form').hidden = true
     await credentials()
     message('Copia salvata in e-Face; il dispositivo non è stato modificato')

@@ -120,7 +120,7 @@ def test_intercom_dashboard_stores_only_local_settings(monkeypatch, tmp_path) ->
     assert 'id="tools-admin-nav"' in page
     assert 'id="intercom-tool"' in page
     assert 'id="users-tool"' in page
-    assert "tools-dashboard.js?v=2.20.46" in page
+    assert "tools-dashboard.js?v=2.20.47" in page
 
 
 def test_intercom_test_phone_requires_admin_and_same_origin(monkeypatch, tmp_path) -> None:
@@ -213,11 +213,14 @@ def test_admin_credential_inventory_requires_reauth_to_reveal(monkeypatch, tmp_p
     assert revealed.headers["cache-control"] == "no-store, private"
     assert admin.post("/api/admin/credentials/eface_admin/reveal", json={"admin_password": "password-admin-lunga"}).status_code == 400
 
-    saved = admin.put("/api/admin/credentials/sip_eface", json={"username": "8301", "password": "sip-secret"})
+    assert admin.put("/api/admin/credentials/sip_eface", json={"username": "8301", "password": "sip-secret"}).status_code == 400
+    saved = admin.put("/api/admin/credentials/sip_eface", json={"username": "8301", "password": "sip-secret", "confirmed": True})
     assert saved.json() == {"configured": True, "synchronized": False}
     assert "sip-secret" not in admin.get("/api/admin/credentials").text
     assert admin.post("/api/admin/credentials/sip_eface/reveal", json={"admin_password": "password-admin-lunga"}).json() == {"password": "sip-secret"}
-    assert admin.put("/api/admin/credentials/unknown", json={"username": "x", "password": "y"}).status_code == 400
+    assert admin.put("/api/admin/credentials/unknown", json={"username": "x", "password": "y", "confirmed": True}).status_code == 400
+    assert admin.delete("/api/admin/credentials/sip_eface").json() == {"removed": True, "device_changed": False}
+    assert admin.post("/api/admin/credentials/sip_eface/reveal", json={"admin_password": "password-admin-lunga"}).status_code == 404
     assert admin.post("/api/admin/users", json={"username": "mario", "name": "Mario", "password": "password-mario-lunga"}).status_code == 200
     person = TestClient(create_app())
     assert person.post("/api/auth/login", json={"username": "mario", "password": "password-mario-lunga"}).status_code == 200

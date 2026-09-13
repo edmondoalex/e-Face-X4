@@ -57,3 +57,24 @@ def save(kind: str, username: str, password: str) -> dict[str, str]:
     finally:
         temporary.unlink(missing_ok=True)
     return value
+
+
+def delete(kind: str) -> bool:
+    if kind not in KINDS:
+        raise ValueError("Tipo di credenziale non valido")
+    records = load()
+    if kind not in records:
+        return False
+    del records[kind]
+    path = _path()
+    temporary = path.with_name(f"credential_inventory.{secrets.token_hex(8)}.tmp")
+    try:
+        with temporary.open("x", encoding="utf-8") as file:
+            os.chmod(temporary, 0o600)
+            json.dump(records, file)
+            file.flush()
+            os.fsync(file.fileno())
+        temporary.replace(path)
+    finally:
+        temporary.unlink(missing_ok=True)
+    return True

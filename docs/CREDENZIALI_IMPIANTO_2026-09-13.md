@@ -2,6 +2,8 @@
 
 Versione iniziale: **2.20.46**. Accesso: **Strumenti → Amministrazione → Credenziali impianto**.
 
+Correzione **2.20.47**: le copie SIP/DoorBird sono indicate come **non verificate**, l'importazione richiede conferma esplicita dei dati originali e ogni copia può essere rimossa dall'admin senza modificare Asterisk o DoorBird. La pagina limita il riempimento automatico dei campi, ma non può garantire che tutti i browser/password manager lo rispettino.
+
 ## Cosa è disponibile
 
 - Un inventario unico mostra stato e nome utente di admin e-Face, Control4, TURN, SIP DoorBird, SIP e-Face, SIP Control4 e amministrazione DoorBird. La risposta dell'inventario non contiene password.

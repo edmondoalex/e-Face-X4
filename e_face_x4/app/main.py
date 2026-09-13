@@ -37,7 +37,7 @@ from .connectors.control4_media import cached_control4_icon, cached_control4_ico
 from .connectors.supervisor import discover_addon_url, discover_host_url
 from .demo import dashboard as demo_dashboard
 
-VERSION = "2.20.46"
+VERSION = "2.20.47"
 STATIC = Path(__file__).parent / "static"
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s [e-face-x4] %(message)s")
 
@@ -109,13 +109,22 @@ def create_app() -> FastAPI:
     @app.put("/api/admin/credentials/{kind}")
     async def admin_import_credential(kind: str, request: Request, payload: dict) -> Response:
         require_admin(request)
-        if set(payload) != {"username", "password"}:
-            raise HTTPException(status_code=400, detail="Campi non validi")
+        if set(payload) != {"username", "password", "confirmed"} or payload["confirmed"] is not True:
+            raise HTTPException(status_code=400, detail="Conferma la verifica della credenziale originale")
         try:
             credential_inventory.save(kind, str(payload["username"]), str(payload["password"]))
         except ValueError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
         return JSONResponse({"configured": True, "synchronized": False}, headers={"Cache-Control": "no-store, private"})
+
+    @app.delete("/api/admin/credentials/{kind}")
+    async def admin_delete_imported_credential(kind: str, request: Request) -> Response:
+        require_admin(request)
+        try:
+            removed = credential_inventory.delete(kind)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        return JSONResponse({"removed": removed, "device_changed": False}, headers={"Cache-Control": "no-store, private"})
 
     @app.post("/api/admin/credentials/{kind}/reveal")
     async def admin_reveal_credential(kind: str, request: Request, payload: dict) -> Response:
