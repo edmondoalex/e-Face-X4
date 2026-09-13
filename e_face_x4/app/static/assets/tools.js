@@ -180,17 +180,20 @@ $('#control4-service-link').addEventListener('click', async (event) => {
 })
 const pairingControls = document.createElement('div')
 pairingControls.className = 'control4-actions'
-pairingControls.innerHTML = '<button type="button" data-music-pairing-probe="tunein">VERIFICA ASSOCIAZIONE TUNEIN</button><button type="button" data-music-pairing-probe="amazon">VERIFICA ASSOCIAZIONE AMAZON</button><button type="button" data-music-pairing-probe="tidal">VERIFICA ASSOCIAZIONE TIDAL</button><button type="button" id="amazon-auth-action-probe">PROVA LINK AMAZON</button><button type="button" id="music-navigator-probe">DIAGNOSI LOGIN SERVIZI</button><button type="button" id="amazon-event-probe">DIAGNOSI EVENTI AMAZON</button>'
+pairingControls.innerHTML = '<button type="button" data-music-pairing-probe="tunein">VERIFICA ASSOCIAZIONE TUNEIN</button><button type="button" data-music-pairing-probe="amazon">VERIFICA ASSOCIAZIONE AMAZON</button><button type="button" data-music-pairing-probe="tidal">VERIFICA ASSOCIAZIONE TIDAL</button><button type="button" id="amazon-auth-action-probe">PROVA LINK AMAZON</button><button type="button" id="music-navigator-probe">DIAGNOSI LOGIN SERVIZI</button><label>Comando Amazon<select id="amazon-debug-trigger"><option value="composer_action">Azione Composer</option><option value="navigator_login">Login Navigator</option></select></label><label>Ascolto (secondi)<input id="amazon-observe-seconds" type="number" min="1" max="30" value="15"></label><button type="button" id="amazon-event-probe">DIAGNOSI EVENTI AMAZON</button>'
 $('#control4-result').before(pairingControls)
 pairingControls.addEventListener('click', async (event) => {
   if (event.target.closest('#amazon-event-probe')) {
     const button = event.target.closest('#amazon-event-probe')
     button.disabled = true
     try {
-      const response = await fetch(apiUrl('../api/admin/control4/amazon-event-probe'), { method: 'POST', cache: 'no-store' })
+      const seconds = Math.min(30, Math.max(1, Number($('#amazon-observe-seconds').value) || 15))
+      const trigger = $('#amazon-debug-trigger').value === 'navigator_login' ? 'navigator_login' : 'composer_action'
+      const response = await fetch(apiUrl(`../api/admin/control4/amazon-event-probe?observe_seconds=${seconds}&trigger=${trigger}`), { method: 'POST', cache: 'no-store' })
       const data = await response.json().catch(() => ({}))
       if (!response.ok) throw new Error(data.detail || `HTTP ${response.status}`)
       $('#control4-result').innerHTML = `<b>Eventi Amazon · driver ${Number(data.driver_id)} · link negli eventi: ${data.pairing_link_in_events ? 'SÌ' : 'NO'}</b><span>Comando: ${data.command_accepted ? 'accettato' : 'non disponibile'} · campi: ${esc((data.command_fields || []).join(', ') || 'nessuno')}</span><span>Eventi ricevuti: ${Number(data.event_count)} · campi: ${esc((data.event_fields || []).join(', ') || 'nessuno')} · comandi: ${esc((data.event_commands || []).join(', ') || 'nessuno')}</span><span>Nessun link o dato account mostrato.</span>`
+      $('#control4-result').innerHTML += Object.entries(data.property_paths || {}).map(([id, result]) => `<span>Proprietà driver ${esc(id)}: ${result.readable ? 'leggibile' : esc(result.error_type || 'non disponibile')} · link: ${result.link_present ? 'SÌ' : 'NO'}</span>`).join('')
       $('#control4-result').hidden = false
     } catch (error) { notice(error.message) } finally { button.disabled = false }
     return

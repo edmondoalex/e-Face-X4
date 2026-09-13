@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.20.76 — 2026-09-13
+- Confermato sul controller reale che `LUA_ACTION / GetLinkForAPIAuthentication` produce un link nel flusso eventi Director; tra gli eventi osservati compare anche `UPDATE_PROPERTY`.
+- In Ascolta, quando Amazon Music è tra le sorgenti Control4, gli utenti e-Face possono richiedere un link temporaneo e aprirlo nel browser per ricollegare l'account. Il link non viene salvato né scritto nei log.
+- La diagnosi admin Amazon consente di scegliere tra azione Composer e comando Navigator, impostare 1–30 secondi di osservazione e verificare se gli endpoint proprietà del Director sono leggibili. Sono esposti solo gli esiti, mai il link.
+
 ## 2.20.75 — 2026-09-13
 - La diagnosi eventi Amazon si collega al flusso Director prima di inviare l'azione Composer reale `LUA_ACTION / GetLinkForAPIAuthentication` e attende fino a 15 secondi un eventuale link. La precedente prova inviava `LogInCommand`, quindi non verificava il comportamento dell'azione mostrata in Composer.
 - La diagnostica continua a restituire solo presenza e struttura degli eventi, senza URL o token. Il login cliente resta disabilitato finché il test sul controller reale non conferma il flusso.

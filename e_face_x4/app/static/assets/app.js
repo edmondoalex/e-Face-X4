@@ -470,6 +470,8 @@ function renderMediaExperience(devices) {
   const sources = options.map((source) => {
     return `<button class="media-service-tile ${source.label === selected.source ? 'active' : ''}" data-device-id="${esc(selected.id)}" data-media-source="${esc(source.key)}">${mediaSourceMarkup(source, selected.provider)}<b>${esc(source.label)}</b></button>`
   }).join('')
+  const amazonAccount = selected.provider === 'control4' && options.some((source) => String(source.label || '').toLowerCase() === 'amazon music')
+    ? '<div class="media-account-action"><button type="button" data-amazon-auth-link>Ricollega Amazon Music</button><small>Apri il collegamento temporaneo generato dal controller.</small></div>' : ''
   const caps = selected.capabilities || {}
   const disabled = selected.connection_status === 'offline' || selected.availability !== 'available'
   const power = caps.turn_off ? `<button class="media-session-power" data-media-action="turn_off" aria-label="Spegni stanza" ${disabled ? 'disabled' : ''}><span class="mdi-mask" style="${mdiStyle('mdi:power', 'power')}"></span></button>` : ''
@@ -485,7 +487,7 @@ function renderMediaExperience(devices) {
   const ttsPlayers = currentDevices.filter((device) => device.kind === 'media_player' && device.provider === 'evoice' && device.tts_enabled)
   const ttsVolume = Math.max(0, Math.min(100, Number(localStorage.getItem('eface-tts-volume') ?? 50)))
   const voicePanel = selected.provider === 'evoice' && selected.tts_enabled && ttsPlayers.length ? `<section class="evoice-panel"><div class="evoice-heading"><h3>Messaggio vocale</h3><label><input type="checkbox" data-tts-select-all ${ttsPlayers.length === 1 ? 'checked' : ''}> Seleziona tutti</label></div><div class="evoice-targets">${ttsPlayers.map((device) => `<div class="evoice-target"><label><input type="checkbox" data-tts-target value="${esc(device.id)}" ${device.id === selected.id ? 'checked' : ''}><span>${esc(device.name)}</span><small>${esc(device.room)}</small></label>${device.dnd_available ? `<button class="evoice-dnd ${device.dnd ? 'active' : ''}" data-dnd-device="${esc(device.id)}" data-dnd-value="${device.dnd ? 'false' : 'true'}">DND</button>` : ''}</div>`).join('')}</div><label class="evoice-volume"><span>Volume messaggio</span><input type="range" min="0" max="100" value="${ttsVolume}" style="--volume:${ttsVolume}%" data-tts-volume><output>${ttsVolume}%</output></label><textarea id="evoice-tts-message" maxlength="500" rows="3" placeholder="Scrivi il messaggio da pronunciare"></textarea><button class="evoice-send" data-tts-send>INVIA MESSAGGIO</button></section>` : ''
-  $('#device-list').innerHTML = `<article class="media-session ${experienceClass} ${deviceVisualClass(selected)}" data-device-id="${esc(selected.id)}">${mainArtwork}${activeMediaSourceMarkup(selected, 'device-glyph', mainIcon)}<div class="media-session-info"><strong>${esc(selected.title || selected.source || selected.name)}</strong><small>${esc(selected.artist || selected.source || selected.room)}</small><span class="media-track">${esc(selected.album || selected.name)}</span></div>${power}${deviceActions(selected, { hidePower: true })}</article>${voicePanel}${recent}<div class="media-library media-room-library"><button class="media-library-toggle" data-media-section-toggle="rooms" aria-expanded="${mediaSections.rooms}"><strong>Stanze</strong><span class="mdi-mask" style="${mdiStyle(mediaSections.rooms ? 'mdi:chevron-up' : 'mdi:chevron-down', 'chevron-down')}"></span></button><div class="media-service-grid" ${mediaSections.rooms ? '' : 'hidden'}>${players}</div></div><div class="media-library media-source-library"><h3>Sorgenti e servizi</h3><div class="media-service-grid">${sources || '<span class="empty-state">Nessuna sorgente disponibile</span>'}</div></div>`
+  $('#device-list').innerHTML = `<article class="media-session ${experienceClass} ${deviceVisualClass(selected)}" data-device-id="${esc(selected.id)}">${mainArtwork}${activeMediaSourceMarkup(selected, 'device-glyph', mainIcon)}<div class="media-session-info"><strong>${esc(selected.title || selected.source || selected.name)}</strong><small>${esc(selected.artist || selected.source || selected.room)}</small><span class="media-track">${esc(selected.album || selected.name)}</span></div>${power}${deviceActions(selected, { hidePower: true })}</article>${voicePanel}${recent}<div class="media-library media-room-library"><button class="media-library-toggle" data-media-section-toggle="rooms" aria-expanded="${mediaSections.rooms}"><strong>Stanze</strong><span class="mdi-mask" style="${mdiStyle(mediaSections.rooms ? 'mdi:chevron-up' : 'mdi:chevron-down', 'chevron-down')}"></span></button><div class="media-service-grid" ${mediaSections.rooms ? '' : 'hidden'}>${players}</div></div><div class="media-library media-source-library"><h3>Sorgenti e servizi</h3><div class="media-service-grid">${sources || '<span class="empty-state">Nessuna sorgente disponibile</span>'}</div>${amazonAccount}</div>`
   if (recent) loadRecentlyPlayed(selected)
 }
 
@@ -1589,6 +1591,21 @@ $('#device-list').addEventListener('click', (event) => {
   if (climateSeasonButton && climateCard) return sendDeviceCommand(climateCard.dataset.deviceId, 'set_season', climateSeasonButton, climateSeasonButton.dataset.climateSeason)
   const climateModeButton = event.target.closest('[data-climate-mode]')
   if (climateModeButton && climateCard) return sendDeviceCommand(climateCard.dataset.deviceId, 'set_mode', climateModeButton, climateModeButton.dataset.climateMode)
+  const amazonAuthButton = event.target.closest('[data-amazon-auth-link]')
+  if (amazonAuthButton) {
+    amazonAuthButton.disabled = true
+    ;(async () => {
+      try {
+        const response = await fetch(apiUrl('api/control4/music/amazon/auth-link'), { method: 'POST', cache: 'no-store' })
+        const data = await response.json().catch(() => ({}))
+        if (!response.ok) throw new Error(data.detail || `HTTP ${response.status}`)
+        const url = new URL(data.url)
+        if (url.protocol !== 'https:' || url.hostname !== 'link.ctrl4.co') throw new Error('Link Amazon non valido')
+        window.location.assign(url.href)
+      } catch (error) { fail(error); amazonAuthButton.disabled = false }
+    })()
+    return
+  }
   const mediaButton = event.target.closest('[data-media-action]')
   const mediaCard = event.target.closest('[data-device-id]')
   if (mediaButton?.dataset.mediaAction === 'media_zones' && mediaCard) return openMediaZones(currentDevices.find((item) => String(item.id) === mediaCard.dataset.deviceId))

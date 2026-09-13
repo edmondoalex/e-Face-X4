@@ -1238,6 +1238,102 @@ def test_amazon_event_probe_detects_link_without_exposing_it(monkeypatch, tmp_pa
     assert "private-code" not in response.text and "director-secret" not in response.text
 
 
+def test_amazon_event_probe_checks_property_path_without_exposing_link(monkeypatch, tmp_path) -> None:
+    import app.main as main_module
+    from app.user_auth import create_admin
+
+    monkeypatch.setenv("EFACE_AUTH_DIR", str(tmp_path / "auth"))
+    create_admin("password-admin-lunga")
+    monkeypatch.setattr(main_module, "load_control4_config", lambda: {"host": "192.168.3.10", "username": "private", "password": "director-secret"})
+
+    class FakeSocket:
+        def __init__(self, host):
+            pass
+
+        def add_item_callback(self, item_id, callback):
+            pass
+
+        async def sio_connect(self, token):
+            pass
+
+        async def sio_disconnect(self):
+            pass
+
+    class Director:
+        async def get_all_item_info(self):
+            return [{"id": 1643, "name": "Amazon Music", "proxy": "media_service"}]
+
+        async def send_post_request(self, uri, command, params, is_async):
+            assert command == "LUA_ACTION"
+            return '{"name":"LUA_ACTION","result":"ok","seq":1}'
+
+        async def send_get_request(self, uri):
+            assert uri in {"/api/v1/items/1643/properties", "/api/v1/items/1644/properties"}
+            return '{"Authentication URL":"https://link.ctrl4.co/private-code"}' if "1643" in uri else '{}'
+
+    async def director(config):
+        return Director(), "director-token"
+
+    monkeypatch.setattr(main_module, "control4_director", director)
+    monkeypatch.setattr(main_module, "C4Websocket", FakeSocket)
+    client = TestClient(main_module.create_app())
+    assert client.post("/api/auth/login", json={"username": "admin", "password": "password-admin-lunga"}).status_code == 200
+    response = client.post("/api/admin/control4/amazon-event-probe?observe_seconds=3")
+    assert response.status_code == 200
+    assert response.json()["property_paths"]["1643"]["link_present"] is True
+    assert "private-code" not in response.text and "director-secret" not in response.text
+
+
+def test_amazon_auth_link_requires_session_and_returns_event_link(monkeypatch, tmp_path) -> None:
+    import app.main as main_module
+    from app.user_auth import create_admin
+
+    monkeypatch.setenv("EFACE_AUTH_DIR", str(tmp_path / "auth"))
+    create_admin("password-admin-lunga")
+    monkeypatch.setattr(main_module, "load_control4_config", lambda: {"host": "192.168.3.10", "username": "private", "password": "director-secret"})
+
+    class FakeSocket:
+        instance = None
+
+        def __init__(self, host):
+            self.callbacks = {}
+            FakeSocket.instance = self
+
+        def add_item_callback(self, item_id, callback):
+            self.callbacks[item_id] = callback
+
+        async def sio_connect(self, token):
+            assert token == "director-token"
+
+        async def sio_disconnect(self):
+            pass
+
+    class Director:
+        async def get_all_item_info(self):
+            return [{"id": 1643, "name": "Amazon Music", "proxy": "media_service"}]
+
+        async def send_post_request(self, uri, command, params, is_async):
+            assert uri == "/api/v1/items/1643/commands"
+            assert command == "LUA_ACTION" and params == {"ACTION": "GetLinkForAPIAuthentication"}
+            await FakeSocket.instance.callbacks[1643](1643, {"data": {"devicecommand": {"command": "UPDATE_PROPERTY", "value": "https://link.ctrl4.co/private-code"}}})
+            return '{"name":"LUA_ACTION","result":"ok","seq":1}'
+
+    async def director(config):
+        return Director(), "director-token"
+
+    monkeypatch.setattr(main_module, "control4_director", director)
+    monkeypatch.setattr(main_module, "C4Websocket", FakeSocket)
+    client = TestClient(main_module.create_app())
+    path = "/api/control4/music/amazon/auth-link"
+    assert client.post(path).status_code == 401
+    assert client.post("/api/auth/login", json={"username": "admin", "password": "password-admin-lunga"}).status_code == 200
+    response = client.post(path)
+    assert response.status_code == 200
+    assert response.json() == {"url": "https://link.ctrl4.co/private-code"}
+    assert response.headers["cache-control"] == "no-store, private"
+    assert "director-secret" not in response.text and "director-token" not in response.text
+
+
 def test_control4_command_does_not_require_evoice_enabled(monkeypatch, tmp_path) -> None:
     import app.main as main_module
 

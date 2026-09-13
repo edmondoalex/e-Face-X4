@@ -42,7 +42,7 @@ from .connectors.control4_media import cached_control4_icon, cached_control4_ico
 from .connectors.supervisor import discover_addon_url, discover_host_url
 from .demo import dashboard as demo_dashboard
 
-VERSION = "2.20.75"
+VERSION = "2.20.76"
 STATIC = Path(__file__).parent / "static"
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s [e-face-x4] %(message)s")
 
@@ -493,7 +493,11 @@ def create_app() -> FastAPI:
         return JSONResponse({"drivers": results, "note": "Solo struttura ed esito dei comandi; nessun valore, password o link."}, headers={"Cache-Control": "no-store, private"})
 
     @app.post("/api/admin/control4/amazon-event-probe")
-    async def admin_control4_amazon_event_probe(request: Request) -> Response:
+    async def admin_control4_amazon_event_probe(
+        request: Request,
+        observe_seconds: int = Query(15, ge=1, le=30),
+        trigger: str = Query("composer_action", pattern="^(composer_action|navigator_login)$"),
+    ) -> Response:
         require_admin(request)
         config = load_control4_config()
         if not config.get("username") or not config.get("password"):
@@ -513,6 +517,23 @@ def create_app() -> FastAPI:
         link_found = asyncio.Event()
         event_fields: set[str] = set()
         event_commands: set[str] = set()
+        property_paths = [f"/api/v1/items/{item_id}/properties" for item_id in {driver_id, driver_id + 1}]
+        property_results: dict[str, dict[str, object]] = {
+            str(item_id): {"readable": False, "link_present": False, "error_type": "not_tested"}
+            for item_id in {driver_id, driver_id + 1}
+        }
+
+        async def inspect_property_path(path: str) -> None:
+            item_id = path.split("/")[4]
+            try:
+                raw = await asyncio.wait_for(director.send_get_request(path), timeout=3)
+                property_results[item_id] = {
+                    "readable": True,
+                    "link_present": bool(re.search(r"https://link\.ctrl4\.co/[A-Za-z0-9_/-]{1,160}", str(raw)[:100_000])),
+                    "error_type": "",
+                }
+            except Exception as exc:
+                property_results[item_id] = {"readable": False, "link_present": False, "error_type": type(exc).__name__}
 
         async def on_event(_item_id: int, message: object) -> None:
             nonlocal event_count
@@ -536,10 +557,11 @@ def create_app() -> FastAPI:
             socket.add_item_callback(item_id, on_event)
         try:
             await asyncio.wait_for(socket.sio_connect(token), timeout=10)
+            command = "LUA_ACTION" if trigger == "composer_action" else "LogInCommand"
+            params = {"ACTION": "GetLinkForAPIAuthentication"} if trigger == "composer_action" else {"username": "username", "password": "password"}
             try:
                 raw = await director.send_post_request(
-                    f"/api/v1/items/{driver_id}/commands", "LUA_ACTION",
-                    {"ACTION": "GetLinkForAPIAuthentication"}, False,
+                    f"/api/v1/items/{driver_id}/commands", command, params, False,
                 )
                 command_accepted = True
                 envelope = json.loads(raw) if isinstance(raw, str) else raw
@@ -547,10 +569,12 @@ def create_app() -> FastAPI:
             except Exception:
                 command_accepted = False
                 command_fields = []
-            try:
-                await asyncio.wait_for(link_found.wait(), timeout=15)
-            except asyncio.TimeoutError:
-                pass
+            deadline = asyncio.get_running_loop().time() + observe_seconds
+            while asyncio.get_running_loop().time() < deadline:
+                await asyncio.gather(*(inspect_property_path(path) for path in property_paths))
+                if link_found.is_set() or any(result["link_present"] for result in property_results.values()):
+                    break
+                await asyncio.sleep(min(1, max(0, deadline - asyncio.get_running_loop().time())))
         except Exception as exc:
             logging.warning("Flusso eventi Amazon non disponibile: %s", type(exc).__name__)
             raise HTTPException(status_code=502, detail="Flusso eventi Director non disponibile") from exc
@@ -559,9 +583,69 @@ def create_app() -> FastAPI:
         return JSONResponse({"driver_id": driver_id, "command_accepted": command_accepted,
                              "command_fields": command_fields, "event_count": event_count,
                              "event_fields": sorted(event_fields), "event_commands": sorted(event_commands),
-                             "pairing_link_in_events": link_found.is_set(),
+                             "pairing_link_in_events": link_found.is_set(), "property_paths": property_results,
+                             "observed_seconds": observe_seconds, "trigger": trigger,
                              "note": "Nessun evento grezzo, link, token o password viene restituito."},
                             headers={"Cache-Control": "no-store, private"})
+
+    @app.post("/api/control4/music/amazon/auth-link")
+    async def control4_amazon_auth_link(request: Request) -> Response:
+        if not user_auth.session_user(request.cookies.get(user_auth.COOKIE)):
+            raise HTTPException(status_code=401, detail="Accesso richiesto")
+        config = load_control4_config()
+        if not config.get("username") or not config.get("password"):
+            raise HTTPException(status_code=409, detail="Control4 non configurato")
+        try:
+            director, token = await control4_director(config)
+            all_items = await director.get_all_item_info()
+        except Exception as exc:
+            logging.warning("Login Amazon: Director non raggiungibile (%s)", type(exc).__name__)
+            raise HTTPException(status_code=502, detail="Controller Control4 non raggiungibile") from exc
+        candidates = [item for item in all_items if isinstance(item, dict) and str(item.get("name") or "").casefold() == "amazon music" and str(item.get("proxy") or "").lower() == "media_service" and str(item.get("id") or "").isdigit()] if isinstance(all_items, list) else []
+        driver = next((item for item in candidates if "deviceOrder" not in item), candidates[0] if candidates else None)
+        if not driver:
+            raise HTTPException(status_code=404, detail="Amazon Music non presente nell'impianto")
+        driver_id = int(driver["id"])
+        found = asyncio.Event()
+        link = ""
+        armed = False
+
+        def capture(value: object) -> None:
+            nonlocal link
+            try:
+                serialized = json.dumps(value, ensure_ascii=False) if not isinstance(value, str) else value
+            except (TypeError, ValueError):
+                return
+            match = re.search(r"https://link\.ctrl4\.co/[A-Za-z0-9_/-]{1,160}", serialized[:100_000].replace("\\/", "/"))
+            if match:
+                link = match.group(0)
+                found.set()
+
+        async def on_event(_item_id: int, message: object) -> None:
+            if armed:
+                capture(message)
+
+        socket = C4Websocket(config["host"])
+        for item_id in {driver_id, driver_id + 1}:
+            socket.add_item_callback(item_id, on_event)
+        try:
+            await asyncio.wait_for(socket.sio_connect(token), timeout=10)
+            armed = True
+            raw = await director.send_post_request(
+                f"/api/v1/items/{driver_id}/commands", "LUA_ACTION",
+                {"ACTION": "GetLinkForAPIAuthentication"}, False,
+            )
+            capture(raw)
+            if not found.is_set():
+                await asyncio.wait_for(found.wait(), timeout=25)
+        except asyncio.TimeoutError as exc:
+            raise HTTPException(status_code=504, detail="Il link Amazon non è arrivato dal controller; riprova") from exc
+        except Exception as exc:
+            logging.warning("Login Amazon non disponibile (%s)", type(exc).__name__)
+            raise HTTPException(status_code=502, detail="Generazione link Amazon non disponibile") from exc
+        finally:
+            await socket.sio_disconnect()
+        return JSONResponse({"url": link}, headers={"Cache-Control": "no-store, private", "Pragma": "no-cache", "Referrer-Policy": "no-referrer", "X-Content-Type-Options": "nosniff"})
 
     @app.get("/api/admin/control4/artwork-diagnostic")
     async def admin_control4_artwork_diagnostic(request: Request) -> dict:
