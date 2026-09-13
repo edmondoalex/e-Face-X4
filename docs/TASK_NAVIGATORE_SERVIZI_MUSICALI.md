@@ -24,6 +24,8 @@ Il test reale su TuneIn 614 ha escluso la normale API `POST /api/v1/items/{id}/c
 
 Nell'APK dell'app Control4 per Android sono presenti i modelli `MSPResponse` (`navId`, `seq`, `data`) e `MSPEvent` (`name`, `navId`, `rooms`, `args`). Il modello media service dell'app sottoscrive `MediaService.observeResponse()` e `observeEvent()`; la prima emissione è una `Variable.value` convertita in `MSPResponse`. Questo indica che la risposta MSP va cercata nella sottoscrizione di variabili del media service, non nei soli eventi `LUA_OUTPUT`. L'endpoint/protocollo concreto che genera tale variabile va ancora individuato. Gli esempi non verificati `GetItems`/`SendItems`, `container_id=root` e `PLAY_MEDIA` ricevuti in chat **non** sono un contratto API e non vanno implementati come se fossero osservati.
 
+Dettaglio verificato nell'APK: `MediaService.observeResponse()` ha annotazione `VariableMethod(dataToUi=true, value="data.RESPONSE", type=MSPResponse)`; `observeEvent()` usa `data.EVENT`. La libreria nativa `MSPModel` espone `getTabs`, `getScreen`, `back`, `search`, `executeFavorite` e produce i comandi tramite `MSPModelClient`. Questo conferma che non è un generico albero JSON `GetItems`/`SendItems`.
+
 ## Implementazione successiva
 
 1. Acquisire una singola traccia completa richiesta/risposta `GetTabList` e `Browse` dal Director o dall'emulatore, senza credenziali nei log e senza aggiornamenti ripetuti dell'add-on.
