@@ -133,8 +133,10 @@ def test_install_brand_and_theme_are_consistent() -> None:
     client = TestClient(create_app())
     manifest = client.get("/assets/manifest.webmanifest").json()
     assert manifest["theme_color"] == "#263f48"
-    assert manifest["icons"][0]["src"] == "brand-icon.png?v=2.20.36"
-    assert "brand-icon.png?v=2.20.36" in client.get("/").text
+    assert manifest["icons"][0]["src"] == "eface-x4-app-icon.png"
+    assert "eface-x4-app-icon.png" in client.get("/").text
+    assert "manifest.webmanifest?v=2.20.38" in client.get("/").text
+    assert client.get("/assets/eface-x4-app-icon.png").content == icon.read_bytes()
     assert 'rel="manifest"' in client.get("/login").text
 
 
