@@ -286,8 +286,41 @@ def test_pairing_requires_admin_password_and_does_not_expose_key(monkeypatch, tm
 
     monkeypatch.setattr(sip_provisioner, "pair", fake_pair)
     result = admin.post(endpoint, json={"code": "a" * 16, "admin_password": "password-admin-lunga"})
-    assert result.json() == {"paired": True}
+    assert result.json() == {"paired": True, "activated": 0, "pending": 0}
     assert seen == ["A" * 16]
+
+
+def test_new_user_gets_personal_phone_automatically_when_paired(monkeypatch, tmp_path) -> None:
+    monkeypatch.setenv("EFACE_AUTH_DIR", str(tmp_path / "auth"))
+    monkeypatch.setenv("EFACE_SIP_ACCOUNTS", str(tmp_path / "sip_accounts.json"))
+    monkeypatch.setenv("EFACE_PROVISION_URL", "http://127.0.0.1:8350")
+    monkeypatch.setenv("EFACE_PROVISION_TOKEN", "a" * 48)
+    from app.user_auth import create_admin
+    from app import sip_provisioner
+
+    create_admin("password-admin-lunga")
+    admin = TestClient(create_app())
+    admin.post("/api/auth/login", json={"username": "admin", "password": "password-admin-lunga"})
+    calls = []
+
+    async def provision(*args):
+        calls.append(args)
+
+    monkeypatch.setattr(sip_provisioner, "activate", provision)
+    result = admin.post("/api/admin/users", json={"username": "mario", "name": "Mario Rossi", "password": "password-mario-lunga"})
+    assert result.status_code == 200
+    assert result.json()["intercom"] == {"status": "active", "extension": "8302"}
+    assert calls[0][0:2] == ("mario", "8302")
+
+    async def fail(*args):
+        raise RuntimeError("Asterisk unavailable")
+
+    monkeypatch.setattr(sip_provisioner, "activate", fail)
+    result = admin.post("/api/admin/users", json={"username": "anna", "name": "Anna", "password": "password-anna-lunga"})
+    assert result.status_code == 200
+    assert result.json()["intercom"] == {"status": "pending", "extension": "8303"}
+    from app import sip_accounts
+    assert sip_accounts.load()["anna"]["provisioned"] is False
 
 
 def test_admin_doorbird_check_uses_stored_credential_without_exposing_it(monkeypatch, tmp_path) -> None:

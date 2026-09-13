@@ -167,7 +167,17 @@ def create_app() -> FastAPI:
             user = user_auth.create_account(str(payload.get("username") or ""), str(payload.get("name") or ""), str(payload.get("password") or ""))
         except ValueError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
-        return {"user": user}
+        intercom = {"status": "not_paired"}
+        if sip_provisioner.settings() is not None:
+            try:
+                record = sip_accounts.allocate(user["username"])
+                await sip_provisioner.activate(user["username"], record["extension"], record["password"], user["name"])
+                sip_accounts.mark_provisioned(user["username"], True)
+                intercom = {"status": "active", "extension": record["extension"]}
+            except (ValueError, RuntimeError, httpx.HTTPError, OSError) as exc:
+                logging.warning("Interno SIP per nuovo utente %s in attesa: %s", user["username"], type(exc).__name__)
+                intercom = {"status": "pending", "extension": sip_accounts.load().get(user["username"], {}).get("extension")}
+        return {"user": user, "intercom": intercom}
 
     @app.patch("/api/admin/users/{username}")
     async def admin_update_user(username: str, request: Request, payload: dict) -> dict:
@@ -251,7 +261,19 @@ def create_app() -> FastAPI:
         except (RuntimeError, httpx.HTTPError, OSError) as exc:
             logging.warning("Associazione Asterisk fallita: %s", type(exc).__name__)
             raise HTTPException(status_code=503, detail="Associazione Asterisk non riuscita") from exc
-        return {"paired": True}
+        activated, pending = 0, 0
+        for user in user_auth.accounts():
+            if user["username"] == "admin" or not user["active"]:
+                continue
+            try:
+                record = sip_accounts.allocate(user["username"])
+                await sip_provisioner.activate(user["username"], record["extension"], record["password"], user["name"])
+                sip_accounts.mark_provisioned(user["username"], True)
+                activated += 1
+            except (ValueError, RuntimeError, httpx.HTTPError, OSError) as exc:
+                logging.warning("Interno SIP %s in attesa dopo associazione: %s", user["username"], type(exc).__name__)
+                pending += 1
+        return {"paired": True, "activated": activated, "pending": pending}
 
     @app.post("/api/admin/intercom/sip/accounts/{username}/activate")
     async def admin_activate_sip(username: str, request: Request) -> dict:

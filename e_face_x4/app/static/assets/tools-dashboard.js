@@ -115,10 +115,10 @@ $('#user-create-form').addEventListener('submit', async (event) => {
   const button = form.querySelector('button[type=submit]')
   button.disabled = true
   try {
-    await request('api/admin/users', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({name:$('#user-name').value, username:$('#user-username').value, password:$('#user-password').value})})
+    const result = await request('api/admin/users', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({name:$('#user-name').value, username:$('#user-username').value, password:$('#user-password').value})})
     form.reset()
     await users()
-    message('Utente creato')
+    message(result.intercom?.status === 'active' ? `Utente creato; interno ${result.intercom.extension} attivo` : result.intercom?.status === 'pending' ? 'Utente creato; interno in attesa di Asterisk' : 'Utente creato; Asterisk non ancora associato')
   } catch(error) { message(error.message) } finally { button.disabled = false }
 })
 
@@ -151,8 +151,8 @@ async function sipAccounts() {
       const adminPassword = window.prompt('Conferma la password admin e-Face')
       if (adminPassword === null) return
       try {
-        await request('api/admin/intercom/sip/pair', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({code, admin_password:adminPassword})})
-        message('Asterisk associato a e-Face')
+        const paired = await request('api/admin/intercom/sip/pair', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({code, admin_password:adminPassword})})
+        message(`Asterisk associato: ${paired.activated} interni attivi${paired.pending ? `, ${paired.pending} in attesa` : ''}`)
         await sipAccounts()
       } catch(error) { message(error.message) }
     })
