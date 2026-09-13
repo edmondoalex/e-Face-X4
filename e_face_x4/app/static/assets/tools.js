@@ -180,9 +180,21 @@ $('#control4-service-link').addEventListener('click', async (event) => {
 })
 const pairingControls = document.createElement('div')
 pairingControls.className = 'control4-actions'
-pairingControls.innerHTML = '<button type="button" data-music-pairing-probe="tunein">VERIFICA ASSOCIAZIONE TUNEIN</button><button type="button" data-music-pairing-probe="amazon">VERIFICA ASSOCIAZIONE AMAZON</button><button type="button" data-music-pairing-probe="tidal">VERIFICA ASSOCIAZIONE TIDAL</button>'
+pairingControls.innerHTML = '<button type="button" data-music-pairing-probe="tunein">VERIFICA ASSOCIAZIONE TUNEIN</button><button type="button" data-music-pairing-probe="amazon">VERIFICA ASSOCIAZIONE AMAZON</button><button type="button" data-music-pairing-probe="tidal">VERIFICA ASSOCIAZIONE TIDAL</button><button type="button" id="amazon-auth-action-probe">PROVA LINK AMAZON</button>'
 $('#control4-result').before(pairingControls)
 pairingControls.addEventListener('click', async (event) => {
+  if (event.target.closest('#amazon-auth-action-probe')) {
+    const button = event.target.closest('#amazon-auth-action-probe')
+    button.disabled = true
+    try {
+      const response = await fetch(apiUrl('../api/admin/control4/amazon-auth-action-probe'), { method: 'POST', cache: 'no-store' })
+      const data = await response.json().catch(() => ({}))
+      if (!response.ok) throw new Error(data.detail || `HTTP ${response.status}`)
+      $('#control4-result').innerHTML = `<b>Amazon Music · driver ${Number(data.driver_id)} · azione inviata</b><span>Risposta: ${esc((data.response_fields || []).join(', ') || 'nessun campo')} · result: ${esc(data.result_format || 'unknown')}. Nessun link mostrato dalla diagnostica.</span>`
+      $('#control4-result').hidden = false
+    } catch (error) { notice(error.message) } finally { button.disabled = false }
+    return
+  }
   const button = event.target.closest('[data-music-pairing-probe]')
   if (!button) return
   button.disabled = true

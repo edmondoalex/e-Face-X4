@@ -1,5 +1,9 @@
 # Changelog
 
+## 2.20.71 — 2026-09-13
+- Aggiunta in Admin Control4 la prova dell'azione Composer Amazon Music `LUA_ACTION / GetLinkForAPIAuthentication`, confermata sul driver reale. Mostra solo la struttura della risposta, senza esporre il collegamento temporaneo.
+- Documentata la proprietà Composer `Authentication URL` come possibile fonte del link; la lettura via API Director resta da verificare prima di pubblicare il login cliente.
+
 ## 2.20.70 — 2026-09-13
 - Aggiunta TIDAL alla verifica in sola lettura dell'associazione dei servizi musicali, seguendo il flusso esterno osservato nell'impianto e non il login password del driver Deezer.
 - Registrato Qobuz come driver a credenziali distinto da TuneIn/Amazon/TIDAL; nessun login password viene ancora attivato.

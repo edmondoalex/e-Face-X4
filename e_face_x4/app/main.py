@@ -41,7 +41,7 @@ from .connectors.control4_media import cached_control4_icon, cached_control4_ico
 from .connectors.supervisor import discover_addon_url, discover_host_url
 from .demo import dashboard as demo_dashboard
 
-VERSION = "2.20.70"
+VERSION = "2.20.71"
 STATIC = Path(__file__).parent / "static"
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s [e-face-x4] %(message)s")
 
@@ -364,6 +364,37 @@ def create_app() -> FastAPI:
 
         collect(setup)
         return JSONResponse({"service": service_name, "driver_id": int(driver["id"]), "result_format": result_format, "field_names": sorted(fields), "note": "Solo nomi dei campi; nessun valore, codice, token o password."}, headers={"Cache-Control": "no-store, private"})
+
+    @app.post("/api/admin/control4/amazon-auth-action-probe")
+    async def admin_control4_amazon_auth_action_probe(request: Request) -> Response:
+        require_admin(request)
+        config = load_control4_config()
+        if not config.get("username") or not config.get("password"):
+            raise HTTPException(status_code=409, detail="Control4 non configurato in e-Face")
+        try:
+            director, _ = await control4_director(config)
+            all_items = await director.get_all_item_info()
+            candidates = [item for item in all_items if isinstance(item, dict) and str(item.get("name") or "").casefold() == "amazon music" and str(item.get("proxy") or "").lower() == "media_service" and str(item.get("id") or "").isdigit()] if isinstance(all_items, list) else []
+            driver = next((item for item in candidates if "deviceOrder" not in item), candidates[0] if candidates else None)
+            if not driver:
+                raise HTTPException(status_code=404, detail="Driver Amazon Music non trovato")
+            raw = await director.send_post_request(
+                f"/api/v1/items/{int(driver['id'])}/commands",
+                "LUA_ACTION", {"ACTION": "GetLinkForAPIAuthentication"}, False,
+            )
+        except HTTPException:
+            raise
+        except Exception as exc:
+            logging.warning("Azione autenticazione Amazon Music non disponibile: %s", type(exc).__name__)
+            raise HTTPException(status_code=502, detail="Azione Amazon Music non disponibile tramite Director") from exc
+        try:
+            reply = json.loads(raw) if isinstance(raw, str) else raw
+        except (ValueError, TypeError):
+            reply = raw
+        fields = sorted(str(key) for key in reply if re.fullmatch(r"[A-Za-z_][A-Za-z0-9_-]{0,49}", str(key))) if isinstance(reply, dict) else []
+        result = reply.get("result") if isinstance(reply, dict) else None
+        result_format = "empty" if result in (None, "") else "json" if isinstance(result, (dict, list)) or (isinstance(result, str) and result.lstrip().startswith(("{", "["))) else "text"
+        return JSONResponse({"driver_id": int(driver["id"]), "response_fields": fields, "result_format": result_format, "note": "Azione eseguita. Nessun valore o link restituito dalla diagnostica."}, headers={"Cache-Control": "no-store, private"})
 
     @app.get("/api/admin/control4/artwork-diagnostic")
     async def admin_control4_artwork_diagnostic(request: Request) -> dict:

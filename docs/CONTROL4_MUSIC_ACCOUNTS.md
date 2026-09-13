@@ -42,6 +42,12 @@ Osservazione dell'impianto: **Qobuz** si comporta come Deezer nella fase di logi
 
 **Blocco di sicurezza:** la traccia Lua del driver registra in chiaro i parametri dell'azione e anche il valore del campo password inserito nel Navigator. La password presente nella traccia condivisa va ruotata e non deve essere copiata nel repository, nei test, nei ticket o nei log e-Face. Non abilitare il login cliente tramite `LUA_ACTION` finché non è verificato che il logging del driver sia disattivabile o che esista un flusso di autorizzazione alternativo che non scrive la password in chiaro. La forma dell'azione vista in Composer non dimostra ancora che `LUA_ACTION` sia accettata dall'endpoint REST del Director per il driver Deezer.
 
+### Amazon Music: azione e proprietà Composer osservate
+
+La schermata Composer dell'impianto mostra sul driver Amazon Music l'azione **Get Link For Authentication** e la proprietà **Authentication URL**. Questo fornisce una pista concreta: generare il collegamento tramite l'azione del driver e leggere la proprietà aggiornata, senza chiedere credenziali Amazon a e-Face. L'URL mostrato è temporaneo e sensibile: non copiarlo in log, diagnosi, repository o documentazione. La schermata non prova ancora che l'azione Composer e la proprietà siano accessibili tramite l'API REST del Director usata da e-Face; i normali comandi `/api/v1/items/{id}/commands` non le elencano.
+
+Nel driver Amazon la proprietà **Debug Mode** risulta attiva. Verificare separatamente l'effetto della disattivazione e non supporre che lo stesso interruttore esista o protegga il driver Deezer, la cui traccia ha esposto una password. Prossima prova mirata: acquisire la sola struttura del comando emesso premendo l'azione Composer (nome dell'azione e nomi dei parametri, senza valori) e verificare un'interfaccia supportata per leggere `Authentication URL` in modo autenticato. Solo dopo una prova end-to-end aggiungere il pulsante cliente in e-Face. Le somiglianze osservate con TuneIn e TIDAL non autorizzano a riutilizzare il comando Amazon senza prove per quei driver.
+
 ## Criteri di completamento
 
 1. Il cliente rinnova un account scaduto usando solo e-Face e il provider, senza UI Control4; la stessa sorgente riproduce poi musica.

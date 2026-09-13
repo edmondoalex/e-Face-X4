@@ -1059,6 +1059,41 @@ def test_control4_music_pairing_probe_xml_only_returns_tag_names(monkeypatch, tm
     assert {"result.setup", "result.registration", "result.url"}.issubset(set(response.json()["field_names"]))
     assert "secret-pairing-code" not in response.text and "secret.example" not in response.text
 
+def test_amazon_auth_action_probe_redacts_pairing_link(monkeypatch, tmp_path) -> None:
+    import app.main as main_module
+    from app.user_auth import create_admin
+
+    monkeypatch.setenv("EFACE_AUTH_DIR", str(tmp_path / "auth"))
+    create_admin("password-admin-lunga")
+    monkeypatch.setattr(main_module, "load_control4_config", lambda: {"host": "192.168.3.10", "username": "private", "password": "director-secret"})
+
+    class Director:
+        async def get_all_item_info(self):
+            return [{"id": 1643, "name": "Amazon Music", "proxy": "media_service"}]
+
+        async def send_post_request(self, uri, command, params, is_async):
+            assert uri == "/api/v1/items/1643/commands"
+            assert command == "LUA_ACTION"
+            assert params == {"ACTION": "GetLinkForAPIAuthentication"}
+            assert is_async is False
+            return '{"name":"LUA_ACTION","result":"https://link.ctrl4.co/private-pairing","seq":12}'
+
+    async def director(config):
+        return Director(), "director-token"
+
+    monkeypatch.setattr(main_module, "control4_director", director)
+    client = TestClient(main_module.create_app())
+    path = "/api/admin/control4/amazon-auth-action-probe"
+    assert client.post(path).status_code == 401
+    assert client.post("/api/auth/login", json={"username": "admin", "password": "password-admin-lunga"}).status_code == 200
+    response = client.post(path)
+    assert response.status_code == 200
+    assert response.json()["response_fields"] == ["name", "result", "seq"]
+    assert response.json()["result_format"] == "text"
+    assert "private-pairing" not in response.text
+    assert "director-secret" not in response.text
+
+
 def test_control4_command_does_not_require_evoice_enabled(monkeypatch, tmp_path) -> None:
     import app.main as main_module
 
