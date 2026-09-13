@@ -2,6 +2,7 @@ from fastapi.testclient import TestClient
 from starlette.websockets import WebSocketDisconnect
 import pytest
 import json
+from urllib.parse import urljoin
 
 from app.main import create_app
 from app.connectors.buspro import normalize_snapshot
@@ -22,6 +23,17 @@ def test_health() -> None:
     response = TestClient(create_app()).get("/health")
     assert response.status_code == 200
     assert response.json()["ok"] is True
+
+
+def test_installed_app_starts_at_dashboard() -> None:
+    client = TestClient(create_app())
+    manifest = client.get("/assets/manifest.webmanifest").json()
+    for base, dashboard in (
+        ("https://eface.example/assets/manifest.webmanifest", "https://eface.example/"),
+        ("https://ha.example/ingress/token/assets/manifest.webmanifest", "https://ha.example/ingress/token/"),
+    ):
+        assert urljoin(base, manifest["start_url"]) == dashboard
+        assert urljoin(base, manifest["scope"]) == dashboard
 
 
 def test_admin_migration_guards_pages_apis_and_websocket(monkeypatch, tmp_path) -> None:
