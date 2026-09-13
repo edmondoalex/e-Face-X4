@@ -20,3 +20,13 @@ def test_browse_uses_opaque_ids_and_preserves_private_driver_fields(monkeypatch)
     assert result["items"][0]["link"] is True
     assert "secret-driver-url" not in str(result)
     assert msp._ITEMS[result["items"][0]["id"]][4]["Url"] == "secret-driver-url"
+
+
+def test_settings_never_expose_driver_password(monkeypatch):
+    async def command(proxy, room, name, values):
+        return {"Settings": {"username": "edmondoalex", "status": "Free", "password": "secret"}}
+
+    monkeypatch.setattr(msp, "_command", command)
+    result = asyncio.run(msp.tunein_settings(615, 51))
+    assert result == {"username": "edmondoalex", "status": "Free"}
+    assert "secret" not in str(result)

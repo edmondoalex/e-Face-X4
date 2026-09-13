@@ -25,7 +25,7 @@ from starlette.responses import RedirectResponse
 
 from .config import load_settings
 from .control4 import control4_director, load_control4_config, public_control4_config, save_control4_config, test_control4_connection
-from .control4_msp import tunein_browse, tunein_action
+from .control4_msp import tunein_browse, tunein_action, tunein_settings
 from .installer_auth import COOKIE, create_session, valid_session
 from . import user_auth
 from . import intercom_settings
@@ -43,7 +43,7 @@ from .connectors.control4_media import cached_control4_icon, cached_control4_ico
 from .connectors.supervisor import discover_addon_url, discover_host_url
 from .demo import dashboard as demo_dashboard
 
-VERSION = "2.20.85"
+VERSION = "2.20.86"
 STATIC = Path(__file__).parent / "static"
 logging.basicConfig(level=logging.WARNING, format="%(asctime)s %(levelname)s [e-face-x4] %(message)s")
 _reconnect_warning_at: dict[str, float] = {}
@@ -371,7 +371,9 @@ def create_app() -> FastAPI:
             parent = str(payload.get("parent") or "") or None
             offset = int(payload.get("offset") or 0)
             search = str(payload.get("search") or "")
-            if payload.get("action"):
+            if tab == "Settings":
+                result = await tunein_settings(proxy_id, room_id)
+            elif payload.get("action"):
                 result = await tunein_action(proxy_id, room_id, tab, str(payload.get("item_id") or ""), str(payload["action"]))
             else:
                 result = await tunein_browse(proxy_id, room_id, tab, parent, offset, search)

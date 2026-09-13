@@ -1,5 +1,8 @@
 # Changelog
 
+## 2.20.86 — 2026-09-14
+- Anche la cover grande apre il navigatore TuneIn. Aggiunta la scheda Impostazioni con stato e nome utente, senza esporre la password restituita dal driver.
+
 ## 2.20.85 — 2026-09-14
 - Navigatore TuneIn reale nel popup di Ascolta: Home, Sfoglia, Preferiti, ricerca, categorie, paginazione e azioni del driver. Comunicazione MSP verificata sul Director con XML ARGS e risposta WebSocket correlata; URL interni protetti sul server.
 

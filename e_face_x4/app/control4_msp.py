@@ -125,3 +125,12 @@ async def tunein_action(proxy_id: int, room_id: int, tab: str, item_id: str, act
     values.update({"screenId": "BrowseScreen", "tabId": tab})
     await _command(proxy_id, room_id, action, values, wait_response=False)
     return {"ok": True}
+
+
+async def tunein_settings(proxy_id: int, room_id: int) -> dict[str, str]:
+    data = await _command(proxy_id, room_id, "GetSettings", {})
+    values = data.get("Settings", {}) if isinstance(data, dict) else {}
+    if not isinstance(values, dict):
+        values = {}
+    # GetSettings can include a password: expose only these two display fields.
+    return {"status": str(values.get("status") or ""), "username": str(values.get("username") or "")}

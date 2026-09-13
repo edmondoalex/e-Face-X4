@@ -489,7 +489,8 @@ function renderMediaExperience(devices) {
   const voicePanel = selected.provider === 'evoice' && selected.tts_enabled && ttsPlayers.length ? `<section class="evoice-panel"><div class="evoice-heading"><h3>Messaggio vocale</h3><label><input type="checkbox" data-tts-select-all ${ttsPlayers.length === 1 ? 'checked' : ''}> Seleziona tutti</label></div><div class="evoice-targets">${ttsPlayers.map((device) => `<div class="evoice-target"><label><input type="checkbox" data-tts-target value="${esc(device.id)}" ${device.id === selected.id ? 'checked' : ''}><span>${esc(device.name)}</span><small>${esc(device.room)}</small></label>${device.dnd_available ? `<button class="evoice-dnd ${device.dnd ? 'active' : ''}" data-dnd-device="${esc(device.id)}" data-dnd-value="${device.dnd ? 'false' : 'true'}">DND</button>` : ''}</div>`).join('')}</div><label class="evoice-volume"><span>Volume messaggio</span><input type="range" min="0" max="100" value="${ttsVolume}" style="--volume:${ttsVolume}%" data-tts-volume><output>${ttsVolume}%</output></label><textarea id="evoice-tts-message" maxlength="500" rows="3" placeholder="Scrivi il messaggio da pronunciare"></textarea><button class="evoice-send" data-tts-send>INVIA MESSAGGIO</button></section>` : ''
   const sourceGlyph = activeMediaSourceMarkup(selected, 'device-glyph', mainIcon)
   const navigatorIcon = selected.provider === 'control4' && /tunein/i.test(selected.source || '') && recentRoomId ? `<button type="button" class="media-navigator-open" data-msp-open data-msp-room="${recentRoomId}" title="Apri TuneIn">${sourceGlyph}</button>` : sourceGlyph
-  $('#device-list').innerHTML = `<article class="media-session ${experienceClass} ${deviceVisualClass(selected)}" data-device-id="${esc(selected.id)}">${mainArtwork}${navigatorIcon}<div class="media-session-info"><strong>${esc(selected.title || selected.source || selected.name)}</strong><small>${esc(selected.artist || selected.source || selected.room)}</small><span class="media-track">${esc(selected.album || selected.name)}</span></div>${power}${deviceActions(selected, { hidePower: true })}</article>${voicePanel}${recent}<div class="media-library media-room-library"><button class="media-library-toggle" data-media-section-toggle="rooms" aria-expanded="${mediaSections.rooms}"><strong>Stanze</strong><span class="mdi-mask" style="${mdiStyle(mediaSections.rooms ? 'mdi:chevron-up' : 'mdi:chevron-down', 'chevron-down')}"></span></button><div class="media-service-grid" ${mediaSections.rooms ? '' : 'hidden'}>${players}</div></div><div class="media-library media-source-library"><h3>Sorgenti e servizi</h3><div class="media-service-grid">${sources || '<span class="empty-state">Nessuna sorgente disponibile</span>'}</div></div>`
+  const navigatorArtwork = navigatorIcon !== sourceGlyph ? mainArtwork.replace('class="media-artwork', `data-msp-open data-msp-room="${recentRoomId}" role="button" tabindex="0" class="media-artwork`) : mainArtwork
+  $('#device-list').innerHTML = `<article class="media-session ${experienceClass} ${deviceVisualClass(selected)}" data-device-id="${esc(selected.id)}">${navigatorArtwork}${navigatorIcon}<div class="media-session-info"><strong>${esc(selected.title || selected.source || selected.name)}</strong><small>${esc(selected.artist || selected.source || selected.room)}</small><span class="media-track">${esc(selected.album || selected.name)}</span></div>${power}${deviceActions(selected, { hidePower: true })}</article>${voicePanel}${recent}<div class="media-library media-room-library"><button class="media-library-toggle" data-media-section-toggle="rooms" aria-expanded="${mediaSections.rooms}"><strong>Stanze</strong><span class="mdi-mask" style="${mdiStyle(mediaSections.rooms ? 'mdi:chevron-up' : 'mdi:chevron-down', 'chevron-down')}"></span></button><div class="media-service-grid" ${mediaSections.rooms ? '' : 'hidden'}>${players}</div></div><div class="media-library media-source-library"><h3>Sorgenti e servizi</h3><div class="media-service-grid">${sources || '<span class="empty-state">Nessuna sorgente disponibile</span>'}</div></div>`
   if (recent) loadRecentlyPlayed(selected)
 }
 
@@ -550,6 +551,14 @@ async function loadTuneInNavigator(parent = '', append = false) {
   if (!append) $('#music-navigator-list').innerHTML = '<p class="music-navigator-empty">Caricamento…</p>'
   try {
     const data = await tuneInRequest({ parent, offset: append ? tuneInState.items.length : 0, search: tuneInState.search })
+    if (tuneInState.tab === 'Settings') {
+      tuneInState.items = []; tuneInState.more = false
+      $('#music-navigator-tabs').querySelectorAll('[data-msp-tab]').forEach((button) => button.classList.toggle('active', button.dataset.mspTab === 'Settings'))
+      $('#music-navigator-back').disabled = true
+      $('#music-navigator-more').hidden = true
+      $('#music-navigator-list').innerHTML = `<div class="music-navigator-settings"><div><span>Stato account</span><small>${esc(data.status || 'Non disponibile')}</small></div><div><span>Nome utente</span><small>${esc(data.username || '—')}</small></div><p>Per collegare nuovamente l'account, apri Strumenti → Account servizi musicali.</p></div>`
+      return
+    }
     tuneInState.items = append ? [...tuneInState.items, ...data.items] : data.items
     tuneInState.total = data.total
     tuneInState.more = data.more
@@ -1784,6 +1793,11 @@ $('#device-list').addEventListener('pointerup', (event) => {
 })
 $('#device-list').addEventListener('pointercancel', () => { recentDrag = null; devicePointerGesture = { moved: true } }, { passive: true })
 $('#device-list').addEventListener('keydown', (event) => {
+  const navigator = event.target.closest('[data-msp-open]')
+  if (navigator && (event.key === 'Enter' || event.key === ' ')) {
+    event.preventDefault()
+    return openTuneInNavigator(Number(navigator.dataset.mspRoom))
+  }
   if (!['Enter',' '].includes(event.key) || !event.target.matches('[data-device-toggle],[data-rgb-toggle],.security-zone,.security-area')) return
   event.preventDefault()
   event.target.click()
