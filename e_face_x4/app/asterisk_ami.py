@@ -20,7 +20,17 @@ class AMIAuthenticationError(AMIError):
 
 
 class AMIActionError(AMIError):
-    pass
+    def __init__(self, message: str):
+        normalized = message.lower()
+        if "permission" in normalized or "not authorized" in normalized:
+            self.reason = "permission"
+        elif "category" in normalized:
+            self.reason = "category"
+        elif "file" in normalized or "open" in normalized:
+            self.reason = "file"
+        else:
+            self.reason = "other"
+        super().__init__("Azione AMI non riuscita")
 
 
 _FIELD = re.compile(r"^[A-Za-z][A-Za-z0-9-]*$")
@@ -67,7 +77,7 @@ async def action(host: str, port: int, username: str, secret: str, fields: Mappi
             await writer.drain()
             result = await _response(reader)
             if result.get("Response") != "Success":
-                raise AMIActionError("Azione AMI non riuscita")
+                raise AMIActionError(result.get("Message", ""))
             return result
         finally:
             writer.close()

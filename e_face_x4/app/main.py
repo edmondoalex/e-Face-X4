@@ -38,7 +38,7 @@ from .connectors.control4_media import cached_control4_icon, cached_control4_ico
 from .connectors.supervisor import discover_addon_url, discover_host_url
 from .demo import dashboard as demo_dashboard
 
-VERSION = "2.20.49"
+VERSION = "2.20.50"
 STATIC = Path(__file__).parent / "static"
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s [e-face-x4] %(message)s")
 
@@ -240,7 +240,7 @@ def create_app() -> FastAPI:
     @app.post("/api/admin/intercom/ami/test")
     async def admin_test_asterisk_ami(request: Request, payload: dict) -> Response:
         require_admin(request)
-        if set(payload) != {"secret"} or not isinstance(payload["secret"], str) or not payload["secret"]:
+        if set(payload) != {"secret"} or not isinstance(payload["secret"], str) or not payload["secret"].strip():
             raise HTTPException(status_code=400, detail="Password AMI richiesta")
         settings = intercom_settings.load()
         try:
@@ -248,11 +248,11 @@ def create_app() -> FastAPI:
         except (OSError, TimeoutError):
             return JSONResponse({"ami_connected": False, "issue": "network", "source_ip": ""}, headers={"Cache-Control": "no-store, private"})
         try:
-            result = await asterisk_ami.read_8301_auth(settings["asterisk_host"], 5038, "eface", payload["secret"])
+            result = await asterisk_ami.read_8301_auth(settings["asterisk_host"], 5038, "eface", payload["secret"].strip())
         except asterisk_ami.AMIAuthenticationError:
             return JSONResponse({"ami_connected": False, "issue": "authentication", "source_ip": source_ip}, headers={"Cache-Control": "no-store, private"})
-        except asterisk_ami.AMIActionError:
-            return JSONResponse({"ami_connected": True, "issue": "config_read", "source_ip": source_ip}, headers={"Cache-Control": "no-store, private"})
+        except asterisk_ami.AMIActionError as exc:
+            return JSONResponse({"ami_connected": True, "issue": "config_read", "reason": exc.reason, "source_ip": source_ip}, headers={"Cache-Control": "no-store, private"})
         except (OSError, TimeoutError, asterisk_ami.AMIError):
             return JSONResponse({"ami_connected": False, "issue": "protocol", "source_ip": source_ip}, headers={"Cache-Control": "no-store, private"})
         return JSONResponse({"ami_connected": True, "auth_8301_found": any(value == "username=8301" for value in result.values()), "source_ip": source_ip}, headers={"Cache-Control": "no-store, private"})

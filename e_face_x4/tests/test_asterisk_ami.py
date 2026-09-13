@@ -2,7 +2,7 @@ import asyncio
 
 import pytest
 
-from app.asterisk_ami import AMIError, _request, action
+from app.asterisk_ami import AMIError, AMIActionError, _request, action
 
 
 def test_ami_request_rejects_header_injection() -> None:
@@ -10,6 +10,12 @@ def test_ami_request_rejects_header_injection() -> None:
         _request({"Action": "GetConfig\r\nSecret: stolen"})
     with pytest.raises(ValueError):
         _request({"Bad\nHeader": "value"})
+
+
+def test_ami_action_error_classifies_without_exposing_server_message() -> None:
+    error = AMIActionError("Category not found")
+    assert error.reason == "category"
+    assert "Category not found" not in str(error)
 
 
 def test_ami_login_and_action() -> None:

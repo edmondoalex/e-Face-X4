@@ -139,12 +139,12 @@ $('#intercom-tool').addEventListener('click', async () => { try { await intercom
 $('#intercom-back').addEventListener('click', () => closePanel('intercom-config'))
 const amiTestForm = document.createElement('form')
 amiTestForm.className = 'admin-form'
-amiTestForm.innerHTML = '<div class="admin-info"><b>Accesso Asterisk dedicato</b><p>Verifica l’utente AMI eface e la configurazione dell’interno 8301. Questo test non cambia password né chiamate. La password non viene salvata.</p></div><label>Password AMI eface<input id="intercom-ami-secret" type="password" autocomplete="off" required></label><div class="admin-form-actions"><button type="submit">VERIFICA ACCESSO AMI</button></div><div id="intercom-ami-result" class="admin-status" role="status" hidden></div>'
+amiTestForm.innerHTML = '<div class="admin-info"><b>Accesso Asterisk dedicato</b><p>Verifica l’utente AMI eface e la configurazione dell’interno 8301. Questo test non cambia password né chiamate. Usa la password AMI dedicata, non quella SIP o admin e-Face.</p></div><label>Password AMI eface<input id="intercom-ami-secret" type="password" autocomplete="new-password" autocapitalize="off" spellcheck="false" data-lpignore="true" required></label><div class="admin-form-actions"><button type="submit">VERIFICA ACCESSO AMI</button></div><div id="intercom-ami-result" class="admin-status" role="status" hidden></div>'
 $('#intercom-config').append(amiTestForm)
 amiTestForm.addEventListener('submit', async (event) => {
   event.preventDefault()
   const button = amiTestForm.querySelector('button[type=submit]')
-  const secret = $('#intercom-ami-secret').value
+  const secret = $('#intercom-ami-secret').value.trim()
   $('#intercom-ami-secret').value = ''
   button.disabled = true
   try {
@@ -152,7 +152,10 @@ amiTestForm.addEventListener('submit', async (event) => {
     const source = data.source_ip ? ` IP e-Face: ${data.source_ip}.` : ''
     const status = data.issue === 'network' ? 'Asterisk AMI non raggiungibile.'
       : data.issue === 'authentication' ? 'Login AMI rifiutato: verifica ACL IP e password.'
-      : data.issue === 'config_read' ? 'Login AMI riuscito, ma lettura configurazione negata.'
+      : data.issue === 'config_read' && data.reason === 'permission' ? 'Login AMI riuscito; Asterisk nega il permesso di lettura.'
+      : data.issue === 'config_read' && data.reason === 'category' ? 'Login AMI riuscito; categoria 8301 non trovata dalla richiesta.'
+      : data.issue === 'config_read' && data.reason === 'file' ? 'Login AMI riuscito; file pjsip_custom.conf non accessibile dalla richiesta.'
+      : data.issue === 'config_read' ? 'Login AMI riuscito; Asterisk rifiuta la richiesta GetConfig per un altro motivo.'
       : data.issue === 'protocol' ? 'Errore di protocollo AMI.'
       : data.auth_8301_found ? 'Accesso AMI riuscito; auth 8301 trovata.' : 'Accesso AMI riuscito; auth 8301 non trovata.'
     $('#intercom-ami-result').textContent = status + source

@@ -121,7 +121,7 @@ def test_admin_ami_probe_does_not_store_or_expose_secret(monkeypatch, tmp_path) 
 
     monkeypatch.setattr(asterisk_ami, "read_8301_auth", fake_probe)
     monkeypatch.setattr(asterisk_ami, "local_source_ip", fake_source)
-    response = client.post("/api/admin/intercom/ami/test", json={"secret": "private"})
+    response = client.post("/api/admin/intercom/ami/test", json={"secret": " private\n"})
     assert response.status_code == 200
     assert response.json() == {"ami_connected": True, "auth_8301_found": True, "source_ip": "172.30.33.5"}
     assert response.headers["cache-control"] == "no-store, private"
@@ -136,6 +136,13 @@ def test_admin_ami_probe_does_not_store_or_expose_secret(monkeypatch, tmp_path) 
     assert failure.status_code == 200
     assert failure.json() == {"ami_connected": False, "issue": "authentication", "source_ip": "172.30.33.5"}
     assert "private" not in failure.text
+
+    async def config_missing(host, port, username, secret):
+        raise asterisk_ami.AMIActionError("Category not found")
+
+    monkeypatch.setattr(asterisk_ami, "read_8301_auth", config_missing)
+    missing = client.post("/api/admin/intercom/ami/test", json={"secret": "private"})
+    assert missing.json() == {"ami_connected": True, "issue": "config_read", "reason": "category", "source_ip": "172.30.33.5"}
 
 
 def test_intercom_dashboard_stores_only_local_settings(monkeypatch, tmp_path) -> None:
@@ -157,7 +164,7 @@ def test_intercom_dashboard_stores_only_local_settings(monkeypatch, tmp_path) ->
     assert 'id="tools-admin-nav"' in page
     assert 'id="intercom-tool"' in page
     assert 'id="users-tool"' in page
-    assert "tools-dashboard.js?v=2.20.49" in page
+    assert "tools-dashboard.js?v=2.20.50" in page
 
 
 def test_intercom_test_phone_requires_admin_and_same_origin(monkeypatch, tmp_path) -> None:
