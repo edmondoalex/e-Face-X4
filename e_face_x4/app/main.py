@@ -42,7 +42,7 @@ from .connectors.control4_media import cached_control4_icon, cached_control4_ico
 from .connectors.supervisor import discover_addon_url, discover_host_url
 from .demo import dashboard as demo_dashboard
 
-VERSION = "2.20.82"
+VERSION = "2.20.83"
 STATIC = Path(__file__).parent / "static"
 logging.basicConfig(level=logging.WARNING, format="%(asctime)s %(levelname)s [e-face-x4] %(message)s")
 _reconnect_warning_at: dict[str, float] = {}
@@ -561,8 +561,26 @@ def create_app() -> FastAPI:
         socket = C4Websocket(config["host"])
         for item_id in {driver_id, driver_id + 1}:
             socket.add_item_callback(item_id, on_event)
+        original_process_message = getattr(socket, "_process_message", None)
+        if original_process_message is not None:
+            async def process_any_message(message: object) -> None:
+                if isinstance(message, dict) and message.get("iddevice") not in {driver_id, driver_id + 1}:
+                    await on_event(int(message.get("iddevice") or 0), message)
+                await original_process_message(message)
+            socket._process_message = process_any_message
         try:
             await asyncio.wait_for(socket.sio_connect(token), timeout=10)
+            # Socket.IO connect can complete before pyControl4's dataToUi
+            # namespace obtains its subscription ID from the Director.
+            sio = getattr(socket, "_sio", None)
+            handlers = getattr(sio, "namespace_handlers", {}) if sio is not None else {}
+            namespace = handlers.get("/api/v1/items/datatoui") if isinstance(handlers, dict) else None
+            if namespace is not None:
+                async def wait_subscription() -> None:
+                    while not getattr(namespace, "connected", False):
+                        await asyncio.sleep(0.05)
+                await asyncio.wait_for(wait_subscription(), timeout=10)
+                await asyncio.sleep(0.2)
             raw = await director.send_post_request(
                 f"/api/v1/items/{driver_id}/commands", "GetTabList",
                 {"ROOMID": room_id, "NAVID": nav_id, "SEQ": seq, "LOCALE": "it_IT"}, False,
@@ -577,8 +595,13 @@ def create_app() -> FastAPI:
             envelope = json.loads(raw) if isinstance(raw, str) else raw
         except (TypeError, ValueError):
             envelope = raw
+        result = envelope.get("result") if isinstance(envelope, dict) else None
+        result_text = json.dumps(result, ensure_ascii=False, default=str) if result is not None else ""
         return JSONResponse({"service": service, "driver_id": driver_id,
                              "command_fields": sorted(str(key) for key in envelope) if isinstance(envelope, dict) else [],
+                             "result_type": type(result).__name__, "result_size": len(result_text),
+                             "result_has_xml": "<" in result_text and ">" in result_text,
+                             "result_has_nav_id": nav_id in result_text,
                              "events": seen, "correlated_response": matched.is_set(),
                              "note": "Nessun dato grezzo, account, link o token viene restituito."},
                             headers={"Cache-Control": "no-store, private"})

@@ -1,5 +1,8 @@
 # Changelog
 
+## 2.20.83 — 2026-09-13
+- La diagnostica MSP attende che `dataToUi` sia effettivamente sottoscritto prima di inviare il comando; osserva eventi su tutti gli ID e classifica il `result` senza esporlo.
+
 ## 2.20.82 — 2026-09-13
 - Diagnostica MSP TuneIn: ascolta gli eventi del driver prima di inviare `GetTabList` e verifica la correlazione `NAVID`/`SEQ` senza esporre dati privati.
 
