@@ -20,7 +20,9 @@ Stato al 13 settembre 2026: **non completato**. Il popup provvisorio della 2.20.
 
 ## Punto tecnico ancora da verificare sul Director reale
 
-L'API REST `POST /api/v1/items/{id}/commands` usata oggi da e-Face invia comandi generici, ma non è documentata come client Navigator MSP. Prima di mostrare schede operative serve verificare se un comando `Browse` con sessione `NAVID` produce i `DATA_RECEIVED` correlati, oppure individuare il canale Navigator usato dall'app Control4. Non convertire un `200` del comando in «navigazione riuscita» se i dati XML non arrivano.
+Il test reale su TuneIn 614 ha escluso la normale API `POST /api/v1/items/{id}/commands` come ingresso sufficiente per il Navigator: `GetTabList` restituisce `result: 1` (intero), senza XML né `NAVID`; sul canale `dataToUi` compaiono eventi `LUA_OUTPUT` e aggiornamenti proprietà, non una risposta MSP correlata. Non convertire un `200` del comando in «navigazione riuscita».
+
+Nell'APK dell'app Control4 per Android sono presenti i modelli `MSPResponse` (`navId`, `seq`, `data`) e `MSPEvent` (`name`, `navId`, `rooms`, `args`). Il modello media service dell'app sottoscrive `MediaService.observeResponse()` e `observeEvent()`; la prima emissione è una `Variable.value` convertita in `MSPResponse`. Questo indica che la risposta MSP va cercata nella sottoscrizione di variabili del media service, non nei soli eventi `LUA_OUTPUT`. L'endpoint/protocollo concreto che genera tale variabile va ancora individuato. Gli esempi non verificati `GetItems`/`SendItems`, `container_id=root` e `PLAY_MEDIA` ricevuti in chat **non** sono un contratto API e non vanno implementati come se fossero osservati.
 
 ## Implementazione successiva
 

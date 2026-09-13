@@ -1,5 +1,8 @@
 # Changelog
 
+## 2.20.84 — 2026-09-13
+- Rimossi da Strumenti i controlli diagnostici musicali non più necessari e le relative API di prova. Restano i flussi di associazione account e la diagnostica cover.
+
 ## 2.20.83 — 2026-09-13
 - La diagnostica MSP attende che `dataToUi` sia effettivamente sottoscritto prima di inviare il comando; osserva eventi su tutti gli ID e classifica il `result` senza esporlo.
 
