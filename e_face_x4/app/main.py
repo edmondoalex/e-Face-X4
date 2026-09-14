@@ -38,6 +38,7 @@ from . import intercom_settings
 from . import external_stations
 from . import internal_stations
 from . import control4_tablets
+from . import voip_phones
 from . import provisioner_client
 from . import installation
 from . import credential_inventory
@@ -96,6 +97,7 @@ def create_app() -> FastAPI:
     app.mount("/assets", AppAssets(directory=STATIC / "assets"), name="assets")
     login_failures: dict[tuple[str, str], list[float]] = {}
     reveal_failures: dict[str, list[float]] = {}
+    voip_lock = asyncio.Lock()
     control4_support_tokens: dict[str, float] = {}
     doorbird_video_slots = asyncio.Semaphore(2)
 
@@ -180,6 +182,118 @@ def create_app() -> FastAPI:
             await provisioner_client.request("PUT", "/v1/control4-tablets", {"tablets": old_routes["tablets"]})
             raise
         return JSONResponse({"tablets": [{**tablet, "status": "route_present"} for tablet in tablets]}, headers={"Cache-Control": "no-store, private"})
+
+    async def voip_public() -> list[dict]:
+        records = voip_phones.load()
+        present = set()
+        if records and provisioner_client.public()["configured"]:
+            try:
+                remote = await provisioner_client.request("GET", "/v1/voip-phones")
+                present = {(item["extension"], item["profile"]) for item in remote.get("phones", [])}
+            except (RuntimeError, KeyError, TypeError):
+                pass
+        return [{**phone, "endpoint_present": (phone["extension"], phone["profile"]) in present}
+                for phone in voip_phones.public(records)]
+
+    @app.get("/api/admin/intercom/voip-phones")
+    async def admin_voip_phones(request: Request) -> Response:
+        require_admin(request)
+        return JSONResponse({"phones": await voip_public()}, headers={"Cache-Control": "no-store, private"})
+
+    @app.get("/api/intercom/voip-phones")
+    async def intercom_voip_phones(request: Request) -> Response:
+        if not user_auth.session_user(request.cookies.get(user_auth.COOKIE)):
+            raise HTTPException(status_code=401, detail="Accesso richiesto")
+        return JSONResponse({"phones": await voip_public()}, headers={"Cache-Control": "no-store, private"})
+
+    @app.post("/api/admin/intercom/voip-phones")
+    async def admin_create_voip_phone(request: Request, payload: dict) -> Response:
+        require_admin(request)
+        if set(payload) != {"name", "profile"}:
+            raise HTTPException(status_code=400, detail="Dati telefono non validi")
+        async with voip_lock:
+            current = voip_phones.load()
+            reserved = {str(record.get("extension")) for record in sip_accounts.load().values() if isinstance(record, dict)}
+            try:
+                extension, record = voip_phones.new_record(payload["name"], payload["profile"], {**current, **dict.fromkeys(reserved)})
+            except (ValueError, TypeError) as exc:
+                raise HTTPException(status_code=400, detail=str(exc)) from exc
+            remote_payload = {"username": f"voip_{extension}", "extension": extension, **record}
+            try:
+                await provisioner_client.request("POST", "/v1/voip-phones", remote_payload)
+            except RuntimeError as exc:
+                raise HTTPException(status_code=503, detail=str(exc)) from exc
+            try:
+                voip_phones.save({**current, extension: record})
+            except Exception:
+                await provisioner_client.request("DELETE", f"/v1/voip-phones/voip_{extension}")
+                raise
+        return JSONResponse({"extension": extension, "username": extension, "password": record["password"],
+                             "profile": record["profile"], "endpoint_present": True},
+                            headers={"Cache-Control": "no-store, private", "Pragma": "no-cache"})
+
+    @app.put("/api/admin/intercom/voip-phones/{extension}")
+    async def admin_update_voip_phone(extension: str, request: Request, payload: dict) -> Response:
+        require_admin(request)
+        if set(payload) != {"name", "profile"}:
+            raise HTTPException(status_code=400, detail="Dati telefono non validi")
+        async with voip_lock:
+            current = voip_phones.load()
+            if extension not in current:
+                raise HTTPException(status_code=404, detail="Telefono non trovato")
+            old = current[extension]
+            new = {**old, "name": payload["name"], "profile": payload["profile"]}
+            try:
+                voip_phones.validate({extension: new})
+                await provisioner_client.request("POST", "/v1/voip-phones", {"username": f"voip_{extension}", "extension": extension, **new})
+            except ValueError as exc:
+                raise HTTPException(status_code=400, detail=str(exc)) from exc
+            except RuntimeError as exc:
+                raise HTTPException(status_code=503, detail=str(exc)) from exc
+            try:
+                voip_phones.save({**current, extension: new})
+            except Exception:
+                await provisioner_client.request("POST", "/v1/voip-phones", {"username": f"voip_{extension}", "extension": extension, **old})
+                raise
+        return JSONResponse({"extension": extension, "endpoint_present": True}, headers={"Cache-Control": "no-store, private"})
+
+    @app.delete("/api/admin/intercom/voip-phones/{extension}")
+    async def admin_delete_voip_phone(extension: str, request: Request) -> Response:
+        require_admin(request)
+        async with voip_lock:
+            current = voip_phones.load()
+            if extension not in current:
+                raise HTTPException(status_code=404, detail="Telefono non trovato")
+            old = current[extension]
+            try:
+                await provisioner_client.request("DELETE", f"/v1/voip-phones/voip_{extension}")
+            except RuntimeError as exc:
+                raise HTTPException(status_code=503, detail=str(exc)) from exc
+            try:
+                voip_phones.save({key: value for key, value in current.items() if key != extension})
+            except Exception:
+                await provisioner_client.request("POST", "/v1/voip-phones", {"username": f"voip_{extension}", "extension": extension, **old})
+                raise
+        return JSONResponse({"removed": True}, headers={"Cache-Control": "no-store, private"})
+
+    @app.post("/api/admin/intercom/voip-phones/{extension}/credentials")
+    async def admin_voip_credentials(extension: str, request: Request, payload: dict) -> Response:
+        require_admin(request)
+        session = request.cookies.get(user_auth.COOKIE, "")
+        key = hashlib.sha256(session.encode()).hexdigest()
+        now = time.monotonic()
+        attempts = [instant for instant in reveal_failures.get(key, []) if now - instant < 900]
+        if len(attempts) >= 5:
+            raise HTTPException(status_code=429, detail="Troppi tentativi. Riprova più tardi")
+        if set(payload) != {"admin_password"} or not user_auth.verify("admin", str(payload["admin_password"])):
+            reveal_failures[key] = attempts + [now]
+            raise HTTPException(status_code=403, detail="Password admin non valida")
+        reveal_failures.pop(key, None)
+        record = voip_phones.load().get(extension)
+        if record is None:
+            raise HTTPException(status_code=404, detail="Telefono non trovato")
+        return JSONResponse({"username": extension, "password": record["password"]},
+                            headers={"Cache-Control": "no-store, private", "Pragma": "no-cache"})
 
     @app.get("/api/admin/credentials")
     async def admin_credentials(request: Request) -> Response:

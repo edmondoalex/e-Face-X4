@@ -40,11 +40,19 @@ def _atomic_write(path: Path, data: str) -> None:
         temporary.unlink(missing_ok=True)
 
 
-def _validate(username: str, extension: str, password: str, name: str) -> str:
+def _validate(username: str, extension: str, password: str, name: str, profile: str = "browser") -> str:
     if not _USERNAME.fullmatch(username):
         raise ValueError("Nome utente e-Face non valido")
-    if not extension.isdigit() or len(extension) != 4 or not 8302 <= int(extension) <= 8399:
+    if profile not in ("browser", "voip_audio", "voip_video"):
+        raise ValueError("Profilo SIP non valido")
+    if not extension.isdigit() or len(extension) != 4 or not (
+        8302 <= int(extension) <= 8399 if profile == "browser" else 8350 <= int(extension) <= 8399
+    ):
         raise ValueError("Interno SIP fuori dalla fascia e-Face")
+    if profile != "browser" and username != f"voip_{extension}":
+        raise ValueError("Identità telefono VoIP non valida")
+    if profile == "browser" and username.startswith("voip_"):
+        raise ValueError("Profilo browser non valido per telefono VoIP")
     if not _PASSWORD.fullmatch(password):
         raise ValueError("Password SIP non valida")
     cleaned = "".join(char for char in name if char.isalnum() or char in " -_").strip()[:64]
@@ -60,18 +68,24 @@ def render(records: dict[str, dict]) -> str:
     for username, record in sorted(records.items()):
         extension = str(record["extension"])
         password = str(record["password"])
-        name = _validate(username, extension, password, str(record["name"]))
+        profile = record.get("profile", "browser")
+        name = _validate(username, extension, password, str(record["name"]), profile)
         if extension in used:
             raise ValueError("Interno SIP duplicato")
         used.add(extension)
-        output.append(
+        common = (
             f"\n[{extension}]\ntype=aor\nmax_contacts=1\nremove_existing=yes\nsupport_path=yes\n"
             f"\n[{extension}]\ntype=auth\nauth_type=userpass\nusername={extension}\npassword={password}\n"
             f"\n[{extension}]\ntype=endpoint\naors={extension}\nauth={extension}\n"
-            f'callerid="{name}" <{extension}>\ncontext=eface-test\n'
-            "webrtc=yes\nfrom_domain=asterisk\nrtp_symmetric=yes\nforce_rport=yes\n"
-            "rewrite_contact=yes\ndirect_media=no\nallow=!all,opus,alaw,ulaw\n"
+            f'callerid="{name}" <{extension}>\n'
         )
+        if profile == "browser":
+            output.append(common + "context=eface-test\nwebrtc=yes\nfrom_domain=asterisk\nrtp_symmetric=yes\nforce_rport=yes\n"
+                          "rewrite_contact=yes\ndirect_media=no\nallow=!all,opus,alaw,ulaw\n")
+        else:
+            codecs = "alaw,ulaw,h264,vp8" if profile == "voip_video" else "alaw,ulaw"
+            output.append(common + "context=eface-test\nwebrtc=no\nrtp_symmetric=yes\nforce_rport=yes\n"
+                          f"rewrite_contact=yes\ndirect_media=no\nallow=!all,{codecs}\n")
     return "".join(output)
 
 
@@ -115,8 +129,9 @@ class ManagedConfig:
         name: str,
         reload_pjsip: Callable[[], None],
         endpoint_exists: Callable[[str], bool],
+        profile: str = "browser",
     ) -> None:
-        _validate(username, extension, password, name)
+        _validate(username, extension, password, name, profile)
         with _LOCK:
             previous = self.load()
             for owner, value in previous.items():
@@ -124,7 +139,10 @@ class ManagedConfig:
                     raise ValueError("Interno SIP già assegnato")
             if username not in previous and endpoint_exists(extension):
                 raise ValueError("Interno SIP già presente fuori da e-Face")
-            updated = {**previous, username: {"extension": extension, "password": password, "name": name}}
+            record = {"extension": extension, "password": password, "name": name}
+            if profile != "browser":
+                record["profile"] = profile
+            updated = {**previous, username: record}
             generated = render(updated)
             if updated == previous:
                 self.reconcile_file()

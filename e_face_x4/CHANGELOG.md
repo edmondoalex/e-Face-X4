@@ -1,5 +1,8 @@
 # Changelog
 
+## 2.21.25 — 2026-09-15
+- Admin → Videocitofono aggiunge Telefoni VoIP: account SIP generici registrabili 8350–8399, scelta audio/audio+video, credenziali persistenti e recuperabili con password admin, modifica e revoca. Intercom mostra i telefoni con endpoint confermato. Il video del client e-Face non è ancora implementato: la compatibilità video tra dispositivi SIP va provata sul modello reale.
+
 ## 2.21.24 — 2026-09-14
 - Il wizard salva nuovi tablet Control4 (8293–8299) con nome e SIP User Name di Composer, e chiede al provisioner Asterisk una rotta SIP isolata usando il proxy beta esistente. Le rotte 8290–8292 non vengono modificate. Intercom mostra i nuovi tablet solo come chiamabili se la rotta è confermata; squillo e audio richiedono ancora un test reale.
 

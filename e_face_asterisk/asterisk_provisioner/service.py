@@ -71,13 +71,15 @@ def make_handler(
         def do_POST(self) -> None:
             if not self._authorized():
                 return
-            if self.path != "/v1/phones":
+            if self.path not in ("/v1/phones", "/v1/voip-phones"):
                 self._reply(404, {"error": "Operazione sconosciuta"})
                 return
             payload = self._json_body()
             if payload is None:
                 return
-            if set(payload) != {"username", "extension", "password", "name"} or not all(
+            voip = self.path == "/v1/voip-phones"
+            expected = {"username", "extension", "password", "name", "profile"} if voip else {"username", "extension", "password", "name"}
+            if set(payload) != expected or not all(
                 isinstance(value, str) for value in payload.values()
             ):
                 self._reply(400, {"error": "Campi non validi"})
@@ -94,6 +96,13 @@ def make_handler(
 
         def do_GET(self) -> None:
             if not self._authorized():
+                return
+            if self.path == "/v1/voip-phones":
+                phones = config.load()
+                self._reply(200, {"phones": [
+                    {"extension": record["extension"], "name": record["name"], "profile": record["profile"]}
+                    for record in phones.values() if record.get("profile", "browser") != "browser"
+                ]})
                 return
             if self.path == "/v1/external-stations" and external_routes is not None:
                 self._reply(200, {"stations": external_routes.load()})
@@ -150,9 +159,16 @@ def make_handler(
         def do_DELETE(self) -> None:
             if not self._authorized():
                 return
-            prefix = "/v1/phones/"
+            voip = self.path.startswith("/v1/voip-phones/")
+            prefix = "/v1/voip-phones/" if voip else "/v1/phones/"
             username = self.path[len(prefix):] if self.path.startswith(prefix) else ""
             if not _USER.fullmatch(username):
+                self._reply(404, {"error": "Operazione sconosciuta"})
+                return
+            if voip and not username.startswith("voip_"):
+                self._reply(404, {"error": "Operazione sconosciuta"})
+                return
+            if not voip and username.startswith("voip_"):
                 self._reply(404, {"error": "Operazione sconosciuta"})
                 return
             try:

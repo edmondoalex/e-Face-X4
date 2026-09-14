@@ -13,6 +13,7 @@ from .managed_config import ManagedConfig, render
 from .service import make_https_server
 from .external_routes import ExternalRoutes, reload_dialplan
 from .control4_routes import Control4Routes
+from .voip_routes import VoipRoutes
 
 
 def assert_ready(config_root: Path) -> ManagedConfig:
@@ -43,6 +44,7 @@ def serve(config_root: Path, bind_host: str, port: int) -> None:
     external_routes.ensure(reload_dialplan)
     control4_routes = Control4Routes(config_root)
     control4_routes.ensure(reload_dialplan)
+    VoipRoutes(config_root).ensure(reload_dialplan)
     identity = SiteIdentity(config_root / "eface").ensure()
     with make_https_server(
         config, identity.token, reload_pjsip, endpoint_exists,

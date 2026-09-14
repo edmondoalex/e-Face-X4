@@ -2,7 +2,7 @@
   const $ = (selector) => document.querySelector(selector)
   const adminMode = document.documentElement.classList.contains('admin-intercom')
   const root = new URL('./', location.href)
-  const currentVersion = '2.21.24'
+  const currentVersion = '2.21.25'
   let updateAvailable = false
   async function checkForUpdate() {
     if (document.hidden || !intercomVisible) return
@@ -139,6 +139,41 @@
   }
   refreshInternalStations()
   setInterval(refreshInternalStations, 30000)
+  async function refreshVoipPhones() {
+    try {
+      const response = await fetch(new URL('api/intercom/voip-phones', root), {cache:'no-store', credentials:'same-origin'})
+      if (!response.ok) return
+      const {phones} = await response.json()
+      document.querySelectorAll('.voip-phone-row').forEach(row => row.remove())
+      const control4Rows = [...document.querySelectorAll('.control4-extra-row')]
+      let anchor = control4Rows.at(-1) || $('#call-tavolo').closest('.intercom-station-row')
+      for (const device of phones) {
+        const row = document.createElement('div')
+        row.className = 'intercom-station-row voip-phone-row'
+        const icon = document.createElement('span')
+        icon.className = 'station-icon'
+        icon.textContent = '☎'
+        const copy = document.createElement('div')
+        copy.className = 'station-copy'
+        const title = document.createElement('strong')
+        title.textContent = device.name
+        const subtitle = document.createElement('small')
+        subtitle.textContent = `${device.extension} · ${device.profile === 'voip_video' ? 'VoIP video' : 'VoIP audio'} · ${device.endpoint_present ? 'registrazione da verificare' : 'non configurato'}`
+        const dial = document.createElement('button')
+        dial.type = 'button'
+        dial.textContent = 'CHIAMA'
+        dial.dataset.dialExtension = device.extension
+        dial.dataset.stationReady = String(device.endpoint_present)
+        dial.disabled = !device.endpoint_present || !phone?.isRegistered() || !!call
+        copy.append(title, subtitle)
+        row.append(icon, copy, dial)
+        anchor.after(row)
+        anchor = row
+      }
+    } catch (_) { /* Keep last known list while offline. */ }
+  }
+  refreshVoipPhones()
+  setInterval(refreshVoipPhones, 30000)
   $('#doorbird-expand').addEventListener('click', () => {
     const expanded = $('.doorbird-row').classList.toggle('expanded')
     $('#doorbird-expand').setAttribute('aria-expanded', String(expanded))
@@ -494,7 +529,7 @@
 
   document.addEventListener('click', async (event) => {
     const button = event.target.closest('[data-dial-extension]')
-    if (!button || !phone?.isRegistered() || call || button.dataset.stationReady === 'false' || !/^(82[0-9]{2}|8290|8291|8292)$/.test(button.dataset.dialExtension)) return
+    if (!button || !phone?.isRegistered() || call || button.dataset.stationReady === 'false' || !/^(82[0-9]{2}|8290|8291|8292|83[5-9][0-9])$/.test(button.dataset.dialExtension)) return
     error('')
     setDialButtonsDisabled(true)
     $('#call-status').textContent = 'Richiesta accesso al microfono…'

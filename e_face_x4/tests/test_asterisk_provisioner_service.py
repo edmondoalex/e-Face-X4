@@ -65,6 +65,14 @@ def test_restricted_service_auth_validation_and_rollback(tmp_path) -> None:
         assert call("DELETE", "/v1/phones/../8301")[0] == 404
         assert call("DELETE", "/v1/phones/ekonex") == (200, {"removed": True})
         assert "8302" not in active
+        voip = {"username": "voip_8350", "extension": "8350", "password": "A_secure_voip_secret_123456789",
+                "name": "Studio", "profile": "voip_video"}
+        assert call("POST", "/v1/voip-phones", voip, auth=False)[0] == 401
+        assert call("POST", "/v1/voip-phones", {**voip, "profile": "browser"})[0] == 400
+        assert call("POST", "/v1/voip-phones", voip) == (200, {"extension": "8350", "provisioned": True})
+        assert call("GET", "/v1/voip-phones") == (200, {"phones": [{"extension": "8350", "name": "Studio", "profile": "voip_video"}]})
+        assert call("DELETE", "/v1/phones/voip_8350")[0] == 404
+        assert call("DELETE", "/v1/voip-phones/voip_8350") == (200, {"removed": True})
         assert config.load() == {}
     finally:
         server.shutdown()

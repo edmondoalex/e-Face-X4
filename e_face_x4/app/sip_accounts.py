@@ -44,7 +44,8 @@ def allocate(username: str) -> dict:
         if username in accounts:
             return accounts[username]
         used = {str(record.get("extension")) for record in accounts.values() if isinstance(record, dict)}
-        extension = next((str(number) for number in range(8302, 8400) if str(number) not in used), None)
+        # 8350-8399 are reserved for generic registered VoIP phones.
+        extension = next((str(number) for number in range(8302, 8350) if str(number) not in used), None)
         if extension is None:
             raise ValueError("Nessun interno SIP disponibile")
         record = {"extension": extension, "password": secrets.token_urlsafe(36), "provisioned": False}

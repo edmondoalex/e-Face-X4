@@ -137,6 +137,7 @@ async function intercom() {
   await provisionerStatus()
   await externalStations()
   await internalStations()
+  await voipPhones()
 }
 
 const internalAdmin = document.createElement('form')
@@ -160,6 +161,87 @@ internalAdmin.addEventListener('submit', async (event) => {
     const names = Object.fromEntries([...internalAdmin.querySelectorAll('[data-internal-name]')].map((field) => [field.dataset.internalName, field.value.trim()]))
     await request('api/admin/intercom/internal-stations', {method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify({names})})
     message('Nomi delle postazioni interne salvati in e-Face')
+  } catch (error) { message(error.message) }
+  finally { button.disabled = false }
+})
+
+const voipAdmin = document.createElement('section')
+voipAdmin.className = 'admin-form'
+voipAdmin.innerHTML = '<div class="admin-info"><b>Telefoni VoIP</b><p>Account SIP standard per telefoni di qualsiasi marca: il dispositivo si registra ad Asterisk. Il profilo video abilita H.264/VP8 tra dispositivi SIP compatibili; il client e-Face attuale effettua chiamate audio, quindi non mostra ancora il video del telefono. Verifica sempre il modello reale. Non usare questa sezione per tablet Control4.</p></div><div id="voip-phone-list" class="admin-users-list"></div><form id="voip-phone-form" class="admin-form"><div class="admin-form-grid"><label>Nome telefono<input name="name" maxlength="64" required></label><label>Tipo<select name="profile"><option value="voip_audio">Solo audio</option><option value="voip_video">Audio e video</option></select></label></div><div class="admin-form-actions"><button type="submit">AGGIUNGI TELEFONO</button><button type="button" id="voip-phone-new" class="secondary">NUOVO</button></div></form><div id="voip-phone-credential" class="admin-info" hidden><b>Credenziali SIP del telefono</b><p>Inserisci nel telefono il server Asterisk mostrato nelle impostazioni Intercom, porta SIP 5060, trasporto UDP. Conserva la password in un posto sicuro.</p><label>Interno / utente<input id="voip-phone-user" readonly></label><label>Password SIP<input id="voip-phone-password" type="password" readonly></label><button type="button" id="voip-phone-password-toggle" class="secondary">MOSTRA PASSWORD</button></div>'
+$('#intercom-config').append(voipAdmin)
+const voipForm = voipAdmin.querySelector('#voip-phone-form')
+let voipEditExtension = ''
+
+function voipCredentials(data) {
+  $('#voip-phone-user').value = data.username
+  $('#voip-phone-password').value = data.password
+  $('#voip-phone-password').type = 'password'
+  $('#voip-phone-credential').hidden = false
+}
+
+async function voipPhones() {
+  const {phones} = await request('api/admin/intercom/voip-phones')
+  const list = $('#voip-phone-list')
+  list.replaceChildren()
+  for (const phone of phones) {
+    const row = document.createElement('div')
+    row.className = 'admin-info'
+    const title = document.createElement('b')
+    title.textContent = `${phone.name} · ${phone.extension} · ${phone.profile === 'voip_video' ? 'audio + video' : 'audio'} · ${phone.endpoint_present ? 'configurato, registrazione da provare' : 'Asterisk non conferma l’interno'}`
+    row.append(title)
+    composerAction(row, 'MODIFICA', () => {
+      voipEditExtension = phone.extension
+      voipForm.elements.name.value = phone.name
+      voipForm.elements.profile.value = phone.profile
+      voipForm.querySelector('button[type="submit"]').textContent = 'SALVA MODIFICHE'
+      $('#voip-phone-credential').hidden = true
+    })
+    composerAction(row, 'CREDENZIALI', async () => {
+      const adminPassword = window.prompt('Password admin e-Face per mostrare la password SIP')
+      if (adminPassword === null) return
+      try {
+        const data = await request(`api/admin/intercom/voip-phones/${phone.extension}/credentials`, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({admin_password:adminPassword})})
+        voipCredentials(data)
+      } catch (error) { message(error.message) }
+    })
+    composerAction(row, 'RIMUOVI', async () => {
+      if (!window.confirm(`Rimuovere il telefono ${phone.name} (${phone.extension}) e revocare il suo account SIP?`)) return
+      try {
+        await request(`api/admin/intercom/voip-phones/${phone.extension}`, {method:'DELETE'})
+        $('#voip-phone-credential').hidden = true
+        await voipPhones()
+        message('Telefono VoIP rimosso da e-Face e Asterisk')
+      } catch (error) { message(error.message) }
+    })
+    list.append(row)
+  }
+}
+
+$('#voip-phone-new').addEventListener('click', () => {
+  voipEditExtension = ''
+  voipForm.reset()
+  voipForm.querySelector('button[type="submit"]').textContent = 'AGGIUNGI TELEFONO'
+  $('#voip-phone-credential').hidden = true
+})
+$('#voip-phone-password-toggle').addEventListener('click', () => {
+  const field = $('#voip-phone-password')
+  field.type = field.type === 'password' ? 'text' : 'password'
+})
+voipForm.addEventListener('submit', async (event) => {
+  event.preventDefault()
+  const button = voipForm.querySelector('button[type="submit"]')
+  button.disabled = true
+  const payload = {name:voipForm.elements.name.value.trim(), profile:voipForm.elements.profile.value}
+  try {
+    if (voipEditExtension) {
+      await request(`api/admin/intercom/voip-phones/${voipEditExtension}`, {method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload)})
+      message('Telefono VoIP aggiornato; verifica registrazione, audio e video')
+    } else {
+      const data = await request('api/admin/intercom/voip-phones', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload)})
+      voipCredentials(data)
+      message('Account SIP creato; inserisci le credenziali nel telefono')
+    }
+    await voipPhones()
   } catch (error) { message(error.message) }
   finally { button.disabled = false }
 })
@@ -310,7 +392,7 @@ intercomClientPanel.innerHTML = '<h3>Postazione SIP e impostazioni Intercom</h3>
 $('#intercom-config').append(intercomClientPanel)
 const intercomAdminFrame = intercomClientPanel.querySelector('iframe')
 $('#intercom-tool').addEventListener('click', async () => { try { await intercom(); openPanel('intercom-config'); intercomAdminFrame.src = api('intercom?embedded=1&admin=1') } catch(error) { message(error.message) } })
-$('#intercom-back').addEventListener('click', () => { intercomAdminFrame.removeAttribute('src'); closePanel('intercom-config') })
+$('#intercom-back').addEventListener('click', () => { $('#voip-phone-password').value = ''; $('#voip-phone-credential').hidden = true; intercomAdminFrame.removeAttribute('src'); closePanel('intercom-config') })
 const amiTestForm = document.createElement('form')
 amiTestForm.className = 'admin-form'
 amiTestForm.innerHTML = '<div class="admin-info"><b>Accesso Asterisk dedicato</b><p>Verifica l’utente AMI eface e la configurazione dell’interno 8301. Questo test non cambia password né chiamate. Usa la password AMI dedicata, non quella SIP o admin e-Face.</p></div><label>Password AMI eface<input id="intercom-ami-secret" type="password" autocomplete="new-password" autocapitalize="off" spellcheck="false" data-lpignore="true" required></label><div class="admin-form-actions"><button type="submit">VERIFICA ACCESSO AMI</button></div><div id="intercom-ami-result" class="admin-status" role="status" hidden></div>'
@@ -505,6 +587,7 @@ function renderComposerWizard() {
     for (const [extension, name] of Object.entries(composerGuide.tablet_aliases)) content.append(composerValue(`Tablet beta ${extension}`, name))
     composerParagraph(content, 'Puoi modificare le etichette 8291/8292 in Videocitofono. Per un nuovo tablet inserisci il SIP User Name letto in Composer: e-Face crea la rotta 8293–8299 tramite il proxy SIP Control4 già presente in Asterisk. Per ora il nuovo tablet è chiamabile singolarmente, non è incluso nel gruppo Tutti (8290). La rotta confermata non garantisce squillo o audio: prova una chiamata reale.')
     composerAction(content, 'MODIFICA NOMI TABLET', () => { closePanel('installation-config'); $('#intercom-tool').click() })
+    composerAction(content, 'GESTISCI TELEFONI VOIP', () => { closePanel('installation-config'); $('#intercom-tool').click(); setTimeout(() => voipAdmin.scrollIntoView({behavior:'smooth', block:'start'}), 150) })
     composerTabletEditor(content)
   } else {
     composerParagraph(content, 'Esegui Verifica impianto qui sotto per rete Asterisk, DoorBird e TURN. Poi apri Intercom e verifica una chiamata vera in entrambi i sensi: la sola risposta TCP o la presenza di una rotta non dimostra audio e squillo.')
@@ -525,7 +608,7 @@ async function loadComposerWizard() {
 async function resumeComposerWizard(panel) {
   try {
     await loadComposerWizard()
-    if (panel === 'intercom-config') intercomAdminFrame.removeAttribute('src')
+    if (panel === 'intercom-config') { $('#voip-phone-password').value = ''; $('#voip-phone-credential').hidden = true; intercomAdminFrame.removeAttribute('src') }
     closePanel(panel)
     openPanel('installation-config')
   } catch (error) { message(error.message) }

@@ -1,6 +1,6 @@
 FROM ghcr.io/tech7fox/asterisk-hass-addon:6.2.0
 
-ARG BUILD_VERSION=6.2.0-eface.4
+ARG BUILD_VERSION=6.2.0-eface.5
 ARG BUILD_ARCH=amd64
 
 COPY asterisk_provisioner/ /opt/eface/asterisk_provisioner/
