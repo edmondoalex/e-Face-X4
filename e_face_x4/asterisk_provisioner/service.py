@@ -7,9 +7,12 @@ The add-on must supply its own endpoint/reload adapter and per-site token.
 from __future__ import annotations
 
 import hmac
+import ipaddress
 import json
 import re
+import ssl
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from pathlib import Path
 from typing import Callable
 
 from .managed_config import ManagedConfig
@@ -114,3 +117,31 @@ def serve_local(
     handler = make_handler(config, token, reload_pjsip, endpoint_exists)
     with ThreadingHTTPServer(("127.0.0.1", port), handler) as server:
         server.serve_forever()
+
+
+def make_https_server(
+    config: ManagedConfig,
+    token: str,
+    reload_pjsip: Callable[[], None],
+    endpoint_exists: Callable[[str], bool],
+    bind_host: str,
+    port: int,
+    certificate: Path,
+    private_key: Path,
+) -> ThreadingHTTPServer:
+    """Create a TLS-only service on one explicit local IPv4 address.
+
+    Pairing, certificate pin distribution and firewalling are installer tasks.
+    This function never binds a wildcard address or serves plaintext HTTP.
+    """
+    address = ipaddress.IPv4Address(bind_host)
+    if address.is_unspecified or address.is_multicast or not (address.is_private or address.is_loopback):
+        raise ValueError("Indirizzo provisioner non locale")
+    if not 0 <= port <= 65535:
+        raise ValueError("Porta provisioner non valida")
+    context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+    context.minimum_version = ssl.TLSVersion.TLSv1_2
+    context.load_cert_chain(str(certificate), str(private_key))
+    server = ThreadingHTTPServer((bind_host, port), make_handler(config, token, reload_pjsip, endpoint_exists))
+    server.socket = context.wrap_socket(server.socket, server_side=True)
+    return server
