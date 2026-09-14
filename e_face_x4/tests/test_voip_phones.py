@@ -40,7 +40,22 @@ def test_voip_route_include_preserves_existing_dialplan(tmp_path):
     assert source.read_text(encoding="utf-8").count("#include /config/asterisk/eface/voip_routes.conf") == 1
     assert "8291" in source.read_text(encoding="utf-8")
     assert "_83[5-9]X" in routes.generated.read_text(encoding="utf-8")
+    assert "_830[2-9]" in routes.generated.read_text(encoding="utf-8")
+    assert "_83[1-4]X" in routes.generated.read_text(encoding="utf-8")
     assert "exten => 8301,1,Dial(PJSIP/8301,40)" in routes.generated.read_text(encoding="utf-8")
+
+
+def test_voip_route_content_update_reloads_existing_include(tmp_path):
+    root = tmp_path / "asterisk"
+    (root / "custom").mkdir(parents=True)
+    (root / "custom" / "extensions.conf").write_text("[eface-test]\n#include /config/asterisk/eface/voip_routes.conf\n", encoding="utf-8")
+    routes = VoipRoutes(root)
+    routes.directory.mkdir(parents=True)
+    routes.generated.write_text("; old version\n", encoding="utf-8")
+    calls = []
+    routes.ensure(lambda: calls.append("reload"))
+    assert calls == ["reload"]
+    assert "_830[2-9]" in routes.generated.read_text(encoding="utf-8")
 
 
 def test_voip_api_provisions_before_exposing_credentials(monkeypatch, tmp_path):

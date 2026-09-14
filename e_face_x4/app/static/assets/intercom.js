@@ -2,7 +2,7 @@
   const $ = (selector) => document.querySelector(selector)
   const adminMode = document.documentElement.classList.contains('admin-intercom')
   const root = new URL('./', location.href)
-  const currentVersion = '2.21.25'
+  const currentVersion = '2.21.26'
   let updateAvailable = false
   async function checkForUpdate() {
     if (document.hidden || !intercomVisible) return
@@ -19,6 +19,7 @@
   const socketUrl = new URL('api/intercom/sip', root)
   socketUrl.protocol = location.protocol === 'https:' ? 'wss:' : 'ws:'
   let phone = null
+  let ownExtension = ''
   let call = null
   let audioContext = null
   let audioStatsTimer = null
@@ -174,6 +175,42 @@
   }
   refreshVoipPhones()
   setInterval(refreshVoipPhones, 30000)
+  async function refreshPersonalDevices() {
+    try {
+      const response = await fetch(new URL('api/intercom/personal-devices', root), {cache:'no-store', credentials:'same-origin'})
+      if (!response.ok) return
+      const {devices} = await response.json()
+      document.querySelectorAll('.personal-device-row').forEach(row => row.remove())
+      const voipRows = [...document.querySelectorAll('.voip-phone-row')]
+      const control4Rows = [...document.querySelectorAll('.control4-extra-row')]
+      let anchor = voipRows.at(-1) || control4Rows.at(-1) || $('#call-tavolo').closest('.intercom-station-row')
+      for (const device of devices) {
+        const row = document.createElement('div')
+        row.className = 'intercom-station-row personal-device-row'
+        const icon = document.createElement('span')
+        icon.className = 'station-icon'
+        icon.textContent = '▣'
+        const copy = document.createElement('div')
+        copy.className = 'station-copy'
+        const title = document.createElement('strong')
+        title.textContent = device.name
+        const subtitle = document.createElement('small')
+        subtitle.textContent = `${device.owner} · interno ${device.extension}${device.extension === ownExtension ? ' · questo dispositivo' : ''}`
+        const dial = document.createElement('button')
+        dial.type = 'button'
+        dial.textContent = 'CHIAMA'
+        dial.dataset.dialExtension = device.extension
+        dial.dataset.stationReady = String(device.extension !== ownExtension)
+        dial.disabled = device.extension === ownExtension || !phone?.isRegistered() || !!call
+        copy.append(title, subtitle)
+        row.append(icon, copy, dial)
+        anchor.after(row)
+        anchor = row
+      }
+    } catch (_) { /* Keep last known list while offline. */ }
+  }
+  refreshPersonalDevices()
+  setInterval(refreshPersonalDevices, 30000)
   $('#doorbird-expand').addEventListener('click', () => {
     const expanded = $('.doorbird-row').classList.toggle('expanded')
     $('#doorbird-expand').setAttribute('aria-expanded', String(expanded))
@@ -484,17 +521,36 @@
     if (!window.JsSIP) { error('Il client SIP non è disponibile.'); return }
     error('')
     try {
-      const response = await fetch(new URL('api/intercom/sip/credential', root), {cache:'no-store', credentials:'same-origin'})
+      const statusResponse = await fetch(new URL('api/auth/status', root), {cache:'no-store', credentials:'same-origin'})
+      const status = await statusResponse.json()
+      if (!statusResponse.ok || !status.user) throw new Error('Accedi a e-Face per usare Intercom')
+      let response
+      if (status.user === 'admin') {
+        response = await fetch(new URL('api/intercom/sip/credential', root), {cache:'no-store', credentials:'same-origin'})
+      } else {
+        const key = `eface-personal-device-id-${status.user}`
+        let deviceId = localStorage.getItem(key)
+        if (!deviceId) {
+          deviceId = crypto.randomUUID()
+          localStorage.setItem(key, deviceId)
+        }
+        const deviceType = /iPad|Tablet/i.test(navigator.userAgent) ? 'Tablet' : /iPhone|Android|Mobile/i.test(navigator.userAgent) ? 'Cellulare' : 'PC'
+        response = await fetch(new URL('api/intercom/sip/personal-device', root), {
+          method:'POST', cache:'no-store', credentials:'same-origin', headers:{'Content-Type':'application/json'},
+          body:JSON.stringify({device_id:deviceId, name:`${deviceType} ${status.user}`}),
+        })
+      }
       const data = await response.json().catch(() => ({}))
       if (!response.ok) throw new Error(data.detail || 'Credenziale SIP non disponibile in e-Face')
       const extension = data.username
       if (!/^[0-9]{4}$/.test(extension)) throw new Error('Interno SIP non valido')
       if (!password) password = data.password
       if (!password) throw new Error('Password SIP mancante')
+      ownExtension = extension
       $('#sip-extension').textContent = `INTERNO ${extension}`
       await loadIce()
       const socket = new JsSIP.WebSocketInterface(socketUrl.toString())
-      phone = new JsSIP.UA({sockets:[socket], uri:`sip:${extension}@asterisk`, authorization_user:extension, password, display_name:'e-Face', register:true, session_timers:false})
+      phone = new JsSIP.UA({sockets:[socket], uri:`sip:${extension}@asterisk`, authorization_user:extension, password, display_name:data.name || 'e-Face', register:true, session_timers:false})
       $('#sip-password').value = ''
       connection(false, 'Connessione in corso…')
       $('#sip-connect').disabled = true
@@ -512,6 +568,7 @@
         track(session)
       })
       phone.start()
+      refreshPersonalDevices()
     } catch (exception) {
       phone = null
       connection(false, 'Non collegato')
@@ -529,7 +586,7 @@
 
   document.addEventListener('click', async (event) => {
     const button = event.target.closest('[data-dial-extension]')
-    if (!button || !phone?.isRegistered() || call || button.dataset.stationReady === 'false' || !/^(82[0-9]{2}|8290|8291|8292|83[5-9][0-9])$/.test(button.dataset.dialExtension)) return
+    if (!button || !phone?.isRegistered() || call || button.dataset.stationReady === 'false' || !/^(82[0-9]{2}|8290|8291|8292|83[0-9]{2})$/.test(button.dataset.dialExtension)) return
     error('')
     setDialButtonsDisabled(true)
     $('#call-status').textContent = 'Richiesta accesso al microfono…'

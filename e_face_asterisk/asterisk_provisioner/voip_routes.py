@@ -11,6 +11,8 @@ _INCLUDE = "#include /config/asterisk/eface/voip_routes.conf"
 _CONTENT = (
     "; Telefoni VoIP gestiti da e-Face.\n"
     "exten => 8301,1,Dial(PJSIP/8301,40)\n"
+    "exten => _830[2-9],1,Dial(PJSIP/${EXTEN},40)\n"
+    "exten => _83[1-4]X,1,Dial(PJSIP/${EXTEN},40)\n"
     "exten => _83[5-9]X,1,Dial(PJSIP/${EXTEN},40)\n"
 )
 
@@ -24,10 +26,19 @@ class VoipRoutes:
 
     def ensure(self, reload=reload_dialplan) -> None:
         self.directory.mkdir(parents=True, exist_ok=True)
-        if not self.generated.exists() or self.generated.read_text(encoding="utf-8") != _CONTENT:
+        previous_generated = self.generated.read_text(encoding="utf-8") if self.generated.exists() else None
+        changed = previous_generated != _CONTENT
+        if changed:
             _atomic_write(self.generated, _CONTENT)
         current = self.source.read_text(encoding="utf-8")
         if _INCLUDE in current.splitlines():
+            if changed:
+                try:
+                    reload()
+                except Exception:
+                    if previous_generated is not None:
+                        _atomic_write(self.generated, previous_generated)
+                    raise
             return
         if self.backup.exists():
             raise RuntimeError("Include telefoni VoIP rimosso dopo installazione")

@@ -1,0 +1,132 @@
+"""One persistent SIP identity per authenticated e-Face browser installation."""
+
+from __future__ import annotations
+
+import json
+import os
+import re
+import secrets
+import uuid
+from pathlib import Path
+
+_EXTENSION = re.compile(r"83(?:0[2-9]|[1-4][0-9])\Z")
+_PASSWORD = re.compile(r"[A-Za-z0-9_-]{20,128}\Z")
+_OWNER = re.compile(r"[a-z][a-z0-9_-]{2,31}\Z")
+
+
+def _path() -> Path:
+    return Path(os.environ.get("EFACE_PERSONAL_DEVICES", "/data/personal_devices.json"))
+
+
+def _revoked_path() -> Path:
+    return _path().with_name("personal_device_revocations.json")
+
+
+def validate_id(device_id: object) -> str:
+    if not isinstance(device_id, str):
+        raise ValueError("Identificativo dispositivo non valido")
+    try:
+        normalized = str(uuid.UUID(device_id))
+    except ValueError as exc:
+        raise ValueError("Identificativo dispositivo non valido") from exc
+    if normalized != device_id:
+        raise ValueError("Identificativo dispositivo non valido")
+    return device_id
+
+
+def validate(records: object) -> dict[str, dict[str, str]]:
+    if not isinstance(records, dict) or len(records) > 48:
+        raise ValueError("Inventario dispositivi personali non valido")
+    result = {}
+    extensions: set[str] = set()
+    owners: dict[str, int] = {}
+    for device_id, record in records.items():
+        validate_id(device_id)
+        if not isinstance(record, dict) or set(record) != {"owner", "name", "extension", "password"}:
+            raise ValueError("Dati dispositivo personale incompleti")
+        owner, name, extension, password = (record[key] for key in ("owner", "name", "extension", "password"))
+        if not isinstance(owner, str) or not _OWNER.fullmatch(owner):
+            raise ValueError("Utente dispositivo non valido")
+        if not isinstance(name, str) or not 1 <= len(name.strip()) <= 64 or any(not (char.isalnum() or char in " -_") for char in name):
+            raise ValueError("Nome dispositivo non valido")
+        if not isinstance(extension, str) or not _EXTENSION.fullmatch(extension) or extension in extensions:
+            raise ValueError("Interno dispositivo duplicato o non valido")
+        if not isinstance(password, str) or not _PASSWORD.fullmatch(password):
+            raise ValueError("Password SIP dispositivo non valida")
+        owners[owner] = owners.get(owner, 0) + 1
+        if owners[owner] > 6:
+            raise ValueError("Massimo sei dispositivi per utente")
+        extensions.add(extension)
+        result[device_id] = {"owner": owner, "name": name.strip(), "extension": extension, "password": password}
+    return result
+
+
+def load() -> dict[str, dict[str, str]]:
+    try:
+        return validate(json.loads(_path().read_text(encoding="utf-8")))
+    except FileNotFoundError:
+        return {}
+
+
+def save(records: object) -> dict[str, dict[str, str]]:
+    value = validate(records)
+    path = _path()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temporary = path.with_name(f"personal_devices.{secrets.token_hex(8)}.tmp")
+    try:
+        with temporary.open("x", encoding="utf-8") as file:
+            os.chmod(temporary, 0o600)
+            json.dump(value, file, ensure_ascii=False)
+            file.flush()
+            os.fsync(file.fileno())
+        temporary.replace(path)
+    finally:
+        temporary.unlink(missing_ok=True)
+    return value
+
+
+def new_record(device_id: str, owner: str, name: str, records: dict, reserved: set[str]) -> dict[str, str]:
+    used = {record["extension"] for record in records.values()} | reserved
+    extension = next((str(number) for number in range(8302, 8350) if str(number) not in used), None)
+    if extension is None:
+        raise ValueError("Nessun interno personale disponibile")
+    record = {"owner": owner, "name": name, "extension": extension, "password": secrets.token_urlsafe(36)}
+    validate({**records, device_id: record})
+    return record
+
+
+def asterisk_username(device_id: str) -> str:
+    return "pd_" + uuid.UUID(device_id).hex[:24]
+
+
+def revoked() -> set[str]:
+    try:
+        value = json.loads(_revoked_path().read_text(encoding="utf-8"))
+    except FileNotFoundError:
+        return set()
+    if not isinstance(value, list) or len(value) > 1000:
+        raise ValueError("Elenco revoche dispositivi non valido")
+    return {validate_id(item) for item in value}
+
+
+def revoke_id(device_id: str) -> None:
+    value = revoked() | {validate_id(device_id)}
+    if len(value) > 1000:
+        raise ValueError("Elenco revoche dispositivi pieno")
+    path = _revoked_path()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temporary = path.with_name(f"personal_revocations.{secrets.token_hex(8)}.tmp")
+    try:
+        with temporary.open("x", encoding="utf-8") as file:
+            os.chmod(temporary, 0o600)
+            json.dump(sorted(value), file)
+            file.flush()
+            os.fsync(file.fileno())
+        temporary.replace(path)
+    finally:
+        temporary.unlink(missing_ok=True)
+
+
+def public(records: dict[str, dict[str, str]]) -> list[dict[str, str]]:
+    return [{"device_id": device_id, "owner": record["owner"], "name": record["name"], "extension": record["extension"]}
+            for device_id, record in sorted(records.items(), key=lambda item: item[1]["extension"])]

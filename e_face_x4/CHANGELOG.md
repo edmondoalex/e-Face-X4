@@ -1,5 +1,8 @@
 # Changelog
 
+## 2.21.26 — 2026-09-15
+- Ogni cellulare, tablet o PC con un account e-Face personale ottiene un proprio interno SIP 8302–8349 al primo accesso Intercom. L’identità del browser, inventario e credenziali sono persistenti; Asterisk conferma il provisioning prima che e-Face consegni le credenziali. Admin può rinominare e revocare ogni dispositivo. Gli account SIP manuali legacy non vengono rimossi. Il client riceve chiamate quando Intercom è aperto; chiamate con app chiusa/background non sono ancora supportate.
+
 ## 2.21.25 — 2026-09-15
 - Admin → Videocitofono aggiunge Telefoni VoIP: account SIP generici registrabili 8350–8399, scelta audio/audio+video, credenziali persistenti e recuperabili con password admin, modifica e revoca. Intercom mostra i telefoni con endpoint confermato. Il video del client e-Face non è ancora implementato: la compatibilità video tra dispositivi SIP va provata sul modello reale.
 

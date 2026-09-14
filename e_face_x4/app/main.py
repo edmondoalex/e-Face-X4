@@ -39,6 +39,7 @@ from . import external_stations
 from . import internal_stations
 from . import control4_tablets
 from . import voip_phones
+from . import personal_devices
 from . import provisioner_client
 from . import installation
 from . import credential_inventory
@@ -98,6 +99,7 @@ def create_app() -> FastAPI:
     login_failures: dict[tuple[str, str], list[float]] = {}
     reveal_failures: dict[str, list[float]] = {}
     voip_lock = asyncio.Lock()
+    personal_lock = asyncio.Lock()
     control4_support_tokens: dict[str, float] = {}
     doorbird_video_slots = asyncio.Semaphore(2)
 
@@ -1052,6 +1054,122 @@ def create_app() -> FastAPI:
             {"username": extension, "password": password},
             headers={"Cache-Control": "no-store, private", "Pragma": "no-cache", "Vary": "Cookie", "X-Content-Type-Options": "nosniff"},
         )
+
+    @app.post("/api/intercom/sip/personal-device")
+    async def personal_device_credential(request: Request, payload: dict) -> Response:
+        owner = user_auth.session_user(request.cookies.get(user_auth.COOKIE))
+        if not owner or owner == "admin" or not user_auth.account(owner)["active"]:
+            raise HTTPException(status_code=403, detail="Utente personale attivo richiesto")
+        if set(payload) != {"device_id", "name"}:
+            raise HTTPException(status_code=400, detail="Dati dispositivo non validi")
+        device_id, name = payload["device_id"], payload["name"]
+        try:
+            personal_devices.validate_id(device_id)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        if device_id in personal_devices.revoked():
+            raise HTTPException(status_code=403, detail="Dispositivo revocato in Admin")
+        async with personal_lock:
+            records = personal_devices.load()
+            existing = records.get(device_id)
+            if existing and existing["owner"] != owner:
+                raise HTTPException(status_code=403, detail="Dispositivo assegnato a un altro utente")
+            if existing:
+                record = existing
+            else:
+                reserved = {str(item.get("extension")) for item in sip_accounts.load().values() if isinstance(item, dict)}
+            username = personal_devices.asterisk_username(device_id)
+            while True:
+                if not existing:
+                    try:
+                        record = personal_devices.new_record(device_id, owner, name, records, reserved)
+                    except (ValueError, TypeError) as exc:
+                        raise HTTPException(status_code=409, detail=str(exc)) from exc
+                try:
+                    await provisioner_client.request("POST", "/v1/phones", {
+                        "username": username, "extension": record["extension"],
+                        "password": record["password"], "name": record["name"],
+                    })
+                    break
+                except RuntimeError as exc:
+                    if not existing and "già assegnato" in str(exc):
+                        reserved.add(record["extension"])
+                        continue
+                    raise HTTPException(status_code=503, detail=str(exc)) from exc
+            if not existing:
+                try:
+                    personal_devices.save({**records, device_id: record})
+                except Exception:
+                    await provisioner_client.request("DELETE", f"/v1/phones/{username}")
+                    raise
+        return JSONResponse({"username": record["extension"], "password": record["password"], "name": record["name"]},
+                            headers={"Cache-Control": "no-store, private", "Pragma": "no-cache", "Vary": "Cookie", "X-Content-Type-Options": "nosniff"})
+
+    @app.get("/api/intercom/personal-devices")
+    async def intercom_personal_devices(request: Request) -> Response:
+        if not user_auth.session_user(request.cookies.get(user_auth.COOKIE)):
+            raise HTTPException(status_code=401, detail="Accesso richiesto")
+        return JSONResponse({"devices": personal_devices.public(personal_devices.load())}, headers={"Cache-Control": "no-store, private"})
+
+    @app.get("/api/admin/intercom/personal-devices")
+    async def admin_personal_devices(request: Request) -> Response:
+        require_admin(request)
+        return JSONResponse({"devices": personal_devices.public(personal_devices.load())}, headers={"Cache-Control": "no-store, private"})
+
+    @app.put("/api/admin/intercom/personal-devices/{device_id}")
+    async def admin_rename_personal_device(device_id: str, request: Request, payload: dict) -> Response:
+        require_admin(request)
+        if set(payload) != {"name"}:
+            raise HTTPException(status_code=400, detail="Nome dispositivo non valido")
+        async with personal_lock:
+            records = personal_devices.load()
+            if device_id not in records:
+                raise HTTPException(status_code=404, detail="Dispositivo non trovato")
+            old = records[device_id]
+            new = {**old, "name": payload["name"]}
+            try:
+                personal_devices.validate({device_id: new})
+                await provisioner_client.request("POST", "/v1/phones", {
+                    "username": personal_devices.asterisk_username(device_id), "extension": new["extension"],
+                    "password": new["password"], "name": new["name"],
+                })
+            except ValueError as exc:
+                raise HTTPException(status_code=400, detail=str(exc)) from exc
+            except RuntimeError as exc:
+                raise HTTPException(status_code=503, detail=str(exc)) from exc
+            try:
+                personal_devices.save({**records, device_id: new})
+            except Exception:
+                await provisioner_client.request("POST", "/v1/phones", {
+                    "username": personal_devices.asterisk_username(device_id), "extension": old["extension"],
+                    "password": old["password"], "name": old["name"],
+                })
+                raise
+        return JSONResponse({"device_id": device_id, "name": new["name"]}, headers={"Cache-Control": "no-store, private"})
+
+    @app.delete("/api/admin/intercom/personal-devices/{device_id}")
+    async def admin_revoke_personal_device(device_id: str, request: Request) -> Response:
+        require_admin(request)
+        async with personal_lock:
+            records = personal_devices.load()
+            if device_id not in records:
+                raise HTTPException(status_code=404, detail="Dispositivo non trovato")
+            old = records[device_id]
+            username = personal_devices.asterisk_username(device_id)
+            personal_devices.revoke_id(device_id)
+            try:
+                await provisioner_client.request("DELETE", f"/v1/phones/{username}")
+            except RuntimeError as exc:
+                raise HTTPException(status_code=503, detail=str(exc)) from exc
+            try:
+                personal_devices.save({key: value for key, value in records.items() if key != device_id})
+            except Exception:
+                await provisioner_client.request("POST", "/v1/phones", {
+                    "username": username, "extension": old["extension"],
+                    "password": old["password"], "name": old["name"],
+                })
+                raise
+        return JSONResponse({"removed": True}, headers={"Cache-Control": "no-store, private"})
 
     @app.get("/api/admin/intercom/sip/accounts")
     async def admin_sip_accounts(request: Request) -> dict:

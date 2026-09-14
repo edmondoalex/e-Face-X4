@@ -134,6 +134,7 @@ async function intercom() {
   $('#intercom-turn-password').value = ''
   $('#intercom-turn-password').placeholder = turn.password_configured ? 'Password gia configurata' : 'Password TURN'
   await sipAccounts()
+  await personalDevices()
   await provisionerStatus()
   await externalStations()
   await internalStations()
@@ -338,6 +339,9 @@ $('#external-save').addEventListener('click', async () => {
 })
 
 async function sipAccounts() {
+  const legacyHeading = $('#sip-accounts-list').closest('.admin-form').querySelector('.admin-info')
+  legacyHeading.querySelector('b').textContent = 'Account SIP legacy'
+  legacyHeading.querySelector('p').textContent = 'Vecchia assegnazione manuale per utente. I nuovi cellulari, tablet e PC e-Face si configurano automaticamente nella sezione Dispositivi personali qui sopra. Non eliminare gli account legacy finché non hai verificato la migrazione.'
   const {users} = await request('api/admin/intercom/sip/accounts')
   const list = $('#sip-accounts-list')
   list.replaceChildren()
@@ -496,6 +500,47 @@ function composerValue(label, value) {
   title.textContent = `${label}: `
   row.append(title, document.createTextNode(value))
   return row
+}
+
+const personalAdmin = document.createElement('section')
+personalAdmin.className = 'admin-form'
+personalAdmin.innerHTML = '<div class="admin-info"><b>Dispositivi personali e-Face</b><p>Ogni cellulare, tablet o PC ottiene un interno proprio al primo accesso Intercom dell’utente. Qui puoi cambiare il nome visibile e revocare l’account SIP del dispositivo. Se è perso o rubato, cambia anche la password dell’utente e-Face o disattivalo: la revoca SIP da sola non annulla la sua sessione e-Face. Gli account legacy non vengono cancellati automaticamente.</p></div><div id="personal-device-list" class="admin-users-list"></div>'
+$('#sip-accounts-list').closest('.admin-form').before(personalAdmin)
+
+async function personalDevices() {
+  const {devices} = await request('api/admin/intercom/personal-devices')
+  const list = $('#personal-device-list')
+  list.replaceChildren()
+  if (!devices.length) {
+    const empty = document.createElement('p')
+    empty.textContent = 'Nessun dispositivo personale ancora registrato. Apri Intercom sul cellulare, tablet o PC con un utente e-Face non amministratore.'
+    list.append(empty)
+  }
+  for (const device of devices) {
+    const row = document.createElement('div')
+    row.className = 'admin-info'
+    const title = document.createElement('b')
+    title.textContent = `${device.name} · ${device.owner} · interno ${device.extension}`
+    row.append(title)
+    composerAction(row, 'RINOMINA', async () => {
+      const name = window.prompt('Nuovo nome del dispositivo', device.name)
+      if (name === null) return
+      try {
+        await request(`api/admin/intercom/personal-devices/${device.device_id}`, {method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify({name:name.trim()})})
+        await personalDevices()
+        message('Nome dispositivo aggiornato')
+      } catch (error) { message(error.message) }
+    })
+    composerAction(row, 'REVOCA', async () => {
+      if (!window.confirm(`Revocare ${device.name} (${device.extension})? L’app su quel dispositivo non potrà più usare questa credenziale.`)) return
+      try {
+        await request(`api/admin/intercom/personal-devices/${device.device_id}`, {method:'DELETE'})
+        await personalDevices()
+        message('Dispositivo personale revocato')
+      } catch (error) { message(error.message) }
+    })
+    list.append(row)
+  }
 }
 
 function composerParagraph(parent, value) {
