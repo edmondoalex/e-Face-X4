@@ -1386,7 +1386,7 @@ async function sendRgbCommand(group, action, value, control) {
 
 function closeIntercom() {
   $('#intercom-view').hidden = true
-  $('#intercom-frame').removeAttribute('src')
+  $('#intercom-frame').contentWindow?.postMessage({type:'eface-intercom-visible',visible:false}, location.origin)
 }
 
 function openIntercom() {
@@ -1398,6 +1398,7 @@ function openIntercom() {
   $('#energy-view').hidden = true
   $('#intercom-view').hidden = false
   if (!$('#intercom-frame').getAttribute('src')) $('#intercom-frame').src = apiUrl('intercom?embedded=1')
+  $('#intercom-frame').contentWindow?.postMessage({type:'eface-intercom-visible',visible:true}, location.origin)
   window.scrollTo({ top: 0, behavior: 'smooth' })
 }
 
@@ -1792,6 +1793,10 @@ $('#home-live-media-list').addEventListener('click', (event) => {
 $('#detail-back').addEventListener('click', showHome)
 $('#energy-back').addEventListener('click', () => activeEnergyDashboard ? showEnergyPicker() : showHome())
 $('#intercom-back').addEventListener('click', showHome)
+$('#intercom-frame').addEventListener('load', () => {
+  $('#intercom-frame').contentWindow?.postMessage({type:'eface-intercom-visible',visible:!$('#intercom-view').hidden}, location.origin)
+})
+$('#intercom-frame').src = apiUrl('intercom?embedded=1')
 $('#energy-picker').addEventListener('click', (event) => { const card = event.target.closest('[data-energy-dashboard]'); if (card) openEnergyDashboard(card.dataset.energyDashboard, card.dataset.energyName) })
 $('#energy-reload').addEventListener('click', () => { if (!activeEnergyDashboard) return; $('#energy-frame').src = `${apiUrl('api/sunmind/energy-dashboard/sunsynk-wrapper.html')}?site=${encodeURIComponent(activeEnergyDashboard.id)}&refresh=${Date.now()}` })
 $('#light-room-toggle').addEventListener('click', (event) => {

@@ -1,5 +1,6 @@
 (() => {
   const $ = (selector) => document.querySelector(selector)
+  const adminMode = document.documentElement.classList.contains('admin-intercom')
   const root = new URL('./', location.href)
   const socketUrl = new URL('api/intercom/sip', root)
   socketUrl.protocol = location.protocol === 'https:' ? 'wss:' : 'ws:'
@@ -18,6 +19,7 @@
   let doorbirdStopped = false
   let doorbirdVideoActive = false
   let doorbirdRetryTimer = null
+  let intercomVisible = !document.documentElement.classList.contains('embedded')
   $('#doorbird-expand').addEventListener('click', () => {
     const expanded = $('.doorbird-row').classList.toggle('expanded')
     $('#doorbird-expand').setAttribute('aria-expanded', String(expanded))
@@ -25,14 +27,14 @@
   })
 
   function startDoorbirdVideo() {
-    if (doorbirdStopped || document.hidden) return
+    if (doorbirdStopped || document.hidden || !intercomVisible) return
     clearTimeout(doorbirdTimer)
     clearTimeout(doorbirdRetryTimer)
     doorbirdAbort?.abort()
     doorbirdVideoActive = true
     const image = $('#doorbird-image')
     image.onerror = () => {
-      if (!doorbirdVideoActive || doorbirdStopped || document.hidden) return
+      if (!doorbirdVideoActive || doorbirdStopped || document.hidden || !intercomVisible) return
       doorbirdVideoActive = false
       image.onerror = null
       image.removeAttribute('src')
@@ -50,7 +52,7 @@
   }
 
   async function refreshDoorbird() {
-    if (doorbirdStopped || document.hidden) return
+    if (doorbirdStopped || document.hidden || !intercomVisible) return
     doorbirdAbort = new AbortController()
     try {
       const response = await fetch(new URL('api/intercom/doorbird/image', root), {
@@ -59,7 +61,7 @@
       if (response.status === 204) throw new Error('Immagine non autorizzata da DoorBird in questo momento.')
       if (!response.ok) throw new Error('Immagine DoorBird non disponibile.')
       const blob = await response.blob()
-      if (doorbirdStopped || document.hidden) return
+      if (doorbirdStopped || document.hidden || !intercomVisible) return
       const nextUrl = URL.createObjectURL(blob)
       const previousUrl = doorbirdImageUrl
       doorbirdImageUrl = nextUrl
@@ -76,12 +78,12 @@
       }
     } finally {
       doorbirdAbort = null
-      if (!doorbirdStopped && !document.hidden && !doorbirdVideoActive) doorbirdTimer = setTimeout(refreshDoorbird, 2000)
+      if (!doorbirdStopped && !document.hidden && intercomVisible && !doorbirdVideoActive) doorbirdTimer = setTimeout(refreshDoorbird, 2000)
     }
   }
 
   document.addEventListener('visibilitychange', () => {
-    if (document.hidden) {
+    if (document.hidden || !intercomVisible) {
       clearTimeout(doorbirdTimer)
       clearTimeout(doorbirdRetryTimer)
       doorbirdAbort?.abort()
@@ -89,6 +91,18 @@
       $('#doorbird-image').removeAttribute('src')
     } else {
       startDoorbirdVideo()
+    }
+  })
+  window.addEventListener('message', (event) => {
+    if (event.origin !== location.origin || event.source !== window.parent || event.data?.type !== 'eface-intercom-visible') return
+    intercomVisible = !!event.data.visible
+    if (intercomVisible) startDoorbirdVideo()
+    else {
+      clearTimeout(doorbirdTimer)
+      clearTimeout(doorbirdRetryTimer)
+      doorbirdAbort?.abort()
+      doorbirdVideoActive = false
+      $('#doorbird-image').removeAttribute('src')
     }
   })
   window.addEventListener('pagehide', () => {
@@ -100,7 +114,7 @@
     $('#doorbird-image').removeAttribute('src')
     if (doorbirdImageUrl) URL.revokeObjectURL(doorbirdImageUrl)
   })
-  startDoorbirdVideo()
+  if (!adminMode) startDoorbirdVideo()
   const icePreferenceKey = 'eface-intercom-fast-ice-v1'
   let icePreference = null
   try { icePreference = localStorage.getItem(icePreferenceKey) } catch (_) { /* storage unavailable */ }
@@ -114,6 +128,14 @@
   $('#fast-ice').closest('label').after(iceHint)
   $('#sip-password').parentElement.firstChild.textContent = 'Password SIP alternativa (facoltativa)'
   $('#sip-password').placeholder = 'Vuoto = usa la credenziale salvata in e-Face'
+  if (adminMode) $('.intercom-settings').open = true
+  for (const [id, fallback] of [['speaker-gain', 200], ['microphone-gain', 100]]) {
+    try {
+      const stored = Number(localStorage.getItem(`eface-intercom-${id}-v1`))
+      if (stored >= Number($(`#${id}`).min) && stored <= Number($(`#${id}`).max)) $(`#${id}`).value = stored
+    } catch (_) { /* storage unavailable */ }
+    $(`#${id}-value`).textContent = `${$(`#${id}`).value || fallback}%`
+  }
 
   async function loadIce() {
     const response = await fetch(new URL('api/intercom/ice', root), {cache:'no-store'})
@@ -167,6 +189,7 @@
   $('#speaker-gain').addEventListener('input', () => {
     const percent = Number($('#speaker-gain').value)
     $('#speaker-gain-value').textContent = `${percent}%`
+    try { localStorage.setItem('eface-intercom-speaker-gain-v1', String(percent)) } catch (_) { /* storage unavailable */ }
     if (speakerGain) speakerGain.gain.value = percent / 100
     else $('#remote-audio').volume = Math.min(percent / 100, 1)
   })
@@ -174,6 +197,7 @@
   $('#microphone-gain').addEventListener('input', () => {
     const percent = Number($('#microphone-gain').value)
     $('#microphone-gain-value').textContent = `${percent}%`
+    try { localStorage.setItem('eface-intercom-microphone-gain-v1', String(percent)) } catch (_) { /* storage unavailable */ }
     if (micGain) micGain.gain.value = percent / 100
   })
 
@@ -325,5 +349,6 @@
   })
 
   $('#call-hangup').addEventListener('click', () => { if (call) call.terminate() })
+  if (!adminMode) $('#sip-connect').click()
   window.addEventListener('pagehide', () => { if (phone) phone.stop() })
 })()

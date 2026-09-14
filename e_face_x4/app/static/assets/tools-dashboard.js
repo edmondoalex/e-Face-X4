@@ -185,8 +185,13 @@ $('#sip-copy-config').addEventListener('click', async () => {
   catch(error) { message('Copia non riuscita: seleziona il testo manualmente') }
 })
 
-$('#intercom-tool').addEventListener('click', async () => { try { await intercom(); openPanel('intercom-config') } catch(error) { message(error.message) } })
-$('#intercom-back').addEventListener('click', () => closePanel('intercom-config'))
+const intercomClientPanel = document.createElement('div')
+intercomClientPanel.className = 'admin-form intercom-client-admin'
+intercomClientPanel.innerHTML = '<h3>Postazione SIP e impostazioni Intercom</h3><p>Collega manualmente questa pagina per fare una prova. Nell’Intercom normale la postazione si collega automaticamente quando apri la schermata.</p><iframe title="Postazione SIP e impostazioni Intercom" loading="lazy"></iframe>'
+$('#intercom-config').append(intercomClientPanel)
+const intercomAdminFrame = intercomClientPanel.querySelector('iframe')
+$('#intercom-tool').addEventListener('click', async () => { try { await intercom(); openPanel('intercom-config'); intercomAdminFrame.src = api('intercom?embedded=1&admin=1') } catch(error) { message(error.message) } })
+$('#intercom-back').addEventListener('click', () => { intercomAdminFrame.removeAttribute('src'); closePanel('intercom-config') })
 const amiTestForm = document.createElement('form')
 amiTestForm.className = 'admin-form'
 amiTestForm.innerHTML = '<div class="admin-info"><b>Accesso Asterisk dedicato</b><p>Verifica l’utente AMI eface e la configurazione dell’interno 8301. Questo test non cambia password né chiamate. Usa la password AMI dedicata, non quella SIP o admin e-Face.</p></div><label>Password AMI eface<input id="intercom-ami-secret" type="password" autocomplete="new-password" autocapitalize="off" spellcheck="false" data-lpignore="true" required></label><div class="admin-form-actions"><button type="submit">VERIFICA ACCESSO AMI</button></div><div id="intercom-ami-result" class="admin-status" role="status" hidden></div>'

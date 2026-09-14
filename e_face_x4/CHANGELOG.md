@@ -1,5 +1,8 @@
 # Changelog
 
+## 2.21.11 — 2026-09-14
+- La schermata Intercom mostra solo le postazioni e toglie le descrizioni superflue. Collegamento SIP e impostazioni audio passano a Strumenti → Admin → Videocitofono; il client SIP dell'app si registra automaticamente all'apertura di e-Face e resta attivo durante la navigazione interna. Il video DoorBird si apre solo nella schermata Intercom.
+
 ## 2.21.10 — 2026-09-14
 - Intercom usa l'organizzazione a elenco delle postazioni del riferimento Control4 fornito dall'utente, ma mantiene sfondo, schede e colori e-Face. Anteprima DoorBird compatta (180 px, 115 px su telefono) espandibile; controlli di chiamata visibili solo durante la conversazione e impostazioni esistenti raccolte in un pannello.
 

@@ -84,6 +84,13 @@ def test_intercom_is_in_sidebar_with_embedded_view() -> None:
     assert 'class="intercom-station-list"' in intercom
     assert 'id="doorbird-expand"' in intercom
     assert 'id="intercom-call-panel" class="intercom-call-panel" hidden' in intercom
+    assert 'class="intercom-station-row sip-station-row"' in intercom
+    assert 'Chiama Ufficio e Tavolo Control4' not in intercom
+    assert 'class="admin-intercom"' not in intercom
+    client_script = (static / "assets" / "intercom.js").read_text(encoding="utf-8")
+    assert "if (!adminMode) $('#sip-connect').click()" in client_script
+    assert "$('#intercom-frame').src = apiUrl('intercom?embedded=1')" in script
+    assert "$('#intercom-frame').removeAttribute('src')" not in script
 
 
 def test_admin_migration_guards_pages_apis_and_websocket(monkeypatch, tmp_path) -> None:
@@ -211,7 +218,7 @@ def test_intercom_dashboard_stores_only_local_settings(monkeypatch, tmp_path) ->
     assert 'id="tools-admin-nav"' in page
     assert 'id="intercom-tool"' in page
     assert 'id="users-tool"' in page
-    assert "tools-dashboard.js?v=2.20.55" in page
+    assert "tools-dashboard.js?v=2.21.11" in page
 
 
 def test_intercom_uses_admin_verified_8301_copy(monkeypatch, tmp_path) -> None:
@@ -253,6 +260,8 @@ def test_personal_sip_accounts_require_provisioning_and_keep_8301_private(monkey
     person.post("/api/auth/login", json={"username": "mario", "password": "password-mario-lunga"})
     assert person.get("/api/admin/intercom/sip/accounts").status_code == 403
     assert person.get("/intercom").status_code == 200
+    assert person.get("/intercom?admin=1").status_code == 403
+    assert admin.get("/intercom?admin=1").status_code == 200
     assert person.get("/api/intercom/sip/credential").status_code == 409
     endpoint = "/api/admin/intercom/sip/accounts/mario"
     assert admin.post(endpoint, json={"admin_password": "wrong"}).status_code == 403
