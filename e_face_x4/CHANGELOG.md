@@ -1,5 +1,8 @@
 # Changelog
 
+## 2.21.21 — 2026-09-14
+- Le due postazioni interne Control4 (8291 e 8292) possono essere rinominate da Strumenti → Admin → Videocitofono. Le etichette sono persistenti in e-Face e si aggiornano nella pagina Intercom; SIP, Asterisk e nomi dei tablet restano invariati.
+
 ## 2.21.20 — 2026-09-14
 - Prima di chiamare una postazione esterna, e-Face verifica e prepara il suo SIP via API DoorBird. Evita il rifiuto 603 quando un altro sistema ha ripristinato il chiamante autorizzato del DoorBird Ingresso a Control4; non esegue scritture periodiche mentre non si chiama.
 

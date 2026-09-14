@@ -36,6 +36,7 @@ from .installer_auth import COOKIE, create_session, valid_session
 from . import user_auth
 from . import intercom_settings
 from . import external_stations
+from . import internal_stations
 from . import provisioner_client
 from . import installation
 from . import credential_inventory
@@ -235,6 +236,22 @@ def create_app() -> FastAPI:
         if not user_auth.session_user(request.cookies.get(user_auth.COOKIE)):
             raise HTTPException(status_code=401, detail="Accesso richiesto")
         return {"stations": external_stations.public()}
+
+    @app.get("/api/intercom/internal-stations")
+    async def intercom_internal_stations(request: Request) -> dict:
+        if not user_auth.session_user(request.cookies.get(user_auth.COOKIE)):
+            raise HTTPException(status_code=401, detail="Accesso richiesto")
+        return {"names": internal_stations.load()}
+
+    @app.put("/api/admin/intercom/internal-stations")
+    async def admin_save_internal_stations(request: Request, payload: dict) -> dict:
+        require_admin(request)
+        try:
+            if set(payload) != {"names"}:
+                raise ValueError("Elenco postazioni interne non valido")
+            return {"names": internal_stations.save(payload["names"])}
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
 
     @app.get("/api/admin/intercom/external-stations")
     async def admin_external_stations(request: Request) -> dict:

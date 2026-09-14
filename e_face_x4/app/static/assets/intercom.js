@@ -2,7 +2,7 @@
   const $ = (selector) => document.querySelector(selector)
   const adminMode = document.documentElement.classList.contains('admin-intercom')
   const root = new URL('./', location.href)
-  const currentVersion = '2.21.20'
+  const currentVersion = '2.21.21'
   let updateAvailable = false
   async function checkForUpdate() {
     if (document.hidden || !intercomVisible) return
@@ -101,6 +101,19 @@
   }
   refreshExternalStations()
   setInterval(refreshExternalStations, 30000)
+  async function refreshInternalStations() {
+    try {
+      const response = await fetch(new URL('api/intercom/internal-stations', root), {cache:'no-store', credentials:'same-origin'})
+      if (!response.ok) return
+      const {names} = await response.json()
+      for (const [extension, name] of Object.entries(names)) {
+        const label = document.querySelector(`[data-dial-extension="${extension}"]`)?.closest('.intercom-station-row')?.querySelector('.station-copy strong')
+        if (label) label.textContent = name
+      }
+    } catch (_) { /* Keep the last labels while offline. */ }
+  }
+  refreshInternalStations()
+  setInterval(refreshInternalStations, 30000)
   $('#doorbird-expand').addEventListener('click', () => {
     const expanded = $('.doorbird-row').classList.toggle('expanded')
     $('#doorbird-expand').setAttribute('aria-expanded', String(expanded))

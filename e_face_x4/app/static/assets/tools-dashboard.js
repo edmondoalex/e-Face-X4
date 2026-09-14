@@ -136,7 +136,33 @@ async function intercom() {
   await sipAccounts()
   await provisionerStatus()
   await externalStations()
+  await internalStations()
 }
+
+const internalAdmin = document.createElement('form')
+internalAdmin.className = 'admin-form'
+internalAdmin.innerHTML = '<div class="admin-info"><b>Postazioni interne Control4</b><p>Cambia solo il nome mostrato in e-Face. Gli interni SIP e i nomi nei tablet Control4 non vengono modificati.</p></div><div class="admin-form-grid"><label>Interno 8291<input data-internal-name="8291" maxlength="64" required></label><label>Interno 8292<input data-internal-name="8292" maxlength="64" required></label></div><div class="admin-form-actions"><button type="submit">SALVA NOMI</button></div>'
+$('#intercom-config').append(internalAdmin)
+
+async function internalStations() {
+  const {names} = await request('api/intercom/internal-stations')
+  for (const [extension, name] of Object.entries(names)) {
+    const field = internalAdmin.querySelector(`[data-internal-name="${extension}"]`)
+    if (field) field.value = name
+  }
+}
+
+internalAdmin.addEventListener('submit', async (event) => {
+  event.preventDefault()
+  const button = internalAdmin.querySelector('button[type="submit"]')
+  button.disabled = true
+  try {
+    const names = Object.fromEntries([...internalAdmin.querySelectorAll('[data-internal-name]')].map((field) => [field.dataset.internalName, field.value.trim()]))
+    await request('api/admin/intercom/internal-stations', {method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify({names})})
+    message('Nomi delle postazioni interne salvati in e-Face')
+  } catch (error) { message(error.message) }
+  finally { button.disabled = false }
+})
 
 const provisionerAdmin = document.createElement('form')
 provisionerAdmin.className = 'admin-form'
