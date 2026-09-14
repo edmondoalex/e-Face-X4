@@ -3,7 +3,7 @@ import json
 from fastapi.testclient import TestClient
 
 from app.main import create_app
-from app.recent_visibility import filter_recents, hide_recent, restore_recents
+from app.recent_visibility import filter_recents, hidden_recents, hide_recent, load_hidden_recents, restore_recent, restore_recents
 
 
 def test_recent_hide_and_restore(monkeypatch, tmp_path):
@@ -38,3 +38,20 @@ def test_recent_buttons_still_require_login_when_accounts_exist(monkeypatch, tmp
     client = TestClient(create_app())
     assert client.post("/api/control4/recently-played/hide", json={"key": "station-1"}).status_code == 401
     assert client.post("/api/control4/recently-played/restore", json={}).status_code == 401
+
+
+def test_recent_single_restore_and_persistence(monkeypatch, tmp_path):
+    monkeypatch.setenv("EFACE_AUTH_DIR", str(tmp_path / "auth"))
+    path = tmp_path / "hidden.json"
+    monkeypatch.setenv("EFACE_HIDDEN_RECENTS", str(path))
+    client = TestClient(create_app())
+    for key in ("station-1", "station-2"):
+        assert client.post("/api/control4/recently-played/hide", json={"key": key}).status_code == 200
+    assert len(load_hidden_recents()) == 2
+    assert hidden_recents([{"key": "station-1"}, {"key": "station-2"}]) == [{"key": "station-1"}, {"key": "station-2"}]
+    result = client.post("/api/control4/recently-played/restore-one", json={"key": "station-1"})
+    assert result.status_code == 200
+    assert result.json() == {"hidden_count": 1}
+    assert filter_recents([{"key": "station-1"}, {"key": "station-2"}]) == ([{"key": "station-1"}], 1)
+    assert len(json.loads(path.read_text(encoding="utf-8"))) == 1
+    assert len(load_hidden_recents()) == 1

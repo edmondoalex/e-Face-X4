@@ -26,7 +26,7 @@ from starlette.responses import RedirectResponse
 from .config import load_settings
 from .control4 import control4_director, load_control4_config, public_control4_config, save_control4_config, test_control4_connection
 from .control4_msp import tunein_browse, tunein_action, tunein_settings
-from .recent_visibility import filter_recents, hide_recent, restore_recents
+from .recent_visibility import filter_recents, hidden_recents, hide_recent, restore_recent, restore_recents
 from .installer_auth import COOKIE, create_session, valid_session
 from . import user_auth
 from . import intercom_settings
@@ -44,7 +44,7 @@ from .connectors.control4_media import cached_control4_icon, cached_control4_ico
 from .connectors.supervisor import discover_addon_url, discover_host_url
 from .demo import dashboard as demo_dashboard
 
-VERSION = "2.20.88"
+VERSION = "2.20.89"
 STATIC = Path(__file__).parent / "static"
 logging.basicConfig(level=logging.WARNING, format="%(asctime)s %(levelname)s [e-face-x4] %(message)s")
 _reconnect_warning_at: dict[str, float] = {}
@@ -1149,8 +1149,9 @@ def create_app() -> FastAPI:
                 room_ids = [int(str(item["registry_id"]).removeprefix("c4room:")) for item in snapshot.get("items", [])]
             else:
                 room_ids = [room_id]
-            items, hidden_count = filter_recents(await connector.recently_played(room_ids, limit))
-            return {"items": items, "hidden_count": hidden_count}
+            history = await connector.recently_played(room_ids, limit)
+            items, hidden_count = filter_recents(history)
+            return {"items": items, "hidden_items": hidden_recents(history), "hidden_count": hidden_count}
         except (ValueError, TypeError, json.JSONDecodeError) as exc:
             raise HTTPException(status_code=400, detail=str(exc))
         except Exception as exc:
@@ -1184,6 +1185,15 @@ def create_app() -> FastAPI:
             raise HTTPException(status_code=401, detail="Accesso richiesto")
         restore_recents()
         return {"hidden_count": 0}
+
+    @app.post("/api/control4/recently-played/restore-one")
+    async def control4_restore_one_recent(request: Request, payload: dict) -> dict:
+        if user_auth.enabled() and not user_auth.session_user(request.cookies.get(user_auth.COOKIE)):
+            raise HTTPException(status_code=401, detail="Accesso richiesto")
+        try:
+            return {"hidden_count": restore_recent(str(payload.get("key") or ""))}
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
 
     @app.get("/api/control4/source-icon/{source_id}", include_in_schema=False)
     async def control4_source_icon(source_id: int) -> Response:

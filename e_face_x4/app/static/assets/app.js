@@ -483,7 +483,7 @@ function renderMediaExperience(devices) {
   const cachedRecent = recentCache.get(recentScope)
   const recentContent = cachedRecent ? recentlyPlayedHtml(cachedRecent.items, recentRoomId) : '<span class="empty-state">Caricamento…</span>'
   const showRecent = selected.provider === 'control4' && (currentMediaExperience === 'listen' || (activeMediaRoom && selected.active_experience !== 'watch'))
-  const recent = showRecent ? `<div class="media-recent" data-recently-played data-recent-scope="${recentScope}" ${cachedRecent && !cachedRecent.items.length && !cachedRecent.hiddenCount ? 'hidden' : ''}><header><h3>Ascoltati di recente</h3><button type="button" data-recent-restore ${cachedRecent?.hiddenCount ? '' : 'hidden'}>Ripristina nascosti (${cachedRecent?.hiddenCount || 0})</button></header><div class="media-recent-strip">${recentContent}</div></div>` : ''
+  const recent = showRecent ? `<div class="media-recent" data-recently-played data-recent-scope="${recentScope}" ${cachedRecent && !cachedRecent.items.length && !cachedRecent.hiddenCount ? 'hidden' : ''}><header><h3>Ascoltati di recente</h3><button type="button" data-recent-show-hidden ${cachedRecent?.hiddenCount ? '' : 'hidden'}>Nascosti (${cachedRecent?.hiddenCount || 0})</button></header><div class="media-recent-strip">${recentContent}</div><div class="media-recent-hidden" hidden>${hiddenRecentlyPlayedHtml(cachedRecent?.hiddenItems || [])}</div></div>` : ''
   const ttsPlayers = currentDevices.filter((device) => device.kind === 'media_player' && device.provider === 'evoice' && device.tts_enabled)
   const ttsVolume = Math.max(0, Math.min(100, Number(localStorage.getItem('eface-tts-volume') ?? 50)))
   const voicePanel = selected.provider === 'evoice' && selected.tts_enabled && ttsPlayers.length ? `<section class="evoice-panel"><div class="evoice-heading"><h3>Messaggio vocale</h3><label><input type="checkbox" data-tts-select-all ${ttsPlayers.length === 1 ? 'checked' : ''}> Seleziona tutti</label></div><div class="evoice-targets">${ttsPlayers.map((device) => `<div class="evoice-target"><label><input type="checkbox" data-tts-target value="${esc(device.id)}" ${device.id === selected.id ? 'checked' : ''}><span>${esc(device.name)}</span><small>${esc(device.room)}</small></label>${device.dnd_available ? `<button class="evoice-dnd ${device.dnd ? 'active' : ''}" data-dnd-device="${esc(device.id)}" data-dnd-value="${device.dnd ? 'false' : 'true'}">DND</button>` : ''}</div>`).join('')}</div><label class="evoice-volume"><span>Volume messaggio</span><input type="range" min="0" max="100" value="${ttsVolume}" style="--volume:${ttsVolume}%" data-tts-volume><output>${ttsVolume}%</output></label><textarea id="evoice-tts-message" maxlength="500" rows="3" placeholder="Scrivi il messaggio da pronunciare"></textarea><button class="evoice-send" data-tts-send>INVIA MESSAGGIO</button></section>` : ''
@@ -508,14 +508,16 @@ async function loadRecentlyPlayed(selected) {
       const data = await response.json()
       const host = document.querySelector('[data-recently-played]')
       const items = Array.isArray(data.items) ? data.items : []
+      const hiddenItems = Array.isArray(data.hidden_items) ? data.hidden_items : []
       const hiddenCount = Number(data.hidden_count || 0)
-      recentCache.set(scope, { items, hiddenCount, updated: Date.now() })
+      recentCache.set(scope, { items, hiddenItems, hiddenCount, updated: Date.now() })
       if (!host || host.dataset.recentScope !== scope) return
       host.hidden = !items.length && !hiddenCount
       host.querySelector('.media-recent-strip').innerHTML = recentlyPlayedHtml(items, roomId)
-      const restore = host.querySelector('[data-recent-restore]')
-      restore.hidden = !hiddenCount
-      restore.textContent = `Ripristina nascosti (${hiddenCount})`
+      const showHidden = host.querySelector('[data-recent-show-hidden]')
+      showHidden.hidden = !hiddenCount
+      showHidden.textContent = `Nascosti (${hiddenCount})`
+      host.querySelector('.media-recent-hidden').innerHTML = hiddenRecentlyPlayedHtml(hiddenItems)
     } catch (_) {
       const host = document.querySelector('[data-recently-played]')
       if (!cached && host?.dataset.recentScope === scope) host.hidden = true
@@ -530,6 +532,10 @@ function recentlyPlayedHtml(items, roomId) {
     const art = item.content_fingerprint ? apiUrl(`api/media/${encodeURIComponent(item.registry_id)}/artwork?fingerprint=${encodeURIComponent(item.content_fingerprint)}`) : ''
     return `<span class="media-recent-card"><button class="media-recent-item" data-recent-key="${esc(item.key)}" data-recent-room="${roomId}" title="${esc(item.title)}">${art ? `<img src="${esc(art)}" alt="" loading="lazy" draggable="false">` : '<span class="media-recent-art mdi-mask" style="'+mdiStyle('mdi:music-circle','music-circle')+'"></span>'}<b>${esc(item.title || 'Senza titolo')}</b><small>${esc(item.subtitle || '')}</small><em><span class="mdi-mask" style="${mdiStyle(item.driver_id === 1569 ? 'mdi:spotify' : 'mdi:radio', 'music-circle')}"></span>${esc(item.item_type || 'Audio')}</em></button><button type="button" class="media-recent-hide" data-recent-hide="${esc(item.key)}" aria-label="Nascondi ${esc(item.title)}" title="Nascondi da Ascoltati di recente">×</button></span>`
   }).join('')
+}
+
+function hiddenRecentlyPlayedHtml(items) {
+  return items.map((item) => `<div class="media-recent-hidden-row"><span>${esc(item.title || 'Senza titolo')}</span><button type="button" data-recent-restore-one="${esc(item.key)}">Ripristina</button></div>`).join('')
 }
 
 const tuneInState = { proxyId: 0, roomId: 0, tab: 'Home', stack: [], items: [], total: 0, more: false, search: '', busy: false }
@@ -1658,14 +1664,21 @@ $('#device-list').addEventListener('click', (event) => {
   const navigatorButton = event.target.closest('[data-msp-open]')
   if (navigatorButton) return openTuneInNavigator(Number(navigatorButton.dataset.mspRoom))
   const hideRecent = event.target.closest('[data-recent-hide]')
-  const restoreRecents = event.target.closest('[data-recent-restore]')
-  if (hideRecent || restoreRecents) {
-    const control = hideRecent || restoreRecents
+  const restoreOneRecent = event.target.closest('[data-recent-restore-one]')
+  const showHiddenRecents = event.target.closest('[data-recent-show-hidden]')
+  if (showHiddenRecents) {
+    const panel = showHiddenRecents.closest('[data-recently-played]').querySelector('.media-recent-hidden')
+    panel.hidden = !panel.hidden
+    return
+  }
+  if (hideRecent || restoreOneRecent) {
+    const control = hideRecent || restoreOneRecent
     control.disabled = true
     const scope = control.closest('[data-recently-played]')?.dataset.recentScope || ''
-    const path = hideRecent ? 'hide' : 'restore'
-    fetch(apiUrl(`api/control4/recently-played/${path}`), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(hideRecent ? { key: hideRecent.dataset.recentHide } : {}) })
-      .then(async (response) => { if (!response.ok) throw new Error((await response.json()).detail || 'Modifica non riuscita'); recentCache.delete(scope); await refresh() })
+    const path = hideRecent ? 'hide' : 'restore-one'
+    const key = hideRecent?.dataset.recentHide || restoreOneRecent?.dataset.recentRestoreOne
+    fetch(apiUrl(`api/control4/recently-played/${path}`), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(key ? { key } : {}) })
+      .then(async (response) => { if (!response.ok) throw new Error((await response.json()).detail || 'Modifica non riuscita'); if (recentPending.has(scope)) await recentPending.get(scope); recentCache.delete(scope); lastDetailSignature = ''; renderActiveDeviceList() })
       .catch(fail).finally(() => { control.disabled = false })
     return
   }

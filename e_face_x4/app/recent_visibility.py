@@ -8,7 +8,12 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import secrets
+import threading
 from pathlib import Path
+
+
+_LOCK = threading.RLock()
 
 
 def _path() -> Path:
@@ -30,26 +35,49 @@ def load_hidden_recents() -> set[str]:
 def _save(items: set[str]) -> None:
     path = _path()
     path.parent.mkdir(parents=True, exist_ok=True)
-    temporary = path.with_suffix(".tmp")
-    temporary.write_text(json.dumps(sorted(items)), encoding="utf-8")
-    temporary.replace(path)
+    temporary = path.with_name(f"{path.name}.{secrets.token_hex(8)}.tmp")
+    try:
+        with temporary.open("x", encoding="utf-8") as file:
+            json.dump(sorted(items), file)
+            file.flush()
+            os.fsync(file.fileno())
+        temporary.replace(path)
+    finally:
+        temporary.unlink(missing_ok=True)
 
 
 def hide_recent(key: str) -> int:
     if not key or len(key) > 256:
         raise ValueError("Elemento recente non valido")
-    items = load_hidden_recents()
-    if len(items) >= 500 and _digest(key) not in items:
-        raise ValueError("Limite elementi nascosti raggiunto")
-    items.add(_digest(key))
-    _save(items)
-    return len(items)
+    with _LOCK:
+        items = load_hidden_recents()
+        if len(items) >= 500 and _digest(key) not in items:
+            raise ValueError("Limite elementi nascosti raggiunto")
+        items.add(_digest(key))
+        _save(items)
+        return len(items)
 
 
 def restore_recents() -> None:
-    _save(set())
+    with _LOCK:
+        _save(set())
+
+
+def restore_recent(key: str) -> int:
+    if not key or len(key) > 256:
+        raise ValueError("Elemento recente non valido")
+    with _LOCK:
+        items = load_hidden_recents()
+        items.discard(_digest(key))
+        _save(items)
+        return len(items)
 
 
 def filter_recents(items: list[dict]) -> tuple[list[dict], int]:
     hidden = load_hidden_recents()
     return [item for item in items if _digest(str(item.get("key") or "")) not in hidden], len(hidden)
+
+
+def hidden_recents(items: list[dict]) -> list[dict]:
+    hidden = load_hidden_recents()
+    return [item for item in items if _digest(str(item.get("key") or "")) in hidden]

@@ -1,5 +1,9 @@
 # Changelog
 
+## 2.20.89 — 2026-09-14
+- Ascoltati di recente: × aggiorna subito la UI senza refresh pagina; Nascosti mostra le fonti da ripristinare singolarmente. Rimossa dalla UI l'azione che azzerava tutti i nascosti.
+- Stato nascosti scritto in modo atomico e serializzato su /data, per mantenerlo dopo refresh, riavvio e aggiornamento.
+
 ## 2.20.88 — 2026-09-14
 - Ascoltati di recente: i pulsanti Nascondi (×) e Ripristina funzionano anche quando gli account utente opzionali non sono configurati; con account attivi resta richiesto il login.
 
