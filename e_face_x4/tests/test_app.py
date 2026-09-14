@@ -83,6 +83,8 @@ def test_intercom_is_in_sidebar_with_embedded_view() -> None:
     intercom = (static / "intercom.html").read_text(encoding="utf-8")
     assert 'class="intercom-station-list"' in intercom
     assert 'id="doorbird-expand"' in intercom
+    assert 'id="call-ufficio" data-dial-extension="8291"' in intercom
+    assert 'id="call-tavolo" data-dial-extension="8292"' in intercom
     assert 'id="intercom-call-panel" class="intercom-call-panel" hidden' in intercom
     assert 'class="intercom-station-row sip-station-row"' in intercom
     assert 'Chiama Ufficio e Tavolo Control4' not in intercom
@@ -90,6 +92,7 @@ def test_intercom_is_in_sidebar_with_embedded_view() -> None:
     client_script = (static / "assets" / "intercom.js").read_text(encoding="utf-8")
     assert "if (!adminMode) $('#sip-connect').click()" in client_script
     assert "candidate?.type === 'relay'" in client_script
+    assert "iceTransportPolicy: 'relay'" in client_script
     assert "iceReadySent = true" in client_script
     assert "Chiusura chiamata…" in client_script
     assert "$('#intercom-frame').src = apiUrl('intercom?embedded=1')" in script

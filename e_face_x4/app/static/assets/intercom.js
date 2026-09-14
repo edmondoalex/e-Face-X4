@@ -145,7 +145,14 @@
   }
 
   function peerConfig() {
-    return {iceServers: $('#fast-ice').checked ? [] : iceServers}
+    return $('#fast-ice').checked || !iceServers.length
+      ? {iceServers: []}
+      : {iceServers, iceTransportPolicy: 'relay'}
+  }
+
+  const dialButtons = [...document.querySelectorAll('[data-dial-extension]')]
+  function setDialButtonsDisabled(disabled) {
+    dialButtons.forEach((button) => { button.disabled = disabled })
   }
 
   async function prepareSpeaker() {
@@ -172,7 +179,7 @@
     $('#intercom-dot').classList.toggle('online', connected)
     $('#sip-connect').disabled = connected
     $('#sip-disconnect').disabled = !phone
-    $('#call-control4').disabled = !connected || !!call
+    setDialButtonsDisabled(!connected || !!call)
   }
 
   function clearCall(text) {
@@ -183,7 +190,7 @@
     $('#call-status').textContent = text
     $('#call-answer').disabled = true
     $('#call-hangup').disabled = true
-    $('#call-control4').disabled = !phone || !phone.isRegistered()
+    setDialButtonsDisabled(!phone || !phone.isRegistered())
   }
 
   $('#speaker-gain').addEventListener('input', () => {
@@ -230,7 +237,7 @@
     $('#call-status').textContent = session.direction === 'incoming' ? `Chiamata da ${session.remote_identity?.display_name || session.remote_identity?.uri?.user || 'sconosciuto'}` : 'Chiamata in uscita…'
     $('#call-answer').disabled = session.direction !== 'incoming'
     $('#call-hangup').disabled = false
-    $('#call-control4').disabled = true
+    setDialButtonsDisabled(true)
     session.on('peerconnection', ({peerconnection}) => {
       peerconnection.addEventListener('track', (event) => {
         if (event.track.kind !== 'audio') return
@@ -240,7 +247,7 @@
     })
     session.on('connecting', () => { $('#call-status').textContent = 'Preparazione rete audio…' })
     session.on('icecandidate', ({candidate, ready}) => {
-      const fastLocal = $('#fast-ice').checked
+      const fastLocal = $('#fast-ice').checked || !iceServers.length
       const usable = fastLocal
         ? candidate?.type === 'host' && candidate?.protocol?.toLowerCase() === 'udp'
         : candidate?.type === 'relay'
@@ -322,23 +329,23 @@
     connection(false, 'Non collegato')
   })
 
-  $('#call-control4').addEventListener('click', async () => {
-    if (!phone?.isRegistered() || call) return
+  dialButtons.forEach((button) => button.addEventListener('click', async () => {
+    if (!phone?.isRegistered() || call || !/^(8290|8291|8292)$/.test(button.dataset.dialExtension)) return
     error('')
-    $('#call-control4').disabled = true
+    setDialButtonsDisabled(true)
     $('#call-status').textContent = 'Richiesta accesso al microfono…'
     try {
       await prepareSpeaker()
       const stream = await preparedMicrophone()
       if (!phone?.isRegistered() || call) { releaseMicrophone(); return }
-      phone.call('sip:8290@asterisk', {mediaStream:stream, mediaConstraints:{audio:true, video:false}, pcConfig:peerConfig()})
+      phone.call(`sip:${button.dataset.dialExtension}@asterisk`, {mediaStream:stream, mediaConstraints:{audio:true, video:false}, pcConfig:peerConfig()})
     } catch (exception) {
       releaseMicrophone()
       $('#call-status').textContent = 'Chiamata non avviata.'
-      $('#call-control4').disabled = !phone?.isRegistered()
+      setDialButtonsDisabled(!phone?.isRegistered())
       error(exception.message)
     }
-  })
+  }))
 
   $('#call-answer').addEventListener('click', async () => {
     if (!call || call.direction !== 'incoming') return

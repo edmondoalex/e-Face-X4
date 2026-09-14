@@ -1,5 +1,8 @@
 # Changelog
 
+## 2.21.13 — 2026-09-14
+- Intercom può chiamare singolarmente i tablet Control4: Ufficio 8291 e Tavolo 8292, oltre al gruppo 8290. Sul sito beta i numeri sono aggiunti al dialplan persistente con backup del file precedente. In modalità remota il browser propone solo candidati TURN relay per evitare tentativi verso indirizzi privati non raggiungibili, in seguito a un caso di audio monodirezionale; l'esito audio richiede ancora prova fisica.
+
 ## 2.21.12 — 2026-09-14
 - Chiamate remote: JsSIP invia la descrizione audio appena è disponibile un candidato TURN relay, senza aspettare la fine di tutta la raccolta ICE; il tasto Termina mostra subito lo stato di chiusura e non accetta pressioni duplicate. L'accesso HTTP locale su IP non può usare il microfono del browser: per le prove audio serve il dominio HTTPS.
 
