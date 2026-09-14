@@ -492,7 +492,7 @@ function renderMediaExperience(devices) {
   const ttsVolume = Math.max(0, Math.min(100, Number(localStorage.getItem('eface-tts-volume') ?? 50)))
   const voicePanel = selected.provider === 'evoice' && selected.tts_enabled && ttsPlayers.length ? `<section class="evoice-panel"><div class="evoice-heading"><h3>Messaggio vocale</h3><label><input type="checkbox" data-tts-select-all ${ttsPlayers.length === 1 ? 'checked' : ''}> Seleziona tutti</label></div><div class="evoice-targets">${ttsPlayers.map((device) => `<div class="evoice-target"><label><input type="checkbox" data-tts-target value="${esc(device.id)}" ${device.id === selected.id ? 'checked' : ''}><span>${esc(device.name)}</span><small>${esc(device.room)}</small></label>${device.dnd_available ? `<button class="evoice-dnd ${device.dnd ? 'active' : ''}" data-dnd-device="${esc(device.id)}" data-dnd-value="${device.dnd ? 'false' : 'true'}">DND</button>` : ''}</div>`).join('')}</div><label class="evoice-volume"><span>Volume messaggio</span><input type="range" min="0" max="100" value="${ttsVolume}" style="--volume:${ttsVolume}%" data-tts-volume><output>${ttsVolume}%</output></label><textarea id="evoice-tts-message" maxlength="500" rows="3" placeholder="Scrivi il messaggio da pronunciare"></textarea><button class="evoice-send" data-tts-send>INVIA MESSAGGIO</button></section>` : ''
   const sourceGlyph = activeMediaSourceMarkup(selected, 'device-glyph', mainIcon)
-  const serviceName = /tunein/i.test(selected.source || '') ? 'tunein' : /amazon music/i.test(selected.source || '') ? 'amazon' : /tidal/i.test(selected.source || '') ? 'tidal' : /stations/i.test(selected.source || '') ? 'stations' : /spotify connect/i.test(selected.source || '') ? 'spotify' : ''
+  const serviceName = /tunein/i.test(selected.source || '') ? 'tunein' : /amazon music/i.test(selected.source || '') ? 'amazon' : /tidal/i.test(selected.source || '') ? 'tidal' : /stations/i.test(selected.source || '') ? 'stations' : /spotify connect/i.test(selected.source || '') ? 'spotify' : /wireless music bridge/i.test(selected.source || '') ? 'bridge' : ''
   const navigatorIcon = selected.provider === 'control4' && serviceName && recentRoomId ? `<button type="button" class="media-navigator-open" data-msp-open data-msp-service="${serviceName}" data-msp-room="${recentRoomId}" title="Apri ${esc(selected.source)}">${sourceGlyph}</button>` : sourceGlyph
   const navigatorArtwork = navigatorIcon !== sourceGlyph ? mainArtwork.replace('class="media-artwork', `data-msp-open data-msp-service="${serviceName}" data-msp-room="${recentRoomId}" role="button" tabindex="0" class="media-artwork`) : mainArtwork
   const roomLabel = activeMediaRoom ? '' : `<span class="media-session-room" title="Stanza comandata: ${esc(selected.room || selected.name)}">${esc(selected.room || selected.name)}</span>`
@@ -606,8 +606,23 @@ function hiddenRecentlyPlayedHtml(items) {
   return items.map((item) => `<div class="media-recent-hidden-row"><span>${esc(item.title || 'Senza titolo')}</span><button type="button" data-recent-restore-one="${esc(item.key)}">Ripristina</button></div>`).join('')
 }
 
-const tuneInState = { service: 'tunein', name: 'TuneIn', proxyId: 0, roomId: 0, tab: 'Home', stack: [], items: [], total: 0, more: false, search: '', busy: false }
-const navigatorVisibleActions = new Set(['Play', 'SelectStation', 'PresetPlay', 'PlayRecent', 'PinFavorite', 'UnpinFavorite', 'PlayNow', 'PlayShuffle', 'PlayNext', 'AddToQueue', 'ReplaceQueue', 'AddToLibrary', 'RemoveFromLibrary'])
+const tuneInState = { service: 'tunein', name: 'TuneIn', proxyId: 0, roomId: 0, tab: 'Home', stack: [], items: [], total: 0, more: false, search: '', busy: false, maxDevices: 5 }
+const navigatorVisibleActions = new Set(['Play', 'SelectStation', 'PresetPlay', 'PlayRecent', 'PinFavorite', 'UnpinFavorite', 'PlayNow', 'PlayShuffle', 'PlayNext', 'AddToQueue', 'ReplaceQueue', 'AddToLibrary', 'RemoveFromLibrary', 'BtConnectDisconnect', 'BtRemoveDevice'])
+let bridgePairingTimer = null
+
+async function pollBridgePairing() {
+  clearTimeout(bridgePairingTimer)
+  if (!$('#music-navigator-dialog').open || tuneInState.service !== 'bridge') return
+  try {
+    const state = await tuneInRequest({ action: 'BtPairingStatus' })
+    const panel = $('#music-navigator-list .music-bridge-confirm')
+    if (!panel) return
+    if (state.status === 'confirm') panel.innerHTML = `<p>${esc(state.message || 'Conferma il codice sul telefono.')}</p><button type="button" data-bridge-auth>Conferma codice</button><button type="button" data-bridge-cancel>Annulla</button>`
+    else if (state.status === 'complete') { panel.innerHTML = '<p>Abbinamento completato.</p>'; setTimeout(() => loadTuneInNavigator(), 900); return }
+    else if (state.status === 'expired' || state.status === 'error') { panel.innerHTML = '<p>Abbinamento non completato. Riprova.</p>'; return }
+    bridgePairingTimer = setTimeout(pollBridgePairing, 2000)
+  } catch (error) { fail(error) }
+}
 
 async function tuneInRequest(payload) {
   const response = await fetch(apiUrl(`api/control4/music/${tuneInState.service}/navigate`), { method: 'POST', headers: { 'Content-Type': 'application/json' }, cache: 'no-store', body: JSON.stringify({ proxy_id: tuneInState.proxyId, room_id: tuneInState.roomId, tab: tuneInState.tab, ...payload }) })
@@ -620,13 +635,14 @@ function renderTuneInNavigator() {
   $('#music-navigator-tabs').querySelectorAll('[data-msp-tab]').forEach((button) => button.classList.toggle('active', button.dataset.mspTab === tuneInState.tab))
   $('#music-navigator-back').disabled = !tuneInState.stack.length
   const list = $('#music-navigator-list')
-  list.innerHTML = tuneInState.items.map((item) => {
+  const bridgeToolbar = tuneInState.service === 'bridge' ? `<div class="music-bridge-toolbar"><span>DISPOSITIVI</span><button type="button" data-bridge-refresh title="Aggiorna lista dispositivi" aria-label="Aggiorna lista dispositivi"><span class="mdi-mask" style="${mdiStyle('mdi:refresh', 'refresh')}"></span></button><button type="button" data-bridge-add ${tuneInState.items.length >= tuneInState.maxDevices ? 'disabled' : ''}>Aggiungi dispositivo</button></div>` : ''
+  list.innerHTML = bridgeToolbar + (tuneInState.items.map((item) => {
     if (item.header) return `<div class="music-navigator-section">${esc(item.title)}</div>`
     const icon = item.icon || (tuneInState.service === 'spotify' ? 'mdi:spotify' : mediaSourceIcon(tuneInState.service))
     const fallback = `<span class="music-navigator-placeholder"><span class="mdi-mask" style="${mdiStyle(icon, 'music-circle')}"></span></span>`
     const artwork = item.image ? `<img src="${esc(/^(api|assets)\//.test(item.image) ? apiUrl(item.image) : item.image)}" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.nextElementSibling.hidden=false;this.remove();"><span class="music-navigator-placeholder" hidden><span class="mdi-mask" style="${mdiStyle(icon, 'music-circle')}"></span></span>` : fallback
     return `<div class="music-navigator-row" data-msp-item="${esc(item.id)}"><button type="button" class="music-navigator-main" data-msp-select="${esc(item.id)}">${artwork}<span><strong>${esc(item.title)}</strong>${item.subtitle ? `<small>${esc(item.subtitle)}</small>` : ''}</span><b>${item.link ? '›' : ''}</b></button>${item.actions.some((action) => navigatorVisibleActions.has(action)) ? `<button type="button" class="music-navigator-menu-button" data-msp-menu="${esc(item.id)}" aria-label="Azioni per ${esc(item.title)}">⋮</button>` : ''}</div>`
-  }).join('') || '<p class="music-navigator-empty">Nessun contenuto disponibile.</p>'
+  }).join('') || `<p class="music-navigator-empty">${tuneInState.service === 'bridge' ? 'Nessun dispositivo Bluetooth abbinato.' : 'Nessun contenuto disponibile.'}</p>`)
   $('#music-navigator-more').hidden = !tuneInState.more
 }
 
@@ -647,6 +663,7 @@ async function loadTuneInNavigator(parent = '', append = false) {
     tuneInState.items = append ? [...tuneInState.items, ...data.items] : data.items
     tuneInState.total = data.total
     tuneInState.more = data.more
+    if (tuneInState.service === 'bridge') tuneInState.maxDevices = data.max_devices || 5
     renderTuneInNavigator()
   } catch (error) { $('#music-navigator-list').innerHTML = `<p class="music-navigator-empty">${esc(error.message)}</p>` }
   finally { tuneInState.busy = false }
@@ -655,12 +672,13 @@ async function loadTuneInNavigator(parent = '', append = false) {
 async function openTuneInNavigator(roomId, service = 'tunein') {
   const dialog = $('#music-navigator-dialog')
   tuneInState.service = service
-  tuneInState.name = ({tunein:'TuneIn',amazon:'Amazon Music',tidal:'TIDAL',stations:'Stations',spotify:'Spotify Connect'})[service] || 'Musica'
+  tuneInState.name = ({tunein:'TuneIn',amazon:'Amazon Music',tidal:'TIDAL',stations:'Stations',spotify:'Spotify Connect',bridge:'Wireless Music Bridge'})[service] || 'Musica'
   tuneInState.roomId = roomId
   tuneInState.tab = 'Home'; tuneInState.stack = []; tuneInState.items = []; tuneInState.search = ''
   $('#music-navigator-title').textContent = tuneInState.name
   $('#music-navigator-query').placeholder = `Cerca in ${tuneInState.name}`
   $('#music-navigator-search').hidden = true
+  $('#music-navigator-tabs').hidden = false
   dialog.showModal()
   $('#music-navigator-list').innerHTML = `<p class="music-navigator-empty">Connessione a ${esc(tuneInState.name)}…</p>`
   try {
@@ -670,8 +688,8 @@ async function openTuneInNavigator(roomId, service = 'tunein') {
     const source = (data.services || []).find((item) => item.name?.toLowerCase() === tuneInState.name.toLowerCase())
     if (!source?.proxy_id) throw new Error(`${tuneInState.name} non presente nell’impianto`)
     tuneInState.proxyId = Number(source.proxy_id)
-    const tabs = service === 'tunein' ? [{id:'Home',name:'Home'},{id:'Browse',name:'Sfoglia'},{id:'Favorites',name:'Preferiti'},{id:'Settings',name:'Impostazioni'}] : service === 'stations' ? [{id:'Stations',name:'Radio'},{id:'Sources',name:'Sorgenti'},{id:'Genres',name:'Generi'}] : service === 'spotify' ? [{id:'Presets',name:'Preferito'},{id:'Recently Played',name:'Ascoltate di recente'},{id:'Settings',name:'Impostazioni'}] : (await tuneInRequest({operation:'tabs'})).tabs
-    $('#music-navigator-search-toggle').hidden = service === 'stations' || service === 'spotify'
+    const tabs = service === 'tunein' ? [{id:'Home',name:'Home'},{id:'Browse',name:'Sfoglia'},{id:'Favorites',name:'Preferiti'},{id:'Settings',name:'Impostazioni'}] : service === 'stations' ? [{id:'Stations',name:'Radio'},{id:'Sources',name:'Sorgenti'},{id:'Genres',name:'Generi'}] : service === 'spotify' ? [{id:'Presets',name:'Preferito'},{id:'Recently Played',name:'Ascoltate di recente'},{id:'Settings',name:'Impostazioni'}] : service === 'bridge' ? [{id:'Devices',name:'Dispositivi'}] : (await tuneInRequest({operation:'tabs'})).tabs
+    $('#music-navigator-search-toggle').hidden = service === 'stations' || service === 'spotify' || service === 'bridge'
     if (!tabs.length) throw new Error(`Nessuna sezione ${tuneInState.name} disponibile`)
     $('#music-navigator-tabs').innerHTML = tabs.map((tab) => `<button type="button" data-msp-tab="${esc(tab.id)}">${esc(tab.id === 'Settings' ? 'Impostazioni' : tab.name)}</button>`).join('')
     $('#music-navigator-tabs').setAttribute('aria-label', `Sezioni ${tuneInState.name}`)
@@ -685,7 +703,7 @@ async function openTuneInNavigator(roomId, service = 'tunein') {
   } catch (error) { $('#music-navigator-list').innerHTML = `<p class="music-navigator-empty">${esc(error.message)}</p>` }
 }
 
-$('#music-navigator-close').addEventListener('click', () => $('#music-navigator-dialog').close())
+$('#music-navigator-close').addEventListener('click', () => { clearTimeout(bridgePairingTimer); $('#music-navigator-dialog').close() })
 $('#music-navigator-back').addEventListener('click', () => {
   if (!tuneInState.stack.length) return
   tuneInState.stack.pop(); tuneInState.search = ''
@@ -708,10 +726,36 @@ $('#music-navigator-search').addEventListener('submit', (event) => {
 })
 $('#music-navigator-more button').addEventListener('click', () => loadTuneInNavigator(tuneInState.stack.at(-1)?.id || '', true))
 $('#music-navigator-list').addEventListener('click', async (event) => {
+  if (tuneInState.service !== 'bridge') return
+  const refreshButton = event.target.closest('[data-bridge-refresh]')
+  const addButton = event.target.closest('[data-bridge-add]')
+  const cancelButton = event.target.closest('[data-bridge-cancel]')
+  const startButton = event.target.closest('[data-bridge-start]')
+  const authButton = event.target.closest('[data-bridge-auth]')
+  const removeButton = event.target.closest('[data-bridge-remove-confirm]')
+  if (refreshButton) return loadTuneInNavigator()
+  if (addButton) {
+    document.querySelectorAll('.music-bridge-confirm').forEach((node) => node.remove())
+    addButton.closest('.music-bridge-toolbar').insertAdjacentHTML('afterend', '<div class="music-bridge-confirm"><p>Avvia la ricerca Bluetooth, poi abbina il telefono al Wireless Music Bridge dalle impostazioni del telefono.</p><button type="button" data-bridge-start>Avvia abbinamento</button><button type="button" data-bridge-cancel>Annulla</button></div>')
+    return
+  }
+  if (cancelButton) return cancelButton.closest('.music-bridge-confirm').remove()
+  if (!startButton && !authButton && !removeButton) return
+  const control = startButton || authButton || removeButton
+  control.disabled = true
+  try {
+    await tuneInRequest({ action: startButton ? 'BtAddDevice' : authButton ? 'BtAuthenticate' : 'BtRemoveDevice', item_id: removeButton?.dataset.bridgeRemoveConfirm || '' })
+    if (startButton) { control.closest('.music-bridge-confirm').innerHTML = '<p>Bluetooth pronto: avvia l’abbinamento dal telefono.</p>'; pollBridgePairing() }
+    else if (authButton) { control.closest('.music-bridge-confirm').innerHTML = '<p>Conferma inviata. Attendo il dispositivo…</p>'; pollBridgePairing() }
+    else await loadTuneInNavigator()
+  } catch (error) { fail(error); control.disabled = false }
+})
+$('#music-navigator-list').addEventListener('click', async (event) => {
   const menuButton = event.target.closest('[data-msp-menu]')
   const selected = event.target.closest('[data-msp-select]')
   const id = menuButton?.dataset.mspMenu || selected?.dataset.mspSelect
   if (!id) return
+  if (selected && tuneInState.service === 'bridge') return selected.closest('.music-navigator-row').querySelector('[data-msp-menu]')?.click()
   const item = tuneInState.items.find((entry) => entry.id === id)
   if (!item) return
   if (menuButton) {
@@ -719,7 +763,7 @@ $('#music-navigator-list').addEventListener('click', async (event) => {
     if (existing) return existing.remove()
     document.querySelectorAll('.music-navigator-actions').forEach((node) => node.remove())
     const choices = item.actions.filter((action) => navigatorVisibleActions.has(action))
-    menuButton.parentElement.insertAdjacentHTML('beforeend', `<div class="music-navigator-actions">${choices.map((action) => `<button type="button" data-msp-action="${action}" data-msp-action-item="${esc(id)}">${esc(({ Play: 'Play', SelectStation: 'Riproduci', PresetPlay: 'Riproduci preset', PlayRecent: 'Riproduci', PinFavorite: 'Aggiungi come preferito in e-Face', UnpinFavorite: 'Rimuovi dai preferiti in e-Face', PlayNow: 'Riproduci ora', PlayShuffle: 'Riproduci casualmente', PlayNext: 'Riproduci dopo', AddToQueue: 'Aggiungi alla coda', ReplaceQueue: 'Sostituisci coda', AddToLibrary: 'Aggiungi alla libreria', RemoveFromLibrary: 'Rimuovi dalla libreria' })[action] || action)}</button>`).join('')}</div>`)
+    menuButton.parentElement.insertAdjacentHTML('beforeend', `<div class="music-navigator-actions">${choices.map((action) => `<button type="button" data-msp-action="${action}" data-msp-action-item="${esc(id)}">${esc(action === 'BtConnectDisconnect' ? item.connected ? 'Disconnetti' : 'Connetti' : ({ Play: 'Play', SelectStation: 'Riproduci', PresetPlay: 'Riproduci preset', PlayRecent: 'Riproduci', PinFavorite: 'Aggiungi come preferito in e-Face', UnpinFavorite: 'Rimuovi dai preferiti in e-Face', PlayNow: 'Riproduci ora', PlayShuffle: 'Riproduci casualmente', PlayNext: 'Riproduci dopo', AddToQueue: 'Aggiungi alla coda', ReplaceQueue: 'Sostituisci coda', AddToLibrary: 'Aggiungi alla libreria', RemoveFromLibrary: 'Rimuovi dalla libreria', BtRemoveDevice: 'Rimuovi dispositivo' })[action] || action)}</button>`).join('')}</div>`)
     return
   }
   if (item.link || item.default_action === 'Browse') {
@@ -736,10 +780,17 @@ $('#music-navigator-list').addEventListener('click', async (event) => {
   const button = event.target.closest('[data-msp-action]')
   if (!button) return
   event.stopPropagation()
+  if (tuneInState.service === 'bridge' && button.dataset.mspAction === 'BtRemoveDevice') {
+    const item = tuneInState.items.find((entry) => entry.id === button.dataset.mspActionItem)
+    document.querySelectorAll('.music-bridge-confirm').forEach((node) => node.remove())
+    button.closest('.music-navigator-row').insertAdjacentHTML('afterend', `<div class="music-bridge-confirm"><p>Rimuovere “${esc(item?.title || 'questo dispositivo')}” dagli abbinamenti Bluetooth? L’operazione richiederà un nuovo abbinamento per usarlo ancora.</p><button type="button" data-bridge-remove-confirm="${esc(button.dataset.mspActionItem)}">Rimuovi dispositivo</button><button type="button" data-bridge-cancel>Annulla</button></div>`)
+    return
+  }
   button.disabled = true
   try {
     await tuneInRequest({ action: button.dataset.mspAction, item_id: button.dataset.mspActionItem })
-    if (['Play', 'SelectStation', 'PresetPlay', 'PlayRecent', 'PlayNow', 'PlayShuffle', 'PlayNext', 'AddToQueue', 'ReplaceQueue'].includes(button.dataset.mspAction)) { $('#music-navigator-dialog').close(); refresh(); setTimeout(refresh, 2500) }
+    if (button.dataset.mspAction === 'BtConnectDisconnect') await loadTuneInNavigator()
+    else if (['Play', 'SelectStation', 'PresetPlay', 'PlayRecent', 'PlayNow', 'PlayShuffle', 'PlayNext', 'AddToQueue', 'ReplaceQueue'].includes(button.dataset.mspAction)) { $('#music-navigator-dialog').close(); refresh(); setTimeout(refresh, 2500) }
     else { if (['PinFavorite', 'UnpinFavorite'].includes(button.dataset.mspAction)) { favoritesCache = null; await loadMediaFavorites() }; await loadTuneInNavigator(tuneInState.stack.at(-1)?.id || '') }
   } catch (error) { fail(error) }
   finally { button.disabled = false }
@@ -1895,7 +1946,8 @@ $('#device-list').addEventListener('click', (event) => {
   if (mediaButton && mediaCard) return sendDeviceCommand(mediaCard.dataset.deviceId, mediaButton.dataset.mediaAction, mediaButton)
   const sourceButton = event.target.closest('button[data-media-source]')
   if (sourceButton && mediaCard) {
-    const service = String(sourceButton.textContent || '').trim().toLowerCase() === 'spotify connect' ? 'spotify' : String(sourceButton.dataset.mediaSource || sourceButton.textContent || '').toLowerCase().includes('stations') || String(sourceButton.textContent || '').trim().toLowerCase() === 'stations' ? 'stations' : ''
+    const sourceLabel = String(sourceButton.textContent || '').trim().toLowerCase()
+    const service = sourceLabel === 'spotify connect' ? 'spotify' : sourceLabel === 'wireless music bridge' ? 'bridge' : String(sourceButton.dataset.mediaSource || sourceLabel).toLowerCase().includes('stations') || sourceLabel === 'stations' ? 'stations' : ''
     if (service) {
       const room = currentDevices.find((item) => String(item.id) === mediaCard.dataset.deviceId)
       const roomId = Number(String(room?.registry_id || '').replace('c4room:', ''))

@@ -56,7 +56,7 @@ def _as_items(data: Any) -> tuple[list[dict[str, Any]], int]:
     return [item for item in items if isinstance(item, dict)], int(length) if str(length).isdigit() else len(items)
 
 
-async def _command(proxy_id: int, room_id: int, name: str, values: dict[str, Any], wait_response: bool = True) -> Any:
+async def _command(proxy_id: int, room_id: int, name: str, values: dict[str, Any], wait_response: bool = True, is_async: bool = False) -> Any:
     config = load_control4_config()
     director, token = await control4_director(config)
     socket = C4Websocket(config["host"])
@@ -78,7 +78,7 @@ async def _command(proxy_id: int, room_id: int, name: str, values: dict[str, Any
         await asyncio.sleep(2)
         await director.send_post_request(
             f"/api/v1/items/{proxy_id}/commands", name,
-            {"ROOMID": room_id, "SEQ": seq, "NAVID": nav_id, "ARGS": _args(values), "LOCALE": "it_IT"}, False,
+            {"ROOMID": room_id, "SEQ": seq, "NAVID": nav_id, "ARGS": _args(values), "LOCALE": "it_IT"}, is_async,
         )
         return await asyncio.wait_for(done, 12) if wait_response else None
     finally:

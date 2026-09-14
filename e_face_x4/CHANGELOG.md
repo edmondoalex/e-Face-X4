@@ -1,5 +1,8 @@
 # Changelog
 
+## 2.21.2 — 2026-09-14
+- Wireless Music Bridge: popup e-Face con elenco Bluetooth letto dal driver Control4 tramite richieste asincrone, connessione/disconnessione, aggiunta dispositivo con conferma, aggiornamento lista e rimozione con conferma. Nessun elenco statico né comandi TuneIn riutilizzati.
+
 ## 2.21.1 — 2026-09-14
 - Stella nel player Ascolta per aggiungere o rimuovere subito il contenuto riproducibile presente nella cronologia Control4 dai Preferiti e-Face, con stato grigio/acceso. In Strumenti → Icone sorgenti, Nascondi/Mostra salva sul volume persistente quali sorgenti non devono comparire tra le scelte e-Face.
 

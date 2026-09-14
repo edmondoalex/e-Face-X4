@@ -29,6 +29,7 @@ from .control4_msp import tunein_browse, tunein_action, tunein_settings
 from .control4_msp_catalog import catalog_action, catalog_browse, catalog_settings, catalog_tabs
 from .control4_stations import station_artwork_path, station_catalog_artwork, stations_action, stations_browse
 from .control4_spotify import spotify_action, spotify_browse, spotify_settings
+from .control4_bridge import bridge_action, bridge_browse
 from .media_favorites import add_favorite, favorite_by_id, list_favorites, remove_favorite
 from .recent_visibility import filter_recents, hidden_recents, hide_recent, restore_recent, restore_recents
 from .installer_auth import COOKIE, create_session, valid_session
@@ -48,7 +49,7 @@ from .connectors.control4_media import cached_control4_icon, cached_control4_ico
 from .connectors.supervisor import discover_addon_url, discover_host_url
 from .demo import dashboard as demo_dashboard
 
-VERSION = "2.21.1"
+VERSION = "2.21.2"
 STATIC = Path(__file__).parent / "static"
 logging.basicConfig(level=logging.WARNING, format="%(asctime)s %(levelname)s [e-face-x4] %(message)s")
 _reconnect_warning_at: dict[str, float] = {}
@@ -355,7 +356,7 @@ def create_app() -> FastAPI:
                 continue
             key = name.casefold()
             if key not in by_name or "deviceOrder" in item:
-                by_name[key] = {"name": name, "proxy_id": int(item["id"]), "status": "ready" if key in {"amazon music", "tunein", "spotify connect"} else "test" if key == "tidal" else "external" if key == "shairbridge" else "pending"}
+                by_name[key] = {"name": name, "proxy_id": int(item["id"]), "status": "ready" if key in {"amazon music", "tunein", "spotify connect", "wireless music bridge"} else "test" if key == "tidal" else "external" if key == "shairbridge" else "pending"}
         services = sorted(by_name.values(), key=lambda service: str(service["name"]).casefold())
         return JSONResponse({"services": services}, headers={"Cache-Control": "no-store, private"})
 
@@ -395,6 +396,29 @@ def create_app() -> FastAPI:
 
     @app.post("/api/control4/music/{service}/navigate")
     async def control4_catalog_navigate(service: str, request: Request, payload: dict) -> Response:
+        if service == "bridge":
+            if user_auth.enabled() and not user_auth.session_user(request.cookies.get(user_auth.COOKIE)):
+                raise HTTPException(status_code=401, detail="Accesso richiesto")
+            try:
+                proxy_id, room_id = int(payload.get("proxy_id") or 0), int(payload.get("room_id") or 0)
+                if proxy_id <= 0 or room_id <= 0:
+                    raise ValueError("Bridge o stanza non validi")
+                director, _ = await control4_director(load_control4_config())
+                info = await director.get_item_info(proxy_id)
+                source = info[0] if isinstance(info, list) and info else info
+                if not isinstance(source, dict) or str(source.get("name") or "").casefold() != "wireless music bridge" or source.get("proxy") != "media_service":
+                    raise ValueError("Wireless Music Bridge non disponibile")
+                result = await bridge_action(proxy_id, room_id, str(payload.get("item_id") or ""), str(payload["action"])) if payload.get("action") else await bridge_browse(proxy_id, room_id)
+                return JSONResponse(result, headers={"Cache-Control": "no-store, private"})
+            except ValueError as exc:
+                raise HTTPException(status_code=400, detail=str(exc)) from exc
+            except asyncio.TimeoutError as exc:
+                raise HTTPException(status_code=504, detail="Wireless Music Bridge non ha risposto") from exc
+            except HTTPException:
+                raise
+            except Exception as exc:
+                logging.warning("Navigazione Wireless Music Bridge non disponibile (%s)", type(exc).__name__)
+                raise HTTPException(status_code=502, detail="Navigazione Wireless Music Bridge non disponibile") from exc
         if service == "spotify":
             if user_auth.enabled() and not user_auth.session_user(request.cookies.get(user_auth.COOKIE)):
                 raise HTTPException(status_code=401, detail="Accesso richiesto")
