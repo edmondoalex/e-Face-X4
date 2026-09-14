@@ -1,5 +1,8 @@
 # Changelog
 
+## 2.21.3 — 2026-09-14
+- Wireless Music Bridge: la scheda sorgente seleziona il bridge nella stanza; il popup Bluetooth si apre dalla copertina o dall'icona del player quando la sorgente è attiva.
+
 ## 2.21.2 — 2026-09-14
 - Wireless Music Bridge: popup e-Face con elenco Bluetooth letto dal driver Control4 tramite richieste asincrone, connessione/disconnessione, aggiunta dispositivo con conferma, aggiornamento lista e rimozione con conferma. Nessun elenco statico né comandi TuneIn riutilizzati.
 

@@ -1947,7 +1947,7 @@ $('#device-list').addEventListener('click', (event) => {
   const sourceButton = event.target.closest('button[data-media-source]')
   if (sourceButton && mediaCard) {
     const sourceLabel = String(sourceButton.textContent || '').trim().toLowerCase()
-    const service = sourceLabel === 'spotify connect' ? 'spotify' : sourceLabel === 'wireless music bridge' ? 'bridge' : String(sourceButton.dataset.mediaSource || sourceLabel).toLowerCase().includes('stations') || sourceLabel === 'stations' ? 'stations' : ''
+    const service = sourceLabel === 'spotify connect' ? 'spotify' : String(sourceButton.dataset.mediaSource || sourceLabel).toLowerCase().includes('stations') || sourceLabel === 'stations' ? 'stations' : ''
     if (service) {
       const room = currentDevices.find((item) => String(item.id) === mediaCard.dataset.deviceId)
       const roomId = Number(String(room?.registry_id || '').replace('c4room:', ''))
