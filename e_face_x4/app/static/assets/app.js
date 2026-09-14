@@ -523,6 +523,7 @@ async function loadRecentlyPlayed(selected) {
       const hiddenItems = Array.isArray(data.hidden_items) ? data.hidden_items : []
       const hiddenCount = Number(data.hidden_count || 0)
       recentCache.set(scope, { items, hiddenItems, hiddenCount, updated: Date.now() })
+      if (favoritesCache?.some((favorite) => favorite.kind === 'recent' && !favorite.driver_id && [...items, ...hiddenItems].some((item) => item.key === favorite.key))) await loadMediaFavorites(true)
       if (!host || host.dataset.recentScope !== scope) return
       host.hidden = !items.length && !hiddenCount
       host.querySelector('.media-recent-strip').innerHTML = recentlyPlayedHtml(items, roomId)
@@ -554,9 +555,17 @@ function mediaFavoritesHtml(items, roomId) {
   if (!items.length) return '<span class="empty-state">Aggiungi una stazione da Stations o usa ★ negli ascolti recenti.</span>'
   return items.map((item) => {
     const art = item.kind === 'station' && item.station_id ? apiUrl(`api/control4/stations/catalog-image/${item.station_id}`) : item.kind === 'msp' && item.image ? item.image : item.kind === 'recent' ? apiUrl(`api/control4/favorites/artwork?identity=${encodeURIComponent(item.id)}`) : ''
-    const fallbackIcon = item.service === 'spotify' || Number(item.driver_id) === 1569 ? 'mdi:spotify' : item.kind === 'station' || item.item_type === 'Station' ? 'mdi:radio' : 'mdi:music-circle'
-    const fallback = `<span class="media-recent-art mdi-mask" style="${mdiStyle(fallbackIcon, 'music-circle')}${art ? ';display:none' : ''}"></span>`
-    return `<span class="media-recent-card"><button class="media-recent-item" data-favorite-select="${esc(item.id)}" data-favorite-room="${roomId}" title="${esc(item.title)}">${art ? `<img src="${esc(art)}" alt="" loading="lazy" draggable="false" onerror="this.style.display='none';this.nextElementSibling.style.display='block'">` : ''}${fallback}<b>${esc(item.title)}</b><small>${esc(item.subtitle || '')}</small><em><span class="mdi-mask" style="${mdiStyle(fallbackIcon, 'music-circle')}"></span>${esc(item.kind === 'station' ? 'Radio' : item.service === 'spotify' ? 'Spotify' : item.item_type || 'Audio')}</em></button><button type="button" class="media-recent-hide" data-favorite-remove="${esc(item.id)}" aria-label="Rimuovi ${esc(item.title)} dai Preferiti" title="Rimuovi dai Preferiti">×</button></span>`
+    const recent = [...recentCache.values()].flatMap((scope) => [...scope.items, ...scope.hiddenItems]).find((entry) => entry.key === item.key)
+    const spotify = item.service === 'spotify' || Number(item.driver_id) === 1569 || Number(recent?.driver_id) === 1569 || (item.kind === 'recent' && !item.driver_id && !recent && ['Playlist', 'Album', 'Artist', 'Track', 'Show'].includes(item.item_type))
+    const spotifySource = currentDevices.flatMap((device) => device.source_options || []).find((source) => String(source.label || '').toLocaleLowerCase('it') === 'spotify connect')
+    const serviceId = Number(item.kind === 'station' || item.kind === 'msp' ? item.proxy_id : item.driver_id || recent?.driver_id || (spotify ? spotifySource?.source_id : 0))
+    const spotifyLogo = 'assets/control4-icons/spotify-connect.png'
+    const displayArt = art || (spotify ? spotifyLogo : '')
+    const fallbackIcon = spotify ? 'mdi:spotify' : item.kind === 'station' || item.item_type === 'Station' ? 'mdi:radio' : 'mdi:music-circle'
+    const fallback = `<span class="media-recent-art mdi-mask" style="${mdiStyle(fallbackIcon, 'music-circle')}${displayArt ? ';display:none' : ''}"></span>`
+    const imageError = spotify && art ? `if(!this.dataset.fallback){this.dataset.fallback='1';this.src='${spotifyLogo}';return}` : ''
+    const serviceLogo = Number.isSafeInteger(serviceId) && serviceId > 0 ? `<img class="media-favorite-service-icon" src="${apiUrl(`api/control4/source-icon/${serviceId}`)}" alt="" loading="lazy" onerror="this.style.display='none';this.nextElementSibling.style.display='block'"><span class="mdi-mask" style="${mdiStyle(fallbackIcon, 'music-circle')};display:none"></span>` : `<span class="mdi-mask" style="${mdiStyle(fallbackIcon, 'music-circle')}"></span>`
+    return `<span class="media-recent-card"><button class="media-recent-item" data-favorite-select="${esc(item.id)}" data-favorite-room="${roomId}" title="${esc(item.title)}">${displayArt ? `<img src="${esc(displayArt)}" alt="" loading="lazy" draggable="false" onerror="${imageError}this.style.display='none';this.nextElementSibling.style.display='block'">` : ''}${fallback}<b>${esc(item.title)}</b><small>${esc(item.subtitle || '')}</small><em>${serviceLogo}${esc(item.kind === 'station' ? 'Stations' : spotify ? 'Spotify' : item.item_type || 'Audio')}</em></button><button type="button" class="media-recent-hide" data-favorite-remove="${esc(item.id)}" aria-label="Rimuovi ${esc(item.title)} dai Preferiti" title="Rimuovi dai Preferiti">×</button></span>`
   }).join('')
 }
 

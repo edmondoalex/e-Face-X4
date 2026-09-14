@@ -30,7 +30,7 @@ from .control4_msp_catalog import catalog_action, catalog_browse, catalog_settin
 from .control4_stations import station_artwork_path, station_catalog_artwork, station_identity, station_media_artwork, stations_action, stations_browse
 from .control4_spotify import spotify_action, spotify_browse, spotify_settings
 from .control4_bridge import bridge_action, bridge_browse
-from .media_favorites import add_favorite, favorite_by_id, list_favorites, load_favorite_artwork, remove_favorite, save_favorite_artwork
+from .media_favorites import add_favorite, enrich_recent_favorites, favorite_by_id, list_favorites, load_favorite_artwork, remove_favorite, save_favorite_artwork
 from .recent_visibility import filter_recents, hidden_recents, hide_recent, restore_recent, restore_recents
 from .installer_auth import COOKIE, create_session, valid_session
 from . import user_auth
@@ -49,7 +49,7 @@ from .connectors.control4_media import cached_control4_icon, cached_control4_ico
 from .connectors.supervisor import discover_addon_url, discover_host_url
 from .demo import dashboard as demo_dashboard
 
-VERSION = "2.21.5"
+VERSION = "2.21.6"
 STATIC = Path(__file__).parent / "static"
 logging.basicConfig(level=logging.WARNING, format="%(asctime)s %(levelname)s [e-face-x4] %(message)s")
 _reconnect_warning_at: dict[str, float] = {}
@@ -1452,6 +1452,7 @@ def create_app() -> FastAPI:
             else:
                 room_ids = [room_id]
             history = await connector.recently_played(room_ids, limit)
+            enrich_recent_favorites(history)
             items, hidden_count = filter_recents(history)
             return {"items": items, "hidden_items": hidden_recents(history), "hidden_count": hidden_count}
         except (ValueError, TypeError, json.JSONDecodeError) as exc:

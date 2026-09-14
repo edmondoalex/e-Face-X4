@@ -1,5 +1,8 @@
 # Changelog
 
+## 2.21.6 — 2026-09-14
+- Preferiti Spotify: quando la copertina temporanea non è disponibile compare il logo Spotify, non un'icona musicale generica. I preferiti precedenti recuperano e salvano l'ID del servizio dalla cronologia quando ancora presente. Anche i piccoli loghi sotto i preferiti usano l'icona reale della sorgente configurata in e-Face.
+
 ## 2.21.5 — 2026-09-14
 - Stella del player Stations: salva o rimuove la stazione attiva dai Preferiti e-Face usando l'ID verificato nel catalogo, indipendentemente dalla cronologia Control4. L'indicatore LIVE conserva le dimensioni della scheda e mostra otto barre animate, rispettando il movimento ridotto.
 

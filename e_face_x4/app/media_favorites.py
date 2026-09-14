@@ -52,6 +52,24 @@ def list_favorites() -> list[dict[str, Any]]:
     return [item for item in raw if isinstance(item, dict) and item.get("kind") in {"station", "recent", "msp"} and isinstance(item.get("id"), str)] if isinstance(raw, list) else []
 
 
+def enrich_recent_favorites(history: list[dict[str, Any]]) -> bool:
+    """Persist service IDs for older favorites while Control4 still lists them."""
+    drivers = {str(entry.get("key")): int(entry["driver_id"]) for entry in history
+               if isinstance(entry, dict) and str(entry.get("key") or "") and str(entry.get("driver_id") or "").isdigit() and int(entry["driver_id"]) > 0}
+    if not drivers:
+        return False
+    with _LOCK:
+        items = list_favorites()
+        changed = False
+        for item in items:
+            if item.get("kind") == "recent" and not item.get("driver_id") and str(item.get("key") or "") in drivers:
+                item["driver_id"] = drivers[str(item["key"])]
+                changed = True
+        if changed:
+            _save(items)
+        return changed
+
+
 def _save(items: list[dict[str, Any]]) -> None:
     path = _path()
     path.parent.mkdir(parents=True, exist_ok=True)
