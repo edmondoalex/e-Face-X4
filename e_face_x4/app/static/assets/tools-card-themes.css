@@ -1,7 +1,7 @@
 .tools-header>div{display:flex;align-items:center;gap:14px;min-width:0}.tools-brand{display:block;width:230px;height:50px;object-fit:contain;object-position:left center;margin-left:-8px}.tools-header h1{font-size:18px;font-weight:600;white-space:nowrap}
 .card-theme-presets{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
 .card-theme-preview{min-height:92px;padding:13px;border:2px solid transparent;border-radius:12px;display:flex;align-items:center;gap:13px;color:#fff;text-align:left;background:#151b1f}
-.card-theme-preview>i{width:58px;height:58px;flex:0 0 58px;border-radius:10px;background:linear-gradient(145deg,#252e33,#171d21)}
+.card-theme-preview>i{width:58px;height:58px;flex:0 0 58px;border-radius:10px;background:linear-gradient(145deg,#303030,#1e1e1e)}
 .card-theme-preview b,.card-theme-preview small{display:block}.card-theme-preview small{margin-top:5px;color:#a7b1b4}
 .card-theme-preview.active{border-color:#61d8f2;box-shadow:0 0 18px #61d8f233}
 .card-theme-petrol>i{background:linear-gradient(145deg,#123b3e,#082226)}.card-theme-midnight>i{background:linear-gradient(145deg,#172b45,#0c1625)}.card-theme-slate>i{background:linear-gradient(145deg,#34434c,#232c33)}.card-theme-warm>i{background:linear-gradient(145deg,#44342f,#2b2220)}

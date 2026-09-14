@@ -590,7 +590,13 @@ function renderTuneInNavigator() {
   $('#music-navigator-tabs').querySelectorAll('[data-msp-tab]').forEach((button) => button.classList.toggle('active', button.dataset.mspTab === tuneInState.tab))
   $('#music-navigator-back').disabled = !tuneInState.stack.length
   const list = $('#music-navigator-list')
-  list.innerHTML = tuneInState.items.map((item) => item.header ? `<div class="music-navigator-section">${esc(item.title)}</div>` : `<div class="music-navigator-row" data-msp-item="${esc(item.id)}"><button type="button" class="music-navigator-main" data-msp-select="${esc(item.id)}">${item.image ? `<img src="${esc(/^(api|assets)\//.test(item.image) ? apiUrl(item.image) : item.image)}" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.hidden=true">` : '<span class="music-navigator-placeholder">♫</span>'}<span><strong>${esc(item.title)}</strong>${item.subtitle ? `<small>${esc(item.subtitle)}</small>` : ''}</span><b>${item.link ? '›' : ''}</b></button>${item.actions.some((action) => navigatorVisibleActions.has(action)) ? `<button type="button" class="music-navigator-menu-button" data-msp-menu="${esc(item.id)}" aria-label="Azioni per ${esc(item.title)}">⋮</button>` : ''}</div>`).join('') || '<p class="music-navigator-empty">Nessun contenuto disponibile.</p>'
+  list.innerHTML = tuneInState.items.map((item) => {
+    if (item.header) return `<div class="music-navigator-section">${esc(item.title)}</div>`
+    const icon = item.icon || (tuneInState.service === 'spotify' ? 'mdi:spotify' : mediaSourceIcon(tuneInState.service))
+    const fallback = `<span class="music-navigator-placeholder"><span class="mdi-mask" style="${mdiStyle(icon, 'music-circle')}"></span></span>`
+    const artwork = item.image ? `<img src="${esc(/^(api|assets)\//.test(item.image) ? apiUrl(item.image) : item.image)}" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.nextElementSibling.hidden=false;this.remove();"><span class="music-navigator-placeholder" hidden><span class="mdi-mask" style="${mdiStyle(icon, 'music-circle')}"></span></span>` : fallback
+    return `<div class="music-navigator-row" data-msp-item="${esc(item.id)}"><button type="button" class="music-navigator-main" data-msp-select="${esc(item.id)}">${artwork}<span><strong>${esc(item.title)}</strong>${item.subtitle ? `<small>${esc(item.subtitle)}</small>` : ''}</span><b>${item.link ? '›' : ''}</b></button>${item.actions.some((action) => navigatorVisibleActions.has(action)) ? `<button type="button" class="music-navigator-menu-button" data-msp-menu="${esc(item.id)}" aria-label="Azioni per ${esc(item.title)}">⋮</button>` : ''}</div>`
+  }).join('') || '<p class="music-navigator-empty">Nessun contenuto disponibile.</p>'
   $('#music-navigator-more').hidden = !tuneInState.more
 }
 

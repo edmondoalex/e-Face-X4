@@ -1,5 +1,8 @@
 # Changelog
 
+## 2.21.0 — 2026-09-14
+- Popup musicali: superfici e accenti seguono il tema schede salvato in Strumenti. Grafite predefinito ora è grigio neutro; gli altri temi restano selezionabili. I preset Spotify senza copertina mostrano il logo Spotify e le voci informative un'icona dedicata; gli altri servizi usano icone coerenti come fallback.
+
 ## 2.20.99 — 2026-09-14
 - Spotify Connect: popup e-Face con Preset, Ascoltate di recente e Impostazioni basati sui comandi del driver Control4. Preset e recenti si possono riprodurre nella stanza corrente e aggiungere ai Preferiti e-Face persistenti; nessuna voce Preferito alla stanza Control4 nel menu.
 

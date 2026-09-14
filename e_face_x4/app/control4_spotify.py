@@ -53,7 +53,9 @@ async def spotify_browse(proxy_id: int, room_id: int, tab: str, offset: int = 0)
         if play and favorite_id:
             visible.append("UnpinFavorite" if favorite_id in favorites else "PinFavorite")
         items.append({"id": token, "title": str(entry.get("title") or ""), "subtitle": str(entry.get("subtitle") or ""),
-                      "image": _image_url(entry.get("imageurl")), "actions": visible, "default_action": play, "link": False})
+                      "image": _image_url(entry.get("imageurl")) or ("assets/control4-icons/spotify-connect.png" if play else ""),
+                      "icon": "mdi:spotify" if play else "mdi:information-outline",
+                      "actions": visible, "default_action": play, "link": False})
     return {"items": items, "offset": 0, "total": total, "more": False}
 
 
