@@ -230,7 +230,7 @@ def test_intercom_dashboard_stores_only_local_settings(monkeypatch, tmp_path) ->
     assert 'id="tools-admin-nav"' in page
     assert 'id="intercom-tool"' in page
     assert 'id="users-tool"' in page
-    assert "tools-dashboard.js?v=2.21.23" in page
+    assert "tools-dashboard.js?v=2.21.24" in page
 
 
 def test_external_stations_api_requires_login_and_hides_secrets(monkeypatch, tmp_path) -> None:

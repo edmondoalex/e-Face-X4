@@ -17,6 +17,7 @@ from typing import Callable
 
 from .managed_config import ManagedConfig
 from .external_routes import ExternalRoutes, reload_dialplan, extension_exists
+from .control4_routes import Control4Routes
 
 _USER = re.compile(r"[a-z][a-z0-9_-]{2,31}\Z")
 _MAX_BODY = 4096
@@ -28,6 +29,7 @@ def make_handler(
     reload_pjsip: Callable[[], None],
     endpoint_exists: Callable[[str], bool],
     external_routes: ExternalRoutes | None = None,
+    control4_routes: Control4Routes | None = None,
 ) -> type[BaseHTTPRequestHandler]:
     if len(token) < 32:
         raise ValueError("Token provisioner mancante o troppo corto")
@@ -93,15 +95,40 @@ def make_handler(
         def do_GET(self) -> None:
             if not self._authorized():
                 return
-            if self.path != "/v1/external-stations" or external_routes is None:
+            if self.path == "/v1/external-stations" and external_routes is not None:
+                self._reply(200, {"stations": external_routes.load()})
+            elif self.path == "/v1/control4-tablets" and control4_routes is not None:
+                self._reply(200, {"tablets": control4_routes.load()})
+            else:
                 self._reply(404, {"error": "Operazione sconosciuta"})
-                return
-            self._reply(200, {"stations": external_routes.load()})
 
         def do_PUT(self) -> None:
             if not self._authorized():
                 return
-            if self.path != "/v1/external-stations" or external_routes is None:
+            if self.path not in ("/v1/external-stations", "/v1/control4-tablets"):
+                self._reply(404, {"error": "Operazione sconosciuta"})
+                return
+            if self.path == "/v1/control4-tablets":
+                if control4_routes is None:
+                    self._reply(404, {"error": "Operazione sconosciuta"})
+                    return
+                payload = self._json_body()
+                if payload is None:
+                    return
+                if set(payload) != {"tablets"}:
+                    self._reply(400, {"error": "Elenco tablet non valido"})
+                    return
+                try:
+                    tablets = control4_routes.replace(payload["tablets"])
+                except ValueError as exc:
+                    self._reply(400, {"error": str(exc)})
+                    return
+                except Exception:
+                    self._reply(503, {"error": "Rotte Control4 non confermate"})
+                    return
+                self._reply(200, {"tablets": tablets, "provisioned": True})
+                return
+            if external_routes is None:
                 self._reply(404, {"error": "Operazione sconosciuta"})
                 return
             payload = self._json_body()
@@ -161,6 +188,7 @@ def make_https_server(
     certificate: Path,
     private_key: Path,
     external_routes: ExternalRoutes | None = None,
+    control4_routes: Control4Routes | None = None,
 ) -> ThreadingHTTPServer:
     """Create a TLS-only service on one explicit local IPv4 address.
 
@@ -175,6 +203,6 @@ def make_https_server(
     context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
     context.minimum_version = ssl.TLSVersion.TLSv1_2
     context.load_cert_chain(str(certificate), str(private_key))
-    server = ThreadingHTTPServer((bind_host, port), make_handler(config, token, reload_pjsip, endpoint_exists, external_routes))
+    server = ThreadingHTTPServer((bind_host, port), make_handler(config, token, reload_pjsip, endpoint_exists, external_routes, control4_routes))
     server.socket = context.wrap_socket(server.socket, server_side=True)
     return server

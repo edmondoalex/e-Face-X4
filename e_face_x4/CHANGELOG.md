@@ -1,5 +1,8 @@
 # Changelog
 
+## 2.21.24 — 2026-09-14
+- Il wizard salva nuovi tablet Control4 (8293–8299) con nome e SIP User Name di Composer, e chiede al provisioner Asterisk una rotta SIP isolata usando il proxy beta esistente. Le rotte 8290–8292 non vengono modificate. Intercom mostra i nuovi tablet solo come chiamabili se la rotta è confermata; squillo e audio richiedono ancora un test reale.
+
 ## 2.21.23 — 2026-09-14
 - Il wizard Intercom ora è il punto di ingresso anche per le modifiche: apre Control4, Videocitofono e Credenziali; ogni sezione permette di tornare al passo precedente e il wizard rilegge i dati salvati. Il passo corrente resta sul dispositivo. I nuovi tablet non sono dichiarati configurabili finché il provisioning Asterisk non è pronto.
 

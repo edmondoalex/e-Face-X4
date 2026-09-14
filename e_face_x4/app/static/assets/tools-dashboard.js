@@ -431,6 +431,51 @@ function composerAction(parent, label, action) {
   parent.append(button)
 }
 
+async function saveComposerTablets(tablets) {
+  const data = await request('api/admin/intercom/control4-tablets', {method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify({tablets})})
+  composerGuide.additional_tablets = data.tablets
+  renderComposerWizard()
+  message('Tablet e rotta SIP salvati. Prova una chiamata reale prima di considerarlo operativo.')
+}
+
+function composerTabletEditor(parent) {
+  const tablets = composerGuide.additional_tablets || []
+  for (const tablet of tablets) {
+    const row = document.createElement('div')
+    row.className = 'admin-form-actions'
+    row.append(composerValue(`Interno ${tablet.extension}`, `${tablet.name} · SIP ${tablet.sip_user} · ${tablet.status === 'route_present' ? 'rotta presente, chiamata da provare' : 'rotta non confermata'}`))
+    composerAction(row, 'MODIFICA', () => {
+      form.elements.extension.value = tablet.extension
+      form.elements.name.value = tablet.name
+      form.elements.sip_user.value = tablet.sip_user
+    })
+    composerAction(row, 'RIMUOVI', async () => {
+      if (!confirm(`Rimuovere ${tablet.name} e la sua rotta SIP gestita da e-Face?`)) return
+      try { await saveComposerTablets(tablets.filter(item => item.extension !== tablet.extension)) } catch (error) { message(error.message) }
+    })
+    parent.append(row)
+  }
+  const form = document.createElement('form')
+  form.className = 'admin-form'
+  form.innerHTML = '<div class="admin-form-grid"><label>Interno (8293–8299)<select name="extension" required></select></label><label>Nome tablet<input name="name" maxlength="64" required></label><label>SIP User Name da Composer<input name="sip_user" maxlength="64" pattern="[A-Za-z0-9_.-]{3,64}" required></label></div><div class="admin-form-actions"><button type="submit">SALVA TABLET</button></div>'
+  for (let extension = 8293; extension <= 8299; extension++) {
+    const option = document.createElement('option')
+    option.value = String(extension)
+    option.textContent = String(extension)
+    form.elements.extension.append(option)
+  }
+  form.addEventListener('submit', async event => {
+    event.preventDefault()
+    const button = form.querySelector('button[type="submit"]')
+    button.disabled = true
+    try {
+      const tablet = {extension:form.elements.extension.value, name:form.elements.name.value.trim(), sip_user:form.elements.sip_user.value.trim()}
+      await saveComposerTablets([...tablets.filter(item => item.extension !== tablet.extension).map(({extension, name, sip_user}) => ({extension, name, sip_user})), tablet])
+    } catch (error) { message(error.message); button.disabled = false }
+  })
+  parent.append(form)
+}
+
 function renderComposerWizard() {
   if (!composerGuide) return
   const titles = ['Collegamenti di base', 'Aggiungi e-Face in Composer', 'Rileva i tablet Control4', 'Verifica e stato']
@@ -458,8 +503,9 @@ function renderComposerWizard() {
   } else if (composerStep === 2) {
     composerParagraph(content, 'Per ogni tablet: Composer Pro → System Design → apri il tablet → Intercom → SIP Information. Prendi il valore “User Name”: è l’identificativo SIP con cui il proxy Control4 raggiunge quel tablet. Non usare il nome della stanza al suo posto.')
     for (const [extension, name] of Object.entries(composerGuide.tablet_aliases)) content.append(composerValue(`Tablet beta ${extension}`, name))
-    composerParagraph(content, 'Puoi modificare le etichette 8291/8292 in Videocitofono. Sono solo nomi dell’impianto beta: il provisioning di nuovi tablet in Asterisk non è ancora attivo, quindi il wizard non dichiara configurato un nuovo tablet.')
+    composerParagraph(content, 'Puoi modificare le etichette 8291/8292 in Videocitofono. Per un nuovo tablet inserisci il SIP User Name letto in Composer: e-Face crea la rotta 8293–8299 tramite il proxy SIP Control4 già presente in Asterisk. Per ora il nuovo tablet è chiamabile singolarmente, non è incluso nel gruppo Tutti (8290). La rotta confermata non garantisce squillo o audio: prova una chiamata reale.')
     composerAction(content, 'MODIFICA NOMI TABLET', () => { closePanel('installation-config'); $('#intercom-tool').click() })
+    composerTabletEditor(content)
   } else {
     composerParagraph(content, 'Esegui Verifica impianto qui sotto per rete Asterisk, DoorBird e TURN. Poi apri Intercom e verifica una chiamata vera in entrambi i sensi: la sola risposta TCP o la presenza di una rotta non dimostra audio e squillo.')
     content.append(composerValue('Director', composerGuide.control4.password_configured ? 'credenziali presenti' : 'da configurare'))

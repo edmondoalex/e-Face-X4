@@ -2,7 +2,7 @@
   const $ = (selector) => document.querySelector(selector)
   const adminMode = document.documentElement.classList.contains('admin-intercom')
   const root = new URL('./', location.href)
-  const currentVersion = '2.21.21'
+  const currentVersion = '2.21.24'
   let updateAvailable = false
   async function checkForUpdate() {
     if (document.hidden || !intercomVisible) return
@@ -105,10 +105,35 @@
     try {
       const response = await fetch(new URL('api/intercom/internal-stations', root), {cache:'no-store', credentials:'same-origin'})
       if (!response.ok) return
-      const {names} = await response.json()
+      const {names, tablets = []} = await response.json()
       for (const [extension, name] of Object.entries(names)) {
         const label = document.querySelector(`[data-dial-extension="${extension}"]`)?.closest('.intercom-station-row')?.querySelector('.station-copy strong')
         if (label) label.textContent = name
+      }
+      document.querySelectorAll('.control4-extra-row').forEach(row => row.remove())
+      let anchor = $('#call-tavolo').closest('.intercom-station-row')
+      for (const tablet of tablets) {
+        const row = document.createElement('div')
+        row.className = 'intercom-station-row control4-extra-row'
+        const icon = document.createElement('span')
+        icon.className = 'station-icon'
+        icon.textContent = '▣'
+        const copy = document.createElement('div')
+        copy.className = 'station-copy'
+        const title = document.createElement('strong')
+        title.textContent = tablet.name
+        const subtitle = document.createElement('small')
+        subtitle.textContent = tablet.ready ? 'Tablet Control4 · chiamata da provare' : 'Tablet Control4 · rotta non confermata'
+        const dial = document.createElement('button')
+        dial.type = 'button'
+        dial.textContent = 'CHIAMA'
+        dial.dataset.dialExtension = tablet.extension
+        dial.dataset.stationReady = String(tablet.ready)
+        dial.disabled = !tablet.ready || !phone?.isRegistered() || !!call
+        copy.append(title, subtitle)
+        row.append(icon, copy, dial)
+        anchor.after(row)
+        anchor = row
       }
     } catch (_) { /* Keep the last labels while offline. */ }
   }

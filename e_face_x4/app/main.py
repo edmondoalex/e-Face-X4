@@ -37,6 +37,7 @@ from . import user_auth
 from . import intercom_settings
 from . import external_stations
 from . import internal_stations
+from . import control4_tablets
 from . import provisioner_client
 from . import installation
 from . import credential_inventory
@@ -137,6 +138,14 @@ def create_app() -> FastAPI:
         require_admin(request)
         sip_eface = credential_inventory.load().get("sip_eface", {})
         sip_control4 = credential_inventory.load().get("sip_control4", {})
+        tablets = control4_tablets.load()
+        active_routes = set()
+        if provisioner_client.public()["configured"]:
+            try:
+                remote = await provisioner_client.request("GET", "/v1/control4-tablets")
+                active_routes = {(item["extension"], item["sip_user"]) for item in remote.get("tablets", [])}
+            except (RuntimeError, KeyError, TypeError):
+                pass
         return JSONResponse({
             "control4": public_control4_config(),
             "asterisk_host": intercom_settings.load()["asterisk_host"],
@@ -146,8 +155,31 @@ def create_app() -> FastAPI:
             "control4_sip_user": sip_control4.get("username", ""),
             "control4_sip_copy_present": bool(sip_control4.get("password")),
             "tablet_aliases": internal_stations.load(),
+            "additional_tablets": [{**tablet, "status": "route_present" if (tablet["extension"], tablet["sip_user"]) in active_routes else "pending_route"} for tablet in tablets],
             "asterisk_paired": provisioner_client.public()["configured"],
         }, headers={"Cache-Control": "no-store, private"})
+
+    @app.put("/api/admin/intercom/control4-tablets")
+    async def admin_save_control4_tablets(request: Request, payload: dict) -> Response:
+        require_admin(request)
+        try:
+            if set(payload) != {"tablets"}:
+                raise ValueError("Elenco tablet non valido")
+            tablets = control4_tablets.validate(payload["tablets"])
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        try:
+            old_routes = await provisioner_client.request("GET", "/v1/control4-tablets")
+            routes = [{"extension": tablet["extension"], "sip_user": tablet["sip_user"]} for tablet in tablets]
+            await provisioner_client.request("PUT", "/v1/control4-tablets", {"tablets": routes})
+        except RuntimeError as exc:
+            raise HTTPException(status_code=503, detail=str(exc)) from exc
+        try:
+            control4_tablets.save(tablets)
+        except Exception:
+            await provisioner_client.request("PUT", "/v1/control4-tablets", {"tablets": old_routes["tablets"]})
+            raise
+        return JSONResponse({"tablets": [{**tablet, "status": "route_present"} for tablet in tablets]}, headers={"Cache-Control": "no-store, private"})
 
     @app.get("/api/admin/credentials")
     async def admin_credentials(request: Request) -> Response:
@@ -258,7 +290,18 @@ def create_app() -> FastAPI:
     async def intercom_internal_stations(request: Request) -> dict:
         if not user_auth.session_user(request.cookies.get(user_auth.COOKIE)):
             raise HTTPException(status_code=401, detail="Accesso richiesto")
-        return {"names": internal_stations.load()}
+        tablets = control4_tablets.load()
+        active_routes = set()
+        if tablets and provisioner_client.public()["configured"]:
+            try:
+                remote = await provisioner_client.request("GET", "/v1/control4-tablets")
+                active_routes = {(item["extension"], item["sip_user"]) for item in remote.get("tablets", [])}
+            except (RuntimeError, KeyError, TypeError):
+                pass
+        return {"names": internal_stations.load(), "tablets": [
+            {"extension": tablet["extension"], "name": tablet["name"], "ready": (tablet["extension"], tablet["sip_user"]) in active_routes}
+            for tablet in tablets
+        ]}
 
     @app.put("/api/admin/intercom/internal-stations")
     async def admin_save_internal_stations(request: Request, payload: dict) -> dict:

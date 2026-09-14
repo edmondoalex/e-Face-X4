@@ -1,5 +1,5 @@
 name: Asterisk e-Face X4 (laboratorio)
-version: 6.2.0-eface.3
+version: 6.2.0-eface.4
 slug: asterisk_eface
 description: Variante sperimentale Asterisk con provisioning SIP e-Face
 url: https://github.com/edmondoalex/e-Face-X4
