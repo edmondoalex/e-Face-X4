@@ -19,7 +19,7 @@ def test_amazon_catalog_uses_driver_screen_fields_and_opaque_items(monkeypatch):
     assert root["items"][0]["title"] == "Playlist"
     assert "catalog/playlists/" not in str(root)
     child = asyncio.run(catalog.catalog_browse("amazon", 1644, 51, "Home", root["items"][0]["id"]))
-    assert child["items"][0]["actions"] == ["PlayNow"]
+    assert child["items"][0]["actions"] == ["PlayNow", "PinFavorite"]
     assert child["items"][0]["image"] == "https://example.com/cover.png"
     assert calls[-1][2:4] == ("Browse", {"screenId": "ListScreen", "id": "catalog/playlists/", "parentId": "", "itemType": "link", "isPlayable": False})
     assert asyncio.run(catalog.catalog_action("amazon", 1644, 51, "Home", child["items"][0]["id"], "PlayNow")) == {"ok": True}

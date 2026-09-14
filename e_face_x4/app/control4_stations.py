@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Any
 
 from .control4_msp import _as_items, _command, _image_url
+from .media_favorites import add_favorite, list_favorites, remove_favorite
 
 _ITEMS: dict[str, tuple[float, int, int, str, dict[str, Any]]] = {}
 _TTL = 900
@@ -67,6 +68,13 @@ def station_media_artwork(media_id: Any, channel: Any) -> str:
         return ""
 
 
+def station_catalog_artwork(station_id: int) -> str:
+    path = _STATION_METADATA.get(station_id, ("", 0, ""))[2]
+    if not re.fullmatch(r"/images/broadcast/[a-f0-9]{2}/[a-f0-9-]+(?:_s|_m|_t)?\.(?:jpg|jpeg|png)", path, re.I):
+        raise ValueError("Copertina non disponibile")
+    return path
+
+
 def _stored(token: str, proxy_id: int, room_id: int, tab: str) -> dict[str, Any]:
     record = _ITEMS.get(token)
     if not record or record[0] < time.monotonic() or record[1:4] != (proxy_id, room_id, tab):
@@ -96,6 +104,7 @@ async def stations_browse(proxy_id: int, room_id: int, tab: str, parent: str = "
         if record[0] < now:
             _ITEMS.pop(token, None)
     items = []
+    favorites = {item["id"] for item in list_favorites()}
     for entry in raw:
         token = secrets.token_urlsafe(18)
         _ITEMS[token] = (now + _TTL, proxy_id, room_id, tab, entry)
@@ -117,8 +126,9 @@ async def stations_browse(proxy_id: int, room_id: int, tab: str, parent: str = "
                     image = "assets/control4-icons/internet-radio.png"
                 elif tab == "Sources" and str(entry.get("deviceId") or "").isdigit():
                     image = f"api/control4/source-icon/{entry['deviceId']}"
+        favorite_id = f"station:{proxy_id}:{entry.get('stationId')}" if station else ""
         items.append({"id": token, "title": _label(title), "subtitle": _label(entry.get("info")),
-                      "image": image, "actions": ["SelectStation", "FavoriteToRoom"] if station else [],
+                      "image": image, "actions": (["SelectStation", "FavoriteToRoom", "UnpinFavorite" if favorite_id in favorites else "PinFavorite"] if station else []),
                       "default_action": "SelectStation" if station else "Browse", "link": not station})
     if any(str(entry.get("stationId") or "").isdigit() for entry in raw):
         try:
@@ -133,10 +143,19 @@ async def stations_browse(proxy_id: int, room_id: int, tab: str, parent: str = "
 
 async def stations_action(proxy_id: int, room_id: int, tab: str, item_id: str, action: str) -> dict[str, bool]:
     item = _stored(item_id, proxy_id, room_id, tab)
-    if "stationId" not in item or action not in {"SelectStation", "FavoriteToRoom"}:
+    if "stationId" not in item or action not in {"SelectStation", "FavoriteToRoom", "PinFavorite", "UnpinFavorite"}:
         raise ValueError("Azione Stations non disponibile")
     if action == "SelectStation":
         await _command(proxy_id, room_id, "selectStation", {"id": item["stationId"], "genre": item.get("genre") or ""}, wait_response=False)
     else:
-        await _command(proxy_id, room_id, "FavoriteToRoom", {"stationId": item["stationId"]}, wait_response=False)
+        if action == "FavoriteToRoom":
+            await _command(proxy_id, room_id, "FavoriteToRoom", {"stationId": item["stationId"]}, wait_response=False)
+        elif action == "PinFavorite":
+            try:
+                path = station_artwork_path(item_id)
+            except ValueError:
+                path = ""
+            add_favorite({"id": f"station:{proxy_id}:{item['stationId']}", "kind": "station", "title": _label(item.get("name") or item.get("stationName")), "subtitle": _label(item.get("info")), "proxy_id": proxy_id, "station_id": int(item["stationId"]), "genre": str(item.get("genre") or ""), "artwork": path})
+        else:
+            remove_favorite(f"station:{proxy_id}:{item['stationId']}")
     return {"ok": True}

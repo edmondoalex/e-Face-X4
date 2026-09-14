@@ -27,7 +27,8 @@ from .config import load_settings
 from .control4 import control4_director, load_control4_config, public_control4_config, save_control4_config, test_control4_connection
 from .control4_msp import tunein_browse, tunein_action, tunein_settings
 from .control4_msp_catalog import catalog_action, catalog_browse, catalog_settings, catalog_tabs
-from .control4_stations import station_artwork_path, stations_action, stations_browse
+from .control4_stations import station_artwork_path, station_catalog_artwork, stations_action, stations_browse
+from .media_favorites import add_favorite, favorite_by_id, list_favorites, remove_favorite
 from .recent_visibility import filter_recents, hidden_recents, hide_recent, restore_recent, restore_recents
 from .installer_auth import COOKIE, create_session, valid_session
 from . import user_auth
@@ -46,7 +47,7 @@ from .connectors.control4_media import cached_control4_icon, cached_control4_ico
 from .connectors.supervisor import discover_addon_url, discover_host_url
 from .demo import dashboard as demo_dashboard
 
-VERSION = "2.20.97"
+VERSION = "2.20.98"
 STATIC = Path(__file__).parent / "static"
 logging.basicConfig(level=logging.WARNING, format="%(asctime)s %(levelname)s [e-face-x4] %(message)s")
 _reconnect_warning_at: dict[str, float] = {}
@@ -471,6 +472,86 @@ def create_app() -> FastAPI:
             return Response(upstream.content, media_type=content_type, headers={"Cache-Control": "private, max-age=600", "X-Content-Type-Options": "nosniff"})
         except (ValueError, httpx.HTTPError, KeyError) as exc:
             raise HTTPException(status_code=404, detail="Copertina Stations non disponibile") from exc
+
+    @app.get("/api/control4/stations/catalog-image/{station_id}")
+    async def control4_stations_catalog_image(station_id: int) -> Response:
+        try:
+            path = station_catalog_artwork(station_id)
+            host = load_control4_config()["host"]
+            async with httpx.AsyncClient(timeout=5, follow_redirects=False) as client:
+                upstream = await client.get(f"http://{host}{path}")
+            content_type = upstream.headers.get("content-type", "").split(";", 1)[0]
+            if upstream.status_code != 200 or content_type not in {"image/jpeg", "image/png"} or len(upstream.content) > 500_000:
+                raise ValueError
+            return Response(upstream.content, media_type=content_type, headers={"Cache-Control": "private, max-age=600", "X-Content-Type-Options": "nosniff"})
+        except (ValueError, httpx.HTTPError, KeyError) as exc:
+            raise HTTPException(status_code=404, detail="Copertina Stations non disponibile") from exc
+
+    @app.get("/api/control4/favorites")
+    async def control4_list_favorites() -> dict:
+        return {"items": list_favorites()}
+
+    @app.post("/api/control4/favorites/recent")
+    async def control4_add_recent_favorite(payload: dict) -> dict:
+        key = str(payload.get("key") or "")
+        title = str(payload.get("title") or "")
+        if not key or len(key) > 256 or not title or len(title) > 200:
+            raise HTTPException(status_code=400, detail="Elemento preferito non valido")
+        item = {"id": f"recent:{key}", "kind": "recent", "key": key, "title": title,
+                "subtitle": str(payload.get("subtitle") or "")[:200], "item_type": str(payload.get("item_type") or "")[:50],
+                "registry_id": str(payload.get("registry_id") or "")[:100], "content_fingerprint": str(payload.get("content_fingerprint") or "")[:128]}
+        try:
+            return {"items": add_favorite(item)}
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    @app.post("/api/control4/favorites/remove")
+    async def control4_remove_favorite(payload: dict) -> dict:
+        try:
+            return {"items": remove_favorite(str(payload.get("id") or ""))}
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    @app.post("/api/control4/favorites/select")
+    async def control4_select_favorite(payload: dict) -> dict:
+        try:
+            room_id = int(payload.get("room_id") or 0)
+            if room_id <= 0:
+                raise ValueError("Stanza non valida")
+            item = favorite_by_id(str(payload.get("id") or ""))
+            if item["kind"] == "recent":
+                return await Control4MediaConnector(load_control4_config()).select_recent(room_id, str(item["key"]))
+            proxy_id = int(item["proxy_id"])
+            director, _ = await control4_director(load_control4_config())
+            info = await director.get_item_info(proxy_id)
+            source = info[0] if isinstance(info, list) and info else info
+            expected = {"station": "stations", "tunein": "tunein", "amazon": "amazon music", "tidal": "tidal"}.get(item["kind"] if item["kind"] == "station" else item.get("service"))
+            if not isinstance(source, dict) or str(source.get("name") or "").casefold() != expected or source.get("proxy") != "media_service":
+                raise ValueError("Servizio del preferito non disponibile")
+            from .control4_msp import _command
+            if item["kind"] == "station":
+                await _command(proxy_id, room_id, "selectStation", {"id": int(item["station_id"]), "genre": str(item.get("genre") or "")}, wait_response=False)
+            elif item["service"] == "tunein":
+                fields = {key: str(value)[:2048] for key, value in item.get("play_args", {}).items() if key in {"Type", "ContainerType", "Title", "Subtitle", "GuideId", "Image", "Url"} and isinstance(value, (str, int))}
+                fields.update({"screenId": "BrowseScreen", "tabId": str(item.get("tab") or "Home")})
+                if not fields.get("GuideId") and not fields.get("Url"):
+                    raise ValueError("Preferito TuneIn non valido")
+                await _command(proxy_id, room_id, "Play", fields, wait_response=False)
+            else:
+                fields = {key: str(value)[:512] for key, value in item.get("play_args", {}).items() if key in {"id", "itemType"} and isinstance(value, (str, int))}
+                if not fields.get("id"):
+                    raise ValueError("Preferito non valido")
+                await _command(proxy_id, room_id, "Play", {**fields, "playOption": "NOW"}, wait_response=False)
+            return {"ok": True}
+        except (ValueError, KeyError, TypeError) as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        except asyncio.TimeoutError as exc:
+            raise HTTPException(status_code=504, detail="Il preferito non ha risposto") from exc
+        except HTTPException:
+            raise
+        except Exception as exc:
+            logging.warning("Riproduzione preferito non disponibile (%s)", type(exc).__name__)
+            raise HTTPException(status_code=502, detail="Riproduzione preferito non disponibile") from exc
 
     @app.get("/api/admin/control4/artwork-diagnostic")
     async def admin_control4_artwork_diagnostic(request: Request) -> dict:

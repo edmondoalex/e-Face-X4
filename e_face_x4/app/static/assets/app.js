@@ -36,6 +36,8 @@ const mediaSections = { rooms: true, playing: true }
 const isSecurityGarage = (device) => device.kind === 'cover' && /garage|portone/i.test(`${device.icon || ''} ${device.name || ''}`)
 const mediaTransportOverrides = new Map()
 const recentCache = new Map()
+let favoritesCache = null
+let favoritesPending = null
 const recentPending = new Map()
 const ttsVolumeRestores = new Map()
 
@@ -484,6 +486,7 @@ function renderMediaExperience(devices) {
   const recentContent = cachedRecent ? recentlyPlayedHtml(cachedRecent.items, recentRoomId) : '<span class="empty-state">Caricamento…</span>'
   const showRecent = selected.provider === 'control4' && (currentMediaExperience === 'listen' || (activeMediaRoom && selected.active_experience !== 'watch'))
   const recent = showRecent ? `<div class="media-recent" data-recently-played data-recent-scope="${recentScope}" ${cachedRecent && !cachedRecent.items.length && !cachedRecent.hiddenCount ? 'hidden' : ''}><header><h3>Ascoltati di recente</h3><button type="button" data-recent-show-hidden ${cachedRecent?.hiddenCount ? '' : 'hidden'}>Nascosti (${cachedRecent?.hiddenCount || 0})</button></header><div class="media-recent-strip">${recentContent}</div><div class="media-recent-hidden" hidden>${hiddenRecentlyPlayedHtml(cachedRecent?.hiddenItems || [])}</div></div>` : ''
+  const favorites = showRecent ? `<div class="media-recent media-favorites" data-media-favorites data-favorite-room="${recentRoomId}"><header><h3>Preferiti</h3></header><div class="media-recent-strip">${favoritesCache ? mediaFavoritesHtml(favoritesCache, recentRoomId) : '<span class="empty-state">Caricamento…</span>'}</div></div>` : ''
   const ttsPlayers = currentDevices.filter((device) => device.kind === 'media_player' && device.provider === 'evoice' && device.tts_enabled)
   const ttsVolume = Math.max(0, Math.min(100, Number(localStorage.getItem('eface-tts-volume') ?? 50)))
   const voicePanel = selected.provider === 'evoice' && selected.tts_enabled && ttsPlayers.length ? `<section class="evoice-panel"><div class="evoice-heading"><h3>Messaggio vocale</h3><label><input type="checkbox" data-tts-select-all ${ttsPlayers.length === 1 ? 'checked' : ''}> Seleziona tutti</label></div><div class="evoice-targets">${ttsPlayers.map((device) => `<div class="evoice-target"><label><input type="checkbox" data-tts-target value="${esc(device.id)}" ${device.id === selected.id ? 'checked' : ''}><span>${esc(device.name)}</span><small>${esc(device.room)}</small></label>${device.dnd_available ? `<button class="evoice-dnd ${device.dnd ? 'active' : ''}" data-dnd-device="${esc(device.id)}" data-dnd-value="${device.dnd ? 'false' : 'true'}">DND</button>` : ''}</div>`).join('')}</div><label class="evoice-volume"><span>Volume messaggio</span><input type="range" min="0" max="100" value="${ttsVolume}" style="--volume:${ttsVolume}%" data-tts-volume><output>${ttsVolume}%</output></label><textarea id="evoice-tts-message" maxlength="500" rows="3" placeholder="Scrivi il messaggio da pronunciare"></textarea><button class="evoice-send" data-tts-send>INVIA MESSAGGIO</button></section>` : ''
@@ -492,8 +495,9 @@ function renderMediaExperience(devices) {
   const navigatorIcon = selected.provider === 'control4' && serviceName && recentRoomId ? `<button type="button" class="media-navigator-open" data-msp-open data-msp-service="${serviceName}" data-msp-room="${recentRoomId}" title="Apri ${esc(selected.source)}">${sourceGlyph}</button>` : sourceGlyph
   const navigatorArtwork = navigatorIcon !== sourceGlyph ? mainArtwork.replace('class="media-artwork', `data-msp-open data-msp-service="${serviceName}" data-msp-room="${recentRoomId}" role="button" tabindex="0" class="media-artwork`) : mainArtwork
   const roomLabel = activeMediaRoom ? '' : `<span class="media-session-room" title="Stanza comandata: ${esc(selected.room || selected.name)}">${esc(selected.room || selected.name)}</span>`
-  $('#device-list').innerHTML = `<article class="media-session ${experienceClass} ${deviceVisualClass(selected)}" data-device-id="${esc(selected.id)}">${navigatorArtwork}${navigatorIcon}<div class="media-session-info"><strong>${esc(selected.title || selected.source || selected.name)}</strong><small>${esc(selected.artist || selected.source || selected.room)}</small><span class="media-track">${esc(selected.album || selected.name)}</span></div>${roomLabel}${power}${deviceActions(selected, { hidePower: true })}</article>${voicePanel}${recent}<div class="media-library media-room-library"><button class="media-library-toggle" data-media-section-toggle="rooms" aria-expanded="${mediaSections.rooms}"><strong>Stanze</strong><span class="mdi-mask" style="${mdiStyle(mediaSections.rooms ? 'mdi:chevron-up' : 'mdi:chevron-down', 'chevron-down')}"></span></button><div class="media-service-grid" ${mediaSections.rooms ? '' : 'hidden'}>${players}</div></div><div class="media-library media-source-library"><h3>Sorgenti e servizi</h3><div class="media-service-grid">${sources || '<span class="empty-state">Nessuna sorgente disponibile</span>'}</div></div>`
+  $('#device-list').innerHTML = `<article class="media-session ${experienceClass} ${deviceVisualClass(selected)}" data-device-id="${esc(selected.id)}">${navigatorArtwork}${navigatorIcon}<div class="media-session-info"><strong>${esc(selected.title || selected.source || selected.name)}</strong><small>${esc(selected.artist || selected.source || selected.room)}</small><span class="media-track">${esc(selected.album || selected.name)}</span></div>${roomLabel}${power}${deviceActions(selected, { hidePower: true })}</article>${voicePanel}${recent}${favorites}<div class="media-library media-room-library"><button class="media-library-toggle" data-media-section-toggle="rooms" aria-expanded="${mediaSections.rooms}"><strong>Stanze</strong><span class="mdi-mask" style="${mdiStyle(mediaSections.rooms ? 'mdi:chevron-up' : 'mdi:chevron-down', 'chevron-down')}"></span></button><div class="media-service-grid" ${mediaSections.rooms ? '' : 'hidden'}>${players}</div></div><div class="media-library media-source-library"><h3>Sorgenti e servizi</h3><div class="media-service-grid">${sources || '<span class="empty-state">Nessuna sorgente disponibile</span>'}</div></div>`
   if (recent) loadRecentlyPlayed(selected)
+  if (favorites) loadMediaFavorites()
 }
 
 async function loadRecentlyPlayed(selected) {
@@ -520,6 +524,8 @@ async function loadRecentlyPlayed(selected) {
       showHidden.hidden = !hiddenCount
       showHidden.textContent = `Nascosti (${hiddenCount})`
       host.querySelector('.media-recent-hidden').innerHTML = hiddenRecentlyPlayedHtml(hiddenItems)
+      const favoritesPanel = $('[data-media-favorites]')
+      if (favoritesPanel && favoritesCache) favoritesPanel.querySelector('.media-recent-strip').innerHTML = mediaFavoritesHtml(favoritesCache, Number(favoritesPanel.dataset.favoriteRoom))
     } catch (_) {
       const host = document.querySelector('[data-recently-played]')
       if (!cached && host?.dataset.recentScope === scope) host.hidden = true
@@ -532,8 +538,38 @@ async function loadRecentlyPlayed(selected) {
 function recentlyPlayedHtml(items, roomId) {
   return items.map((item) => {
     const art = item.content_fingerprint ? apiUrl(`api/media/${encodeURIComponent(item.registry_id)}/artwork?fingerprint=${encodeURIComponent(item.content_fingerprint)}`) : ''
-    return `<span class="media-recent-card"><button class="media-recent-item" data-recent-key="${esc(item.key)}" data-recent-room="${roomId}" title="${esc(item.title)}">${art ? `<img src="${esc(art)}" alt="" loading="lazy" draggable="false">` : '<span class="media-recent-art mdi-mask" style="'+mdiStyle('mdi:music-circle','music-circle')+'"></span>'}<b>${esc(item.title || 'Senza titolo')}</b><small>${esc(item.subtitle || '')}</small><em><span class="mdi-mask" style="${mdiStyle(item.driver_id === 1569 ? 'mdi:spotify' : 'mdi:radio', 'music-circle')}"></span>${esc(item.item_type || 'Audio')}</em></button><button type="button" class="media-recent-hide" data-recent-hide="${esc(item.key)}" aria-label="Nascondi ${esc(item.title)}" title="Nascondi da Ascoltati di recente">×</button></span>`
+    const pinned = favoritesCache?.some((favorite) => favorite.id === `recent:${item.key}`)
+    return `<span class="media-recent-card"><button class="media-recent-item" data-recent-key="${esc(item.key)}" data-recent-room="${roomId}" title="${esc(item.title)}">${art ? `<img src="${esc(art)}" alt="" loading="lazy" draggable="false">` : '<span class="media-recent-art mdi-mask" style="'+mdiStyle('mdi:music-circle','music-circle')+'"></span>'}<b>${esc(item.title || 'Senza titolo')}</b><small>${esc(item.subtitle || '')}</small><em><span class="mdi-mask" style="${mdiStyle(item.driver_id === 1569 ? 'mdi:spotify' : 'mdi:radio', 'music-circle')}"></span>${esc(item.item_type || 'Audio')}</em></button><button type="button" class="media-recent-pin ${pinned ? 'active' : ''}" data-recent-pin="${esc(item.key)}" aria-label="${pinned ? 'Rimuovi dai' : 'Aggiungi ai'} Preferiti" title="${pinned ? 'Rimuovi dai' : 'Aggiungi ai'} Preferiti">★</button><button type="button" class="media-recent-hide" data-recent-hide="${esc(item.key)}" aria-label="Nascondi ${esc(item.title)}" title="Nascondi da Ascoltati di recente">×</button></span>`
   }).join('')
+}
+
+function mediaFavoritesHtml(items, roomId) {
+  if (!items.length) return '<span class="empty-state">Aggiungi una stazione da Stations o usa ★ negli ascolti recenti.</span>'
+  return items.map((item) => {
+    const art = item.kind === 'station' && item.station_id ? apiUrl(`api/control4/stations/catalog-image/${item.station_id}`) : item.kind === 'msp' && item.image ? item.image : item.registry_id && item.content_fingerprint ? apiUrl(`api/media/${encodeURIComponent(item.registry_id)}/artwork?fingerprint=${encodeURIComponent(item.content_fingerprint)}`) : ''
+    return `<span class="media-recent-card"><button class="media-recent-item" data-favorite-select="${esc(item.id)}" data-favorite-room="${roomId}" title="${esc(item.title)}">${art ? `<img src="${esc(art)}" alt="" loading="lazy" draggable="false" onerror="this.hidden=true">` : '<span class="media-recent-art mdi-mask" style="'+mdiStyle('mdi:music-circle','music-circle')+'"></span>'}<b>${esc(item.title)}</b><small>${esc(item.subtitle || '')}</small><em><span class="mdi-mask" style="${mdiStyle(item.kind === 'station' ? 'mdi:radio' : 'mdi:music-circle', 'music-circle')}"></span>${esc(item.kind === 'station' ? 'Radio' : item.item_type || 'Audio')}</em></button><button type="button" class="media-recent-hide" data-favorite-remove="${esc(item.id)}" aria-label="Rimuovi ${esc(item.title)} dai Preferiti" title="Rimuovi dai Preferiti">×</button></span>`
+  }).join('')
+}
+
+async function loadMediaFavorites(force = false) {
+  if (favoritesCache && !force) return
+  if (favoritesPending) return favoritesPending
+  favoritesPending = (async () => {
+    try {
+      const response = await fetch(apiUrl('api/control4/favorites'), { cache: 'no-store' })
+      if (!response.ok) throw new Error('Preferiti non disponibili')
+      favoritesCache = (await response.json()).items || []
+      const panel = $('[data-media-favorites]')
+      if (panel) panel.querySelector('.media-recent-strip').innerHTML = mediaFavoritesHtml(favoritesCache, Number(panel.dataset.favoriteRoom))
+      const recent = $('[data-recently-played]')
+      if (recent) {
+        const cached = recentCache.get(recent.dataset.recentScope)
+        if (cached) recent.querySelector('.media-recent-strip').innerHTML = recentlyPlayedHtml(cached.items, Number(panel?.dataset.favoriteRoom || 0))
+      }
+    } catch (error) { if (force) fail(error) }
+    finally { favoritesPending = null }
+  })()
+  return favoritesPending
 }
 
 function hiddenRecentlyPlayedHtml(items) {
@@ -541,6 +577,7 @@ function hiddenRecentlyPlayedHtml(items) {
 }
 
 const tuneInState = { service: 'tunein', name: 'TuneIn', proxyId: 0, roomId: 0, tab: 'Home', stack: [], items: [], total: 0, more: false, search: '', busy: false }
+const navigatorVisibleActions = new Set(['Play', 'SelectStation', 'PinFavorite', 'UnpinFavorite', 'PlayNow', 'PlayShuffle', 'PlayNext', 'AddToQueue', 'ReplaceQueue', 'AddToLibrary', 'RemoveFromLibrary'])
 
 async function tuneInRequest(payload) {
   const response = await fetch(apiUrl(`api/control4/music/${tuneInState.service}/navigate`), { method: 'POST', headers: { 'Content-Type': 'application/json' }, cache: 'no-store', body: JSON.stringify({ proxy_id: tuneInState.proxyId, room_id: tuneInState.roomId, tab: tuneInState.tab, ...payload }) })
@@ -553,7 +590,7 @@ function renderTuneInNavigator() {
   $('#music-navigator-tabs').querySelectorAll('[data-msp-tab]').forEach((button) => button.classList.toggle('active', button.dataset.mspTab === tuneInState.tab))
   $('#music-navigator-back').disabled = !tuneInState.stack.length
   const list = $('#music-navigator-list')
-  list.innerHTML = tuneInState.items.map((item) => `<div class="music-navigator-row" data-msp-item="${esc(item.id)}"><button type="button" class="music-navigator-main" data-msp-select="${esc(item.id)}">${item.image ? `<img src="${esc(/^(api|assets)\//.test(item.image) ? apiUrl(item.image) : item.image)}" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.hidden=true">` : '<span class="music-navigator-placeholder">♫</span>'}<span><strong>${esc(item.title)}</strong>${item.subtitle ? `<small>${esc(item.subtitle)}</small>` : ''}</span><b>${item.link ? '›' : ''}</b></button>${item.actions.length ? `<button type="button" class="music-navigator-menu-button" data-msp-menu="${esc(item.id)}" aria-label="Azioni per ${esc(item.title)}">⋮</button>` : ''}</div>`).join('') || '<p class="music-navigator-empty">Nessun contenuto disponibile.</p>'
+  list.innerHTML = tuneInState.items.map((item) => `<div class="music-navigator-row" data-msp-item="${esc(item.id)}"><button type="button" class="music-navigator-main" data-msp-select="${esc(item.id)}">${item.image ? `<img src="${esc(/^(api|assets)\//.test(item.image) ? apiUrl(item.image) : item.image)}" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.hidden=true">` : '<span class="music-navigator-placeholder">♫</span>'}<span><strong>${esc(item.title)}</strong>${item.subtitle ? `<small>${esc(item.subtitle)}</small>` : ''}</span><b>${item.link ? '›' : ''}</b></button>${item.actions.some((action) => navigatorVisibleActions.has(action)) ? `<button type="button" class="music-navigator-menu-button" data-msp-menu="${esc(item.id)}" aria-label="Azioni per ${esc(item.title)}">⋮</button>` : ''}</div>`).join('') || '<p class="music-navigator-empty">Nessun contenuto disponibile.</p>'
   $('#music-navigator-more').hidden = !tuneInState.more
 }
 
@@ -645,8 +682,8 @@ $('#music-navigator-list').addEventListener('click', async (event) => {
     const existing = menuButton.parentElement.querySelector('.music-navigator-actions')
     if (existing) return existing.remove()
     document.querySelectorAll('.music-navigator-actions').forEach((node) => node.remove())
-    const choices = item.actions.filter((action) => ['Play', 'SelectStation', 'Follow', 'Unfollow', 'FavoriteToRoom', 'FavoriteToHome', 'PlayNow', 'PlayShuffle', 'PlayNext', 'AddToQueue', 'ReplaceQueue', 'AddToLibrary', 'RemoveFromLibrary'].includes(action))
-    menuButton.parentElement.insertAdjacentHTML('beforeend', `<div class="music-navigator-actions">${choices.map((action) => `<button type="button" data-msp-action="${action}" data-msp-action-item="${esc(id)}">${esc(({ Play: 'Play', SelectStation: 'Riproduci', Follow: 'Aggiungi ai preferiti TuneIn', Unfollow: 'Rimuovi dai preferiti TuneIn', FavoriteToRoom: 'Aggiungi ai preferiti della stanza', FavoriteToHome: 'Aggiungi alla Home', PlayNow: 'Riproduci ora', PlayShuffle: 'Riproduci casualmente', PlayNext: 'Riproduci dopo', AddToQueue: 'Aggiungi alla coda', ReplaceQueue: 'Sostituisci coda', AddToLibrary: 'Aggiungi alla libreria', RemoveFromLibrary: 'Rimuovi dalla libreria' })[action] || action)}</button>`).join('')}</div>`)
+    const choices = item.actions.filter((action) => navigatorVisibleActions.has(action))
+    menuButton.parentElement.insertAdjacentHTML('beforeend', `<div class="music-navigator-actions">${choices.map((action) => `<button type="button" data-msp-action="${action}" data-msp-action-item="${esc(id)}">${esc(({ Play: 'Play', SelectStation: 'Riproduci', PinFavorite: 'Aggiungi come preferito in e-Face', UnpinFavorite: 'Rimuovi dai preferiti in e-Face', PlayNow: 'Riproduci ora', PlayShuffle: 'Riproduci casualmente', PlayNext: 'Riproduci dopo', AddToQueue: 'Aggiungi alla coda', ReplaceQueue: 'Sostituisci coda', AddToLibrary: 'Aggiungi alla libreria', RemoveFromLibrary: 'Rimuovi dalla libreria' })[action] || action)}</button>`).join('')}</div>`)
     return
   }
   if (item.link || item.default_action === 'Browse') {
@@ -666,7 +703,7 @@ $('#music-navigator-list').addEventListener('click', async (event) => {
   try {
     await tuneInRequest({ action: button.dataset.mspAction, item_id: button.dataset.mspActionItem })
     if (button.dataset.mspAction === 'Play' || button.dataset.mspAction === 'SelectStation' || button.dataset.mspAction in {PlayNow:1,PlayShuffle:1,PlayNext:1,AddToQueue:1,ReplaceQueue:1}) { $('#music-navigator-dialog').close(); if (button.dataset.mspAction === 'SelectStation') { refresh(); setTimeout(refresh, 2500) } }
-    else await loadTuneInNavigator(tuneInState.stack.at(-1)?.id || '')
+    else { if (['PinFavorite', 'UnpinFavorite'].includes(button.dataset.mspAction)) { favoritesCache = null; await loadMediaFavorites() }; await loadTuneInNavigator(tuneInState.stack.at(-1)?.id || '') }
   } catch (error) { fail(error) }
   finally { button.disabled = false }
 })
@@ -1681,6 +1718,30 @@ $('#scenario-list').addEventListener('click', (event) => {
 $('#device-list').addEventListener('click', (event) => {
   const navigatorButton = event.target.closest('[data-msp-open]')
   if (navigatorButton) return openTuneInNavigator(Number(navigatorButton.dataset.mspRoom), navigatorButton.dataset.mspService || 'tunein')
+  const pinRecent = event.target.closest('[data-recent-pin]')
+  const removeFavorite = event.target.closest('[data-favorite-remove]')
+  const selectFavorite = event.target.closest('[data-favorite-select]')
+  if (pinRecent || removeFavorite || selectFavorite) {
+    if (Date.now() < recentDragSuppressUntil) { event.preventDefault(); return }
+    const control = pinRecent || removeFavorite || selectFavorite
+    const roomId = Number($('[data-media-favorites]')?.dataset.favoriteRoom || 0)
+    control.disabled = true
+    let path, payload
+    if (pinRecent) {
+      const key = pinRecent.dataset.recentPin
+      const existing = favoritesCache?.some((item) => item.id === `recent:${key}`)
+      const scope = pinRecent.closest('[data-recently-played]')?.dataset.recentScope
+      const item = recentCache.get(scope)?.items.find((entry) => entry.key === key)
+      if (!item) { control.disabled = false; return }
+      path = existing ? 'remove' : 'recent'
+      payload = existing ? {id:`recent:${key}`} : {key, title:item.title, subtitle:item.subtitle, item_type:item.item_type, registry_id:item.registry_id, content_fingerprint:item.content_fingerprint}
+    } else if (removeFavorite) { path = 'remove'; payload = {id:removeFavorite.dataset.favoriteRemove} }
+    else { path = 'select'; payload = {id:selectFavorite.dataset.favoriteSelect, room_id:roomId} }
+    fetch(apiUrl(`api/control4/favorites/${path}`), {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload)})
+      .then(async (response) => { if (!response.ok) throw new Error((await response.json()).detail || 'Preferito non disponibile'); if (path === 'select') { refresh(); setTimeout(refresh,2500) } else { favoritesCache = null; await loadMediaFavorites() } })
+      .catch(fail).finally(() => { control.disabled = false })
+    return
+  }
   const hideRecent = event.target.closest('[data-recent-hide]')
   const restoreOneRecent = event.target.closest('[data-recent-restore-one]')
   const showHiddenRecents = event.target.closest('[data-recent-show-hidden]')

@@ -1,5 +1,8 @@
 # Changelog
 
+## 2.20.98 — 2026-09-14
+- Nuova barra Preferiti persistente nella scheda Ascolta, condivisa tra stanze. Le radio Stations e i contenuti riproducibili di TuneIn, Amazon Music e TIDAL hanno l'azione "Aggiungi come preferito in e-Face"; anche gli ascolti recenti possono essere aggiunti con ★. La riproduzione usa la stanza attualmente comandata. Il menu non mostra più i preferiti della stanza Control4.
+
 ## 2.20.97 — 2026-09-14
 - Stations: Internet Radio nella scheda Sorgenti usa l'icona fornita dall'utente come risorsa locale, indipendente dall'icona restituita da Control4.
 

@@ -12,6 +12,7 @@ import time
 from typing import Any
 
 from .control4_msp import _as_items, _command, _image_url
+from .media_favorites import add_favorite, list_favorites, remove_favorite
 
 _ITEMS: dict[str, tuple[float, str, int, int, str, dict[str, Any]]] = {}
 _TTL = 900
@@ -45,6 +46,7 @@ def _display_items(raw: list[dict[str, Any]], service: str, proxy_id: int, room_
         if record[0] < now:
             _ITEMS.pop(token, None)
     result = []
+    favorites = {item["id"] for item in list_favorites()}
     for entry in raw:
         token = secrets.token_urlsafe(18)
         _ITEMS[token] = (now + _TTL, service, proxy_id, room_id, tab, entry)
@@ -54,6 +56,9 @@ def _display_items(raw: list[dict[str, Any]], service: str, proxy_id: int, room_
         actions = _actions(entry)
         if str(entry.get("isPlayable") or "").lower() == "true" and str(entry.get("itemType") or "") != "errorPopup" and "PlayNow" not in actions:
             actions.insert(0, "PlayNow")
+        if "PlayNow" in actions and entry.get("id"):
+            identity = f"msp:{service}:{proxy_id}:{entry['id']}"
+            actions.append("UnpinFavorite" if identity in favorites else "PinFavorite")
         result.append({
             "id": token, "title": str(entry.get("title") or ""),
             "subtitle": str(entry.get("subtitle") or ""),
@@ -114,6 +119,18 @@ async def catalog_action(service: str, proxy_id: int, room_id: int, tab: str,
     if service not in _SERVICES:
         raise ValueError("Servizio non supportato")
     item = _stored(item_id, service, proxy_id, room_id, tab)
+    if action in {"PinFavorite", "UnpinFavorite"}:
+        if not item.get("id") or ("PlayNow" not in _actions(item) and str(item.get("isPlayable") or "").lower() != "true"):
+            raise ValueError("Azione non disponibile")
+        identity = f"msp:{service}:{proxy_id}:{item['id']}"
+        if action == "PinFavorite":
+            image = item.get("image_list") or item.get("image") or ""
+            if isinstance(image, dict):
+                image = image.get("$t") or image.get("url") or ""
+            add_favorite({"id": identity, "kind": "msp", "service": service, "proxy_id": proxy_id, "title": str(item.get("title") or item["id"]), "subtitle": str(item.get("subtitle") or ""), "image": _image_url(image), "play_args": {key: item[key] for key in ("id", "itemType") if key in item}})
+        else:
+            remove_favorite(identity)
+        return {"ok": True}
     if action not in _actions(item) and not (action == "PlayNow" and str(item.get("isPlayable") or "").lower() == "true" and str(item.get("itemType") or "") != "errorPopup"):
         raise ValueError("Azione non disponibile")
     if action in _PLAY_OPTIONS:

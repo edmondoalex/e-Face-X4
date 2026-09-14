@@ -17,6 +17,7 @@ from urllib.parse import urlsplit
 from pyControl4.websocket import C4Websocket
 
 from .control4 import control4_director, load_control4_config
+from .media_favorites import add_favorite, list_favorites, remove_favorite
 
 _ITEMS: dict[str, tuple[float, int, int, str, dict[str, Any]]] = {}
 _TTL = 900
@@ -105,6 +106,7 @@ async def tunein_browse(proxy_id: int, room_id: int, tab: str, parent: str | Non
         if value[0] < now:
             _ITEMS.pop(key, None)
     result = []
+    favorites = {item["id"] for item in list_favorites()}
     for entry in raw:
         key = secrets.token_urlsafe(18)
         _ITEMS[key] = (now + _TTL, proxy_id, room_id, tab, entry)
@@ -112,7 +114,7 @@ async def tunein_browse(proxy_id: int, room_id: int, tab: str, parent: str | Non
             "id": key, "title": str(entry.get("Title") or ""),
             "subtitle": str(entry.get("Subtitle") or ""),
             "image": _image_url(entry.get("Image")),
-            "actions": _item_actions(entry),
+            "actions": _item_actions(entry) + (["UnpinFavorite" if f"msp:tunein:{proxy_id}:{entry.get('GuideId') or entry.get('Url')}" in favorites else "PinFavorite"] if (entry.get("GuideId") or entry.get("Url")) and ("Play" in _item_actions(entry) or entry.get("default_action") == "Play") else []),
             "default_action": str(entry.get("default_action") or ""),
             "link": str(entry.get("isLink") or "").lower() == "true",
         })
@@ -124,6 +126,16 @@ async def tunein_action(proxy_id: int, room_id: int, tab: str, item_id: str, act
     if not stored or stored[0] < time.monotonic() or stored[1:4] != (proxy_id, room_id, tab):
         raise ValueError("Voce scaduta: riapri il servizio")
     item = stored[4]
+    if action in {"PinFavorite", "UnpinFavorite"}:
+        key = str(item.get("GuideId") or item.get("Url") or "")
+        if not key or ("Play" not in _item_actions(item) and item.get("default_action") != "Play"):
+            raise ValueError("Azione non disponibile")
+        identity = f"msp:tunein:{proxy_id}:{key}"
+        if action == "PinFavorite":
+            add_favorite({"id": identity, "kind": "msp", "service": "tunein", "proxy_id": proxy_id, "tab": tab, "title": str(item.get("Title") or key), "subtitle": str(item.get("Subtitle") or ""), "image": _image_url(item.get("Image")), "play_args": {field: item[field] for field in _FIELDS if field in item}})
+        else:
+            remove_favorite(identity)
+        return {"ok": True}
     allowed = set(_item_actions(item))
     allowed.add(str(item.get("default_action") or ""))
     if action not in {"Play", "Follow", "Unfollow", "FavoriteToRoom", "FavoriteToHome"} or action not in allowed:
