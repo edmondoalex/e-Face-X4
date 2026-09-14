@@ -132,6 +132,23 @@ def create_app() -> FastAPI:
         require_admin(request)
         return await installation.preflight()
 
+    @app.get("/api/admin/intercom/composer-guide")
+    async def admin_intercom_composer_guide(request: Request) -> Response:
+        require_admin(request)
+        sip_eface = credential_inventory.load().get("sip_eface", {})
+        sip_control4 = credential_inventory.load().get("sip_control4", {})
+        return JSONResponse({
+            "control4": public_control4_config(),
+            "asterisk_host": intercom_settings.load()["asterisk_host"],
+            "eface_extension": "8301",
+            "eface_password_present": sip_eface.get("username") == "8301" and bool(sip_eface.get("password")),
+            "eface_password_managed": False,
+            "control4_sip_user": sip_control4.get("username", ""),
+            "control4_sip_copy_present": bool(sip_control4.get("password")),
+            "tablet_aliases": internal_stations.load(),
+            "asterisk_paired": provisioner_client.public()["configured"],
+        }, headers={"Cache-Control": "no-store, private"})
+
     @app.get("/api/admin/credentials")
     async def admin_credentials(request: Request) -> Response:
         require_admin(request)

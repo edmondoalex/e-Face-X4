@@ -405,6 +405,78 @@ function renderInstallation(data) {
   }
 }
 
+let composerGuide = null
+let composerStep = Math.max(0, Math.min(3, Number(localStorage.getItem('eface-composer-wizard-step')) || 0))
+
+function composerValue(label, value) {
+  const row = document.createElement('p')
+  const title = document.createElement('strong')
+  title.textContent = `${label}: `
+  row.append(title, document.createTextNode(value))
+  return row
+}
+
+function composerParagraph(parent, value) {
+  const paragraph = document.createElement('p')
+  paragraph.textContent = value
+  parent.append(paragraph)
+}
+
+function composerAction(parent, label, action) {
+  const button = document.createElement('button')
+  button.type = 'button'
+  button.className = 'secondary'
+  button.textContent = label
+  button.addEventListener('click', action)
+  parent.append(button)
+}
+
+function renderComposerWizard() {
+  if (!composerGuide) return
+  const titles = ['Collegamenti di base', 'Aggiungi e-Face in Composer', 'Rileva i tablet Control4', 'Verifica e stato']
+  $('#composer-wizard-progress').textContent = `PASSO ${composerStep + 1} DI 4`
+  $('#composer-wizard-title').textContent = titles[composerStep]
+  const content = $('#composer-wizard-content')
+  content.replaceChildren()
+  if (composerStep === 0) {
+    content.append(composerValue('Controller Control4', composerGuide.control4.host || 'non configurato'))
+    content.append(composerValue('Account Director', composerGuide.control4.password_configured ? composerGuide.control4.username : 'credenziali mancanti'))
+    content.append(composerValue('Asterisk e-Face', composerGuide.asterisk_host))
+    content.append(composerValue('Associazione Asterisk', composerGuide.asterisk_paired ? 'presente' : 'da completare in Videocitofono'))
+    composerParagraph(content, 'Prima configura il Director in Admin → Control4 e verifica la connessione. Il SIP dei tablet è separato dalle credenziali dell’account Director.')
+    composerAction(content, 'APRI CONTROL4', () => { closePanel('installation-config'); $('#control4-tool').click() })
+  } else if (composerStep === 1) {
+    composerParagraph(content, 'In Composer Pro: Agents → Communication → External Devices → Add Device. Imposta Caller ID su “e-Face X4”; nel campo SIP AOR inserisci il valore qui sotto. Il campo Password riguarda il dispositivo esterno Control4: non usare la password del Director né quella del client e-Face 8301. Salva e applica le modifiche.')
+    const aor = `${composerGuide.eface_extension}@${composerGuide.asterisk_host}`
+    content.append(composerValue('SIP AOR e-Face', aor))
+    composerAction(content, 'COPIA SIP AOR', async () => { try { await navigator.clipboard.writeText(aor); message('SIP AOR copiato') } catch (_) { message('Copia non disponibile: seleziona il valore mostrato') } })
+    content.append(composerValue('Utente SIP Control4', composerGuide.control4_sip_user || 'non presente in e-Face'))
+    content.append(composerValue('Password External Device', composerGuide.control4_sip_copy_present ? 'copia presente in Credenziali impianto: confronta con Composer' : 'non disponibile in e-Face: non completare questo passo'))
+    composerParagraph(content, 'La credenziale SIP Control4 salvata oggi in e-Face è una copia di riferimento; questo tutorial non la genera né la modifica nel controller.')
+    composerAction(content, 'APRI CREDENZIALI', async () => { try { await credentials(); closePanel('installation-config'); openPanel('credentials-config') } catch (error) { message(error.message) } })
+  } else if (composerStep === 2) {
+    composerParagraph(content, 'Per ogni tablet: Composer Pro → System Design → apri il tablet → Intercom → SIP Information. Prendi il valore “User Name”: è l’identificativo SIP con cui il proxy Control4 raggiunge quel tablet. Non usare il nome della stanza al suo posto.')
+    for (const [extension, name] of Object.entries(composerGuide.tablet_aliases)) content.append(composerValue(`Tablet beta ${extension}`, name))
+    composerParagraph(content, 'I nomi 8291/8292 sopra sono solo etichette dell’impianto beta. Il provisioning di nuovi tablet in Asterisk non è ancora attivo: non considerare un nuovo tablet configurato solo perché appare in Composer.')
+    composerAction(content, 'APRI VIDEOCITOFONO', () => { closePanel('installation-config'); $('#intercom-tool').click() })
+  } else {
+    composerParagraph(content, 'Esegui Verifica impianto qui sotto per rete Asterisk, DoorBird e TURN. Poi apri Intercom e verifica una chiamata vera in entrambi i sensi: la sola risposta TCP o la presenza di una rotta non dimostra audio e squillo.')
+    content.append(composerValue('Director', composerGuide.control4.password_configured ? 'credenziali presenti' : 'da configurare'))
+    content.append(composerValue('SIP e-Face 8301', composerGuide.eface_password_present ? 'copia presente, da confrontare con Asterisk' : 'mancante'))
+    content.append(composerValue('SIP Control4', composerGuide.control4_sip_copy_present ? 'copia presente, da confrontare con Composer' : 'mancante'))
+    content.append(composerValue('Provisioner Asterisk', composerGuide.asterisk_paired ? 'associato' : 'non associato'))
+  }
+  $('#composer-wizard-prev').disabled = composerStep === 0
+  $('#composer-wizard-next').textContent = composerStep === 3 ? 'RICOMINCIA' : 'AVANTI'
+}
+
+async function loadComposerWizard() {
+  composerGuide = await request('api/admin/intercom/composer-guide')
+  renderComposerWizard()
+}
+
+$('#composer-wizard-prev').addEventListener('click', () => { composerStep--; localStorage.setItem('eface-composer-wizard-step', composerStep); renderComposerWizard() })
+$('#composer-wizard-next').addEventListener('click', () => { composerStep = (composerStep + 1) % 4; localStorage.setItem('eface-composer-wizard-step', composerStep); renderComposerWizard() })
 $('#installation-back').addEventListener('click', () => closePanel('installation-config'))
 $('#installation-check').addEventListener('click', async (event) => {
   const button = event.currentTarget
@@ -563,8 +635,8 @@ async function initialize() {
     setup.type = 'button'
     setup.id = 'installation-tool'
     setup.className = 'tool-card'
-    setup.innerHTML = '<span>◇</span><div><b>Preparazione impianto</b><small>Controlli per la futura attivazione guidata</small></div><i>›</i>'
-    setup.addEventListener('click', () => openPanel('installation-config'))
+    setup.innerHTML = '<span>◇</span><div><b>Configurazione guidata Intercom</b><small>Tutorial Composer e verifiche impianto</small></div><i>›</i>'
+    setup.addEventListener('click', async () => { try { await loadComposerWizard(); openPanel('installation-config') } catch (error) { message(error.message) } })
     $('#admin-tools .tools-grid').prepend(setup)
     const link = document.createElement('a')
     link.href = api('intercom')

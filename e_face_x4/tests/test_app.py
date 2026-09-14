@@ -230,7 +230,7 @@ def test_intercom_dashboard_stores_only_local_settings(monkeypatch, tmp_path) ->
     assert 'id="tools-admin-nav"' in page
     assert 'id="intercom-tool"' in page
     assert 'id="users-tool"' in page
-    assert "tools-dashboard.js?v=2.21.21" in page
+    assert "tools-dashboard.js?v=2.21.22" in page
 
 
 def test_external_stations_api_requires_login_and_hides_secrets(monkeypatch, tmp_path) -> None:
@@ -271,6 +271,41 @@ def test_external_stations_api_requires_login_and_hides_secrets(monkeypatch, tmp
     assert public.json()["stations"][1]["name"] == "Cancello"
     assert client.post("/api/intercom/external-stations/esterno-2/prepare-call").json() == {"ready": True, "extension": "8202"}
     assert client.post("/api/intercom/external-stations/ingresso/prepare-call").json() == {"ready": True, "extension": "8201"}
+
+
+def test_composer_guide_is_admin_only_and_never_exposes_passwords(monkeypatch, tmp_path) -> None:
+    monkeypatch.setenv("EFACE_AUTH_DIR", str(tmp_path / "auth"))
+    monkeypatch.setenv("EFACE_CONTROL4_CONFIG", str(tmp_path / "control4.json"))
+    monkeypatch.setenv("EFACE_CREDENTIAL_INVENTORY", str(tmp_path / "inventory.json"))
+    monkeypatch.setenv("EFACE_INTERCOM_SETTINGS", str(tmp_path / "intercom.json"))
+    monkeypatch.setenv("EFACE_PROVISIONER_SETTINGS", str(tmp_path / "provisioner.json"))
+    monkeypatch.setenv("EFACE_INTERNAL_STATIONS", str(tmp_path / "internal.json"))
+    from app.user_auth import create_admin, create_account
+    from app import credential_inventory, control4
+    create_admin("password-admin-lunga")
+    create_account("mario", "Mario", "password-mario-lunga")
+    control4.save_control4_config({"host": "192.168.3.10", "username": "installer@example.com", "password": "director-secret"})
+    credential_inventory.save("sip_eface", "8301", "eface-secret")
+    credential_inventory.save("sip_control4", "8100", "proxy-secret")
+    admin = TestClient(create_app())
+    person = TestClient(create_app())
+    path = "/api/admin/intercom/composer-guide"
+    assert admin.get(path).status_code == 401
+    person.post("/api/auth/login", json={"username": "mario", "password": "password-mario-lunga"})
+    assert person.get(path).status_code == 403
+    admin.post("/api/auth/login", json={"username": "admin", "password": "password-admin-lunga"})
+    response = admin.get(path)
+    assert response.status_code == 200
+    assert response.json()["eface_extension"] == "8301"
+    assert response.json()["control4_sip_user"] == "8100"
+    assert response.json()["eface_password_present"] is True
+    assert response.json()["control4_sip_copy_present"] is True
+    assert response.headers["cache-control"] == "no-store, private"
+    for secret in ("director-secret", "eface-secret", "proxy-secret"):
+        assert secret not in response.text
+    page = admin.get("/tools").text
+    assert 'id="composer-wizard"' in page
+    assert "Configurazione guidata Intercom" in page
 
 
 def test_intercom_uses_admin_verified_8301_copy(monkeypatch, tmp_path) -> None:

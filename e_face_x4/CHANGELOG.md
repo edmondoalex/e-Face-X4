@@ -1,5 +1,8 @@
 # Changelog
 
+## 2.21.22 — 2026-09-14
+- Preparazione impianto diventa una configurazione guidata Intercom in quattro passi. Include il tutorial Composer per aggiungere e-Face come dispositivo esterno, l'AOR 8301 ricavato dall'IP Asterisk, la posizione di SIP Information dei tablet, collegamenti alle configurazioni Admin e verifica rete. Distingue password Director, SIP Control4 e SIP e-Face senza esporle. La guida segnala esplicitamente che il provisioning dei nuovi tablet non è ancora implementato e non modifica le rotte beta.
+
 ## 2.21.21 — 2026-09-14
 - Le due postazioni interne Control4 (8291 e 8292) possono essere rinominate da Strumenti → Admin → Videocitofono. Le etichette sono persistenti in e-Face e si aggiornano nella pagina Intercom; SIP, Asterisk e nomi dei tablet restano invariati.
 
