@@ -44,7 +44,7 @@ from .connectors.control4_media import cached_control4_icon, cached_control4_ico
 from .connectors.supervisor import discover_addon_url, discover_host_url
 from .demo import dashboard as demo_dashboard
 
-VERSION = "2.20.87"
+VERSION = "2.20.88"
 STATIC = Path(__file__).parent / "static"
 logging.basicConfig(level=logging.WARNING, format="%(asctime)s %(levelname)s [e-face-x4] %(message)s")
 _reconnect_warning_at: dict[str, float] = {}
@@ -1171,7 +1171,7 @@ def create_app() -> FastAPI:
 
     @app.post("/api/control4/recently-played/hide")
     async def control4_hide_recent(request: Request, payload: dict) -> dict:
-        if not user_auth.session_user(request.cookies.get(user_auth.COOKIE)):
+        if user_auth.enabled() and not user_auth.session_user(request.cookies.get(user_auth.COOKIE)):
             raise HTTPException(status_code=401, detail="Accesso richiesto")
         try:
             return {"hidden_count": hide_recent(str(payload.get("key") or ""))}
@@ -1180,7 +1180,7 @@ def create_app() -> FastAPI:
 
     @app.post("/api/control4/recently-played/restore")
     async def control4_restore_recents(request: Request) -> dict:
-        if not user_auth.session_user(request.cookies.get(user_auth.COOKIE)):
+        if user_auth.enabled() and not user_auth.session_user(request.cookies.get(user_auth.COOKIE)):
             raise HTTPException(status_code=401, detail="Accesso richiesto")
         restore_recents()
         return {"hidden_count": 0}

@@ -1,5 +1,8 @@
 import json
 
+from fastapi.testclient import TestClient
+
+from app.main import create_app
 from app.recent_visibility import filter_recents, hide_recent, restore_recents
 
 
@@ -12,3 +15,26 @@ def test_recent_hide_and_restore(monkeypatch, tmp_path):
     assert "a" not in json.loads((tmp_path / "hidden.json").read_text(encoding="utf-8"))
     restore_recents()
     assert filter_recents(items) == (items, 0)
+
+
+def test_recent_buttons_work_without_optional_user_accounts(monkeypatch, tmp_path):
+    monkeypatch.setenv("EFACE_AUTH_DIR", str(tmp_path / "auth"))
+    monkeypatch.setenv("EFACE_HIDDEN_RECENTS", str(tmp_path / "hidden.json"))
+    client = TestClient(create_app())
+    hidden = client.post("/api/control4/recently-played/hide", json={"key": "station-1"})
+    assert hidden.status_code == 200
+    assert hidden.json() == {"hidden_count": 1}
+    restored = client.post("/api/control4/recently-played/restore", json={})
+    assert restored.status_code == 200
+    assert restored.json() == {"hidden_count": 0}
+
+
+def test_recent_buttons_still_require_login_when_accounts_exist(monkeypatch, tmp_path):
+    auth_dir = tmp_path / "auth"
+    auth_dir.mkdir()
+    (auth_dir / "users.json").write_text("{}", encoding="utf-8")
+    monkeypatch.setenv("EFACE_AUTH_DIR", str(auth_dir))
+    monkeypatch.setenv("EFACE_HIDDEN_RECENTS", str(tmp_path / "hidden.json"))
+    client = TestClient(create_app())
+    assert client.post("/api/control4/recently-played/hide", json={"key": "station-1"}).status_code == 401
+    assert client.post("/api/control4/recently-played/restore", json={}).status_code == 401

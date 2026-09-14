@@ -1,5 +1,8 @@
 # Changelog
 
+## 2.20.88 — 2026-09-14
+- Ascoltati di recente: i pulsanti Nascondi (×) e Ripristina funzionano anche quando gli account utente opzionali non sono configurati; con account attivi resta richiesto il login.
+
 ## 2.20.87 — 2026-09-14
 - TuneIn: corretta la lettura delle azioni separate da spazi; tap sulla stazione avvia Play e il menu offre preferiti del servizio e della stanza. Verificati sul Director Play e Follow/Unfollow con ripristino dello stato iniziale.
 - Sessioni Control4: Digital Media mostra il servizio effettivo indicato da `PLAYING_AUDIO_DEVICE`; stanze con stesso servizio, cover e album vengono mostrate nella stessa sessione logica quando una usa la coda digitale.
