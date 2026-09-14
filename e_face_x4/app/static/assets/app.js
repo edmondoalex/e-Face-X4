@@ -575,6 +575,15 @@ function nowPlayingFavorite(selected) {
   if (Number(selected.station_id) > 0 && stationsSource && String(selected.source || '').toLocaleLowerCase('it') === 'stations') {
     return { recent: null, favorite: favoritesCache?.find((item) => item.id === `station:${stationsSource.source_id}:${selected.station_id}`) || null, stationProxyId: stationsSource.source_id }
   }
+  const spotifySource = (selected.source_options || []).find((source) => source.experience === 'listen' && String(source.label || '').toLocaleLowerCase('it') === 'spotify connect')
+  if (spotifySource && Number(selected.active_source_id) === Number(spotifySource.source_id) && /spotify connect/i.test(selected.source || '')) {
+    const roomId = Number(String(selected.registry_id || '').replace('c4room:', ''))
+    const scope = (avRoom || activeMediaRoom) && roomId ? `room-${roomId}` : 'global'
+    const history = recentCache.get(scope)
+    const newest = [...(history?.items || []), ...(history?.hiddenItems || [])].sort((left, right) => Number(right.timestamp || 0) - Number(left.timestamp || 0))[0]
+    const playlist = Number(newest?.driver_id) === Number(spotifySource.source_id) && String(newest?.item_type || '').toLocaleLowerCase('it') === 'playlist' ? newest : null
+    return { recent: playlist, favorite: playlist ? favoritesCache?.find((item) => item.id === `recent:${playlist.key}`) || null : null, spotifyProxyId: spotifySource.source_id }
+  }
   const roomId = Number(String(selected.registry_id || '').replace('c4room:', ''))
   const scope = (avRoom || activeMediaRoom) && roomId ? `room-${roomId}` : 'global'
   const names = [selected.title, selected.artist, selected.album].map((value) => String(value || '').trim().toLocaleLowerCase('it')).filter((value) => value.length > 2)
@@ -588,11 +597,13 @@ function nowPlayingFavorite(selected) {
 function updateNowPlayingStar(selected) {
   const button = $('#device-list .media-session [data-now-playing-favorite]')
   if (!button || !selected || button.closest('[data-device-id]')?.dataset.deviceId !== String(selected.id)) return
-  const { favorite } = nowPlayingFavorite(selected)
+  const context = nowPlayingFavorite(selected)
+  const { favorite } = context
   button.classList.toggle('active', Boolean(favorite))
   button.setAttribute('aria-pressed', String(Boolean(favorite)))
-  button.setAttribute('aria-label', favorite ? 'Rimuovi dai Preferiti e-Face' : 'Aggiungi ai Preferiti e-Face')
-  button.title = favorite ? 'Rimuovi dai Preferiti e-Face' : 'Aggiungi ai Preferiti e-Face'
+  const label = context.spotifyProxyId ? `${favorite ? 'Rimuovi' : 'Salva'} playlist Spotify${context.recent?.title ? ` “${context.recent.title}”` : ''}${favorite ? ' dai' : ' nei'} Preferiti e-Face` : favorite ? 'Rimuovi dai Preferiti e-Face' : 'Aggiungi ai Preferiti e-Face'
+  button.setAttribute('aria-label', label)
+  button.title = label
 }
 
 async function loadMediaFavorites(force = false) {
@@ -1832,6 +1843,17 @@ $('#device-list').addEventListener('click', (event) => {
         const response = await fetch(apiUrl('api/control4/favorites/current-station'), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ room_id: roomId, proxy_id: station.stationProxyId }) })
         if (!response.ok) throw new Error((await response.json()).detail || 'Stazione non disponibile')
         favoritesCache = (await response.json()).items || []
+        const panel = $('[data-media-favorites]')
+        if (panel) panel.querySelector('.media-recent-strip').innerHTML = mediaFavoritesHtml(favoritesCache, Number(panel.dataset.favoriteRoom))
+        updateNowPlayingStar(selected)
+        return
+      }
+      if (station.spotifyProxyId) {
+        const roomId = Number(String(selected.registry_id || '').replace('c4room:', ''))
+        const response = await fetch(apiUrl('api/control4/favorites/current-spotify-playlist'), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ room_id: roomId, proxy_id: station.spotifyProxyId }) })
+        if (!response.ok) throw new Error((await response.json()).detail || 'Playlist Spotify non disponibile')
+        const result = await response.json()
+        favoritesCache = result.items || []
         const panel = $('[data-media-favorites]')
         if (panel) panel.querySelector('.media-recent-strip').innerHTML = mediaFavoritesHtml(favoritesCache, Number(panel.dataset.favoriteRoom))
         updateNowPlayingStar(selected)

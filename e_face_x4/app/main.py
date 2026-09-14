@@ -49,7 +49,7 @@ from .connectors.control4_media import cached_control4_icon, cached_control4_ico
 from .connectors.supervisor import discover_addon_url, discover_host_url
 from .demo import dashboard as demo_dashboard
 
-VERSION = "2.21.6"
+VERSION = "2.21.7"
 STATIC = Path(__file__).parent / "static"
 logging.basicConfig(level=logging.WARNING, format="%(asctime)s %(levelname)s [e-face-x4] %(message)s")
 _reconnect_warning_at: dict[str, float] = {}
@@ -574,6 +574,48 @@ def create_app() -> FastAPI:
         except Exception as exc:
             logging.warning("Preferito Stations corrente non disponibile (%s)", type(exc).__name__)
             raise HTTPException(status_code=502, detail="Preferito Stations non disponibile") from exc
+
+    @app.post("/api/control4/favorites/current-spotify-playlist")
+    async def control4_toggle_current_spotify_playlist(payload: dict) -> dict:
+        try:
+            room_id = int(payload.get("room_id") or 0)
+            proxy_id = int(payload.get("proxy_id") or 0)
+            if room_id <= 0 or proxy_id <= 0:
+                raise ValueError("Stanza o servizio Spotify non valido")
+            director, _ = await control4_director(load_control4_config())
+            source_info = await director.get_item_info(proxy_id)
+            source = source_info[0] if isinstance(source_info, list) and source_info else source_info
+            if not isinstance(source, dict) or str(source.get("name") or "").casefold() != "spotify connect" or source.get("proxy") != "media_service":
+                raise ValueError("Spotify Connect non disponibile")
+            media_value = await director.get_item_variable_value(room_id, "CURRENT MEDIA INFO")
+            media = media_value.get("mediainfo") if isinstance(media_value, dict) else None
+            if not isinstance(media, dict) or str(media.get("medSrcDev") or "") != str(proxy_id):
+                raise ValueError("Spotify Connect non è la sorgente attiva nella stanza")
+            connector = Control4MediaConnector(load_control4_config())
+            history = await connector.recently_played([room_id], 20)
+            current = history[0] if history else None
+            if not current or current.get("driver_id") != proxy_id or str(current.get("item_type") or "").casefold() != "playlist":
+                raise ValueError("Non trovo la playlist Spotify attiva. Apri Spotify Connect e scegli la playlist dai recenti.")
+            favorite_id = f"recent:{current['key']}"
+            if any(item["id"] == favorite_id for item in list_favorites()):
+                return {"items": remove_favorite(favorite_id), "title": current["title"], "added": False}
+            favorite = {"id": favorite_id, "kind": "recent", "key": current["key"], "title": current["title"],
+                        "subtitle": current["subtitle"], "item_type": "Playlist", "driver_id": proxy_id,
+                        "registry_id": current["registry_id"], "content_fingerprint": current["content_fingerprint"]}
+            items = add_favorite(favorite)
+            if current["content_fingerprint"]:
+                try:
+                    upstream = await connector.artwork(current["registry_id"], current["content_fingerprint"])
+                    if upstream.status_code == 200 and artwork_media_type(upstream.headers.get("content-type", ""), upstream.content) and len(upstream.content) <= 700_000:
+                        save_favorite_artwork(favorite_id, upstream.content)
+                except (httpx.HTTPError, OSError, ValueError):
+                    pass
+            return {"items": items, "title": current["title"], "added": True}
+        except (ValueError, TypeError, KeyError) as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        except Exception as exc:
+            logging.warning("Preferito playlist Spotify corrente non disponibile (%s)", type(exc).__name__)
+            raise HTTPException(status_code=502, detail="Preferito playlist Spotify non disponibile") from exc
 
     @app.get("/api/control4/favorites/artwork")
     async def control4_favorite_artwork(identity: str = Query(..., min_length=1, max_length=300)) -> Response:

@@ -1,5 +1,8 @@
 # Changelog
 
+## 2.21.7 — 2026-09-14
+- La stella del player Spotify salva/rimuove la playlist più recente della stanza, verificata nel contesto Control4, anziché cercare il titolo del brano in riproduzione. Il preferito mantiene il nome della playlist e resta riproducibile dalla cronologia.
+
 ## 2.21.6 — 2026-09-14
 - Preferiti Spotify: quando la copertina temporanea non è disponibile compare il logo Spotify, non un'icona musicale generica. I preferiti precedenti recuperano e salvano l'ID del servizio dalla cronologia quando ancora presente. Anche i piccoli loghi sotto i preferiti usano l'icona reale della sorgente configurata in e-Face.
 
