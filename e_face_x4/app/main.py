@@ -40,7 +40,7 @@ from . import sip_accounts
 from . import asterisk_ami
 from . import doorbird_api
 from .media_preferences import apply_preferences, load_preferences, save_preferences
-from .source_icons import delete_source_icon, load_builtin_source_icon, load_source_icon, save_source_icon
+from .source_icons import delete_source_icon, hidden_source_ids, load_builtin_source_icon, load_source_icon, save_source_icon, set_source_hidden
 from .backgrounds import CARD_THEMES, PRESETS, load_background, load_background_image, load_backgrounds, load_card_theme, load_card_glow, load_room_order, load_security_order, save_background_image, save_card_theme, save_card_glow, save_room_order, save_security_order, save_inherit, save_preset
 from .connectors import BusproConnector, Control4MediaConnector, EThermConnector, EkonexMediaConnector, EvoiceLocalMediaConnector, KseniaConnector
 from .connectors.ksenia import normalize_ksenia
@@ -48,7 +48,7 @@ from .connectors.control4_media import cached_control4_icon, cached_control4_ico
 from .connectors.supervisor import discover_addon_url, discover_host_url
 from .demo import dashboard as demo_dashboard
 
-VERSION = "2.21.0"
+VERSION = "2.21.1"
 STATIC = Path(__file__).parent / "static"
 logging.basicConfig(level=logging.WARNING, format="%(asctime)s %(levelname)s [e-face-x4] %(message)s")
 _reconnect_warning_at: dict[str, float] = {}
@@ -1149,12 +1149,27 @@ def create_app() -> FastAPI:
         require_installer(request)
         snapshots = await asyncio.gather(*(connector.snapshot() for connector in media_connectors(load_settings())))
         sources: dict[int, dict] = {}
+        hidden_sources = hidden_source_ids()
         for player in (player for snapshot in snapshots for player in snapshot.get("items", [])):
             for source in player.get("source_options", []):
                 source_id = int(source.get("source_id") or 0)
                 if source_id > 0:
-                    sources[source_id] = {"source_id": source_id, "name": str(source.get("label") or source_id), "custom": load_source_icon(source_id) is not None}
+                    sources[source_id] = {"source_id": source_id, "name": str(source.get("label") or source_id), "custom": load_source_icon(source_id) is not None, "hidden": source_id in hidden_sources}
         return {"items": sorted(sources.values(), key=lambda item: item["name"].casefold())}
+
+    @app.get("/api/control4/hidden-sources")
+    async def control4_hidden_sources() -> dict:
+        return {"ids": sorted(hidden_source_ids())}
+
+    @app.put("/api/installer/media-source-icons/{source_id}/visibility")
+    async def installer_media_source_visibility(source_id: int, request: Request, payload: dict) -> dict:
+        require_installer(request)
+        if not isinstance(payload.get("hidden"), bool):
+            raise HTTPException(status_code=400, detail="Visibilità non valida")
+        try:
+            return {"ids": sorted(set_source_hidden(source_id, payload["hidden"]))}
+        except (OSError, ValueError) as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
 
     @app.put("/api/installer/media-source-icons/{source_id}")
     async def installer_save_media_source_icon(source_id: int, request: Request, payload: dict) -> dict:

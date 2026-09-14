@@ -2,12 +2,16 @@ from __future__ import annotations
 
 import base64
 import binascii
+import json
 import os
 import re
+import secrets
+import threading
 from pathlib import Path
 
 MIME_SUFFIX = {"image/png": ".png", "image/jpeg": ".jpg", "image/webp": ".webp", "image/gif": ".gif"}
 BUILTIN_DIRECTORY = Path(__file__).parent / "static" / "assets" / "control4-icons"
+_VISIBILITY_LOCK = threading.RLock()
 BUILTIN_ICONS = {
     "sonos": "sonos.png",
     "stations": "stations.png",
@@ -30,6 +34,35 @@ BUILTIN_ICONS = {
 
 def _directory() -> Path:
     return Path(os.environ.get("EFACE_SOURCE_ICONS", "/data/source-icons"))
+
+
+def hidden_source_ids() -> set[int]:
+    try:
+        values = json.loads((_directory() / "hidden.json").read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return set()
+    return {value for value in values if isinstance(value, int) and not isinstance(value, bool) and value > 0} if isinstance(values, list) else set()
+
+
+def set_source_hidden(source_id: int, hidden: bool) -> set[int]:
+    if source_id <= 0:
+        raise ValueError("Sorgente non valida")
+    with _VISIBILITY_LOCK:
+        values = hidden_source_ids()
+        (values.add if hidden else values.discard)(source_id)
+        directory = _directory()
+        directory.mkdir(parents=True, exist_ok=True)
+        target = directory / "hidden.json"
+        temporary = directory / f"hidden.{secrets.token_hex(8)}.tmp"
+        try:
+            with temporary.open("x", encoding="utf-8") as file:
+                json.dump(sorted(values), file)
+                file.flush()
+                os.fsync(file.fileno())
+            temporary.replace(target)
+        finally:
+            temporary.unlink(missing_ok=True)
+        return values
 
 
 def load_source_icon(source_id: int) -> tuple[str, bytes] | None:

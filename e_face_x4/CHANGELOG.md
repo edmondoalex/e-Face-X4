@@ -1,5 +1,8 @@
 # Changelog
 
+## 2.21.1 — 2026-09-14
+- Stella nel player Ascolta per aggiungere o rimuovere subito il contenuto riproducibile presente nella cronologia Control4 dai Preferiti e-Face, con stato grigio/acceso. In Strumenti → Icone sorgenti, Nascondi/Mostra salva sul volume persistente quali sorgenti non devono comparire tra le scelte e-Face.
+
 ## 2.21.0 — 2026-09-14
 - Popup musicali: superfici e accenti seguono il tema schede salvato in Strumenti. Grafite predefinito ora è grigio neutro; gli altri temi restano selezionabili. I preset Spotify senza copertina mostrano il logo Spotify e le voci informative un'icona dedicata; gli altri servizi usano icone coerenti come fallback.
 

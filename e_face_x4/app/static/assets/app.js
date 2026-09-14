@@ -38,6 +38,7 @@ const mediaTransportOverrides = new Map()
 const recentCache = new Map()
 let favoritesCache = null
 let favoritesPending = null
+let hiddenSourceIds = new Set()
 const recentPending = new Map()
 const ttsVolumeRestores = new Map()
 
@@ -470,7 +471,7 @@ function renderMediaExperience(devices) {
     const mode = experience === 'watch' ? 'Video attivo' : 'Audio attivo'
     return `<button class="media-service-tile media-room-tile ${device.id === selected.id ? 'active' : ''} ${operating ? `media-room-on media-room-${experience}` : ''}" data-media-select="${esc(device.id)}"><span class="mdi-mask" style="${mdiStyle(device.icon, 'speaker')}"></span><b>${esc(device.name)}</b>${device.source ? `<small>${esc(device.source)}</small>` : ''}${operating ? `<i class="media-room-state" aria-label="${mode}" title="${mode}"></i>` : ''}</button>`
   }).join('')
-  const options = selected.source_options?.length ? selected.source_options.filter((source) => !currentMediaExperience || source.experience === currentMediaExperience) : (selected.source_list || []).map((source) => ({key:source,label:source}))
+  const options = selected.source_options?.length ? selected.source_options.filter((source) => (!currentMediaExperience || source.experience === currentMediaExperience) && !hiddenSourceIds.has(Number(source.source_id))) : (selected.source_list || []).map((source) => ({key:source,label:source}))
   const sources = options.map((source) => {
     return `<button class="media-service-tile ${source.label === selected.source ? 'active' : ''}" data-device-id="${esc(selected.id)}" data-media-source="${esc(source.key)}">${mediaSourceMarkup(source, selected.provider)}<b>${esc(source.label)}</b></button>`
   }).join('')
@@ -496,6 +497,11 @@ function renderMediaExperience(devices) {
   const navigatorArtwork = navigatorIcon !== sourceGlyph ? mainArtwork.replace('class="media-artwork', `data-msp-open data-msp-service="${serviceName}" data-msp-room="${recentRoomId}" role="button" tabindex="0" class="media-artwork`) : mainArtwork
   const roomLabel = activeMediaRoom ? '' : `<span class="media-session-room" title="Stanza comandata: ${esc(selected.room || selected.name)}">${esc(selected.room || selected.name)}</span>`
   $('#device-list').innerHTML = `<article class="media-session ${experienceClass} ${deviceVisualClass(selected)}" data-device-id="${esc(selected.id)}">${navigatorArtwork}${navigatorIcon}<div class="media-session-info"><strong>${esc(selected.title || selected.source || selected.name)}</strong><small>${esc(selected.artist || selected.source || selected.room)}</small><span class="media-track">${esc(selected.album || selected.name)}</span></div>${roomLabel}${power}${deviceActions(selected, { hidePower: true })}</article>${voicePanel}${recent}${favorites}<div class="media-library media-room-library"><button class="media-library-toggle" data-media-section-toggle="rooms" aria-expanded="${mediaSections.rooms}"><strong>Stanze</strong><span class="mdi-mask" style="${mdiStyle(mediaSections.rooms ? 'mdi:chevron-up' : 'mdi:chevron-down', 'chevron-down')}"></span></button><div class="media-service-grid" ${mediaSections.rooms ? '' : 'hidden'}>${players}</div></div><div class="media-library media-source-library"><h3>Sorgenti e servizi</h3><div class="media-service-grid">${sources || '<span class="empty-state">Nessuna sorgente disponibile</span>'}</div></div>`
+  if (showRecent) {
+    const controls = $('#device-list .media-session .media-controls')
+    if (controls) controls.insertAdjacentHTML('beforeend', '<button type="button" class="media-now-playing-favorite" data-now-playing-favorite aria-label="Aggiungi ai Preferiti e-Face" aria-pressed="false" title="Aggiungi ai Preferiti e-Face">★</button>')
+    updateNowPlayingStar(selected)
+  }
   if (recent) loadRecentlyPlayed(selected)
   if (favorites) loadMediaFavorites()
 }
@@ -524,6 +530,7 @@ async function loadRecentlyPlayed(selected) {
       showHidden.hidden = !hiddenCount
       showHidden.textContent = `Nascosti (${hiddenCount})`
       host.querySelector('.media-recent-hidden').innerHTML = hiddenRecentlyPlayedHtml(hiddenItems)
+      updateNowPlayingStar(selected)
       const favoritesPanel = $('[data-media-favorites]')
       if (favoritesPanel && favoritesCache) favoritesPanel.querySelector('.media-recent-strip').innerHTML = mediaFavoritesHtml(favoritesCache, Number(favoritesPanel.dataset.favoriteRoom))
     } catch (_) {
@@ -551,6 +558,28 @@ function mediaFavoritesHtml(items, roomId) {
   }).join('')
 }
 
+function nowPlayingFavorite(selected) {
+  if (selected?.provider !== 'control4' || selected.active_experience !== 'listen') return { recent: null, favorite: null }
+  const roomId = Number(String(selected.registry_id || '').replace('c4room:', ''))
+  const scope = (avRoom || activeMediaRoom) && roomId ? `room-${roomId}` : 'global'
+  const names = [selected.title, selected.artist, selected.album].map((value) => String(value || '').trim().toLocaleLowerCase('it')).filter((value) => value.length > 2)
+  const history = recentCache.get(scope)
+  const candidates = [...(history?.items || []), ...(history?.hiddenItems || [])]
+  const recent = names.map((name) => candidates.find((item) => String(item.title || '').trim().toLocaleLowerCase('it') === name)).find(Boolean) || null
+  const favorite = favoritesCache?.find((item) => item.id === `recent:${recent?.key}` || (names.includes(String(item.title || '').trim().toLocaleLowerCase('it')) && (item.kind === 'recent' || item.service === (/spotify/i.test(selected.source || '') ? 'spotify' : /tunein/i.test(selected.source || '') ? 'tunein' : /amazon/i.test(selected.source || '') ? 'amazon' : /tidal/i.test(selected.source || '') ? 'tidal' : undefined)))) || null
+  return { recent, favorite }
+}
+
+function updateNowPlayingStar(selected) {
+  const button = $('#device-list .media-session [data-now-playing-favorite]')
+  if (!button || !selected || button.closest('[data-device-id]')?.dataset.deviceId !== String(selected.id)) return
+  const { favorite } = nowPlayingFavorite(selected)
+  button.classList.toggle('active', Boolean(favorite))
+  button.setAttribute('aria-pressed', String(Boolean(favorite)))
+  button.setAttribute('aria-label', favorite ? 'Rimuovi dai Preferiti e-Face' : 'Aggiungi ai Preferiti e-Face')
+  button.title = favorite ? 'Rimuovi dai Preferiti e-Face' : 'Aggiungi ai Preferiti e-Face'
+}
+
 async function loadMediaFavorites(force = false) {
   if (favoritesCache && !force) return
   if (favoritesPending) return favoritesPending
@@ -566,6 +595,7 @@ async function loadMediaFavorites(force = false) {
         const cached = recentCache.get(recent.dataset.recentScope)
         if (cached) recent.querySelector('.media-recent-strip').innerHTML = recentlyPlayedHtml(cached.items, Number(panel?.dataset.favoriteRoom || 0))
       }
+      updateNowPlayingStar(currentDevices.find((item) => item.id === selectedMediaId) || currentDevices.find((item) => item.room === activeMediaRoom))
     } catch (error) { if (force) fail(error) }
     finally { favoritesPending = null }
   })()
@@ -922,10 +952,10 @@ function deviceActions(device, options = {}) {
     const caps = device.capabilities || {}
     const disabled = device.connection_status === 'offline' || device.availability !== 'available'
     const button = (operation, icon, label, enabled = false, className = '') => enabled ? `<button class="${className}" data-media-action="${operation}" aria-label="${label}" ${disabled ? 'disabled' : ''}><span class="mdi-mask" style="${mdiStyle(`mdi:${icon}`, icon)}"></span></button>` : ''
-    const controls = [button('video_remote_menu', 'remote-tv', 'Telecomando video', device.active_experience === 'watch' && device.active_source_id), button('media_shuffle', 'shuffle-variant', 'Riproduzione casuale', caps.shuffle), button('media_previous', 'skip-previous', 'Precedente', caps.previous), String(device.state).toLowerCase() === 'playing' ? button('media_pause', 'pause', 'Pausa', caps.pause, 'primary') : button('media_play', 'play', 'Riproduci', caps.play, 'primary'), button('media_next', 'skip-next', 'Successivo', caps.next), button('media_repeat', 'repeat', 'Ripeti', caps.repeat), button('media_stop', 'stop', 'Stop', caps.stop && currentMediaExperience !== 'listen'), button('turn_off', 'power', 'Spegni stanza', caps.turn_off && !options.hidePower), button('media_zones', 'plus-box-outline', 'Aggiungi stanze', caps.grouping)].join('')
+    const controls = [button('video_remote_menu', 'remote-tv', 'Telecomando video', device.active_experience === 'watch' && device.active_source_id), button('media_shuffle', 'shuffle-variant', 'Riproduzione casuale', caps.shuffle), button('media_previous', 'skip-previous', 'Precedente', caps.previous), String(device.state).toLowerCase() === 'playing' ? button('media_pause', 'pause', 'Pausa', caps.pause, 'primary') : button('media_play', 'play', 'Riproduci', caps.play, 'primary'), button('media_next', 'skip-next', 'Successivo', caps.next), button('media_repeat', 'repeat', 'Ripeti', caps.repeat), button('media_stop', 'stop', 'Stop', caps.stop && currentMediaExperience !== 'listen'), button('turn_off', 'power', 'Spegni stanza', caps.turn_off && !options.hidePower), button('media_zones', 'plus-box-outline', 'Aggiungi stanze', caps.grouping), options.nowPlayingFavorite ? `<button type="button" class="media-now-playing-favorite" data-now-playing-favorite aria-label="Aggiungi ai Preferiti e-Face" aria-pressed="false" title="Aggiungi ai Preferiti e-Face">★</button>` : ''].join('')
     const mute = caps.mute ? button(device.muted ? 'volume_unmute' : 'volume_mute', device.muted ? 'volume-off' : 'volume-high', device.muted ? 'Riattiva audio' : 'Disattiva audio', true, 'media-volume-mute') : '<span></span>'
     const volume = caps.set_volume ? `<label class="media-volume">${mute}<input type="range" min="0" max="100" step="1" value="${Number(device.volume) || 0}" data-media-volume ${disabled ? 'disabled' : ''}><output>${Number(device.volume) || 0}%</output></label>` : ''
-    const sourceOptions = device.source_options?.length ? device.source_options.filter((source) => !currentMediaExperience || source.experience === currentMediaExperience) : (device.source_list || []).map((source) => ({key:source,label:source}))
+    const sourceOptions = device.source_options?.length ? device.source_options.filter((source) => (!currentMediaExperience || source.experience === currentMediaExperience) && !hiddenSourceIds.has(Number(source.source_id))) : (device.source_list || []).map((source) => ({key:source,label:source}))
     const sources = caps.select_source && sourceOptions.length ? `<div class="media-sources">${sourceOptions.map((source) => `<button data-media-source="${esc(source.key)}" class="${source.label === device.source ? 'active' : ''}" ${disabled ? 'disabled' : ''}>${mediaSourceMarkup(source, device.provider)}<b>${esc(source.label)}</b></button>`).join('')}</div>` : ''
     return `<div class="media-controls">${controls}</div>${volume}${sources}`
   }
@@ -1520,8 +1550,9 @@ async function refresh() {
   if (refreshRunning || document.hidden) return
   refreshRunning = true
   try {
-    const response = await fetch(apiUrl('api/bootstrap'), { cache: 'no-store' })
+    const [response, hiddenResponse] = await Promise.all([fetch(apiUrl('api/bootstrap'), { cache: 'no-store' }), fetch(apiUrl('api/control4/hidden-sources'), { cache: 'no-store' })])
     if (!response.ok) throw new Error(`HTTP ${response.status}`)
+    if (hiddenResponse.ok) hiddenSourceIds = new Set((await hiddenResponse.json()).ids || [])
     render(await response.json())
   } catch (error) {
     fail(error)
@@ -1723,6 +1754,36 @@ $('#scenario-list').addEventListener('click', (event) => {
   if (button && card) sendScenarioCommand(card.dataset.scenarioId, button.dataset.scenarioAction, button)
 })
 $('#device-list').addEventListener('click', (event) => {
+  const nowFavoriteButton = event.target.closest('[data-now-playing-favorite]')
+  if (nowFavoriteButton) {
+    const selected = currentDevices.find((item) => String(item.id) === nowFavoriteButton.closest('[data-device-id]')?.dataset.deviceId)
+    if (!selected || nowFavoriteButton.disabled) return
+    nowFavoriteButton.disabled = true
+    ;(async () => {
+      let { recent, favorite } = nowPlayingFavorite(selected)
+      if (!recent && !favorite) {
+        const roomId = Number(String(selected.registry_id || '').replace('c4room:', ''))
+        const scope = (avRoom || activeMediaRoom) && roomId ? `room-${roomId}` : 'global'
+        const response = await fetch(apiUrl(`api/control4/recently-played${scope === 'global' ? '' : `?room_id=${roomId}`}`), { cache: 'no-store' })
+        if (!response.ok) throw new Error('Cronologia non disponibile')
+        const data = await response.json()
+        recentCache.set(scope, { items: data.items || [], hiddenItems: data.hidden_items || [], hiddenCount: Number(data.hidden_count || 0), updated: Date.now() })
+        ;({ recent, favorite } = nowPlayingFavorite(selected))
+      }
+      if (!recent && !favorite) throw new Error('Questo contenuto non è ancora disponibile nella cronologia Control4')
+      const path = favorite ? 'remove' : 'recent'
+      const payload = favorite ? { id: favorite.id } : { key: recent.key, title: recent.title, subtitle: recent.subtitle, item_type: recent.item_type, registry_id: recent.registry_id, content_fingerprint: recent.content_fingerprint }
+      const response = await fetch(apiUrl(`api/control4/favorites/${path}`), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
+      if (!response.ok) throw new Error((await response.json()).detail || 'Preferito non disponibile')
+      favoritesCache = (await response.json()).items || []
+      const panel = $('[data-media-favorites]')
+      if (panel) panel.querySelector('.media-recent-strip').innerHTML = mediaFavoritesHtml(favoritesCache, Number(panel.dataset.favoriteRoom))
+      const recents = $('[data-recently-played]')
+      if (recents) { const cached = recentCache.get(recents.dataset.recentScope); if (cached) recents.querySelector('.media-recent-strip').innerHTML = recentlyPlayedHtml(cached.items, Number(panel?.dataset.favoriteRoom || 0)) }
+      updateNowPlayingStar(selected)
+    })().catch(fail).finally(() => { nowFavoriteButton.disabled = false })
+    return
+  }
   const navigatorButton = event.target.closest('[data-msp-open]')
   if (navigatorButton) return openTuneInNavigator(Number(navigatorButton.dataset.mspRoom), navigatorButton.dataset.mspService || 'tunein')
   const pinRecent = event.target.closest('[data-recent-pin]')

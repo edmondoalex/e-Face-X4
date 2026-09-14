@@ -671,6 +671,16 @@ def test_custom_source_icon_is_persisted_and_removed(monkeypatch, tmp_path) -> N
     assert load_source_icon(244) is None
 
 
+def test_hidden_media_sources_survive_reload(monkeypatch, tmp_path) -> None:
+    from app.source_icons import hidden_source_ids, set_source_hidden
+    monkeypatch.setenv("EFACE_SOURCE_ICONS", str(tmp_path / "source-icons"))
+    assert set_source_hidden(244, True) == {244}
+    assert hidden_source_ids() == {244}
+    assert (tmp_path / "source-icons" / "hidden.json").read_text(encoding="utf-8") == "[244]"
+    assert set_source_hidden(244, False) == set()
+    assert hidden_source_ids() == set()
+
+
 def test_builtin_control4_source_icons_are_packaged() -> None:
     for label in ("Sonos", "Stations", "VIDAA", "Apps", "DLNA", "Spotify Connect", "Manage Music", "Digital Media", "AM/FM Tuner", "Wireless Music Bridge"):
         icon = load_builtin_source_icon(label)
