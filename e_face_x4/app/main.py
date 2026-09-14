@@ -19,7 +19,7 @@ import uvicorn
 import websockets
 from pyControl4.websocket import C4Websocket
 from fastapi import FastAPI, Header, HTTPException, Query, Request, Response, WebSocket
-from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.responses import RedirectResponse
 
@@ -49,7 +49,7 @@ from .connectors.control4_media import cached_control4_icon, cached_control4_ico
 from .connectors.supervisor import discover_addon_url, discover_host_url
 from .demo import dashboard as demo_dashboard
 
-VERSION = "2.21.8"
+VERSION = "2.21.9"
 STATIC = Path(__file__).parent / "static"
 logging.basicConfig(level=logging.WARNING, format="%(asctime)s %(levelname)s [e-face-x4] %(message)s")
 _reconnect_warning_at: dict[str, float] = {}
@@ -93,6 +93,7 @@ def create_app() -> FastAPI:
     login_failures: dict[tuple[str, str], list[float]] = {}
     reveal_failures: dict[str, list[float]] = {}
     control4_support_tokens: dict[str, float] = {}
+    doorbird_video_slots = asyncio.Semaphore(2)
 
     def secure_cookie(request: Request) -> bool:
         return request.url.scheme == "https" or request.headers.get("x-forwarded-proto", "").lower() == "https"
@@ -851,6 +852,50 @@ def create_app() -> FastAPI:
         if frame is None:
             return Response(status_code=204, headers=headers)
         return Response(content=frame, media_type="image/jpeg", headers=headers)
+
+    @app.get("/api/intercom/doorbird/video")
+    async def intercom_doorbird_video(request: Request) -> Response:
+        if not user_auth.session_user(request.cookies.get(user_auth.COOKIE)):
+            raise HTTPException(status_code=401, detail="Accesso richiesto")
+        account = credential_inventory.load().get("doorbird", {})
+        if not account.get("username") or not account.get("password"):
+            raise HTTPException(status_code=409, detail="Credenziale DoorBird non configurata")
+        try:
+            await asyncio.wait_for(doorbird_video_slots.acquire(), timeout=0.1)
+        except asyncio.TimeoutError as exc:
+            raise HTTPException(status_code=503, detail="Troppi flussi DoorBird aperti") from exc
+        settings = intercom_settings.load()
+        try:
+            stream = await doorbird_api.live_video(
+                settings["doorbird_host"], settings["doorbird_port"], account["username"], account["password"]
+            )
+        except PermissionError as exc:
+            doorbird_video_slots.release()
+            raise HTTPException(status_code=403, detail=str(exc)) from exc
+        except (ConnectionError, RuntimeError) as exc:
+            doorbird_video_slots.release()
+            raise HTTPException(status_code=502, detail=str(exc)) from exc
+        except BaseException:
+            doorbird_video_slots.release()
+            raise
+        if stream is None:
+            doorbird_video_slots.release()
+            return Response(status_code=204, headers={"Cache-Control": "no-store, private"})
+        client, upstream, content_type = stream
+
+        async def frames():
+            try:
+                async for chunk in upstream.aiter_raw():
+                    yield chunk
+            finally:
+                await upstream.aclose()
+                await client.aclose()
+                doorbird_video_slots.release()
+
+        return StreamingResponse(
+            frames(), media_type=content_type,
+            headers={"Cache-Control": "no-store, private", "Pragma": "no-cache", "X-Content-Type-Options": "nosniff"},
+        )
 
     @app.put("/api/admin/intercom")
     async def admin_save_intercom(request: Request, payload: dict) -> dict:

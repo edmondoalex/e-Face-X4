@@ -1384,7 +1384,25 @@ async function sendRgbCommand(group, action, value, control) {
   } catch (error) { fail(error) } finally { if (control) control.disabled = false }
 }
 
+function closeIntercom() {
+  $('#intercom-view').hidden = true
+  $('#intercom-frame').removeAttribute('src')
+}
+
+function openIntercom() {
+  stopEnergyRefresh()
+  applyBackground('')
+  activeDetailIds = null
+  $('#home-view').hidden = true
+  $('#detail-view').hidden = true
+  $('#energy-view').hidden = true
+  $('#intercom-view').hidden = false
+  if (!$('#intercom-frame').getAttribute('src')) $('#intercom-frame').src = apiUrl('intercom?embedded=1')
+  window.scrollTo({ top: 0, behavior: 'smooth' })
+}
+
 function openDevices(title, devices, options = {}) {
+  closeIntercom()
   $('#energy-view').hidden = true
   const mediaOnly = devices.length > 0 && devices.every((device) => device.kind === 'media_player')
   activeMediaRoom = options.room && mediaOnly ? options.room : ''
@@ -1418,6 +1436,7 @@ function openDevices(title, devices, options = {}) {
 }
 
 function openScenariosPage() {
+  closeIntercom()
   $('#energy-view').hidden = true
   applyBackground('')
   activeDetailIds = null
@@ -1476,6 +1495,7 @@ async function sendScenarioCommand(id, action, button) {
 }
 
 function showHome() {
+  closeIntercom()
   stopEnergyRefresh()
   applyBackground('')
   activeDetailIds = null
@@ -1492,6 +1512,7 @@ function showHome() {
 }
 
 function openEnergy() {
+  closeIntercom()
   applyBackground('')
   activeDetailIds = null
   $('#home-view').hidden = true
@@ -1732,6 +1753,7 @@ document.querySelectorAll('.rail button').forEach((button) => button.addEventLis
   requestAnimationFrame(() => document.querySelector('main').classList.add('app-view'))
   if (button.dataset.view === 'watch') openDevices('Guarda', currentDevices.filter((device) => ['camera', 'doorbell'].includes(device.kind) || (device.kind === 'media_player' && device.experiences?.includes('watch'))), { av: true, experience: 'watch' })
   if (button.dataset.view === 'listen') openDevices('Ascolta', currentDevices.filter((device) => ['media_player', 'media'].includes(device.kind) && (device.experiences?.includes('listen') || device.tts_enabled)), { av: true, experience: 'listen' })
+  if (button.dataset.view === 'intercom') openIntercom()
   if (button.dataset.view === 'lights') openDevices('Luci', currentDevices.filter((device) => device.kind === 'light'), { lights: true, filters: true })
   if (button.dataset.view === 'extra') openDevices('Extra', currentDevices.filter((device) => device.kind === 'switch'), { filters: true })
   if (button.dataset.view === 'scenarios') openScenariosPage()
@@ -1769,6 +1791,7 @@ $('#home-live-media-list').addEventListener('click', (event) => {
 })
 $('#detail-back').addEventListener('click', showHome)
 $('#energy-back').addEventListener('click', () => activeEnergyDashboard ? showEnergyPicker() : showHome())
+$('#intercom-back').addEventListener('click', showHome)
 $('#energy-picker').addEventListener('click', (event) => { const card = event.target.closest('[data-energy-dashboard]'); if (card) openEnergyDashboard(card.dataset.energyDashboard, card.dataset.energyName) })
 $('#energy-reload').addEventListener('click', () => { if (!activeEnergyDashboard) return; $('#energy-frame').src = `${apiUrl('api/sunmind/energy-dashboard/sunsynk-wrapper.html')}?site=${encodeURIComponent(activeEnergyDashboard.id)}&refresh=${Date.now()}` })
 $('#light-room-toggle').addEventListener('click', (event) => {

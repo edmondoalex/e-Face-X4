@@ -2,7 +2,7 @@ import asyncio
 
 import httpx
 
-from app.doorbird_api import check_identity, live_image
+from app.doorbird_api import check_identity, live_image, live_video
 
 
 def test_doorbird_check_requires_challenge(monkeypatch) -> None:
@@ -73,3 +73,41 @@ def test_live_image_uses_digest_and_rejects_non_jpeg(monkeypatch) -> None:
         pass
     else:
         assert False, "HTML must not be exposed as an image"
+
+
+def test_live_video_uses_digest_and_checks_multipart_type(monkeypatch) -> None:
+    original = httpx.AsyncClient
+    requests = []
+
+    def handle(request):
+        requests.append(request)
+        if "authorization" not in request.headers:
+            return httpx.Response(401, headers={"WWW-Authenticate": 'Digest realm="DoorBird", nonce="abc", qop="auth"'})
+        return httpx.Response(200, headers={"Content-Type": "multipart/x-mixed-replace; boundary=my-boundary"}, content=b"--my-boundary\r\nContent-Type: image/jpeg\r\n\r\n\xff\xd8\xff")
+
+    monkeypatch.setattr(httpx, "AsyncClient", lambda **kwargs: original(transport=httpx.MockTransport(handle), **kwargs))
+
+    async def read_video():
+        client, response, content_type = await live_video("192.168.2.30", 80, "user", "private")
+        try:
+            return content_type, response.status_code
+        finally:
+            await response.aclose()
+            await client.aclose()
+
+    content_type, status = asyncio.run(read_video())
+    assert content_type == "multipart/x-mixed-replace; boundary=my-boundary"
+    assert status == 200
+    assert len(requests) == 2
+    assert all("private" not in str(request.url) for request in requests)
+
+    def invalid(_request):
+        return httpx.Response(200, headers={"Content-Type": "text/html"}, content=b"<html>")
+
+    monkeypatch.setattr(httpx, "AsyncClient", lambda **kwargs: original(transport=httpx.MockTransport(invalid), **kwargs))
+    try:
+        asyncio.run(live_video("192.168.2.30", 80, "user", "private"))
+    except RuntimeError:
+        pass
+    else:
+        assert False, "Non-MJPEG response must be rejected"

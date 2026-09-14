@@ -16,6 +16,33 @@
   let doorbirdImageUrl = null
   let doorbirdAbort = null
   let doorbirdStopped = false
+  let doorbirdVideoActive = false
+  let doorbirdRetryTimer = null
+
+  function startDoorbirdVideo() {
+    if (doorbirdStopped || document.hidden) return
+    clearTimeout(doorbirdTimer)
+    clearTimeout(doorbirdRetryTimer)
+    doorbirdAbort?.abort()
+    doorbirdVideoActive = true
+    const image = $('#doorbird-image')
+    image.onerror = () => {
+      if (!doorbirdVideoActive || doorbirdStopped || document.hidden) return
+      doorbirdVideoActive = false
+      image.onerror = null
+      image.removeAttribute('src')
+      $('#doorbird-image-status').textContent = 'Video interrotto. Caricamento immagini...'
+      $('#doorbird-image-status').hidden = false
+      refreshDoorbird()
+      doorbirdRetryTimer = setTimeout(startDoorbirdVideo, 30000)
+    }
+    image.onload = () => {
+      if (!doorbirdVideoActive) return
+      image.hidden = false
+      $('#doorbird-image-status').hidden = true
+    }
+    image.src = new URL('api/intercom/doorbird/video', root).toString()
+  }
 
   async function refreshDoorbird() {
     if (doorbirdStopped || document.hidden) return
@@ -44,26 +71,31 @@
       }
     } finally {
       doorbirdAbort = null
-      if (!doorbirdStopped && !document.hidden) doorbirdTimer = setTimeout(refreshDoorbird, 2000)
+      if (!doorbirdStopped && !document.hidden && !doorbirdVideoActive) doorbirdTimer = setTimeout(refreshDoorbird, 2000)
     }
   }
 
   document.addEventListener('visibilitychange', () => {
     if (document.hidden) {
       clearTimeout(doorbirdTimer)
+      clearTimeout(doorbirdRetryTimer)
       doorbirdAbort?.abort()
+      doorbirdVideoActive = false
+      $('#doorbird-image').removeAttribute('src')
     } else {
-      clearTimeout(doorbirdTimer)
-      refreshDoorbird()
+      startDoorbirdVideo()
     }
   })
   window.addEventListener('pagehide', () => {
     doorbirdStopped = true
     clearTimeout(doorbirdTimer)
+    clearTimeout(doorbirdRetryTimer)
     doorbirdAbort?.abort()
+    doorbirdVideoActive = false
+    $('#doorbird-image').removeAttribute('src')
     if (doorbirdImageUrl) URL.revokeObjectURL(doorbirdImageUrl)
   })
-  refreshDoorbird()
+  startDoorbirdVideo()
   const icePreferenceKey = 'eface-intercom-fast-ice-v1'
   let icePreference = null
   try { icePreference = localStorage.getItem(icePreferenceKey) } catch (_) { /* storage unavailable */ }

@@ -1,0 +1,3 @@
+.rail .nav-intercom-icon{display:block;width:28px;height:28px;margin:auto;background:currentColor;-webkit-mask:url('intercom-nav.svg') center/contain no-repeat;mask:url('intercom-nav.svg') center/contain no-repeat}
+.intercom-view{min-height:calc(100vh - 110px)}.intercom-view .detail-header{margin-bottom:12px}.intercom-view iframe{display:block;width:100%;height:max(700px,calc(100vh - 170px));border:0;border-radius:14px;background:#171e22}
+@media(max-width:700px){.intercom-view iframe{height:max(760px,calc(100vh - 175px))}.intercom-view{min-height:calc(100vh - 160px)}}

@@ -3,7 +3,8 @@
   <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
   <meta name="theme-color" content="#263f48"><title>Citofono di prova · e-Face X4</title>
   <link rel="icon" type="image/png" href="assets/eface-x4-app-icon.png">
-  <link rel="stylesheet" href="assets/intercom.css?v=2.21.8">
+  <link rel="stylesheet" href="assets/intercom.css?v=2.21.9">
+  <script>if(new URLSearchParams(location.search).has('embedded'))document.documentElement.classList.add('embedded')</script>
 </head><body>
   <main class="intercom-shell">
     <header><a href="tools#admin" aria-label="Torna agli Strumenti">‹</a><img src="assets/brand-horizontal.png" alt="e-Face X4"><div><small>LABORATORIO · SOLO ADMIN</small><h1>Postazione SIP</h1></div></header>
@@ -13,5 +14,5 @@
     <section class="intercom-card"><h2>Chiamata</h2><label class="intercom-option"><input id="fast-ice" type="checkbox" checked>Connessione rapida (solo rete locale)</label><label class="level-label" for="speaker-gain">Volume altoparlante <output id="speaker-gain-value">200%</output></label><input id="speaker-gain" type="range" min="50" max="400" step="25" value="200"><label class="level-label" for="microphone-gain">Livello microfono <output id="microphone-gain-value">100%</output></label><input id="microphone-gain" type="range" min="50" max="300" step="25" value="100"><small class="speaker-hint">Se il suono distorce o rientra nel microfono, riduci i livelli. Regola anche il volume del PC.</small><p id="call-status">Nessuna chiamata in corso.</p><div class="intercom-actions"><button id="call-control4" disabled>CHIAMA GRUPPO 8290</button><button id="call-answer" disabled>RISPONDI</button><button id="call-hangup" class="danger" disabled>TERMINA</button></div><audio id="remote-audio" autoplay playsinline></audio></section>
     <div id="intercom-error" class="intercom-error" role="alert" hidden></div>
   </main>
-  <script src="assets/jssip-3.13.8.js"></script><script src="assets/intercom.js?v=2.21.8"></script>
+  <script src="assets/jssip-3.13.8.js"></script><script src="assets/intercom.js?v=2.21.9"></script>
 </body></html>

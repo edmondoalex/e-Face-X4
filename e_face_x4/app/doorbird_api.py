@@ -3,8 +3,45 @@
 from __future__ import annotations
 
 import httpx
+import re
 
 MAX_IMAGE_BYTES = 2 * 1024 * 1024
+VIDEO_CONTENT_TYPE = re.compile(r"multipart/x-mixed-replace\s*;\s*boundary=[A-Za-z0-9_-]{1,70}\Z", re.I)
+
+
+async def live_video(host: str, port: int, username: str, password: str):
+    """Open DoorBird MJPEG; caller must close both the response and client."""
+    if not username or not password:
+        raise ValueError("Credenziale DoorBird non configurata")
+    client = httpx.AsyncClient(timeout=httpx.Timeout(10, read=12), follow_redirects=False, trust_env=False)
+    try:
+        request = client.build_request("GET", f"http://{host}:{port}/bha-api/video.cgi")
+        response = await client.send(request, auth=httpx.DigestAuth(username, password), stream=True)
+        if response.status_code == 204:
+            await response.aclose()
+            await client.aclose()
+            return None
+        if response.status_code == 401:
+            raise PermissionError("Credenziale DoorBird rifiutata")
+        content_type = response.headers.get("content-type", "").strip()
+        if response.status_code != 200 or not VIDEO_CONTENT_TYPE.fullmatch(content_type):
+            raise RuntimeError("Video DoorBird non disponibile")
+        return client, response, content_type
+    except (PermissionError, RuntimeError):
+        if "response" in locals():
+            await response.aclose()
+        await client.aclose()
+        raise
+    except httpx.HTTPError as exc:
+        if "response" in locals():
+            await response.aclose()
+        await client.aclose()
+        raise ConnectionError("DoorBird non raggiungibile") from exc
+    except BaseException:
+        if "response" in locals():
+            await response.aclose()
+        await client.aclose()
+        raise
 
 
 async def live_image(host: str, port: int, username: str, password: str) -> bytes | None:

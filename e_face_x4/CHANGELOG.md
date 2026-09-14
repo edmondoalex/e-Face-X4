@@ -1,5 +1,8 @@
 # Changelog
 
+## 2.21.9 — 2026-09-14
+- Intercom entra nella barra laterale con l'icona a barre e sorriso, grigia quando inattiva. La schermata citofono è integrata nella sezione e-Face; il video DoorBird MJPEG continuo passa da un proxy autenticato e limitato, con ripiego sui fotogrammi.
+
 ## 2.21.8 — 2026-09-14
 - La pagina citofono mostra immagini live DoorBird aggiornate mentre è visibile. e-Face recupera JPEG con la credenziale salvata, senza esporla al browser; accesso autenticato, risposta non memorizzabile e limite di dimensione.
 
