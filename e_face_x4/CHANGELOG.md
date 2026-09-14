@@ -1,5 +1,8 @@
 # Changelog
 
+## 2.20.94 — 2026-09-14
+- Stations: la tessera Sorgenti e servizi apre il navigatore Control4 con Radio, Sorgenti e Generi. Selezione stazioni e preferito della stanza usano i comandi del proxy Stations.
+
 ## 2.20.93 — 2026-09-14
 - Player Control4: il navigatore si apre anche per Amazon Music e TIDAL. Schede lette dal driver; Amazon Home e sottocategorie navigate con Browse/SelectItem, azioni di riproduzione del driver e stato account. TIDAL mostra le sue schede e lo stato account; il controller al momento segnala Logged Out.
 - Palette utente: verificati i componenti delle schede e popup; anche le schede generiche e Ora in riproduzione seguono il colore scelto, oltre al navigatore musicale e al pannello Nascosti.
