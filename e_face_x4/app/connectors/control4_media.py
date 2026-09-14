@@ -397,6 +397,8 @@ def normalize_control4_media(ui: Any, all_items: Any, variables: Any) -> list[di
                 display_source = playing_option["label"]
         if station and active_experience == "listen":
             station_option = next((source for source in data["source_options"] if source["source_id"] == station[1] and source["experience"] == "listen"), None)
+            if not station_option:
+                station_option = next((source for source in data["source_options"] if source["label"].casefold() == "stations" and source["experience"] == "listen"), None)
             if station_option:
                 active_source_id = station_option["source_id"]
                 display_source = station_option["label"]
@@ -597,6 +599,8 @@ def _decode_artwork_url(value: Any) -> str:
         return value
     try:
         decoded = base64.b64decode(value, validate=True).decode("utf-8")
+        if re.fullmatch(r"[a-f0-9]{2}/[a-f0-9-]{36}", decoded, re.I):
+            return f"http://director/images/broadcast/{decoded}.jpg"
         url = httpx.URL(decoded)
         return decoded if url.scheme in {"http", "https"} and url.host else ""
     except (ValueError, UnicodeError):

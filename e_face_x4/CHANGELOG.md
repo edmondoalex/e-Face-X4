@@ -1,5 +1,8 @@
 # Changelog
 
+## 2.20.96 — 2026-09-14
+- Stations: se il driver della singola radio non è tra le sorgenti della stanza, il player mostra la sorgente Stations invece del precedente AirPlay. La copertina codificata nei metadata Control4 è risolta tramite il Director.
+
 ## 2.20.95 — 2026-09-14
 - Stations: copertine dal Director nel popup, sorgente e titolo reali nel player dopo la selezione, aggiornamento immediato e palette del popup allineata alle schede utente. Catalogo stazioni salvato in /data per mantenere il riconoscimento dopo il riavvio.
 
