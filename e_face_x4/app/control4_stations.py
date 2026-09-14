@@ -113,7 +113,9 @@ async def stations_browse(proxy_id: int, room_id: int, tab: str, parent: str = "
                 station_artwork_path(token)
                 image = f"api/control4/stations/image/{token}"
             except ValueError:
-                if tab == "Sources" and str(entry.get("deviceId") or "").isdigit():
+                if tab == "Sources" and _label(title).casefold() == "internet radio":
+                    image = "assets/control4-icons/internet-radio.png"
+                elif tab == "Sources" and str(entry.get("deviceId") or "").isdigit():
                     image = f"api/control4/source-icon/{entry['deviceId']}"
         items.append({"id": token, "title": _label(title), "subtitle": _label(entry.get("info")),
                       "image": image, "actions": ["SelectStation", "FavoriteToRoom"] if station else [],

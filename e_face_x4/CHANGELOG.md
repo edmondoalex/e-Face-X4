@@ -1,5 +1,8 @@
 # Changelog
 
+## 2.20.97 — 2026-09-14
+- Stations: Internet Radio nella scheda Sorgenti usa l'icona fornita dall'utente come risorsa locale, indipendente dall'icona restituita da Control4.
+
 ## 2.20.96 — 2026-09-14
 - Stations: se il driver della singola radio non è tra le sorgenti della stanza, il player mostra la sorgente Stations invece del precedente AirPlay. La copertina codificata nei metadata Control4 è risolta tramite il Director.
 

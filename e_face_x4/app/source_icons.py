@@ -11,6 +11,7 @@ BUILTIN_DIRECTORY = Path(__file__).parent / "static" / "assets" / "control4-icon
 BUILTIN_ICONS = {
     "sonos": "sonos.png",
     "stations": "stations.png",
+    "internet radio": "internet-radio.png",
     "vidaa": "vidaa.png",
     "hisense vidaa smart tv": "vidaa.png",
     "apps": "apps.png",
