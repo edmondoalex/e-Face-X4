@@ -553,8 +553,10 @@ function recentlyPlayedHtml(items, roomId) {
 function mediaFavoritesHtml(items, roomId) {
   if (!items.length) return '<span class="empty-state">Aggiungi una stazione da Stations o usa ★ negli ascolti recenti.</span>'
   return items.map((item) => {
-    const art = item.kind === 'station' && item.station_id ? apiUrl(`api/control4/stations/catalog-image/${item.station_id}`) : item.kind === 'msp' && item.image ? item.image : item.registry_id && item.content_fingerprint ? apiUrl(`api/media/${encodeURIComponent(item.registry_id)}/artwork?fingerprint=${encodeURIComponent(item.content_fingerprint)}`) : ''
-    return `<span class="media-recent-card"><button class="media-recent-item" data-favorite-select="${esc(item.id)}" data-favorite-room="${roomId}" title="${esc(item.title)}">${art ? `<img src="${esc(art)}" alt="" loading="lazy" draggable="false" onerror="this.hidden=true">` : '<span class="media-recent-art mdi-mask" style="'+mdiStyle('mdi:music-circle','music-circle')+'"></span>'}<b>${esc(item.title)}</b><small>${esc(item.subtitle || '')}</small><em><span class="mdi-mask" style="${mdiStyle(item.service === 'spotify' ? 'mdi:spotify' : item.kind === 'station' ? 'mdi:radio' : 'mdi:music-circle', 'music-circle')}"></span>${esc(item.kind === 'station' ? 'Radio' : item.service === 'spotify' ? 'Spotify' : item.item_type || 'Audio')}</em></button><button type="button" class="media-recent-hide" data-favorite-remove="${esc(item.id)}" aria-label="Rimuovi ${esc(item.title)} dai Preferiti" title="Rimuovi dai Preferiti">×</button></span>`
+    const art = item.kind === 'station' && item.station_id ? apiUrl(`api/control4/stations/catalog-image/${item.station_id}`) : item.kind === 'msp' && item.image ? item.image : item.kind === 'recent' ? apiUrl(`api/control4/favorites/artwork?identity=${encodeURIComponent(item.id)}`) : ''
+    const fallbackIcon = item.service === 'spotify' || Number(item.driver_id) === 1569 ? 'mdi:spotify' : item.kind === 'station' || item.item_type === 'Station' ? 'mdi:radio' : 'mdi:music-circle'
+    const fallback = `<span class="media-recent-art mdi-mask" style="${mdiStyle(fallbackIcon, 'music-circle')}${art ? ';display:none' : ''}"></span>`
+    return `<span class="media-recent-card"><button class="media-recent-item" data-favorite-select="${esc(item.id)}" data-favorite-room="${roomId}" title="${esc(item.title)}">${art ? `<img src="${esc(art)}" alt="" loading="lazy" draggable="false" onerror="this.style.display='none';this.nextElementSibling.style.display='block'">` : ''}${fallback}<b>${esc(item.title)}</b><small>${esc(item.subtitle || '')}</small><em><span class="mdi-mask" style="${mdiStyle(fallbackIcon, 'music-circle')}"></span>${esc(item.kind === 'station' ? 'Radio' : item.service === 'spotify' ? 'Spotify' : item.item_type || 'Audio')}</em></button><button type="button" class="media-recent-hide" data-favorite-remove="${esc(item.id)}" aria-label="Rimuovi ${esc(item.title)} dai Preferiti" title="Rimuovi dai Preferiti">×</button></span>`
   }).join('')
 }
 
@@ -1823,7 +1825,7 @@ $('#device-list').addEventListener('click', (event) => {
       }
       if (!recent && !favorite) throw new Error('Questo contenuto non è ancora disponibile nella cronologia Control4')
       const path = favorite ? 'remove' : 'recent'
-      const payload = favorite ? { id: favorite.id } : { key: recent.key, title: recent.title, subtitle: recent.subtitle, item_type: recent.item_type, registry_id: recent.registry_id, content_fingerprint: recent.content_fingerprint }
+      const payload = favorite ? { id: favorite.id } : { key: recent.key, title: recent.title, subtitle: recent.subtitle, item_type: recent.item_type, driver_id: recent.driver_id, registry_id: recent.registry_id, content_fingerprint: recent.content_fingerprint }
       const response = await fetch(apiUrl(`api/control4/favorites/${path}`), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
       if (!response.ok) throw new Error((await response.json()).detail || 'Preferito non disponibile')
       favoritesCache = (await response.json()).items || []
@@ -1853,7 +1855,7 @@ $('#device-list').addEventListener('click', (event) => {
       const item = recentCache.get(scope)?.items.find((entry) => entry.key === key)
       if (!item) { control.disabled = false; return }
       path = existing ? 'remove' : 'recent'
-      payload = existing ? {id:`recent:${key}`} : {key, title:item.title, subtitle:item.subtitle, item_type:item.item_type, registry_id:item.registry_id, content_fingerprint:item.content_fingerprint}
+      payload = existing ? {id:`recent:${key}`} : {key, title:item.title, subtitle:item.subtitle, item_type:item.item_type, driver_id:item.driver_id, registry_id:item.registry_id, content_fingerprint:item.content_fingerprint}
     } else if (removeFavorite) { path = 'remove'; payload = {id:removeFavorite.dataset.favoriteRemove} }
     else { path = 'select'; payload = {id:selectFavorite.dataset.favoriteSelect, room_id:roomId} }
     fetch(apiUrl(`api/control4/favorites/${path}`), {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload)})

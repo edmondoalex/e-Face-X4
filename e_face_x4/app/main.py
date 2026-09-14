@@ -30,7 +30,7 @@ from .control4_msp_catalog import catalog_action, catalog_browse, catalog_settin
 from .control4_stations import station_artwork_path, station_catalog_artwork, stations_action, stations_browse
 from .control4_spotify import spotify_action, spotify_browse, spotify_settings
 from .control4_bridge import bridge_action, bridge_browse
-from .media_favorites import add_favorite, favorite_by_id, list_favorites, remove_favorite
+from .media_favorites import add_favorite, favorite_by_id, list_favorites, load_favorite_artwork, remove_favorite, save_favorite_artwork
 from .recent_visibility import filter_recents, hidden_recents, hide_recent, restore_recent, restore_recents
 from .installer_auth import COOKIE, create_session, valid_session
 from . import user_auth
@@ -49,7 +49,7 @@ from .connectors.control4_media import cached_control4_icon, cached_control4_ico
 from .connectors.supervisor import discover_addon_url, discover_host_url
 from .demo import dashboard as demo_dashboard
 
-VERSION = "2.21.3"
+VERSION = "2.21.4"
 STATIC = Path(__file__).parent / "static"
 logging.basicConfig(level=logging.WARNING, format="%(asctime)s %(levelname)s [e-face-x4] %(message)s")
 _reconnect_warning_at: dict[str, float] = {}
@@ -545,6 +545,28 @@ def create_app() -> FastAPI:
     async def control4_list_favorites() -> dict:
         return {"items": list_favorites()}
 
+    @app.get("/api/control4/favorites/artwork")
+    async def control4_favorite_artwork(identity: str = Query(..., min_length=1, max_length=300)) -> Response:
+        try:
+            item = favorite_by_id(identity)
+        except ValueError as exc:
+            raise HTTPException(status_code=404, detail="Preferito non disponibile") from exc
+        if item.get("kind") != "recent":
+            raise HTTPException(status_code=404, detail="Copertina non disponibile")
+        content = load_favorite_artwork(identity)
+        if content is None and item.get("registry_id") and item.get("content_fingerprint"):
+            try:
+                upstream = await Control4MediaConnector(load_control4_config()).artwork(str(item["registry_id"]), str(item["content_fingerprint"]))
+                if upstream.status_code == 200 and artwork_media_type(upstream.headers.get("content-type", ""), upstream.content) and len(upstream.content) <= 700_000:
+                    content = upstream.content
+                    save_favorite_artwork(identity, content)
+            except (httpx.HTTPError, OSError, ValueError):
+                pass
+        media_type = artwork_media_type("", content) if content else ""
+        if not media_type:
+            raise HTTPException(status_code=404, detail="Copertina non disponibile")
+        return Response(content, media_type=media_type, headers={"Cache-Control": "private, max-age=300", "X-Content-Type-Options": "nosniff"})
+
     @app.post("/api/control4/favorites/recent")
     async def control4_add_recent_favorite(payload: dict) -> dict:
         key = str(payload.get("key") or "")
@@ -553,9 +575,18 @@ def create_app() -> FastAPI:
             raise HTTPException(status_code=400, detail="Elemento preferito non valido")
         item = {"id": f"recent:{key}", "kind": "recent", "key": key, "title": title,
                 "subtitle": str(payload.get("subtitle") or "")[:200], "item_type": str(payload.get("item_type") or "")[:50],
+                "driver_id": str(payload.get("driver_id") or "")[:20],
                 "registry_id": str(payload.get("registry_id") or "")[:100], "content_fingerprint": str(payload.get("content_fingerprint") or "")[:128]}
         try:
-            return {"items": add_favorite(item)}
+            items = add_favorite(item)
+            if item["registry_id"] and item["content_fingerprint"] and load_favorite_artwork(item["id"]) is None:
+                try:
+                    upstream = await Control4MediaConnector(load_control4_config()).artwork(item["registry_id"], item["content_fingerprint"])
+                    if upstream.status_code == 200 and artwork_media_type(upstream.headers.get("content-type", ""), upstream.content) and len(upstream.content) <= 700_000:
+                        save_favorite_artwork(item["id"], upstream.content)
+                except (httpx.HTTPError, OSError, ValueError):
+                    pass
+            return {"items": items}
         except ValueError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
 

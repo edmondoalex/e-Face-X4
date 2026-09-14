@@ -1,5 +1,8 @@
 # Changelog
 
+## 2.21.4 — 2026-09-14
+- Le copertine dei Preferiti ricavati dalla cronologia vengono salvate sul volume persistente. Le immagini già disponibili vengono recuperate quando possibile; se mancano, resta visibile l'icona del servizio anziché una cella vuota.
+
 ## 2.21.3 — 2026-09-14
 - Wireless Music Bridge: la scheda sorgente seleziona il bridge nella stanza; il popup Bluetooth si apre dalla copertina o dall'icona del player quando la sorgente è attiva.
 

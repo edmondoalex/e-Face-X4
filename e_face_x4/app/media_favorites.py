@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import hashlib
 import os
 import secrets
 import threading
@@ -14,6 +15,33 @@ _LOCK = threading.RLock()
 
 def _path() -> Path:
     return Path(os.environ.get("EFACE_MEDIA_FAVORITES", "/data/control4_media_favorites.json"))
+
+
+def _artwork_path(identity: str) -> Path:
+    return _path().parent / "control4_favorite_artwork" / f"{hashlib.sha256(identity.encode()).hexdigest()}.image"
+
+
+def save_favorite_artwork(identity: str, content: bytes) -> None:
+    if not content or len(content) > 700_000:
+        raise ValueError("Copertina preferito non valida")
+    path = _artwork_path(identity)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temporary = path.with_name(f"{path.name}.{secrets.token_hex(8)}.tmp")
+    try:
+        with temporary.open("xb") as file:
+            file.write(content)
+            file.flush()
+            os.fsync(file.fileno())
+        temporary.replace(path)
+    finally:
+        temporary.unlink(missing_ok=True)
+
+
+def load_favorite_artwork(identity: str) -> bytes | None:
+    try:
+        return _artwork_path(identity).read_bytes()
+    except OSError:
+        return None
 
 
 def list_favorites() -> list[dict[str, Any]]:
@@ -62,6 +90,7 @@ def remove_favorite(identity: str) -> list[dict[str, Any]]:
     with _LOCK:
         items = [item for item in list_favorites() if item["id"] != identity]
         _save(items)
+        _artwork_path(identity).unlink(missing_ok=True)
         return items
 
 
