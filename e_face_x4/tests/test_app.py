@@ -1045,7 +1045,7 @@ def test_music_account_services_lists_installed_drivers_for_user(monkeypatch, tm
     assert response.status_code == 200
     assert response.json() == {"services": [
         {"name": "Amazon Music", "proxy_id": 1644, "status": "ready"},
-        {"name": "Spotify Connect", "proxy_id": 1569, "status": "external"},
+        {"name": "Spotify Connect", "proxy_id": 1569, "status": "ready"},
         {"name": "TIDAL", "proxy_id": 1648, "status": "test"},
         {"name": "TuneIn", "proxy_id": 615, "status": "ready"},
     ]}

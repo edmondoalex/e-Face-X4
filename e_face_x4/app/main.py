@@ -28,6 +28,7 @@ from .control4 import control4_director, load_control4_config, public_control4_c
 from .control4_msp import tunein_browse, tunein_action, tunein_settings
 from .control4_msp_catalog import catalog_action, catalog_browse, catalog_settings, catalog_tabs
 from .control4_stations import station_artwork_path, station_catalog_artwork, stations_action, stations_browse
+from .control4_spotify import spotify_action, spotify_browse, spotify_settings
 from .media_favorites import add_favorite, favorite_by_id, list_favorites, remove_favorite
 from .recent_visibility import filter_recents, hidden_recents, hide_recent, restore_recent, restore_recents
 from .installer_auth import COOKIE, create_session, valid_session
@@ -47,7 +48,7 @@ from .connectors.control4_media import cached_control4_icon, cached_control4_ico
 from .connectors.supervisor import discover_addon_url, discover_host_url
 from .demo import dashboard as demo_dashboard
 
-VERSION = "2.20.98"
+VERSION = "2.20.99"
 STATIC = Path(__file__).parent / "static"
 logging.basicConfig(level=logging.WARNING, format="%(asctime)s %(levelname)s [e-face-x4] %(message)s")
 _reconnect_warning_at: dict[str, float] = {}
@@ -354,7 +355,7 @@ def create_app() -> FastAPI:
                 continue
             key = name.casefold()
             if key not in by_name or "deviceOrder" in item:
-                by_name[key] = {"name": name, "proxy_id": int(item["id"]), "status": "ready" if key in {"amazon music", "tunein"} else "test" if key == "tidal" else "external" if key in {"spotify connect", "shairbridge"} else "pending"}
+                by_name[key] = {"name": name, "proxy_id": int(item["id"]), "status": "ready" if key in {"amazon music", "tunein", "spotify connect"} else "test" if key == "tidal" else "external" if key == "shairbridge" else "pending"}
         services = sorted(by_name.values(), key=lambda service: str(service["name"]).casefold())
         return JSONResponse({"services": services}, headers={"Cache-Control": "no-store, private"})
 
@@ -394,6 +395,35 @@ def create_app() -> FastAPI:
 
     @app.post("/api/control4/music/{service}/navigate")
     async def control4_catalog_navigate(service: str, request: Request, payload: dict) -> Response:
+        if service == "spotify":
+            if user_auth.enabled() and not user_auth.session_user(request.cookies.get(user_auth.COOKIE)):
+                raise HTTPException(status_code=401, detail="Accesso richiesto")
+            try:
+                proxy_id, room_id = int(payload.get("proxy_id")), int(payload.get("room_id"))
+                if proxy_id <= 0 or room_id <= 0:
+                    raise ValueError
+                director, _ = await control4_director(load_control4_config())
+                info = await director.get_item_info(proxy_id)
+                source = info[0] if isinstance(info, list) and info else info
+                if not isinstance(source, dict) or str(source.get("name") or "").casefold() != "spotify connect" or source.get("proxy") != "media_service":
+                    raise ValueError
+                tab = str(payload.get("tab") or "Presets")
+                if tab == "Settings":
+                    result = await spotify_settings(proxy_id, room_id)
+                elif payload.get("action"):
+                    result = await spotify_action(proxy_id, room_id, tab, str(payload.get("item_id") or ""), str(payload["action"]))
+                else:
+                    result = await spotify_browse(proxy_id, room_id, tab, int(payload.get("offset") or 0))
+                return JSONResponse(result, headers={"Cache-Control": "no-store, private"})
+            except ValueError as exc:
+                raise HTTPException(status_code=400, detail="Navigazione Spotify non valida o voce scaduta") from exc
+            except asyncio.TimeoutError as exc:
+                raise HTTPException(status_code=504, detail="Spotify Connect non ha risposto") from exc
+            except HTTPException:
+                raise
+            except Exception as exc:
+                logging.warning("Navigazione Spotify non disponibile (%s)", type(exc).__name__)
+                raise HTTPException(status_code=502, detail="Navigazione Spotify non disponibile") from exc
         if service == "stations":
             if user_auth.enabled() and not user_auth.session_user(request.cookies.get(user_auth.COOKIE)):
                 raise HTTPException(status_code=401, detail="Accesso richiesto")
@@ -525,12 +555,20 @@ def create_app() -> FastAPI:
             director, _ = await control4_director(load_control4_config())
             info = await director.get_item_info(proxy_id)
             source = info[0] if isinstance(info, list) and info else info
-            expected = {"station": "stations", "tunein": "tunein", "amazon": "amazon music", "tidal": "tidal"}.get(item["kind"] if item["kind"] == "station" else item.get("service"))
+            expected = {"station": "stations", "tunein": "tunein", "amazon": "amazon music", "tidal": "tidal", "spotify": "spotify connect"}.get(item["kind"] if item["kind"] == "station" else item.get("service"))
             if not isinstance(source, dict) or str(source.get("name") or "").casefold() != expected or source.get("proxy") != "media_service":
                 raise ValueError("Servizio del preferito non disponibile")
             from .control4_msp import _command
             if item["kind"] == "station":
                 await _command(proxy_id, room_id, "selectStation", {"id": int(item["station_id"]), "genre": str(item.get("genre") or "")}, wait_response=False)
+            elif item["service"] == "spotify":
+                command = str(item.get("play_command") or "")
+                if command not in {"PresetPlay", "PlayRecent"}:
+                    raise ValueError("Preferito Spotify non valido")
+                fields = {key: str(value)[:2048] for key, value in item.get("play_args", {}).items() if key in {"blob", "title", "subtitle", "uri", "imageurl", "user"} and isinstance(value, (str, int))}
+                if not fields.get("blob") and not fields.get("uri"):
+                    raise ValueError("Preferito Spotify non valido")
+                await _command(proxy_id, room_id, command, {**fields, "extraRooms": ""}, wait_response=False)
             elif item["service"] == "tunein":
                 fields = {key: str(value)[:2048] for key, value in item.get("play_args", {}).items() if key in {"Type", "ContainerType", "Title", "Subtitle", "GuideId", "Image", "Url"} and isinstance(value, (str, int))}
                 fields.update({"screenId": "BrowseScreen", "tabId": str(item.get("tab") or "Home")})

@@ -1,5 +1,8 @@
 # Changelog
 
+## 2.20.99 — 2026-09-14
+- Spotify Connect: popup e-Face con Preset, Ascoltate di recente e Impostazioni basati sui comandi del driver Control4. Preset e recenti si possono riprodurre nella stanza corrente e aggiungere ai Preferiti e-Face persistenti; nessuna voce Preferito alla stanza Control4 nel menu.
+
 ## 2.20.98 — 2026-09-14
 - Nuova barra Preferiti persistente nella scheda Ascolta, condivisa tra stanze. Le radio Stations e i contenuti riproducibili di TuneIn, Amazon Music e TIDAL hanno l'azione "Aggiungi come preferito in e-Face"; anche gli ascolti recenti possono essere aggiunti con ★. La riproduzione usa la stanza attualmente comandata. Il menu non mostra più i preferiti della stanza Control4.
 

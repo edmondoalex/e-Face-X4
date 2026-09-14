@@ -43,4 +43,5 @@ body[data-card-theme] .music-navigator-dialog{background:var(--user-card)!import
 body[data-card-theme] .music-navigator-dialog>header,body[data-card-theme] .music-navigator-dialog>nav{background:var(--user-card-soft)!important}
 body[data-card-theme] .music-navigator-row,body[data-card-theme] .music-navigator-actions{background:var(--user-card-cell)!important}
 body[data-card-theme] .music-navigator-placeholder,body[data-card-theme] #music-navigator-search input{background:var(--user-card-field)!important}
+.music-navigator-section{padding:10px 14px;background:var(--user-card-field);color:#aeb8ba;font-size:13px;text-transform:uppercase}
 @media(max-width:600px){body[data-card-theme] .music-navigator-dialog{border-radius:0}}
