@@ -99,6 +99,8 @@ def test_intercom_is_in_sidebar_with_embedded_view() -> None:
     assert 'id="audio-retry"' in intercom
     assert "peerconnection.getStats()" in client_script
     assert "createMediaElementSource" not in client_script
+    assert "bindConnection(session.connection)" in client_script
+    assert "peerconnection.getReceivers" in client_script
     assert "$('#intercom-frame').src = apiUrl('intercom?embedded=1')" in script
     assert "$('#intercom-frame').removeAttribute('src')" not in script
 

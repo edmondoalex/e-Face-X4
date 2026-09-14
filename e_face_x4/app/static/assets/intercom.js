@@ -243,16 +243,31 @@
   function track(session) {
     call = session
     $('#intercom-call-panel').hidden = false
+    $('#audio-status').textContent = 'Connessione audio in preparazione…'
     let iceReadyTimer = null
     let iceReadySent = false
+    let boundConnection = null
+    let connectionPollTimer = null
     $('#call-status').textContent = session.direction === 'incoming' ? `Chiamata da ${session.remote_identity?.display_name || session.remote_identity?.uri?.user || 'sconosciuto'}` : 'Chiamata in uscita…'
     $('#call-answer').disabled = session.direction !== 'incoming'
     $('#call-hangup').disabled = false
     setDialButtonsDisabled(true)
-    session.on('peerconnection', ({peerconnection}) => {
+    function syncRemoteAudio(peerconnection) {
+      const receiver = peerconnection.getReceivers?.().find((item) => item.track?.kind === 'audio' && item.track.readyState === 'live')
+      if (!receiver || $('#remote-audio').srcObject?.getAudioTracks?.()[0] === receiver.track) return
+      $('#remote-audio').srcObject = new MediaStream([receiver.track])
+      playRemoteAudio()
+    }
+    function bindConnection(peerconnection) {
+      if (!peerconnection || boundConnection === peerconnection) return
+      boundConnection = peerconnection
+      clearInterval(connectionPollTimer)
+      connectionPollTimer = null
+      $('#audio-status').textContent = 'Connessione audio rilevata, attendo i pacchetti…'
       clearInterval(audioStatsTimer)
       audioStatsTimer = setInterval(async () => {
         try {
+          syncRemoteAudio(peerconnection)
           const stats = await peerconnection.getStats()
           let packets = 0
           stats.forEach((item) => { if (item.type === 'inbound-rtp' && (item.kind === 'audio' || item.mediaType === 'audio')) packets += item.packetsReceived || 0 })
@@ -260,14 +275,18 @@
           const player = $('#remote-audio').paused ? 'riproduzione sospesa' : 'riproduzione attiva'
           $('#audio-status').textContent = `Audio ricevuto: ${packets} pacchetti · ${player}`
           if (packets > 0 && $('#remote-audio').paused) $('#audio-retry').hidden = false
-        } catch (_) { /* stats unavailable on this browser */ }
+        } catch (_) { if (call === session) $('#audio-status').textContent = 'Statistiche audio non disponibili nel browser' }
       }, 2000)
       peerconnection.addEventListener('track', (event) => {
         if (event.track.kind !== 'audio') return
         $('#remote-audio').srcObject = event.streams[0] || new MediaStream([event.track])
         playRemoteAudio()
       })
-    })
+      syncRemoteAudio(peerconnection)
+    }
+    session.on('peerconnection', ({peerconnection}) => bindConnection(peerconnection))
+    bindConnection(session.connection)
+    if (!boundConnection) connectionPollTimer = setInterval(() => bindConnection(session.connection), 250)
     session.on('connecting', () => { $('#call-status').textContent = 'Preparazione rete audio…' })
     session.on('icecandidate', ({candidate, ready}) => {
       const fastLocal = $('#fast-ice').checked || !iceServers.length
@@ -284,9 +303,9 @@
     session.on('sdp', ({originator}) => { if (originator === 'local') clearTimeout(iceReadyTimer) })
     session.on('sending', () => { $('#call-status').textContent = 'INVITE inviato ad Asterisk…' })
     session.on('progress', () => { $('#call-status').textContent = 'I tablet stanno squillando…' })
-    session.on('confirmed', () => { $('#call-status').textContent = 'In conversazione'; playRemoteAudio() })
-    session.on('ended', () => { clearTimeout(iceReadyTimer); clearCall('Chiamata terminata.') })
-    session.on('failed', ({cause}) => { clearTimeout(iceReadyTimer); clearCall(`Chiamata non riuscita: ${cause || 'errore sconosciuto'}`) })
+    session.on('confirmed', () => { $('#call-status').textContent = 'In conversazione'; bindConnection(session.connection); if (boundConnection) syncRemoteAudio(boundConnection); playRemoteAudio() })
+    session.on('ended', () => { clearTimeout(iceReadyTimer); clearInterval(connectionPollTimer); clearCall('Chiamata terminata.') })
+    session.on('failed', ({cause}) => { clearTimeout(iceReadyTimer); clearInterval(connectionPollTimer); clearCall(`Chiamata non riuscita: ${cause || 'errore sconosciuto'}`) })
     session.on('getusermediafailed', ({name, message}) => error(`Microfono: ${name || 'errore'} ${message || ''}`))
   }
 
