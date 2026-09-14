@@ -11,6 +11,7 @@ from .identity import SiteIdentity
 from .include_migration import PjsipIncludeMigration
 from .managed_config import ManagedConfig, render
 from .service import make_https_server
+from .external_routes import ExternalRoutes, reload_dialplan
 
 
 def assert_ready(config_root: Path) -> ManagedConfig:
@@ -37,10 +38,12 @@ def assert_ready(config_root: Path) -> ManagedConfig:
 
 def serve(config_root: Path, bind_host: str, port: int) -> None:
     config = assert_ready(config_root)
+    external_routes = ExternalRoutes(config_root)
+    external_routes.ensure(reload_dialplan)
     identity = SiteIdentity(config_root / "eface").ensure()
     with make_https_server(
         config, identity.token, reload_pjsip, endpoint_exists,
-        bind_host, port, identity.certificate, identity.private_key,
+        bind_host, port, identity.certificate, identity.private_key, external_routes,
     ) as server:
         server.serve_forever()
 

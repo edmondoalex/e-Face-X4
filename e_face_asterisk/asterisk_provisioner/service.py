@@ -16,6 +16,7 @@ from pathlib import Path
 from typing import Callable
 
 from .managed_config import ManagedConfig
+from .external_routes import ExternalRoutes, reload_dialplan, extension_exists
 
 _USER = re.compile(r"[a-z][a-z0-9_-]{2,31}\Z")
 _MAX_BODY = 4096
@@ -26,6 +27,7 @@ def make_handler(
     token: str,
     reload_pjsip: Callable[[], None],
     endpoint_exists: Callable[[str], bool],
+    external_routes: ExternalRoutes | None = None,
 ) -> type[BaseHTTPRequestHandler]:
     if len(token) < 32:
         raise ValueError("Token provisioner mancante o troppo corto")
@@ -88,6 +90,36 @@ def make_handler(
                 return
             self._reply(200, {"extension": payload["extension"], "provisioned": True})
 
+        def do_GET(self) -> None:
+            if not self._authorized():
+                return
+            if self.path != "/v1/external-stations" or external_routes is None:
+                self._reply(404, {"error": "Operazione sconosciuta"})
+                return
+            self._reply(200, {"stations": external_routes.load()})
+
+        def do_PUT(self) -> None:
+            if not self._authorized():
+                return
+            if self.path != "/v1/external-stations" or external_routes is None:
+                self._reply(404, {"error": "Operazione sconosciuta"})
+                return
+            payload = self._json_body()
+            if payload is None:
+                return
+            if set(payload) != {"stations"}:
+                self._reply(400, {"error": "Elenco postazioni non valido"})
+                return
+            try:
+                external_routes.replace(payload["stations"], reload_dialplan, extension_exists)
+            except ValueError as exc:
+                self._reply(400, {"error": str(exc)})
+                return
+            except Exception:
+                self._reply(503, {"error": "Rotte SIP non confermate"})
+                return
+            self._reply(200, {"stations": external_routes.load(), "provisioned": True})
+
         def do_DELETE(self) -> None:
             if not self._authorized():
                 return
@@ -128,6 +160,7 @@ def make_https_server(
     port: int,
     certificate: Path,
     private_key: Path,
+    external_routes: ExternalRoutes | None = None,
 ) -> ThreadingHTTPServer:
     """Create a TLS-only service on one explicit local IPv4 address.
 
@@ -142,6 +175,6 @@ def make_https_server(
     context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
     context.minimum_version = ssl.TLSVersion.TLSv1_2
     context.load_cert_chain(str(certificate), str(private_key))
-    server = ThreadingHTTPServer((bind_host, port), make_handler(config, token, reload_pjsip, endpoint_exists))
+    server = ThreadingHTTPServer((bind_host, port), make_handler(config, token, reload_pjsip, endpoint_exists, external_routes))
     server.socket = context.wrap_socket(server.socket, server_side=True)
     return server

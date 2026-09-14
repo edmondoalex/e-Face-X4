@@ -1,5 +1,8 @@
 # Changelog
 
+## 2.21.17 — 2026-09-14
+- Intercom: elenco persistente di fino a otto postazioni esterne in Strumenti → Admin → Videocitofono. Ogni postazione ha nome, IP, porta HTTP, credenziale server-side e interno SIP 82xx; e-Face configura e verifica la rotta SIP persistente tramite il provisioner Asterisk associato, poi abilita CHIAMA e video. La pagina Intercom aggiorna l'elenco senza ricarica. Il DoorBird Ingresso mantiene la rotta 8201 e le credenziali esistenti. Nessun gruppo di chiamata in ingresso viene ancora modificato.
+
 ## 2.21.16 — 2026-09-14
 - Intercom: pulsante CHIAMA per la postazione esterna DoorBird. Il numero 8201 usa la chiamata SIP peer-to-peer tramite Asterisk; la configurazione del DoorBird e il dialplan sono mantenuti in modo persistente. La pagina rileva nuove versioni ogni 30 secondi e si aggiorna automaticamente, aspettando la fine di un'eventuale chiamata.
 

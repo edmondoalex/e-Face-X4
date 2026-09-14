@@ -230,7 +230,38 @@ def test_intercom_dashboard_stores_only_local_settings(monkeypatch, tmp_path) ->
     assert 'id="tools-admin-nav"' in page
     assert 'id="intercom-tool"' in page
     assert 'id="users-tool"' in page
-    assert "tools-dashboard.js?v=2.21.11" in page
+    assert "tools-dashboard.js?v=2.21.17" in page
+
+
+def test_external_stations_api_requires_login_and_hides_secrets(monkeypatch, tmp_path) -> None:
+    monkeypatch.setenv("EFACE_AUTH_DIR", str(tmp_path / "auth"))
+    monkeypatch.setenv("EFACE_INTERCOM_SETTINGS", str(tmp_path / "intercom.json"))
+    monkeypatch.setenv("EFACE_EXTERNAL_STATIONS", str(tmp_path / "external.json"))
+    from app.user_auth import create_admin
+    from app import provisioner_client
+    async def fake_provision(method, path, payload=None):
+        assert method == "PUT" and path == "/v1/external-stations"
+        assert payload == {"stations": [{"extension": "8202", "host": "192.168.2.31"}]}
+        return {"provisioned": True}
+    monkeypatch.setattr(provisioner_client, "request", fake_provision)
+    create_admin("password-admin-lunga")
+    client = TestClient(create_app())
+    assert client.get("/api/intercom/external-stations").status_code == 401
+    assert client.get("/api/admin/intercom/external-stations").status_code == 401
+    assert client.post("/api/auth/login", json={"username": "admin", "password": "password-admin-lunga"}).status_code == 200
+    stations = client.get("/api/admin/intercom/external-stations").json()["stations"]
+    extra = {"id": "esterno-2", "name": "Cancello", "host": "192.168.2.31", "http_port": 80,
+             "sip_extension": "8202", "ready": False, "username": "operator", "password": "secret"}
+    first = {**stations[0], "username": "", "password": ""}
+    first.pop("credential_configured")
+    response = client.put("/api/admin/intercom/external-stations", json={"stations": [first, extra]})
+    assert response.status_code == 200, response.text
+    assert "secret" not in response.text
+    public = client.get("/api/intercom/external-stations")
+    assert public.status_code == 200
+    assert "secret" not in public.text
+    assert "192.168.2.31" not in public.text
+    assert public.json()["stations"][1]["name"] == "Cancello"
 
 
 def test_intercom_uses_admin_verified_8301_copy(monkeypatch, tmp_path) -> None:

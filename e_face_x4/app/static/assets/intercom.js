@@ -2,7 +2,7 @@
   const $ = (selector) => document.querySelector(selector)
   const adminMode = document.documentElement.classList.contains('admin-intercom')
   const root = new URL('./', location.href)
-  const currentVersion = '2.21.16'
+  const currentVersion = '2.21.17'
   let updateAvailable = false
   async function checkForUpdate() {
     if (document.hidden || !intercomVisible) return
@@ -34,6 +34,72 @@
   let doorbirdVideoActive = false
   let doorbirdRetryTimer = null
   let intercomVisible = !document.documentElement.classList.contains('embedded')
+  let stationsSignature = ''
+  async function refreshExternalStations() {
+    try {
+      const response = await fetch(new URL('api/intercom/external-stations', root), {cache:'no-store', credentials:'same-origin'})
+      if (!response.ok) return
+      const {stations} = await response.json()
+      const signature = JSON.stringify(stations)
+      if (signature === stationsSignature) return
+      stationsSignature = signature
+      const primary = stations.find((station) => station.id === 'ingresso')
+      if (primary) {
+        $('.doorbird-row .station-copy strong').textContent = primary.name
+        $('#call-doorbird').disabled = !primary.ready || !phone?.isRegistered() || !!call
+        $('#call-doorbird').dataset.dialExtension = primary.sip_extension
+        $('#call-doorbird').dataset.stationReady = String(primary.ready)
+      }
+      document.querySelectorAll('.external-extra-row').forEach((row) => row.remove())
+      let anchor = $('.doorbird-row')
+      for (const station of stations.filter((item) => item.id !== 'ingresso')) {
+        const row = document.createElement('div')
+        row.className = 'intercom-station-row doorbird-row external-extra-row'
+        const icon = document.createElement('span')
+        icon.className = 'station-icon'
+        icon.textContent = '▣'
+        const copy = document.createElement('div')
+        copy.className = 'station-copy'
+        const name = document.createElement('strong')
+        name.textContent = station.name
+        const open = document.createElement('button')
+        open.className = 'station-text-button'
+        open.type = 'button'
+        open.textContent = 'Apri video'
+        const dial = document.createElement('button')
+        dial.type = 'button'
+        dial.textContent = 'CHIAMA'
+        dial.dataset.dialExtension = station.sip_extension
+        dial.dataset.stationReady = String(station.ready)
+        dial.disabled = !station.ready || !phone?.isRegistered() || !!call
+        if (!station.ready) dial.title = 'Configura e verifica la rotta SIP in Asterisk'
+        copy.append(name, open, dial)
+        const frame = document.createElement('div')
+        frame.className = 'doorbird-frame'
+        const image = document.createElement('img')
+        image.alt = `Video ${station.name}`
+        const status = document.createElement('span')
+        status.textContent = 'Apri video per visualizzare'
+        frame.append(image, status)
+        open.addEventListener('click', () => {
+          const expanded = row.classList.toggle('expanded')
+          open.textContent = expanded ? 'Riduci video' : 'Apri video'
+          if (expanded) {
+            image.src = new URL(`api/intercom/external-stations/${encodeURIComponent(station.id)}/video`, root).toString()
+            status.hidden = true
+          } else {
+            image.removeAttribute('src')
+            status.hidden = false
+          }
+        })
+        row.append(icon, copy, frame)
+        anchor.after(row)
+        anchor = row
+      }
+    } catch (_) { /* Keep the current station list if the server is temporarily unreachable. */ }
+  }
+  refreshExternalStations()
+  setInterval(refreshExternalStations, 30000)
   $('#doorbird-expand').addEventListener('click', () => {
     const expanded = $('.doorbird-row').classList.toggle('expanded')
     $('#doorbird-expand').setAttribute('aria-expanded', String(expanded))
@@ -164,9 +230,10 @@
       : {iceServers, iceTransportPolicy: 'relay'}
   }
 
-  const dialButtons = [...document.querySelectorAll('[data-dial-extension]')]
   function setDialButtonsDisabled(disabled) {
-    dialButtons.forEach((button) => { button.disabled = disabled })
+    document.querySelectorAll('[data-dial-extension]').forEach((button) => {
+      button.disabled = disabled || button.dataset.stationReady === 'false'
+    })
   }
 
   async function prepareSpeaker() {
@@ -386,8 +453,9 @@
     connection(false, 'Non collegato')
   })
 
-  dialButtons.forEach((button) => button.addEventListener('click', async () => {
-    if (!phone?.isRegistered() || call || !/^(8201|8290|8291|8292)$/.test(button.dataset.dialExtension)) return
+  document.addEventListener('click', async (event) => {
+    const button = event.target.closest('[data-dial-extension]')
+    if (!button || !phone?.isRegistered() || call || button.dataset.stationReady === 'false' || !/^(82[0-9]{2}|8290|8291|8292)$/.test(button.dataset.dialExtension)) return
     error('')
     setDialButtonsDisabled(true)
     $('#call-status').textContent = 'Richiesta accesso al microfono…'
@@ -402,7 +470,7 @@
       setDialButtonsDisabled(!phone?.isRegistered())
       error(exception.message)
     }
-  }))
+  })
 
   $('#call-answer').addEventListener('click', async () => {
     if (!call || call.direction !== 'incoming') return

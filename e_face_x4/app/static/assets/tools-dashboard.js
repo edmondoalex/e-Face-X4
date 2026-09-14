@@ -134,7 +134,100 @@ async function intercom() {
   $('#intercom-turn-password').value = ''
   $('#intercom-turn-password').placeholder = turn.password_configured ? 'Password gia configurata' : 'Password TURN'
   await sipAccounts()
+  await provisionerStatus()
+  await externalStations()
 }
+
+const provisionerAdmin = document.createElement('form')
+provisionerAdmin.className = 'admin-form'
+provisionerAdmin.innerHTML = '<div class="admin-info"><b>Associazione Asterisk e-Face</b><p>Una sola volta: indirizzo, token e impronta TLS del servizio Asterisk e-Face. Dopo l’associazione, aggiungere postazioni esterne richiede solo questa pagina.</p></div><div class="admin-form-grid"><label>IP Asterisk<input id="external-provisioner-host" inputmode="decimal" required></label><label>Porta servizio<input id="external-provisioner-port" type="number" min="1" max="65535" required></label><label>Token associazione<input id="external-provisioner-token" type="password" autocomplete="new-password"></label><label>Impronta TLS SHA-256<input id="external-provisioner-fingerprint" required></label></div><div class="admin-form-actions"><button type="submit">ASSOCIA ASTERISK</button></div><div id="external-provisioner-state" class="admin-status" role="status"></div>'
+$('#intercom-config').append(provisionerAdmin)
+
+async function provisionerStatus() {
+  const data = await request('api/admin/intercom/provisioner')
+  $('#external-provisioner-host').value = data.host || $('#intercom-asterisk-host').value
+  $('#external-provisioner-port').value = data.port || 9443
+  $('#external-provisioner-fingerprint').value = data.fingerprint || ''
+  $('#external-provisioner-token').value = ''
+  $('#external-provisioner-token').placeholder = data.configured ? 'Token già salvato' : 'Token Asterisk richiesto'
+  $('#external-provisioner-state').textContent = data.configured ? 'Asterisk associato: configurazione postazioni automatica.' : 'Asterisk non ancora associato.'
+}
+
+provisionerAdmin.addEventListener('submit', async (event) => {
+  event.preventDefault()
+  const button = provisionerAdmin.querySelector('button[type=submit]')
+  button.disabled = true
+  try {
+    await request('api/admin/intercom/provisioner', {method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify({
+      host:$('#external-provisioner-host').value.trim(), port:Number($('#external-provisioner-port').value),
+      token:$('#external-provisioner-token').value.trim(), fingerprint:$('#external-provisioner-fingerprint').value.trim()})})
+    await provisionerStatus()
+    message('Asterisk associato a e-Face')
+  } catch (error) { message(error.message) }
+  finally { button.disabled = false }
+})
+
+const externalAdmin = document.createElement('div')
+externalAdmin.className = 'admin-form'
+externalAdmin.innerHTML = '<div class="admin-info"><b>Postazioni esterne</b><p>Aggiungi un DoorBird qui: e-Face salva le credenziali, configura automaticamente la rotta SIP persistente in Asterisk e abilita CHIAMA dopo la verifica. Non serve modificare il dialplan a mano.</p></div><div id="external-stations-list"></div><div class="admin-form-actions"><button id="external-add" type="button" class="secondary">AGGIUNGI POSTAZIONE</button><button id="external-save" type="button">SALVA E CONFIGURA</button></div>'
+$('#intercom-config').append(externalAdmin)
+let externalStationRows = []
+
+function externalRow(station) {
+  const card = document.createElement('div')
+  card.className = 'admin-info external-station-card'
+  card.innerHTML = '<div class="admin-form-grid"><label>Nome<input data-field="name" required></label><label>IP DoorBird<input data-field="host" inputmode="decimal" required></label><label>Porta HTTP<input data-field="http_port" type="number" min="1" max="65535" required></label><label>Interno SIP<input data-field="sip_extension" inputmode="numeric" pattern="82[0-9]{2}" required></label><label>Utente API<input data-field="username" autocomplete="off"></label><label>Password API<input data-field="password" type="password" autocomplete="new-password"></label></div><div data-sip-status></div><div class="admin-form-actions"><button type="button" class="secondary" data-remove>RIMUOVI</button></div>'
+  card.dataset.stationId = station.id
+  for (const field of ['name', 'host', 'http_port', 'sip_extension', 'username']) {
+    card.querySelector(`[data-field="${field}"]`).value = station[field] ?? ''
+  }
+  card.dataset.ready = String(station.ready)
+  card.querySelector('[data-sip-status]').textContent = station.ready ? 'SIP attivo' : 'SIP da configurare automaticamente al salvataggio'
+  card.querySelector('[data-field="password"]').placeholder = station.credential_configured ? 'Password salvata' : 'Password richiesta per il video'
+  if (station.id === 'ingresso') {
+    for (const field of ['host', 'http_port', 'sip_extension']) card.querySelector(`[data-field="${field}"]`).readOnly = true
+    card.querySelector('[data-remove]').hidden = true
+  }
+  card.querySelector('[data-remove]').addEventListener('click', () => {
+    externalStationRows = externalStationRows.filter((row) => row !== card)
+    card.remove()
+  })
+  externalStationRows.push(card)
+  $('#external-stations-list').append(card)
+}
+
+async function externalStations() {
+  const {stations} = await request('api/admin/intercom/external-stations')
+  externalStationRows = []
+  $('#external-stations-list').replaceChildren()
+  stations.forEach(externalRow)
+}
+
+$('#external-add').addEventListener('click', () => {
+  if (externalStationRows.length >= 8) return message('Massimo 8 postazioni esterne')
+  const ids = new Set(externalStationRows.map((row) => row.dataset.stationId))
+  const extensions = new Set(externalStationRows.map((row) => row.querySelector('[data-field="sip_extension"]').value))
+  let number = 2
+  while (ids.has(`esterno-${number}`) || extensions.has(String(8200 + number))) number++
+  externalRow({id:`esterno-${number}`, name:`Postazione esterna ${number}`, host:'', http_port:80, sip_extension:String(8200 + number), username:'', ready:false, credential_configured:false})
+})
+
+$('#external-save').addEventListener('click', async () => {
+  const button = $('#external-save')
+  button.disabled = true
+  try {
+    const stations = externalStationRows.map((row) => {
+      const value = (field) => row.querySelector(`[data-field="${field}"]`).value.trim()
+      return {id:row.dataset.stationId, name:value('name'), host:value('host'), http_port:Number(value('http_port')),
+        sip_extension:value('sip_extension'), username:value('username'), password:row.querySelector('[data-field="password"]').value,
+        ready:row.dataset.ready === 'true'}
+    })
+    await request('api/admin/intercom/external-stations', {method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify({stations})})
+    await externalStations()
+    message('Postazioni salvate e rotte SIP configurate in Asterisk.')
+  } catch (error) { message(error.message) }
+  finally { button.disabled = false }
+})
 
 async function sipAccounts() {
   const {users} = await request('api/admin/intercom/sip/accounts')

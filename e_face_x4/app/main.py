@@ -35,6 +35,8 @@ from .recent_visibility import filter_recents, hidden_recents, hide_recent, rest
 from .installer_auth import COOKIE, create_session, valid_session
 from . import user_auth
 from . import intercom_settings
+from . import external_stations
+from . import provisioner_client
 from . import installation
 from . import credential_inventory
 from . import sip_accounts
@@ -227,6 +229,63 @@ def create_app() -> FastAPI:
         require_admin(request)
         turn = intercom_settings.load_turn()
         return {"settings": intercom_settings.load(), "turn": {"turn_url": turn["turn_url"], "turn_username": turn["turn_username"], "password_configured": bool(turn["turn_password"])}, "sip_ready": False}
+
+    @app.get("/api/intercom/external-stations")
+    async def intercom_external_stations(request: Request) -> dict:
+        if not user_auth.session_user(request.cookies.get(user_auth.COOKIE)):
+            raise HTTPException(status_code=401, detail="Accesso richiesto")
+        return {"stations": external_stations.public()}
+
+    @app.get("/api/admin/intercom/external-stations")
+    async def admin_external_stations(request: Request) -> dict:
+        require_admin(request)
+        return {"stations": external_stations.admin_public()}
+
+    @app.get("/api/admin/intercom/provisioner")
+    async def admin_provisioner(request: Request) -> dict:
+        require_admin(request)
+        return provisioner_client.public()
+
+    @app.put("/api/admin/intercom/provisioner")
+    async def admin_save_provisioner(request: Request, payload: dict) -> dict:
+        require_admin(request)
+        try:
+            proposed = provisioner_client.validate(payload)
+            await provisioner_client.request("GET", "/v1/external-stations", config=proposed)
+            provisioner_client.save(payload)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        except (OSError, RuntimeError, TimeoutError) as exc:
+            raise HTTPException(status_code=502, detail=str(exc)) from exc
+        return provisioner_client.public()
+
+    @app.put("/api/admin/intercom/external-stations")
+    async def admin_save_external_stations(request: Request, payload: dict) -> dict:
+        require_admin(request)
+        if set(payload) != {"stations"}:
+            raise HTTPException(status_code=400, detail="Elenco postazioni non valido")
+        try:
+            proposed = external_stations.validate(payload["stations"])
+            current = external_stations.load()
+            if any(not (station["username"] and station["password"]) for station in proposed[1:]):
+                raise ValueError("Credenziale API richiesta per ogni nuova postazione")
+            new_routes = [{"extension": station["sip_extension"], "host": station["host"]} for station in proposed[1:]]
+            old_routes = [{"extension": station["sip_extension"], "host": station["host"]} for station in current[1:]]
+            if new_routes or old_routes:
+                await provisioner_client.request("PUT", "/v1/external-stations", {"stations": new_routes})
+                for station in proposed[1:]:
+                    station["ready"] = True
+            try:
+                external_stations.save(proposed)
+            except Exception:
+                if new_routes or old_routes:
+                    await provisioner_client.request("PUT", "/v1/external-stations", {"stations": old_routes})
+                raise
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        except (OSError, RuntimeError, TimeoutError) as exc:
+            raise HTTPException(status_code=502, detail=str(exc)) from exc
+        return {"stations": external_stations.admin_public()}
 
     async def control4_artwork_diagnostic() -> dict:
         config = load_control4_config()
@@ -832,17 +891,26 @@ def create_app() -> FastAPI:
         result = await doorbird_api.check_identity(settings["doorbird_host"], settings["doorbird_port"], account["username"], account["password"])
         return JSONResponse(result, headers={"Cache-Control": "no-store, private"})
 
+    def external_access(station_id: str) -> tuple[dict, dict]:
+        station = external_stations.get(station_id)
+        if station is None:
+            raise HTTPException(status_code=404, detail="Postazione esterna non trovata")
+        account = {"username": station.get("username", ""), "password": station.get("password", "")}
+        if station_id == "ingresso" and not (account["username"] and account["password"]):
+            account = credential_inventory.load().get("doorbird", {})
+        if not account.get("username") or not account.get("password"):
+            raise HTTPException(status_code=409, detail="Credenziale postazione esterna non configurata")
+        return station, account
+
     @app.get("/api/intercom/doorbird/image")
-    async def intercom_doorbird_image(request: Request) -> Response:
+    @app.get("/api/intercom/external-stations/{station_id}/image")
+    async def intercom_doorbird_image(request: Request, station_id: str = "ingresso") -> Response:
         if not user_auth.session_user(request.cookies.get(user_auth.COOKIE)):
             raise HTTPException(status_code=401, detail="Accesso richiesto")
-        account = credential_inventory.load().get("doorbird", {})
-        if not account.get("username") or not account.get("password"):
-            raise HTTPException(status_code=409, detail="Credenziale DoorBird non configurata")
-        settings = intercom_settings.load()
+        station, account = external_access(station_id)
         try:
             frame = await doorbird_api.live_image(
-                settings["doorbird_host"], settings["doorbird_port"], account["username"], account["password"]
+                station["host"], station["http_port"], account["username"], account["password"]
             )
         except PermissionError as exc:
             raise HTTPException(status_code=403, detail=str(exc)) from exc
@@ -854,20 +922,18 @@ def create_app() -> FastAPI:
         return Response(content=frame, media_type="image/jpeg", headers=headers)
 
     @app.get("/api/intercom/doorbird/video")
-    async def intercom_doorbird_video(request: Request) -> Response:
+    @app.get("/api/intercom/external-stations/{station_id}/video")
+    async def intercom_doorbird_video(request: Request, station_id: str = "ingresso") -> Response:
         if not user_auth.session_user(request.cookies.get(user_auth.COOKIE)):
             raise HTTPException(status_code=401, detail="Accesso richiesto")
-        account = credential_inventory.load().get("doorbird", {})
-        if not account.get("username") or not account.get("password"):
-            raise HTTPException(status_code=409, detail="Credenziale DoorBird non configurata")
+        station, account = external_access(station_id)
         try:
             await asyncio.wait_for(doorbird_video_slots.acquire(), timeout=0.1)
         except asyncio.TimeoutError as exc:
             raise HTTPException(status_code=503, detail="Troppi flussi DoorBird aperti") from exc
-        settings = intercom_settings.load()
         try:
             stream = await doorbird_api.live_video(
-                settings["doorbird_host"], settings["doorbird_port"], account["username"], account["password"]
+                station["host"], station["http_port"], account["username"], account["password"]
             )
         except PermissionError as exc:
             doorbird_video_slots.release()
