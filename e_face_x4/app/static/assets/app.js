@@ -562,6 +562,10 @@ function mediaFavoritesHtml(items, roomId) {
 
 function nowPlayingFavorite(selected) {
   if (selected?.provider !== 'control4' || selected.active_experience !== 'listen') return { recent: null, favorite: null }
+  const stationsSource = (selected.source_options || []).find((source) => source.experience === 'listen' && String(source.label || '').toLocaleLowerCase('it') === 'stations')
+  if (Number(selected.station_id) > 0 && stationsSource && String(selected.source || '').toLocaleLowerCase('it') === 'stations') {
+    return { recent: null, favorite: favoritesCache?.find((item) => item.id === `station:${stationsSource.source_id}:${selected.station_id}`) || null, stationProxyId: stationsSource.source_id }
+  }
   const roomId = Number(String(selected.registry_id || '').replace('c4room:', ''))
   const scope = (avRoom || activeMediaRoom) && roomId ? `room-${roomId}` : 'global'
   const names = [selected.title, selected.artist, selected.album].map((value) => String(value || '').trim().toLocaleLowerCase('it')).filter((value) => value.length > 2)
@@ -885,7 +889,7 @@ function renderHomeMediaSessions() {
         ? `<span class="home-live-art"><img src="${apiUrl(`api/media/${encodeURIComponent(player.registry_id)}/artwork?fingerprint=${encodeURIComponent(player.content_fingerprint)}`)}" alt="" loading="lazy" onerror="this.hidden=true"></span>`
         : `<span class="home-live-art fallback"><span class="mdi-mask" style="${mdiStyle(video ? 'mdi:television' : mediaSourceIcon(player.source), video ? 'television' : 'music-circle')}"></span></span>`
     const rooms = members.map((item) => item.room).filter(Boolean).join(' · ')
-    return `<button class="home-live-session ${video ? 'video' : 'audio'}" data-home-session="${esc(player.id)}">${artwork}<span class="home-live-info"><small>${video ? 'VIDEO' : 'AUDIO'} IN RIPRODUZIONE</small><strong>${esc(player.title || player.source || player.name)}</strong><span>${esc([player.artist || player.source, rooms].filter(Boolean).join(' · '))}</span></span><i class="home-live-eq"><b></b><b></b><b></b><b></b></i></button>`
+    return `<button class="home-live-session ${video ? 'video' : 'audio'}" data-home-session="${esc(player.id)}">${artwork}<span class="home-live-info"><small>${video ? 'VIDEO' : 'AUDIO'} IN RIPRODUZIONE</small><strong>${esc(player.title || player.source || player.name)}</strong><span>${esc([player.artist || player.source, rooms].filter(Boolean).join(' · '))}</span></span><i class="home-live-eq" aria-hidden="true"><b></b><b></b><b></b><b></b><b></b><b></b><b></b><b></b></i></button>`
   }).join('')
 }
 
@@ -1813,6 +1817,17 @@ $('#device-list').addEventListener('click', (event) => {
     if (!selected || nowFavoriteButton.disabled) return
     nowFavoriteButton.disabled = true
     ;(async () => {
+      const station = nowPlayingFavorite(selected)
+      if (station.stationProxyId) {
+        const roomId = Number(String(selected.registry_id || '').replace('c4room:', ''))
+        const response = await fetch(apiUrl('api/control4/favorites/current-station'), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ room_id: roomId, proxy_id: station.stationProxyId }) })
+        if (!response.ok) throw new Error((await response.json()).detail || 'Stazione non disponibile')
+        favoritesCache = (await response.json()).items || []
+        const panel = $('[data-media-favorites]')
+        if (panel) panel.querySelector('.media-recent-strip').innerHTML = mediaFavoritesHtml(favoritesCache, Number(panel.dataset.favoriteRoom))
+        updateNowPlayingStar(selected)
+        return
+      }
       let { recent, favorite } = nowPlayingFavorite(selected)
       if (!recent && !favorite) {
         const roomId = Number(String(selected.registry_id || '').replace('c4room:', ''))

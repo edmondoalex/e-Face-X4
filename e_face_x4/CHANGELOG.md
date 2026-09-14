@@ -1,5 +1,8 @@
 # Changelog
 
+## 2.21.5 — 2026-09-14
+- Stella del player Stations: salva o rimuove la stazione attiva dai Preferiti e-Face usando l'ID verificato nel catalogo, indipendentemente dalla cronologia Control4. L'indicatore LIVE conserva le dimensioni della scheda e mostra otto barre animate, rispettando il movimento ridotto.
+
 ## 2.21.4 — 2026-09-14
 - Le copertine dei Preferiti ricavati dalla cronologia vengono salvate sul volume persistente. Le immagini già disponibili vengono recuperate quando possibile; se mancano, resta visibile l'icona del servizio anziché una cella vuota.
 

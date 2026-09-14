@@ -27,7 +27,7 @@ from .config import load_settings
 from .control4 import control4_director, load_control4_config, public_control4_config, save_control4_config, test_control4_connection
 from .control4_msp import tunein_browse, tunein_action, tunein_settings
 from .control4_msp_catalog import catalog_action, catalog_browse, catalog_settings, catalog_tabs
-from .control4_stations import station_artwork_path, station_catalog_artwork, stations_action, stations_browse
+from .control4_stations import station_artwork_path, station_catalog_artwork, station_identity, station_media_artwork, stations_action, stations_browse
 from .control4_spotify import spotify_action, spotify_browse, spotify_settings
 from .control4_bridge import bridge_action, bridge_browse
 from .media_favorites import add_favorite, favorite_by_id, list_favorites, load_favorite_artwork, remove_favorite, save_favorite_artwork
@@ -49,7 +49,7 @@ from .connectors.control4_media import cached_control4_icon, cached_control4_ico
 from .connectors.supervisor import discover_addon_url, discover_host_url
 from .demo import dashboard as demo_dashboard
 
-VERSION = "2.21.4"
+VERSION = "2.21.5"
 STATIC = Path(__file__).parent / "static"
 logging.basicConfig(level=logging.WARNING, format="%(asctime)s %(levelname)s [e-face-x4] %(message)s")
 _reconnect_warning_at: dict[str, float] = {}
@@ -544,6 +544,36 @@ def create_app() -> FastAPI:
     @app.get("/api/control4/favorites")
     async def control4_list_favorites() -> dict:
         return {"items": list_favorites()}
+
+    @app.post("/api/control4/favorites/current-station")
+    async def control4_toggle_current_station_favorite(payload: dict) -> dict:
+        try:
+            room_id = int(payload.get("room_id") or 0)
+            proxy_id = int(payload.get("proxy_id") or 0)
+            if room_id <= 0 or proxy_id <= 0:
+                raise ValueError("Stanza o servizio Stations non valido")
+            director, _ = await control4_director(load_control4_config())
+            source_info = await director.get_item_info(proxy_id)
+            source = source_info[0] if isinstance(source_info, list) and source_info else source_info
+            if not isinstance(source, dict) or str(source.get("name") or "").casefold() != "stations" or source.get("proxy") != "media_service":
+                raise ValueError("Servizio Stations non disponibile")
+            value = await director.get_item_variable_value(room_id, "CURRENT MEDIA INFO")
+            media = value.get("mediainfo") if isinstance(value, dict) else None
+            if not isinstance(media, dict) or str(media.get("mediatypeV2") or "").upper() != "INTERNET_MEDIA":
+                raise ValueError("Nessuna stazione Stations attiva")
+            identity = station_identity(media.get("mediaid"), media.get("channel"))
+            if not identity:
+                raise ValueError("Stazione non presente nel catalogo Stations")
+            station_id = int(media["mediaid"])
+            favorite_id = f"station:{proxy_id}:{station_id}"
+            if any(item["id"] == favorite_id for item in list_favorites()):
+                return {"items": remove_favorite(favorite_id)}
+            return {"items": add_favorite({"id": favorite_id, "kind": "station", "title": identity[0], "subtitle": "", "proxy_id": proxy_id, "station_id": station_id, "genre": "", "artwork": station_media_artwork(station_id, media.get("channel"))})}
+        except (ValueError, TypeError, KeyError) as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        except Exception as exc:
+            logging.warning("Preferito Stations corrente non disponibile (%s)", type(exc).__name__)
+            raise HTTPException(status_code=502, detail="Preferito Stations non disponibile") from exc
 
     @app.get("/api/control4/favorites/artwork")
     async def control4_favorite_artwork(identity: str = Query(..., min_length=1, max_length=300)) -> Response:
