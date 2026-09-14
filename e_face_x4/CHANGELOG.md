@@ -1,5 +1,8 @@
 # Changelog
 
+## 2.21.16 — 2026-09-14
+- Intercom: pulsante CHIAMA per la postazione esterna DoorBird. Il numero 8201 usa la chiamata SIP peer-to-peer tramite Asterisk; la configurazione del DoorBird e il dialplan sono mantenuti in modo persistente. La pagina rileva nuove versioni ogni 30 secondi e si aggiorna automaticamente, aspettando la fine di un'eventuale chiamata.
+
 ## 2.21.15 — 2026-09-14
 - Il client Intercom si aggancia al RTCPeerConnection anche se JsSIP lo ha creato prima del listener, recupera la traccia audio già presente tramite `getReceivers()` e avvia i contatori RTP. Evita che l'indicatore resti fermo su «Audio in ingresso: in attesa» e che il player perda l'evento della traccia. Da verificare con chiamata reale.
 

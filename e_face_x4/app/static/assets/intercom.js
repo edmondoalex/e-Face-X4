@@ -2,6 +2,20 @@
   const $ = (selector) => document.querySelector(selector)
   const adminMode = document.documentElement.classList.contains('admin-intercom')
   const root = new URL('./', location.href)
+  const currentVersion = '2.21.16'
+  let updateAvailable = false
+  async function checkForUpdate() {
+    if (document.hidden || !intercomVisible) return
+    try {
+      const response = await fetch(new URL('intercom', root), {cache:'no-store', credentials:'same-origin'})
+      if (!response.ok) return
+      const html = await response.text()
+      const version = html.match(/assets\/intercom\.js\?v=([0-9.]+)/)?.[1]
+      if (version && version !== currentVersion) updateAvailable = true
+      if (updateAvailable && !call) location.reload()
+    } catch (_) { /* A temporary network error must not interrupt Intercom. */ }
+  }
+  setInterval(checkForUpdate, 30000)
   const socketUrl = new URL('api/intercom/sip', root)
   socketUrl.protocol = location.protocol === 'https:' ? 'wss:' : 'ws:'
   let phone = null
@@ -192,6 +206,7 @@
 
   function clearCall(text) {
     call = null
+    if (updateAvailable) { location.reload(); return }
     clearInterval(audioStatsTimer)
     audioStatsTimer = null
     $('#intercom-call-panel').hidden = true
@@ -372,7 +387,7 @@
   })
 
   dialButtons.forEach((button) => button.addEventListener('click', async () => {
-    if (!phone?.isRegistered() || call || !/^(8290|8291|8292)$/.test(button.dataset.dialExtension)) return
+    if (!phone?.isRegistered() || call || !/^(8201|8290|8291|8292)$/.test(button.dataset.dialExtension)) return
     error('')
     setDialButtonsDisabled(true)
     $('#call-status').textContent = 'Richiesta accesso al microfono…'
