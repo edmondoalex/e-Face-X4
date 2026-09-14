@@ -80,6 +80,10 @@ def test_intercom_is_in_sidebar_with_embedded_view() -> None:
     assert 'id="intercom-frame"' in dashboard
     assert "intercom?embedded=1" in script
     assert (static / "assets" / "intercom-nav.svg").is_file()
+    intercom = (static / "intercom.html").read_text(encoding="utf-8")
+    assert 'class="intercom-station-list"' in intercom
+    assert 'id="doorbird-expand"' in intercom
+    assert 'id="intercom-call-panel" class="intercom-call-panel" hidden' in intercom
 
 
 def test_admin_migration_guards_pages_apis_and_websocket(monkeypatch, tmp_path) -> None:

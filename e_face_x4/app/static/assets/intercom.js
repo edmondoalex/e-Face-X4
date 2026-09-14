@@ -18,6 +18,11 @@
   let doorbirdStopped = false
   let doorbirdVideoActive = false
   let doorbirdRetryTimer = null
+  $('#doorbird-expand').addEventListener('click', () => {
+    const expanded = $('.doorbird-row').classList.toggle('expanded')
+    $('#doorbird-expand').setAttribute('aria-expanded', String(expanded))
+    $('#doorbird-expand').textContent = expanded ? 'Riduci video' : 'Apri video'
+  })
 
   function startDoorbirdVideo() {
     if (doorbirdStopped || document.hidden) return
@@ -150,6 +155,7 @@
 
   function clearCall(text) {
     call = null
+    $('#intercom-call-panel').hidden = true
     releaseMicrophone()
     $('#remote-audio').srcObject = null
     $('#call-status').textContent = text
@@ -194,6 +200,7 @@
 
   function track(session) {
     call = session
+    $('#intercom-call-panel').hidden = false
     let iceReadyTimer = null
     $('#call-status').textContent = session.direction === 'incoming' ? `Chiamata da ${session.remote_identity?.display_name || session.remote_identity?.uri?.user || 'sconosciuto'}` : 'Chiamata in uscita…'
     $('#call-answer').disabled = session.direction !== 'incoming'

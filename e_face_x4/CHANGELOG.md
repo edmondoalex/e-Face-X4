@@ -1,5 +1,8 @@
 # Changelog
 
+## 2.21.10 — 2026-09-14
+- Intercom usa l'organizzazione a elenco delle postazioni del riferimento Control4 fornito dall'utente, ma mantiene sfondo, schede e colori e-Face. Anteprima DoorBird compatta (180 px, 115 px su telefono) espandibile; controlli di chiamata visibili solo durante la conversazione e impostazioni esistenti raccolte in un pannello.
+
 ## 2.21.9 — 2026-09-14
 - Intercom entra nella barra laterale con l'icona a barre e sorriso, grigia quando inattiva. La schermata citofono è integrata nella sezione e-Face; il video DoorBird MJPEG continuo passa da un proxy autenticato e limitato, con ripiego sui fotogrammi.
 

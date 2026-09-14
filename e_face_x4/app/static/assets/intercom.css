@@ -9,3 +9,31 @@ label{display:grid;gap:8px;color:#c6d7d9;font-size:13px}input{width:100%;padding
 .doorbird-frame{position:relative;display:grid;place-items:center;min-height:220px;aspect-ratio:16/9;overflow:hidden;border-radius:12px;background:#11191c;color:#afbdc1}.doorbird-frame img{width:100%;height:100%;object-fit:contain}.doorbird-frame span{padding:18px;text-align:center;font-size:13px}
 .embedded body{background:#20282c}.embedded .intercom-shell{width:100%;padding:0 0 30px}.embedded .intercom-shell>header{display:none}.embedded .intercom-card{box-shadow:none}
 @media(max-width:560px){header img{width:95px}header small{font-size:8px}h1{font-size:16px}.intercom-card{padding:18px}}
+
+/* Control4-style station list; e-Face retains its own controls and credentials. */
+body,.embedded body{background:linear-gradient(165deg,#201e30 0,#162f49 48%,#0c4056 100%) fixed;color:#e9edf2}
+.intercom-shell{width:min(960px,100%);padding:16px 14px 42px}
+.embedded .intercom-shell{padding:0 0 28px}
+.intercom-page-heading{display:flex;align-items:center;justify-content:space-between;min-height:45px;padding:0 16px;background:#211e31;border-bottom:1px solid #ffffff20;font-size:13px;font-weight:700;letter-spacing:.08em}
+.intercom-page-heading small{font-size:12px;font-weight:400;letter-spacing:0;color:#aeb8c3}
+.intercom-station-list{background:linear-gradient(145deg,#2b2938,#173249 80%,#124057);border:1px solid #ffffff18;border-top:0}
+.intercom-station-row{display:grid;grid-template-columns:42px minmax(0,1fr) auto;align-items:center;gap:14px;min-height:88px;padding:12px 17px;border-bottom:1px solid #ffffff24}
+.intercom-station-row:last-child{border-bottom:0}.station-icon{width:34px;height:34px;display:grid;place-items:center;color:#d1d8e0;font-size:26px;font-weight:300}
+.station-copy{min-width:0;display:grid;gap:4px}.station-copy strong{font-size:17px;font-weight:500}.station-copy>small{font-size:12px;color:#aeb8c3}.station-actions{display:flex;gap:7px;flex-wrap:wrap;justify-content:flex-end}
+.intercom-station-row button{min-height:34px;padding:0 13px;border:1px solid #ffffff36;border-radius:6px;background:#315771;color:#f2f5f8;font-size:11px;letter-spacing:.04em}.intercom-station-row button:hover:not(:disabled){background:#3b6d8c}.intercom-station-row button.secondary{background:#283a4c;color:#d7e0e5}
+.intercom-state{gap:8px}.intercom-state>span{width:8px;height:8px;box-shadow:none}.intercom-state>span.online{box-shadow:0 0 0 3px #70dfae22}.intercom-state>div{display:flex;align-items:center;gap:8px}.intercom-state small{font-size:10px;font-weight:500;letter-spacing:0;color:#91a8b8}.intercom-state b{font-size:12px;font-weight:400;color:#becbd4}
+.doorbird-row{min-height:130px}.doorbird-row .station-copy{align-self:center}.intercom-station-row .station-text-button{width:max-content;min-height:26px;margin-left:-7px;border:0;background:transparent;color:#9bd6f5;text-align:left}.doorbird-frame{width:180px;min-height:0;height:101px;aspect-ratio:16/9;border:1px solid #ffffff2b;border-radius:5px;background:#101820}.doorbird-frame span{padding:8px;font-size:11px}.doorbird-row.expanded{align-items:start}.doorbird-row.expanded .doorbird-frame{width:min(520px,50vw);height:auto;min-height:240px}
+.intercom-call-panel{display:flex;align-items:center;justify-content:space-between;gap:16px;min-height:84px;margin-top:14px;padding:15px 18px;border:1px solid #ffffff22;border-radius:8px;background:#252b39}.intercom-call-label strong{font-size:15px;font-weight:500}.intercom-call-label p{margin:5px 0 0;color:#aebbc5;font-size:12px}.intercom-call-panel .intercom-actions{margin:0;flex-wrap:nowrap}.intercom-call-panel button{min-width:104px;border-radius:6px}.intercom-call-panel #call-answer{background:#39ae75;color:#fff}.intercom-call-panel #call-hangup{background:#a74754}
+.intercom-settings{margin-top:13px;border:1px solid #ffffff22;border-radius:8px;background:#252b39}.intercom-settings summary{padding:16px 18px;cursor:pointer;color:#e6ebef;font-size:14px}.intercom-settings[open] summary{border-bottom:1px solid #ffffff22}.intercom-settings-body{padding:18px;display:grid;gap:12px}.intercom-settings-body .level-label{margin:0}.intercom-settings-body input[type=range]{accent-color:#78bfe9}.intercom-settings-body .intercom-option input{accent-color:#78bfe9}
+.intercom-error{margin-top:13px}
+@media(max-width:640px){.intercom-station-row{grid-template-columns:32px minmax(0,1fr) auto;gap:9px;padding:11px}.station-copy strong{font-size:15px}.station-copy>small{font-size:11px}.doorbird-row{grid-template-columns:30px minmax(0,1fr) 115px}.doorbird-frame{width:115px;height:65px}.doorbird-row.expanded{grid-template-columns:30px minmax(0,1fr)}.doorbird-row.expanded .doorbird-frame{grid-column:1/-1;width:100%;min-height:180px}.intercom-call-panel{align-items:stretch;flex-direction:column}.intercom-call-panel .intercom-actions{justify-content:flex-end}.station-actions{flex-direction:column}.intercom-station-row button{font-size:10px;padding:0 8px}}
+/* e-Face palette and background; only the compact station organization follows Control4. */
+body{background:#20272b}.embedded,.embedded body{background:transparent}
+.intercom-page-heading{background:#23282b;border-radius:10px 10px 0 0}
+.intercom-station-list{background:#252a2d;border-radius:0 0 10px 10px;overflow:hidden}
+.intercom-station-row button{background:#3b484d}.intercom-station-row button:hover:not(:disabled){background:#4b5b60}.intercom-station-row button.secondary{background:#303a3e}
+.intercom-station-row .station-text-button{color:#7edcbb;background:transparent}
+.intercom-call-panel,.intercom-settings{background:#252a2d}
+.intercom-settings-body input[type=range],.intercom-settings-body .intercom-option input{accent-color:#75ddbb}
+svg.station-icon{fill:none;stroke:currentColor;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
+.intercom-call-panel[hidden]{display:none}
