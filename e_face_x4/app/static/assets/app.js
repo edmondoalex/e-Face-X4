@@ -553,7 +553,7 @@ function renderTuneInNavigator() {
   $('#music-navigator-tabs').querySelectorAll('[data-msp-tab]').forEach((button) => button.classList.toggle('active', button.dataset.mspTab === tuneInState.tab))
   $('#music-navigator-back').disabled = !tuneInState.stack.length
   const list = $('#music-navigator-list')
-  list.innerHTML = tuneInState.items.map((item) => `<div class="music-navigator-row" data-msp-item="${esc(item.id)}"><button type="button" class="music-navigator-main" data-msp-select="${esc(item.id)}">${item.image ? `<img src="${esc(item.image)}" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.hidden=true">` : '<span class="music-navigator-placeholder">♫</span>'}<span><strong>${esc(item.title)}</strong>${item.subtitle ? `<small>${esc(item.subtitle)}</small>` : ''}</span><b>${item.link ? '›' : ''}</b></button>${item.actions.length ? `<button type="button" class="music-navigator-menu-button" data-msp-menu="${esc(item.id)}" aria-label="Azioni per ${esc(item.title)}">⋮</button>` : ''}</div>`).join('') || '<p class="music-navigator-empty">Nessun contenuto disponibile.</p>'
+  list.innerHTML = tuneInState.items.map((item) => `<div class="music-navigator-row" data-msp-item="${esc(item.id)}"><button type="button" class="music-navigator-main" data-msp-select="${esc(item.id)}">${item.image ? `<img src="${esc(item.image.startsWith('api/') ? apiUrl(item.image) : item.image)}" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.hidden=true">` : '<span class="music-navigator-placeholder">♫</span>'}<span><strong>${esc(item.title)}</strong>${item.subtitle ? `<small>${esc(item.subtitle)}</small>` : ''}</span><b>${item.link ? '›' : ''}</b></button>${item.actions.length ? `<button type="button" class="music-navigator-menu-button" data-msp-menu="${esc(item.id)}" aria-label="Azioni per ${esc(item.title)}">⋮</button>` : ''}</div>`).join('') || '<p class="music-navigator-empty">Nessun contenuto disponibile.</p>'
   $('#music-navigator-more').hidden = !tuneInState.more
 }
 
@@ -654,7 +654,7 @@ $('#music-navigator-list').addEventListener('click', async (event) => {
     return loadTuneInNavigator(id)
   }
   if (item.default_action === 'Play' || item.actions.includes('Play') || item.default_action === 'SelectStation') {
-    try { await tuneInRequest({ action: item.default_action === 'SelectStation' ? 'SelectStation' : 'Play', item_id: id }); $('#music-navigator-dialog').close() }
+    try { await tuneInRequest({ action: item.default_action === 'SelectStation' ? 'SelectStation' : 'Play', item_id: id }); $('#music-navigator-dialog').close(); if (item.default_action === 'SelectStation') { refresh(); setTimeout(refresh, 2500) } }
     catch (error) { fail(error) }
   }
 })
@@ -665,7 +665,7 @@ $('#music-navigator-list').addEventListener('click', async (event) => {
   button.disabled = true
   try {
     await tuneInRequest({ action: button.dataset.mspAction, item_id: button.dataset.mspActionItem })
-    if (button.dataset.mspAction === 'Play' || button.dataset.mspAction === 'SelectStation' || button.dataset.mspAction in {PlayNow:1,PlayShuffle:1,PlayNext:1,AddToQueue:1,ReplaceQueue:1}) $('#music-navigator-dialog').close()
+    if (button.dataset.mspAction === 'Play' || button.dataset.mspAction === 'SelectStation' || button.dataset.mspAction in {PlayNow:1,PlayShuffle:1,PlayNext:1,AddToQueue:1,ReplaceQueue:1}) { $('#music-navigator-dialog').close(); if (button.dataset.mspAction === 'SelectStation') { refresh(); setTimeout(refresh, 2500) } }
     else await loadTuneInNavigator(tuneInState.stack.at(-1)?.id || '')
   } catch (error) { fail(error) }
   finally { button.disabled = false }

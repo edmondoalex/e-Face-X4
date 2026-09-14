@@ -1,5 +1,8 @@
 # Changelog
 
+## 2.20.95 — 2026-09-14
+- Stations: copertine dal Director nel popup, sorgente e titolo reali nel player dopo la selezione, aggiornamento immediato e palette del popup allineata alle schede utente. Catalogo stazioni salvato in /data per mantenere il riconoscimento dopo il riavvio.
+
 ## 2.20.94 — 2026-09-14
 - Stations: la tessera Sorgenti e servizi apre il navigatore Control4 con Radio, Sorgenti e Generi. Selezione stazioni e preferito della stanza usano i comandi del proxy Stations.
 

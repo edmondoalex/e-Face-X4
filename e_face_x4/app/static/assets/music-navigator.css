@@ -38,3 +38,9 @@
 .music-navigator-placeholder,#music-navigator-search input,.music-navigator-hidden{background:var(--user-card-field)}
 #music-navigator-search button,#music-navigator-more button{background:var(--user-card-soft)}
 .music-navigator-dialog>nav{justify-content:flex-start;overflow-x:auto;scrollbar-width:none}.music-navigator-dialog>nav::-webkit-scrollbar{display:none}.music-navigator-dialog>nav button{flex:0 0 auto}
+/* Il navigatore condivide le superfici della palette scelta per tutte le altre schede. */
+body[data-card-theme] .music-navigator-dialog{background:var(--user-card)!important;border-color:rgba(255,255,255,.16);border-radius:16px}
+body[data-card-theme] .music-navigator-dialog>header,body[data-card-theme] .music-navigator-dialog>nav{background:var(--user-card-soft)!important}
+body[data-card-theme] .music-navigator-row,body[data-card-theme] .music-navigator-actions{background:var(--user-card-cell)!important}
+body[data-card-theme] .music-navigator-placeholder,body[data-card-theme] #music-navigator-search input{background:var(--user-card-field)!important}
+@media(max-width:600px){body[data-card-theme] .music-navigator-dialog{border-radius:0}}

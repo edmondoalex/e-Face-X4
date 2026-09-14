@@ -15,6 +15,7 @@ from pyControl4.room import C4Room
 from pyControl4.websocket import C4Websocket
 
 from ..control4 import control4_director
+from ..control4_stations import station_identity, station_media_artwork
 from .base import Connector
 
 ROOM_VARIABLES = ("POWER_STATE", "CURRENT_VOLUME", "IS_MUTED", "CURRENT_SELECTED_DEVICE", "CURRENT_AUDIO_DEVICE", "CURRENT_VIDEO_DEVICE", "CURRENT_VOLUME_DEVICE_ID", "PLAYING_AUDIO_DEVICE", "CURRENT MEDIA INFO", "QUEUE_STATUS_V2")
@@ -360,7 +361,9 @@ def normalize_control4_media(ui: Any, all_items: Any, variables: Any) -> list[di
         media = values.get("CURRENT MEDIA INFO")
         media = media.get("mediainfo", {}) if isinstance(media, dict) else {}
         media = media if isinstance(media, dict) else {}
-        artwork_url = _decode_artwork_url(media.get("img"))
+        station = station_identity(media.get("mediaid"), media.get("channel")) if str(media.get("mediatypeV2") or "").upper() == "INTERNET_MEDIA" else None
+        station_art = station_media_artwork(media.get("mediaid"), media.get("channel")) if station else ""
+        artwork_url = ("http://director" + station_art) if station_art else _decode_artwork_url(media.get("img"))
         fingerprint = hashlib.sha256(artwork_url.encode()).hexdigest() if artwork_url else None
         registry_id = f"c4room:{room_id}"
         if artwork_url and fingerprint:
@@ -392,8 +395,13 @@ def normalize_control4_media(ui: Any, all_items: Any, variables: Any) -> list[di
             if playing_option:
                 active_source_id = playing_source_id
                 display_source = playing_option["label"]
+        if station and active_experience == "listen":
+            station_option = next((source for source in data["source_options"] if source["source_id"] == station[1] and source["experience"] == "listen"), None)
+            if station_option:
+                active_source_id = station_option["source_id"]
+                display_source = station_option["label"]
         can_group = "listen" in data["experiences"] and (has_audio_session or has_video_session)
-        result.append({"id": f"c4media:{room_id}", "registry_id": registry_id, "entity_id": f"control4.room.{room_id}", "provider": "control4", "kind": "media_player", "icon": icon, "name": name, "room": name, "state": state_name, "availability": "available", "connection_status": "online", "volume": volume, "muted": str(values.get("IS_MUTED")) in {"1", "True", "true"}, "source": display_source, "active_source_id": active_source_id, "selected_source_id": selected_source_id, "playing_source_id": playing_source_id, "title": media.get("title"), "artist": media.get("artist"), "album": media.get("album"), "content_fingerprint": fingerprint, "source_options": data["source_options"], "source_list": [source["label"] for source in data["source_options"]], "experiences": data["experiences"], "active_experience": active_experience, "capabilities": {"play": True, "pause": True, "stop": True, "previous": True, "next": True, "turn_off": True, "set_volume": volume is not None, "mute": True, "select_source": bool(data["source_options"]), "grouping": can_group, "artwork": bool(fingerprint)}})
+        result.append({"id": f"c4media:{room_id}", "registry_id": registry_id, "entity_id": f"control4.room.{room_id}", "provider": "control4", "kind": "media_player", "icon": icon, "name": name, "room": name, "state": state_name, "availability": "available", "connection_status": "online", "volume": volume, "muted": str(values.get("IS_MUTED")) in {"1", "True", "true"}, "source": display_source, "active_source_id": active_source_id, "selected_source_id": selected_source_id, "playing_source_id": playing_source_id, "title": media.get("title") or media.get("channel"), "artist": media.get("artist"), "album": media.get("album"), "content_fingerprint": fingerprint, "source_options": data["source_options"], "source_list": [source["label"] for source in data["source_options"]], "experiences": data["experiences"], "active_experience": active_experience, "capabilities": {"play": True, "pause": True, "stop": True, "previous": True, "next": True, "turn_off": True, "set_volume": volume is not None, "mute": True, "select_source": bool(data["source_options"]), "grouping": can_group, "artwork": bool(fingerprint)}})
     return result
 
 
