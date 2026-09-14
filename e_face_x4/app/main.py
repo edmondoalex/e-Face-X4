@@ -272,14 +272,32 @@ def create_app() -> FastAPI:
             new_routes = [{"extension": station["sip_extension"], "host": station["host"]} for station in proposed[1:]]
             old_routes = [{"extension": station["sip_extension"], "host": station["host"]} for station in current[1:]]
             if new_routes or old_routes:
-                await provisioner_client.request("PUT", "/v1/external-stations", {"stations": new_routes})
-                for station in proposed[1:]:
-                    station["ready"] = True
+                await provisioner_client.request("GET", "/v1/external-stations")
+            changed_doorbirds = []
             try:
+                for station in proposed[1:]:
+                    previous = await doorbird_api.ensure_incoming_sip(
+                        station["id"], station["host"], station["http_port"],
+                        station["username"], station["password"], intercom_settings.load()["asterisk_host"])
+                    if previous is not None:
+                        changed_doorbirds.append((station, previous))
+                if new_routes or old_routes:
+                    await provisioner_client.request("PUT", "/v1/external-stations", {"stations": new_routes})
+                    for station in proposed[1:]:
+                        station["ready"] = True
                 external_stations.save(proposed)
             except Exception:
                 if new_routes or old_routes:
-                    await provisioner_client.request("PUT", "/v1/external-stations", {"stations": old_routes})
+                    try:
+                        await provisioner_client.request("PUT", "/v1/external-stations", {"stations": old_routes})
+                    except Exception:
+                        logging.exception("Ripristino rotte SIP esterne non riuscito")
+                for station, previous in reversed(changed_doorbirds):
+                    try:
+                        await doorbird_api.restore_incoming_sip(
+                            station["host"], station["http_port"], station["username"], station["password"], previous)
+                    except Exception:
+                        logging.exception("Ripristino SIP DoorBird non riuscito")
                 raise
         except ValueError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc

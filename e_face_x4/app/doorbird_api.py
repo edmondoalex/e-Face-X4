@@ -1,12 +1,78 @@
-"""Read-only DoorBird LAN checks using the per-installation credential."""
+"""DoorBird LAN media checks and bounded SIP setup using server-side credentials."""
 
 from __future__ import annotations
 
 import httpx
 import re
+import json
+import os
+import secrets
+from pathlib import Path
 
 MAX_IMAGE_BYTES = 2 * 1024 * 1024
 VIDEO_CONTENT_TYPE = re.compile(r"multipart/x-mixed-replace\s*;\s*boundary=[A-Za-z0-9_-]{1,70}\Z", re.I)
+
+
+async def sip_status(host: str, port: int, username: str, password: str) -> dict:
+    """Read SIP status with API-operator credentials, without changing settings."""
+    async with httpx.AsyncClient(timeout=8, follow_redirects=False, trust_env=False) as client:
+        response = await client.get(f"http://{host}:{port}/bha-api/sip.cgi",
+                                    params={"action": "status"}, auth=httpx.DigestAuth(username, password))
+    if response.status_code == 401:
+        raise PermissionError("La credenziale DoorBird non ha il permesso API operator")
+    if response.status_code != 200:
+        raise RuntimeError("Stato SIP DoorBird non disponibile")
+    try:
+        return response.json()["BHA"]["SIP"][0]
+    except (ValueError, KeyError, IndexError, TypeError) as exc:
+        raise RuntimeError("Risposta SIP DoorBird non valida") from exc
+
+
+async def _sip_settings(host: str, port: int, username: str, password: str, settings: dict) -> None:
+    async with httpx.AsyncClient(timeout=8, follow_redirects=False, trust_env=False) as client:
+        response = await client.get(f"http://{host}:{port}/bha-api/sip.cgi",
+                                    params={"action": "settings", **settings}, auth=httpx.DigestAuth(username, password))
+    if response.status_code == 401:
+        raise PermissionError("La credenziale DoorBird non ha il permesso API operator")
+    if response.status_code != 200:
+        raise RuntimeError("Configurazione SIP DoorBird rifiutata")
+
+
+async def ensure_incoming_sip(station_id: str, host: str, port: int, username: str,
+                              password: str, asterisk_host: str) -> dict | None:
+    """Authorize Asterisk for outgoing e-Face calls; return old values for rollback."""
+    before = await sip_status(host, port, username, password)
+    previous = {"enable": str(before.get("ENABLE", "0")),
+                "incoming_call_enable": str(before.get("INCOMING_CALL_ENABLE", "0")),
+                "incoming_call_user": str(before.get("INCOMING_CALL_USER", ""))}
+    desired = {"enable": "1", "incoming_call_enable": "1", "incoming_call_user": asterisk_host}
+    if previous == desired:
+        return None
+    directory = Path(os.environ.get("EFACE_DOORBIRD_SIP_BACKUPS", "/data/doorbird_sip_backups"))
+    directory.mkdir(parents=True, exist_ok=True)
+    backup = directory / f"{station_id}.{secrets.token_hex(8)}.json"
+    with backup.open("x", encoding="utf-8") as file:
+        os.chmod(backup, 0o600)
+        json.dump(before, file)
+        file.flush()
+        os.fsync(file.fileno())
+    try:
+        await _sip_settings(host, port, username, password, desired)
+        after = await sip_status(host, port, username, password)
+        if any(str(after.get(field)) != value for field, value in
+               (("ENABLE", "1"), ("INCOMING_CALL_ENABLE", "1"), ("INCOMING_CALL_USER", asterisk_host))):
+            raise RuntimeError("DoorBird non ha confermato le chiamate SIP in ingresso")
+    except Exception:
+        try:
+            await restore_incoming_sip(host, port, username, password, previous)
+        except Exception:
+            pass  # The persistent backup remains available for recovery.
+        raise
+    return previous
+
+
+async def restore_incoming_sip(host: str, port: int, username: str, password: str, previous: dict) -> None:
+    await _sip_settings(host, port, username, password, previous)
 
 
 async def live_video(host: str, port: int, username: str, password: str):

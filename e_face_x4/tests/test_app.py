@@ -230,7 +230,7 @@ def test_intercom_dashboard_stores_only_local_settings(monkeypatch, tmp_path) ->
     assert 'id="tools-admin-nav"' in page
     assert 'id="intercom-tool"' in page
     assert 'id="users-tool"' in page
-    assert "tools-dashboard.js?v=2.21.17" in page
+    assert "tools-dashboard.js?v=2.21.18" in page
 
 
 def test_external_stations_api_requires_login_and_hides_secrets(monkeypatch, tmp_path) -> None:
@@ -238,12 +238,17 @@ def test_external_stations_api_requires_login_and_hides_secrets(monkeypatch, tmp
     monkeypatch.setenv("EFACE_INTERCOM_SETTINGS", str(tmp_path / "intercom.json"))
     monkeypatch.setenv("EFACE_EXTERNAL_STATIONS", str(tmp_path / "external.json"))
     from app.user_auth import create_admin
-    from app import provisioner_client
+    from app import provisioner_client, doorbird_api
     async def fake_provision(method, path, payload=None):
-        assert method == "PUT" and path == "/v1/external-stations"
-        assert payload == {"stations": [{"extension": "8202", "host": "192.168.2.31"}]}
+        assert path == "/v1/external-stations"
+        if method == "PUT":
+            assert payload == {"stations": [{"extension": "8202", "host": "192.168.2.31"}]}
         return {"provisioned": True}
+    async def fake_doorbird(*args):
+        assert args[1] == "192.168.2.31"
+        return None
     monkeypatch.setattr(provisioner_client, "request", fake_provision)
+    monkeypatch.setattr(doorbird_api, "ensure_incoming_sip", fake_doorbird)
     create_admin("password-admin-lunga")
     client = TestClient(create_app())
     assert client.get("/api/intercom/external-stations").status_code == 401

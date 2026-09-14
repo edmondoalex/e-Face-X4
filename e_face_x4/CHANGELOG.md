@@ -1,5 +1,8 @@
 # Changelog
 
+## 2.21.18 — 2026-09-14
+- Le nuove postazioni esterne vengono preparate completamente da Admin e-Face: l'API DoorBird abilita le chiamate SIP in ingresso e autorizza Asterisk, salvando i valori precedenti; poi il provisioner configura e verifica la rotta persistente. In caso di errore e-Face prova a ripristinare entrambi i lati e non abilita CHIAMA.
+
 ## 2.21.17 — 2026-09-14
 - Intercom: elenco persistente di fino a otto postazioni esterne in Strumenti → Admin → Videocitofono. Ogni postazione ha nome, IP, porta HTTP, credenziale server-side e interno SIP 82xx; e-Face configura e verifica la rotta SIP persistente tramite il provisioner Asterisk associato, poi abilita CHIAMA e video. La pagina Intercom aggiorna l'elenco senza ricarica. Il DoorBird Ingresso mantiene la rotta 8201 e le credenziali esistenti. Nessun gruppo di chiamata in ingresso viene ancora modificato.
 

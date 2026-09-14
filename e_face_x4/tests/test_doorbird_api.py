@@ -1,8 +1,28 @@
 import asyncio
 
 import httpx
+import pytest
 
 from app.doorbird_api import check_identity, live_image, live_video
+
+
+@pytest.mark.asyncio
+async def test_doorbird_sip_setup_backs_up_and_verifies(monkeypatch, tmp_path) -> None:
+    from app import doorbird_api
+    monkeypatch.setenv("EFACE_DOORBIRD_SIP_BACKUPS", str(tmp_path))
+    states = [{"ENABLE": "1", "INCOMING_CALL_ENABLE": "1", "INCOMING_CALL_USER": "192.168.3.10"},
+              {"ENABLE": "1", "INCOMING_CALL_ENABLE": "1", "INCOMING_CALL_USER": "192.168.3.24"}]
+    changes = []
+    async def status(*args):
+        return states.pop(0)
+    async def settings(*args):
+        changes.append(args[-1])
+    monkeypatch.setattr(doorbird_api, "sip_status", status)
+    monkeypatch.setattr(doorbird_api, "_sip_settings", settings)
+    previous = await doorbird_api.ensure_incoming_sip("cancello", "192.168.2.31", 80, "user", "password", "192.168.3.24")
+    assert previous["incoming_call_user"] == "192.168.3.10"
+    assert changes[0]["incoming_call_user"] == "192.168.3.24"
+    assert len(list(tmp_path.glob("cancello.*.json"))) == 1
 
 
 def test_doorbird_check_requires_challenge(monkeypatch) -> None:
