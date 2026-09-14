@@ -32,3 +32,8 @@
 #music-navigator-more{padding:10px;text-align:center;background:#171717}#music-navigator-more[hidden]{display:none}#music-navigator-more button{padding:9px 20px;border:1px solid #555;background:#333}
 .music-navigator-settings>div{display:grid;gap:4px;padding:14px 22px;border-bottom:1px solid #111;background:#292929;font-size:20px}.music-navigator-settings small{color:#aaa;font-size:15px}.music-navigator-settings p{padding:14px 22px;color:#bbb}
 @media(max-width:600px){.music-navigator-dialog{width:100vw;height:100dvh;margin:0;border:0;border-radius:0}.music-navigator-dialog>nav button{min-width:0;flex:1;padding:0 4px;font-size:16px}.music-navigator-main strong{font-size:17px}.music-navigator-main img,.music-navigator-placeholder{flex-basis:54px;width:54px;height:54px}}
+.music-navigator-dialog{background:var(--user-card);border-color:rgba(255,255,255,.16)}
+.music-navigator-dialog>header,.music-navigator-dialog>nav,.music-navigator-settings>div{background:var(--user-card-soft)}
+.music-navigator-row,.music-navigator-actions,.music-navigator-actions button,#music-navigator-search,#music-navigator-more{background:var(--user-card-cell)}
+.music-navigator-placeholder,#music-navigator-search input,.music-navigator-hidden{background:var(--user-card-field)}
+#music-navigator-search button,#music-navigator-more button{background:var(--user-card-soft)}

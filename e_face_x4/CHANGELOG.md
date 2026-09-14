@@ -1,5 +1,8 @@
 # Changelog
 
+## 2.20.90 — 2026-09-14
+- Navigatore TuneIn e pannello Nascosti: le superfici seguono la palette delle schede scelta dall'utente, anziché usare sfondi grigi fissi.
+
 ## 2.20.89 — 2026-09-14
 - Ascoltati di recente: × aggiorna subito la UI senza refresh pagina; Nascosti mostra le fonti da ripristinare singolarmente. Rimossa dalla UI l'azione che azzerava tutti i nascosti.
 - Stato nascosti scritto in modo atomico e serializzato su /data, per mantenerlo dopo refresh, riavvio e aggiornamento.
