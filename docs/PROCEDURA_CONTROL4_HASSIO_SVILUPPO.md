@@ -1,0 +1,107 @@
+# Procedura operativa Control4 ↔ Home Assistant/e-Face
+
+Stato documentato: 14 settembre 2026, e-Face X4 2.21.7. Questo è il promemoria operativo per riprendere audio, video e, separatamente, videocitofono senza ripetere la fase esplorativa né chiedere all'utente prove manuali che possiamo fare noi. **All'inizio di ogni sessione verificare lo stato reale**: IP, ID, versione, credenziali disponibili e contenuto dei driver possono cambiare.
+
+## 1. Topologia e confini
+
+| Componente | Impianto di prova | Ruolo e fonte della verità |
+| --- | --- | --- |
+| Repository | `e-Face X4/e_face_x4` | Codice, test e documentazione; non contiene password/token di impianto. |
+| Home Assistant | `192.168.3.24` | Supervisor, add-on e-Face, volume persistente `/data`. |
+| Add-on e-Face | slug `d71ab5ec_e_face_x4`, container `app_d71ab5ec_e_face_x4` | Client Control4, API e UI. Verificare slug/container prima di usarli su altri impianti. |
+| Controller Control4 | `192.168.3.10` | Director HTTPS/443, sorgenti, stanze, sessioni, driver e metadati reali. |
+| Accesso tecnico attuale | SSH al solo HA di prova con chiave locale approvata | Sonda dentro il container e-Face, che **già** possiede la configurazione Control4. Non estrarre password/token. |
+
+La porta 5021 è di Composer Pro, non l'API Director usata qui. Le credenziali Control4 sono in `/data/control4.json` dell'add-on; il codice le carica con `load_control4_config()` e ottiene token effimeri tramite `control4_director()`. Non stampare quel file, il bearer token, cookie, URL temporanei di login o risposte grezze che possano contenerli. `get_item_info`, snapshot, nomi e campi selezionati bastano per la maggior parte delle diagnosi.
+
+Gli ID **non sono costanti di prodotto**. Valori osservati nell'impianto: Ufficio Alex stanza 51; Stations proxy 24; TuneIn 615; Spotify Connect 1569; Wireless Music Bridge proxy media-service 210 e protocollo 209; coda/sessioni 100002. Scoprire sempre gli ID dalla UI configuration, dalle `source_options` della stanza e da `get_item_info(id)` prima di inviare un comando.
+
+## 2. Avvio ottimizzato di una sessione
+
+1. Leggere questa procedura, il task specifico in `docs/`, `git status --short`, il changelog recente e i file del connettore interessato. Le modifiche non correlate sono dell'utente: non ripulire il worktree e non includerle nei commit.
+2. Verificare read-only versione/stato dell'add-on. Su Windows, usare una chiave SSH locale **già autorizzata**, verificandone prima l'esistenza; la chiave temporanea usata il 14/09 era `%TEMP%\eface_c4_debug_20260914`, ma può non esistere in una sessione futura. Se manca, non inventare credenziali né far ripetere test all'utente: usare le diagnosi admin disponibili o chiedere il ripristino dell'accesso.
+3. Eseguire **una sonda mirata dentro il container** per acquisire insieme: stanza, sorgente attiva, ID proxy, variabili pertinenti e dato del driver da verificare. Stampare solo campi non segreti. Raggruppare le letture indipendenti in una sola sonda quando possibile. Non iniziare con una sequenza di screenshot, refresh manuali o prove alla cieca.
+4. Riprodurre il caso in un test locale con fixture di risposta reali ma **redatte**. Cambiare soltanto il livello che non funziona: Director/protocollo, normalizzazione, API, stato frontend, cache o CSS.
+5. Eseguire `node --check app/static/assets/app.js`, `python -m pytest -q` da `e_face_x4`, `git diff --check`. Verificare anche i percorsi frontend in caso di UI/Ingress. Se si cambia asset JS/CSS, aggiornare il cache-buster in `app/static/index.html` e la versione in `config.yaml`, `app/main.py`, `CHANGELOG.md`.
+6. Solo per una richiesta di modifica con aggiornamento autorizzato: commit dei **soli file pertinenti**, push, `ha store reload --no-progress` e `ha apps update <slug> --no-progress`. Attendere l'esito, poi verificare `ha apps info <slug> --raw-json` (versione `started`). Una risposta CLI «Command completed successfully» non prova da sola che la UI sia corretta.
+7. Chiudere con una verifica end-to-end proporzionata. Se il comando causerebbe riproduzione, chiamata, abbinamento, rimozione o modifica delle credenziali su un impianto in uso, eseguire prima verifiche read-only e test con mock; chiedere all'utente **solo** la prova fisica realmente necessaria, indicando gesto e risultato atteso. Non presentare test unitari come prova dell'audio/video reale.
+
+Comando read-only di esempio (PowerShell; adattare la chiave dopo averla verificata):
+
+```powershell
+$efSshKey = Join-Path $env:TEMP 'eface_c4_debug_20260914'
+if (-not (Test-Path -LiteralPath $efSshKey)) { throw 'Chiave tecnica non disponibile' }
+ssh -i $efSshKey -o IdentitiesOnly=yes -o BatchMode=yes -o StrictHostKeyChecking=yes -o MACs=hmac-sha2-256-etm@openssh.com -c aes256-ctr root@192.168.3.24 'ha apps info d71ab5ec_e_face_x4 --raw-json'
+```
+
+L'opzione MAC/cifrario ha reso compatibile la connessione a questo HA; non è una configurazione universale. Preferire `docker exec -i <container> python3 -` con uno script Python passato via stdin quando serve il client già configurato. Non passare il risultato di `load_control4_config()` a `print`, né esportare il token. Esempio di **sola lettura**:
+
+```powershell
+$efProbe = @'
+import asyncio
+from app.connectors.control4_media import Control4MediaConnector
+from app.control4 import load_control4_config
+
+async def main():
+    snapshot = await Control4MediaConnector(load_control4_config()).snapshot()
+    for item in snapshot.get("items", []):
+        if item.get("room") == "Ufficio Alex":
+            print({key: item.get(key) for key in ("room", "source", "active_source_id", "title", "active_experience")})
+            print([(source["label"], source["key"], source["source_id"]) for source in item.get("source_options", [])])
+
+asyncio.run(main())
+'@
+$efProbe | ssh -i $efSshKey -o IdentitiesOnly=yes -o BatchMode=yes -o StrictHostKeyChecking=yes -o MACs=hmac-sha2-256-etm@openssh.com -c aes256-ctr root@192.168.3.24 'docker exec -i app_d71ab5ec_e_face_x4 python3 -'
+```
+
+## 3. Director: capire prima lo schema, poi comandare
+
+`app/control4.py` gestisce login Control4 e client Director. `app/connectors/control4_media.py` legge UI configuration, stanze e variabili. Un comando REST `/api/v1/items/{proxy_id}/commands` può restituire solo un **acknowledgement**, non il contenuto del menu o la conferma della riproduzione. Il proxy `media_service` non va confuso con il dispositivo protocollo/Lua collegato.
+
+Per i menu media-service lo schema è descritto dal **driver installato**. Leggere manifest XML/JSON e, se accessibile, sorgente Lua del driver senza eseguirlo né copiarlo integralmente in Git/chat. Nell'impianto il pacchetto Wireless Music Bridge era leggibile in sola lettura via `/c4z/wireless_music_bridge/driver.xml` e `/driver.lua` sul controller; usare `curl.exe` su Windows se `Invoke-WebRequest` fallisce. Un vecchio pacchetto `TuneIn.c4z` OS2 analizzato nel repository **non è** prova del driver TuneIn corrente. Non inviare `GetTabList` o altri comandi solo per somiglianza di nome: verificare capability, tab, firma `ARGS`, valori default e azioni effettive.
+
+Pattern verificato in `app/control4_msp.py`:
+
+1. Scoprire `proxy_id` e `room_id`, convalidare `get_item_info(proxy_id)`/`proxy == media_service`.
+2. Aprire `C4Websocket` e sottoscrivere **prima** del POST il proxy. Attendere l'ack della sottoscrizione (nel codice attuale: 2 secondi).
+3. Creare `SEQ` e `NAVID` unici. Inviare `ROOMID`, `SEQ`, `NAVID`, `LOCALE=it_IT`, `ARGS` XML serializzato con escaping (`<args><arg name="...">...</arg></args>`).
+4. Ascoltare `OnDataToUI.data.RESPONSE`; accettare solo la coppia `SEQ`/`NAVID` richiesta e leggere `DATA`. Gestire timeout/errore, scollegare il WebSocket.
+5. **Non generalizzare** il flag async: il Wireless Music Bridge ha restituito la lista `PairedDeviceList` con `is_async=True`; con `False` rispondeva solo `SendToDevice`. Altri driver usano il percorso standard del proprio adattatore. Il flag si decide per comando/driver su prova reale.
+
+Moduli già presenti: `control4_msp.py` TuneIn, `control4_msp_catalog.py` Amazon/TIDAL e altri cataloghi compatibili, `control4_spotify.py` Spotify Connect, `control4_stations.py` Stations, `control4_bridge.py` Bluetooth. Non creare un'unica mappa di comandi per tutti: stessa cornice UI, adattatori specifici. Per menu e azioni utilizzare token temporanei server-side associati a proxy/stanza/tab e verificare scadenza; non mandare al browser dati Bluetooth o blob raw inutili.
+
+Nel Wireless Music Bridge: `PairedDeviceList` legge i dispositivi; `BtConnectDisconnect` e `BtRemoveDevice` richiedono Name/Addr/Connected/Paired dell'elemento reale. Un `BtRemoveDevice` con Addr vuoto può essere pericoloso: il backend valida l'indirizzo. Pairing usa `BtAddDevice`, notifica `DriverNotification`/`Authenticate` e poi `BtAuthenticate`. La **scheda sorgente** seleziona il bridge nella stanza; **copertina/icona del player** apre il popup. Non confondere connessione Bluetooth e selezione della fonte audio.
+
+## 4. Audio, video e stato UI: livelli da non mescolare
+
+| Sintomo | Prima lettura/prova automatica | Errore tipico da evitare |
+| --- | --- | --- |
+| Clic su sorgente apre menu ma non suona | `source_options.key` (`listen:<id>`/`watch:<id>`), `active_source_id`, `CURRENT_AUDIO_DEVICE`/`CURRENT_VIDEO_DEVICE`; `select_source` del room connector | Trattare l'apertura del popup come selezione/riproduzione. |
+| Voce del menu selezionata ma player resta vecchio | Ack del comando, `CURRENT MEDIA INFO`, `PLAYING_AUDIO_DEVICE`, `QUEUE_STATUS_V2`, aggiornamento bootstrap/UI | Deducere «play riuscito» da HTTP 200 o fare solo refresh CSS. |
+| Due sessioni che dovrebbero essere una | `QUEUE_STATUS_V2` su 100002, owner/members e `normalize_control4_groups` | Unire per titolo/cover o dividere per nome sorgente: stesso contenuto non significa stessa sessione. |
+| Logo AIRPLAY o generico errato | `active_source_id`, `medSrcDev`, `source_options`, override in Strumenti e `api/control4/source-icon/<id>` | Usare `audioFormat` o la cover del brano come identità della sorgente. |
+| Cover mancante/dinamica | URL originale solo attraverso la diagnosi server redatta; origine/porta/status/MIME/dimensione/redirect, `content_fingerprint` | Esporre URL con token, disattivare la protezione SSRF o nascondere l'errore con un'immagine casuale. |
+| Menu video/telecomando | esperienza `watch`, ID della sorgente video attiva, azioni remote dichiarate, `video_remote` validato sul dispositivo | Mandare comandi telecomando a una sorgente non attiva o supporre che video Control4 significhi videocitofono SIP già integrato. |
+
+Per le stanze Control4 `select_source` usa `C4Room.set_audio_source(id)` per `listen` e `set_video_and_audio_source(id)` per `watch` (`connectors/control4_media.py`). Gli eventi `CURRENT MEDIA INFO` descrivono spesso **il brano corrente**, mentre `GetHistoryItemsByRooms` descrive il **contenitore** (playlist/stazione) da cui proviene. Spotify Connect può mostrare titolo/artista/cover del brano senza un URI riproducibile (`mediaid` assente, ID brano nella coda vuoto). In quel caso la stella del player salva la **playlist più recente verificata della stanza**, con il suo nome reale; non inventare un preferito brano che poi non si può suonare. Stations usa invece l'ID stazione verificato nel catalogo. Non scambiare i preferiti e-Face con i «Preferiti alla stanza» di Control4.
+
+Persistenza: favoriti e-Face `/data/control4_media_favorites.json`, copie cover `/data/control4_favorite_artwork/`, voci recenti nascoste `/data/control4_hidden_recents.json`, icone sorgenti personalizzate/visibilità in `/data/source-icons/`; il catalogo Stations è in `/data/control4_stations_catalog.json`. Sono dati dell'utente: non eliminare/reinizializzare per correggere UI o cache. La cronologia Director può cambiare, perciò salvare nel preferito `driver_id`/proxy, key riproducibile e metadati necessari; la cover deve avere fallback con logo della **sorgente**, non del brano.
+
+**Cover dinamica di una playlist Spotify (verifica 14/09/2026):** «Main Stage» ha la stessa `key` nei Recenti e nei Preferiti, ma il `content_fingerprint` della cronologia è cambiato dopo il cambio brano; il Preferito ha ancora il fingerprint precedente e una copia immagine persistente. È l'effetto atteso dell'implementazione 2.21.4: `recently_played()` aggiorna la mappa della cover dal Director, mentre `/api/control4/favorites/artwork` serve la copia fissata quando fu salvato il preferito. Non è perdita del preferito né errore del logo servizio. **Scelta UI ancora aperta:** se si vuole la stessa cover dinamica in entrambe le barre, aggiornare solo la cache cover del preferito quando una voce con la stessa `key` riappare con fingerprint nuovo, validando MIME/dimensione/origine e mantenendo la vecchia immagine se il fetch fallisce. Non sovrascrivere la copertina persistente solo perché l'URL del Director è cambiato: scaricare e validare prima, sostituire atomicamente; testare refresh e reboot. L'ID della sorgente e la `key` riproducibile restano immutati.
+
+Le combinazioni di colori dei popup e delle schede devono derivare dalle impostazioni persistenti di Strumenti. Verificare desktop e mobile, stato dopo refresh e riavvio, clic e feedback senza obbligare l'utente a fare refresh manuale. Un test CSS/DOM locale non prova il comportamento sul controller reale.
+
+## 5. Cosa è già verificato e cosa no
+
+- Verificati su impianto: accesso via container e-Face al Director con credenziali già salvate; `PairedDeviceList` asincrono del bridge; ID sorgente stanza; lettura di `CURRENT MEDIA INFO`, cronologia e `QUEUE_STATUS_V2`; menu TuneIn/Spotify/Stations/bridge; deploy add-on e verifica versione; ultimi test locali: 125 verdi alla 2.21.7. La versione corrente va sempre riverificata.
+- Riproduzione/favoriti radio Stations confermati dall'utente. Per Spotify la cronologia della stanza e `Recently Played` del driver mostravano «Big Boom In The Room» come playlist, mentre il player mostrava i singoli brani. L'endpoint della stella playlist è implementato; una prova fisica successiva resta distinta dai test unitari.
+- Audio/video Control4 della dashboard e **videocitofono DoorBird/SIP** sono percorsi diversi. Quest'ultimo ha pagina SIP di prova, relay WebSocket Asterisk, impostazioni TURN e diagnostica DoorBird/AMI; il provisioning automatico sicuro degli interni personali, il video citofonico integrato e la prova completa chiamata/audio LAN+remoto **non** sono completati. Vedere `asterisk_provisioner/README.md` e `docs/TASK_INSTALLAZIONE_PLUG_AND_PLAY.md`. Non dedurre che il videocitofono sia pronto dal funzionamento delle sorgenti video Control4.
+- Il vecchio obiettivo di un accesso diagnostico portabile, temporaneo e a privilegi minimi per futuri impianti resta aperto. La chiave SSH attuale è un canale operativo **di questo sito**, non un requisito plug-and-play e non va inclusa nell'app per i clienti.
+
+## 6. Regola per ridurre davvero i test dell'utente
+
+Prima di chiedere un gesto manuale, rispondere internamente a quattro domande: **quale livello è guasto? quale dato reale manca? posso leggerlo senza mutare nulla? quale singola prova fisica confermerebbe la correzione?** Se la risposta è disponibile in Director, manifest, variabili, storico, test o container, prenderla lì. Chiedere all'utente solo ciò che richiede effettivamente il suo dispositivo o il suo account (ascoltare l'audio, verificare il display/mobile, pairing Bluetooth, conferma di un login, squillo DoorBird). Ogni prova richiesta deve dire azione esatta, risultato atteso e cosa registrare se fallisce. Non chiedere screenshot/refresh ripetuti per sostituire una diagnosi che l'add-on può fare.
+
+## 7. Quando aggiornare automaticamente questo task
+
+L'agente non deve aspettare un promemoria dell'utente: nello stesso turno in cui verifica un nuovo meccanismo Control4/HA o risolve un guasto che generalizza a più sorgenti, aggiorna questa procedura (o il task specifico) con: **data, evidenza ottenuta, confine di sicurezza, comando/sonda ripetibile e risultato ancora da verificare**. Lo fa anche dopo una modifica alla persistenza o un test reale che conferma/smentisce un'ipotesi. Non apre un task separato per ogni dettaglio puramente estetico e non scrive credenziali o dump integrali. La regola è resa scopribile alle sessioni future tramite `AGENTS.md` alla radice del repository.

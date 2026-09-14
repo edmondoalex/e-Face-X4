@@ -2,7 +2,7 @@
 
 La matrice dei formati media e delle sorgenti realmente osservate è in [CONTROL4_MEDIA_COMPATIBILITY.md](CONTROL4_MEDIA_COMPATIBILITY.md); comprende anche tre casi precedenti ancora da identificare.
 
-Stato: **DA FARE**. Questo task non riguarda la sola cover: deve rendere ripetibile la diagnosi e lo sviluppo delle funzioni Control4 senza dipendere dalla sessione del PC installatore.
+Stato aggiornato al 14 settembre 2026: **accesso operativo verificato sul solo impianto di prova; accesso diagnostico portabile ancora DA FARE**. La procedura completa realmente usata per Control4, HA e add-on è in [PROCEDURA_CONTROL4_HASSIO_SVILUPPO.md](PROCEDURA_CONTROL4_HASSIO_SVILUPPO.md). Questo task riguarda il futuro canale temporaneo a privilegi minimi che non dipenda dalla sessione del PC installatore.
 
 ## Stato verificato il 13 settembre 2026
 

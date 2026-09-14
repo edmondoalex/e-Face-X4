@@ -17,6 +17,8 @@ alla dashboard.
 
 La cartella `Progettazione UI` contiene esclusivamente i riferimenti originali di progetto.
 
+Per riprendere lo sviluppo Control4/HA senza ripetere la diagnosi iniziale, seguire la [procedura operativa audio, video e accesso al controller](docs/PROCEDURA_CONTROL4_HASSIO_SVILUPPO.md). Il videocitofono SIP/DoorBird è un percorso separato, documentato nella stessa procedura e nel [task di installazione](docs/TASK_INSTALLAZIONE_PLUG_AND_PLAY.md).
+
 ## Sviluppo locale
 
 ```powershell
