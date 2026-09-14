@@ -1,5 +1,8 @@
 # Changelog
 
+## 2.21.19 — 2026-09-14
+- SALVA E CONFIGURA in Admin verifica e, se necessario, riapplica l'autorizzazione SIP anche al DoorBird Ingresso già esistente. È stato osservato un ripristino esterno del suo chiamante autorizzato a Control4 dopo i riavvii; la configurazione resta controllabile da e-Face senza interventi su Asterisk.
+
 ## 2.21.18 — 2026-09-14
 - Le nuove postazioni esterne vengono preparate completamente da Admin e-Face: l'API DoorBird abilita le chiamate SIP in ingresso e autorizza Asterisk, salvando i valori precedenti; poi il provisioner configura e verifica la rotta persistente. In caso di errore e-Face prova a ripristinare entrambi i lati e non abilita CHIAMA.
 

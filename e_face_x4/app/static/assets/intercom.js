@@ -2,7 +2,7 @@
   const $ = (selector) => document.querySelector(selector)
   const adminMode = document.documentElement.classList.contains('admin-intercom')
   const root = new URL('./', location.href)
-  const currentVersion = '2.21.18'
+  const currentVersion = '2.21.19'
   let updateAvailable = false
   async function checkForUpdate() {
     if (document.hidden || !intercomVisible) return

@@ -275,12 +275,17 @@ def create_app() -> FastAPI:
                 await provisioner_client.request("GET", "/v1/external-stations")
             changed_doorbirds = []
             try:
-                for station in proposed[1:]:
+                for station in proposed:
+                    account = {"username": station["username"], "password": station["password"]}
+                    if station["id"] == "ingresso" and not (account["username"] and account["password"]):
+                        account = credential_inventory.load().get("doorbird", {})
+                    if not account.get("username") or not account.get("password"):
+                        raise ValueError(f"Credenziale API mancante per {station['name']}")
                     previous = await doorbird_api.ensure_incoming_sip(
                         station["id"], station["host"], station["http_port"],
-                        station["username"], station["password"], intercom_settings.load()["asterisk_host"])
+                        account["username"], account["password"], intercom_settings.load()["asterisk_host"])
                     if previous is not None:
-                        changed_doorbirds.append((station, previous))
+                        changed_doorbirds.append((station, account, previous))
                 if new_routes or old_routes:
                     await provisioner_client.request("PUT", "/v1/external-stations", {"stations": new_routes})
                     for station in proposed[1:]:
@@ -292,10 +297,10 @@ def create_app() -> FastAPI:
                         await provisioner_client.request("PUT", "/v1/external-stations", {"stations": old_routes})
                     except Exception:
                         logging.exception("Ripristino rotte SIP esterne non riuscito")
-                for station, previous in reversed(changed_doorbirds):
+                for station, account, previous in reversed(changed_doorbirds):
                     try:
                         await doorbird_api.restore_incoming_sip(
-                            station["host"], station["http_port"], station["username"], station["password"], previous)
+                            station["host"], station["http_port"], account["username"], account["password"], previous)
                     except Exception:
                         logging.exception("Ripristino SIP DoorBird non riuscito")
                 raise
