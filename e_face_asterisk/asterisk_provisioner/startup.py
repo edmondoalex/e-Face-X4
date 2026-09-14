@@ -20,7 +20,9 @@ from .managed_config import ManagedConfig
 def assert_asterisk_ports_free(ports: tuple[tuple[int, int], ...] | None = None) -> None:
     """Fail before migration if another PBX occupies standard host ports."""
     if ports is None:
-        ports = ((socket.SOCK_DGRAM, 5060), (socket.SOCK_STREAM, 8088), (socket.SOCK_STREAM, 8089))
+        # The upstream add-on reserves HTTP ports during its own cont-init.
+        # Only the SIP listener detects a competing PBX reliably here.
+        ports = ((socket.SOCK_DGRAM, 5060),)
     for kind, port in ports:
         if kind == socket.SOCK_STREAM:
             with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as check:
