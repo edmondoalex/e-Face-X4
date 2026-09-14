@@ -1,5 +1,8 @@
 # Changelog
 
+## 2.20.92 — 2026-09-14
+- Il nome della stanza nel player generale e' testo semplice, senza bordo ne' riquadro.
+
 ## 2.20.91 — 2026-09-14
 - Player delle viste generali Ascolta e Guarda: etichetta con il nome della stanza comandata, anche su mobile, usando la palette scelta dall'utente. Nella vista stanza resta solo l'intestazione esistente.
 

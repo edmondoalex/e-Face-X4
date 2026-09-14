@@ -1,2 +1,2 @@
-.media-session-room{position:absolute;top:20px;right:84px;max-width:28%;padding:7px 12px;border:1px solid rgba(255,255,255,.16);border-radius:8px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#eaf2f2;background:var(--user-card-soft);font-size:14px;font-weight:600;line-height:20px;pointer-events:none}
-@media(max-width:700px){.media-session-room{top:12px;right:48px;max-width:35%;padding:4px 7px;font-size:11px;line-height:16px}}
+.media-session-room{position:absolute;top:27px;right:96px;max-width:28%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#dce6e8;font-size:14px;font-weight:500;line-height:20px;pointer-events:none}
+@media(max-width:700px){.media-session-room{top:17px;right:52px;max-width:35%;font-size:11px;line-height:16px}}
