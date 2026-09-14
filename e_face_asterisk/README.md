@@ -1,0 +1,9 @@
+# Asterisk e-Face X4 — variante di laboratorio
+
+Variante locale basata sull'immagine TECH7Fox `6.2.0`, con provisioner SIP e-Face in un servizio s6 separato. **Non installare o avviare sull'impianto in uso:** lo slug `asterisk_eface` crea un volume `/config` distinto da quello dell'add-on Asterisk esistente; avviarla insieme al PBX attuale provocherebbe conflitti di porte. Il boot è manuale e il provisioner è disattivato per default. Il guardiano pre-avvio rifiuta le porte 5060/UDP, 8088/TCP e 8089/TCP occupate, ma non sostituisce una migrazione controllata.
+
+Il Dockerfile estende l'immagine upstream senza ricompilare Asterisk, copia il codice provisioner nell'immagine e aggiunge un hook dopo l'inizializzazione upstream, prima del servizio Asterisk. Stato, configurazione PJSIP, backup, certificato TLS e token rimangono solo nel volume persistente `/config/asterisk/eface`. Il servizio HTTPS parte soltanto se `eface_provisioner_enabled` è vero e `eface_provisioner_bind_ip` è impostato a un IPv4 privato esplicito; non è esposto via Ingress. Pairing e-Face, firewall e migrazione delle opzioni/configurazioni esistenti non sono ancora completati.
+
+Per il sito di prova, il volume attuale è montato sul lato host in `/mnt/data/supervisor/app_configs/3e533915_asterisk`. Il volume della nuova variante sarà **diverso**: scoprirlo dopo l'installazione con una sonda read-only, non supporre un percorso. Prima di sostituire il centralino serviranno backup completo recuperabile, confronto dei file/configurazioni e verifica 8290, DoorBird, tablet, registrazione e audio, con finestra di manutenzione autorizzata. Nessuna credenziale va copiata nel repository o nell'immagine.
+
+Vedi [il task tecnico](../docs/TASK_INSTALLAZIONE_PLUG_AND_PLAY.md) e [le regole del provisioner](asterisk_provisioner/README.md).

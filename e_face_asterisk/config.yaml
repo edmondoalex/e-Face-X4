@@ -1,0 +1,61 @@
+name: Asterisk e-Face X4 (laboratorio)
+version: 6.2.0-eface.1
+slug: asterisk_eface
+description: Variante sperimentale Asterisk con provisioning SIP e-Face
+url: https://github.com/edmondoalex/e-Face-X4
+startup: application
+boot: manual_only
+stage: experimental
+arch:
+  - aarch64
+  - amd64
+homeassistant_api: true
+map:
+  - addon_config:rw
+  - media:rw
+  - ssl
+options:
+  ami_password: null
+  auto_add: true
+  auto_add_secret: ""
+  video_support: false
+  register_ingress_entry: true
+  generate_ssl_cert: true
+  certfile: fullchain.pem
+  keyfile: privkey.pem
+  additional_sounds: []
+  mailbox: false
+  mailbox_port: 12345
+  mailbox_password: ""
+  mailbox_extension: "100"
+  mailbox_google_api_key: ""
+  log_level: info
+  eface_provisioner_enabled: false
+  eface_provisioner_bind_ip: ""
+  eface_provisioner_port: 9443
+schema:
+  ami_password: password
+  auto_add: bool
+  auto_add_secret: password
+  video_support: bool
+  additional_sounds:
+    - str
+  register_ingress_entry: bool
+  generate_ssl_cert: bool
+  certfile: str
+  keyfile: str
+  mailbox: bool
+  mailbox_port: port
+  mailbox_password: password
+  mailbox_extension: str
+  mailbox_google_api_key: password
+  log_level: list(all|trace|debug|info|notice|warning|error|fatal|off)
+  eface_provisioner_enabled: bool
+  eface_provisioner_bind_ip: str?
+  eface_provisioner_port: port
+host_network: true
+init: false
+uart: true
+stdin: true
+ingress: true
+ingress_port: 8088

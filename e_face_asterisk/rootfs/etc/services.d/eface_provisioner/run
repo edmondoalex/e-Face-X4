@@ -1,0 +1,7 @@
+#!/usr/bin/with-contenv bashio
+set -euo pipefail
+
+export PYTHONPATH=/opt/eface
+export EFACE_PROVISIONER_BIND_IP="$(bashio::config 'eface_provisioner_bind_ip')"
+export EFACE_PROVISIONER_PORT="$(bashio::config 'eface_provisioner_port')"
+exec python3 -m asterisk_provisioner.runtime
