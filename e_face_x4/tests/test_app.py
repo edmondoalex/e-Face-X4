@@ -287,6 +287,40 @@ def test_admin_doorbird_check_uses_stored_credential_without_exposing_it(monkeyp
     assert calls == [("192.168.2.30", 80, "doorbird-admin", "doorbird-secret")]
 
 
+def test_doorbird_image_requires_login_and_keeps_credential_server_side(monkeypatch, tmp_path) -> None:
+    monkeypatch.setenv("EFACE_AUTH_DIR", str(tmp_path / "auth"))
+    monkeypatch.setenv("EFACE_CREDENTIAL_INVENTORY", str(tmp_path / "inventory.json"))
+    from app.user_auth import create_admin
+    from app import credential_inventory, doorbird_api
+    create_admin("password-admin-lunga")
+    client = TestClient(create_app())
+    endpoint = "/api/intercom/doorbird/image"
+    assert client.get(endpoint).status_code == 401
+    assert client.post("/api/auth/login", json={"username": "admin", "password": "password-admin-lunga"}).status_code == 200
+    assert client.get(endpoint).status_code == 409
+    credential_inventory.save("doorbird", "doorbird-admin", "doorbird-secret")
+    calls = []
+
+    async def fake_image(host, port, username, password):
+        calls.append((host, port, username, password))
+        return b"\xff\xd8\xffimage"
+
+    monkeypatch.setattr(doorbird_api, "live_image", fake_image)
+    response = client.get(endpoint)
+    assert response.status_code == 200
+    assert response.content == b"\xff\xd8\xffimage"
+    assert response.headers["content-type"] == "image/jpeg"
+    assert response.headers["cache-control"] == "no-store, private"
+    assert "doorbird-secret" not in str(response.headers)
+    assert calls == [("192.168.2.30", 80, "doorbird-admin", "doorbird-secret")]
+
+    async def no_permission(*_):
+        return None
+
+    monkeypatch.setattr(doorbird_api, "live_image", no_permission)
+    assert client.get(endpoint).status_code == 204
+
+
 def test_intercom_test_phone_requires_admin_and_same_origin(monkeypatch, tmp_path) -> None:
     monkeypatch.setenv("EFACE_AUTH_DIR", str(tmp_path / "auth"))
     monkeypatch.setenv("EFACE_INTERCOM_TURN_SETTINGS", str(tmp_path / "turn.json"))

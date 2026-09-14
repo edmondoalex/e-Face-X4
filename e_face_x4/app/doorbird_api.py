@@ -4,6 +4,34 @@ from __future__ import annotations
 
 import httpx
 
+MAX_IMAGE_BYTES = 2 * 1024 * 1024
+
+
+async def live_image(host: str, port: int, username: str, password: str) -> bytes | None:
+    """Fetch one bounded JPEG frame; None means DoorBird denies viewing right now."""
+    if not username or not password:
+        raise ValueError("Credenziale DoorBird non configurata")
+    url = f"http://{host}:{port}/bha-api/image.cgi"
+    try:
+        async with httpx.AsyncClient(timeout=6, follow_redirects=False, trust_env=False) as client:
+            async with client.stream("GET", url, auth=httpx.DigestAuth(username, password)) as response:
+                if response.status_code == 204:
+                    return None
+                if response.status_code == 401:
+                    raise PermissionError("Credenziale DoorBird rifiutata")
+                if response.status_code != 200 or response.headers.get("content-type", "").split(";", 1)[0].lower() != "image/jpeg":
+                    raise RuntimeError("Immagine DoorBird non disponibile")
+                content = bytearray()
+                async for chunk in response.aiter_bytes():
+                    content.extend(chunk)
+                    if len(content) > MAX_IMAGE_BYTES:
+                        raise RuntimeError("Immagine DoorBird troppo grande")
+    except httpx.HTTPError as exc:
+        raise ConnectionError("DoorBird non raggiungibile") from exc
+    if not content.startswith(b"\xff\xd8\xff"):
+        raise RuntimeError("Risposta DoorBird non JPEG")
+    return bytes(content)
+
 
 async def check_identity(host: str, port: int, username: str, password: str) -> dict[str, str | bool]:
     """Authenticate without changing DoorBird configuration or exposing the secret."""

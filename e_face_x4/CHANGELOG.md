@@ -1,5 +1,8 @@
 # Changelog
 
+## 2.21.8 — 2026-09-14
+- La pagina citofono mostra immagini live DoorBird aggiornate mentre è visibile. e-Face recupera JPEG con la credenziale salvata, senza esporla al browser; accesso autenticato, risposta non memorizzabile e limite di dimensione.
+
 ## 2.21.7 — 2026-09-14
 - La stella del player Spotify salva/rimuove la playlist più recente della stanza, verificata nel contesto Control4, anziché cercare il titolo del brano in riproduzione. Il preferito mantiene il nome della playlist e resta riproducibile dalla cronologia.
 

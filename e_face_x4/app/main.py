@@ -49,7 +49,7 @@ from .connectors.control4_media import cached_control4_icon, cached_control4_ico
 from .connectors.supervisor import discover_addon_url, discover_host_url
 from .demo import dashboard as demo_dashboard
 
-VERSION = "2.21.7"
+VERSION = "2.21.8"
 STATIC = Path(__file__).parent / "static"
 logging.basicConfig(level=logging.WARNING, format="%(asctime)s %(levelname)s [e-face-x4] %(message)s")
 _reconnect_warning_at: dict[str, float] = {}
@@ -830,6 +830,27 @@ def create_app() -> FastAPI:
         settings = intercom_settings.load()
         result = await doorbird_api.check_identity(settings["doorbird_host"], settings["doorbird_port"], account["username"], account["password"])
         return JSONResponse(result, headers={"Cache-Control": "no-store, private"})
+
+    @app.get("/api/intercom/doorbird/image")
+    async def intercom_doorbird_image(request: Request) -> Response:
+        if not user_auth.session_user(request.cookies.get(user_auth.COOKIE)):
+            raise HTTPException(status_code=401, detail="Accesso richiesto")
+        account = credential_inventory.load().get("doorbird", {})
+        if not account.get("username") or not account.get("password"):
+            raise HTTPException(status_code=409, detail="Credenziale DoorBird non configurata")
+        settings = intercom_settings.load()
+        try:
+            frame = await doorbird_api.live_image(
+                settings["doorbird_host"], settings["doorbird_port"], account["username"], account["password"]
+            )
+        except PermissionError as exc:
+            raise HTTPException(status_code=403, detail=str(exc)) from exc
+        except (ConnectionError, RuntimeError) as exc:
+            raise HTTPException(status_code=502, detail=str(exc)) from exc
+        headers = {"Cache-Control": "no-store, private", "Pragma": "no-cache", "X-Content-Type-Options": "nosniff"}
+        if frame is None:
+            return Response(status_code=204, headers=headers)
+        return Response(content=frame, media_type="image/jpeg", headers=headers)
 
     @app.put("/api/admin/intercom")
     async def admin_save_intercom(request: Request, payload: dict) -> dict:

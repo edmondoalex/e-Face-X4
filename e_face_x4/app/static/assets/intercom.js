@@ -12,6 +12,58 @@
   let micSource = null
   let micGain = null
   let iceServers = []
+  let doorbirdTimer = null
+  let doorbirdImageUrl = null
+  let doorbirdAbort = null
+  let doorbirdStopped = false
+
+  async function refreshDoorbird() {
+    if (doorbirdStopped || document.hidden) return
+    doorbirdAbort = new AbortController()
+    try {
+      const response = await fetch(new URL('api/intercom/doorbird/image', root), {
+        cache:'no-store', credentials:'same-origin', signal:doorbirdAbort.signal
+      })
+      if (response.status === 204) throw new Error('Immagine non autorizzata da DoorBird in questo momento.')
+      if (!response.ok) throw new Error('Immagine DoorBird non disponibile.')
+      const blob = await response.blob()
+      if (doorbirdStopped || document.hidden) return
+      const nextUrl = URL.createObjectURL(blob)
+      const previousUrl = doorbirdImageUrl
+      doorbirdImageUrl = nextUrl
+      const image = $('#doorbird-image')
+      image.src = nextUrl
+      image.hidden = false
+      $('#doorbird-image-status').hidden = true
+      if (previousUrl) URL.revokeObjectURL(previousUrl)
+    } catch (exception) {
+      if (exception.name !== 'AbortError') {
+        $('#doorbird-image-status').textContent = exception.message
+        $('#doorbird-image-status').hidden = false
+        $('#doorbird-image').hidden = true
+      }
+    } finally {
+      doorbirdAbort = null
+      if (!doorbirdStopped && !document.hidden) doorbirdTimer = setTimeout(refreshDoorbird, 2000)
+    }
+  }
+
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) {
+      clearTimeout(doorbirdTimer)
+      doorbirdAbort?.abort()
+    } else {
+      clearTimeout(doorbirdTimer)
+      refreshDoorbird()
+    }
+  })
+  window.addEventListener('pagehide', () => {
+    doorbirdStopped = true
+    clearTimeout(doorbirdTimer)
+    doorbirdAbort?.abort()
+    if (doorbirdImageUrl) URL.revokeObjectURL(doorbirdImageUrl)
+  })
+  refreshDoorbird()
   const icePreferenceKey = 'eface-intercom-fast-ice-v1'
   let icePreference = null
   try { icePreference = localStorage.getItem(icePreferenceKey) } catch (_) { /* storage unavailable */ }
