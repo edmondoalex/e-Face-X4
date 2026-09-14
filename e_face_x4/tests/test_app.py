@@ -230,7 +230,7 @@ def test_intercom_dashboard_stores_only_local_settings(monkeypatch, tmp_path) ->
     assert 'id="tools-admin-nav"' in page
     assert 'id="intercom-tool"' in page
     assert 'id="users-tool"' in page
-    assert "tools-dashboard.js?v=2.21.19" in page
+    assert "tools-dashboard.js?v=2.21.20" in page
 
 
 def test_external_stations_api_requires_login_and_hides_secrets(monkeypatch, tmp_path) -> None:
@@ -269,6 +269,8 @@ def test_external_stations_api_requires_login_and_hides_secrets(monkeypatch, tmp
     assert "secret" not in public.text
     assert "192.168.2.31" not in public.text
     assert public.json()["stations"][1]["name"] == "Cancello"
+    assert client.post("/api/intercom/external-stations/esterno-2/prepare-call").json() == {"ready": True, "extension": "8202"}
+    assert client.post("/api/intercom/external-stations/ingresso/prepare-call").json() == {"ready": True, "extension": "8201"}
 
 
 def test_intercom_uses_admin_verified_8301_copy(monkeypatch, tmp_path) -> None:

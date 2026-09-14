@@ -925,6 +925,23 @@ def create_app() -> FastAPI:
             raise HTTPException(status_code=409, detail="Credenziale postazione esterna non configurata")
         return station, account
 
+    @app.post("/api/intercom/external-stations/{station_id}/prepare-call")
+    async def intercom_prepare_external_call(request: Request, station_id: str) -> dict:
+        if not user_auth.session_user(request.cookies.get(user_auth.COOKIE)):
+            raise HTTPException(status_code=401, detail="Accesso richiesto")
+        station, account = external_access(station_id)
+        if not station["ready"]:
+            raise HTTPException(status_code=409, detail="Rotta SIP della postazione non attiva")
+        try:
+            await doorbird_api.ensure_incoming_sip(
+                station["id"], station["host"], station["http_port"], account["username"],
+                account["password"], intercom_settings.load()["asterisk_host"])
+        except PermissionError as exc:
+            raise HTTPException(status_code=403, detail=str(exc)) from exc
+        except (OSError, RuntimeError) as exc:
+            raise HTTPException(status_code=502, detail=str(exc)) from exc
+        return {"ready": True, "extension": station["sip_extension"]}
+
     @app.get("/api/intercom/doorbird/image")
     @app.get("/api/intercom/external-stations/{station_id}/image")
     async def intercom_doorbird_image(request: Request, station_id: str = "ingresso") -> Response:

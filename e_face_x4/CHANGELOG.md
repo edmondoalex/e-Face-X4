@@ -1,5 +1,8 @@
 # Changelog
 
+## 2.21.20 — 2026-09-14
+- Prima di chiamare una postazione esterna, e-Face verifica e prepara il suo SIP via API DoorBird. Evita il rifiuto 603 quando un altro sistema ha ripristinato il chiamante autorizzato del DoorBird Ingresso a Control4; non esegue scritture periodiche mentre non si chiama.
+
 ## 2.21.19 — 2026-09-14
 - SALVA E CONFIGURA in Admin verifica e, se necessario, riapplica l'autorizzazione SIP anche al DoorBird Ingresso già esistente. È stato osservato un ripristino esterno del suo chiamante autorizzato a Control4 dopo i riavvii; la configurazione resta controllabile da e-Face senza interventi su Asterisk.
 

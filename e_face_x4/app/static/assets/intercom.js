@@ -2,7 +2,7 @@
   const $ = (selector) => document.querySelector(selector)
   const adminMode = document.documentElement.classList.contains('admin-intercom')
   const root = new URL('./', location.href)
-  const currentVersion = '2.21.19'
+  const currentVersion = '2.21.20'
   let updateAvailable = false
   async function checkForUpdate() {
     if (document.hidden || !intercomVisible) return
@@ -70,6 +70,7 @@
         dial.type = 'button'
         dial.textContent = 'CHIAMA'
         dial.dataset.dialExtension = station.sip_extension
+        dial.dataset.externalStation = station.id
         dial.dataset.stationReady = String(station.ready)
         dial.disabled = !station.ready || !phone?.isRegistered() || !!call
         if (!station.ready) dial.title = 'Configura e verifica la rotta SIP in Asterisk'
@@ -462,6 +463,13 @@
     try {
       await prepareSpeaker()
       const stream = await preparedMicrophone()
+      if (button.dataset.externalStation) {
+        $('#call-status').textContent = 'Preparo la postazione esterna…'
+        const response = await fetch(new URL(`api/intercom/external-stations/${encodeURIComponent(button.dataset.externalStation)}/prepare-call`, root),
+          {method:'POST', cache:'no-store', credentials:'same-origin'})
+        const result = await response.json().catch(() => ({}))
+        if (!response.ok || result.extension !== button.dataset.dialExtension) throw new Error(result.detail || 'Postazione esterna non pronta')
+      }
       if (!phone?.isRegistered() || call) { releaseMicrophone(); return }
       phone.call(`sip:${button.dataset.dialExtension}@asterisk`, {mediaStream:stream, mediaConstraints:{audio:true, video:false}, pcConfig:peerConfig()})
     } catch (exception) {
