@@ -26,6 +26,7 @@ from starlette.responses import RedirectResponse
 from .config import load_settings
 from .control4 import control4_director, load_control4_config, public_control4_config, save_control4_config, test_control4_connection
 from .control4_msp import tunein_browse, tunein_action, tunein_settings
+from .control4_msp_catalog import catalog_action, catalog_browse, catalog_settings, catalog_tabs
 from .recent_visibility import filter_recents, hidden_recents, hide_recent, restore_recent, restore_recents
 from .installer_auth import COOKIE, create_session, valid_session
 from . import user_auth
@@ -44,7 +45,7 @@ from .connectors.control4_media import cached_control4_icon, cached_control4_ico
 from .connectors.supervisor import discover_addon_url, discover_host_url
 from .demo import dashboard as demo_dashboard
 
-VERSION = "2.20.92"
+VERSION = "2.20.93"
 STATIC = Path(__file__).parent / "static"
 logging.basicConfig(level=logging.WARNING, format="%(asctime)s %(levelname)s [e-face-x4] %(message)s")
 _reconnect_warning_at: dict[str, float] = {}
@@ -388,6 +389,44 @@ def create_app() -> FastAPI:
         except Exception as exc:
             logging.warning("Navigazione TuneIn non disponibile (%s)", type(exc).__name__)
             raise HTTPException(status_code=502, detail="Navigazione TuneIn non disponibile") from exc
+
+    @app.post("/api/control4/music/{service}/navigate")
+    async def control4_catalog_navigate(service: str, request: Request, payload: dict) -> Response:
+        if service not in {"amazon", "tidal"}:
+            raise HTTPException(status_code=404, detail="Servizio non disponibile")
+        if user_auth.enabled() and not user_auth.session_user(request.cookies.get(user_auth.COOKIE)):
+            raise HTTPException(status_code=401, detail="Accesso richiesto")
+        try:
+            proxy_id, room_id = int(payload.get("proxy_id")), int(payload.get("room_id"))
+            if proxy_id <= 0 or room_id <= 0:
+                raise ValueError
+            director, _ = await control4_director(load_control4_config())
+            info = await director.get_item_info(proxy_id)
+            source = info[0] if isinstance(info, list) and info else info
+            expected = "amazon music" if service == "amazon" else "tidal"
+            if not isinstance(source, dict) or str(source.get("name") or "").casefold() != expected or source.get("proxy") != "media_service":
+                raise ValueError
+            operation = str(payload.get("operation") or "")
+            tab = str(payload.get("tab") or ("Home" if service == "amazon" else "Library"))
+            if operation == "tabs":
+                result = await catalog_tabs(service, proxy_id, room_id)
+            elif tab == "Settings":
+                result = await catalog_settings(proxy_id, room_id)
+            elif payload.get("action"):
+                result = await catalog_action(service, proxy_id, room_id, tab, str(payload.get("item_id") or ""), str(payload["action"]))
+            else:
+                result = await catalog_browse(service, proxy_id, room_id, tab, str(payload.get("parent") or "") or None,
+                                              int(payload.get("offset") or 0), str(payload.get("search") or ""))
+            return JSONResponse(result, headers={"Cache-Control": "no-store, private"})
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail="Navigazione servizio non valida o voce scaduta") from exc
+        except asyncio.TimeoutError as exc:
+            raise HTTPException(status_code=504, detail="Il servizio non ha risposto: riprova") from exc
+        except HTTPException:
+            raise
+        except Exception as exc:
+            logging.warning("Navigazione %s non disponibile (%s)", service, type(exc).__name__)
+            raise HTTPException(status_code=502, detail="Navigazione servizio non disponibile") from exc
 
     @app.get("/api/admin/control4/artwork-diagnostic")
     async def admin_control4_artwork_diagnostic(request: Request) -> dict:

@@ -488,8 +488,9 @@ function renderMediaExperience(devices) {
   const ttsVolume = Math.max(0, Math.min(100, Number(localStorage.getItem('eface-tts-volume') ?? 50)))
   const voicePanel = selected.provider === 'evoice' && selected.tts_enabled && ttsPlayers.length ? `<section class="evoice-panel"><div class="evoice-heading"><h3>Messaggio vocale</h3><label><input type="checkbox" data-tts-select-all ${ttsPlayers.length === 1 ? 'checked' : ''}> Seleziona tutti</label></div><div class="evoice-targets">${ttsPlayers.map((device) => `<div class="evoice-target"><label><input type="checkbox" data-tts-target value="${esc(device.id)}" ${device.id === selected.id ? 'checked' : ''}><span>${esc(device.name)}</span><small>${esc(device.room)}</small></label>${device.dnd_available ? `<button class="evoice-dnd ${device.dnd ? 'active' : ''}" data-dnd-device="${esc(device.id)}" data-dnd-value="${device.dnd ? 'false' : 'true'}">DND</button>` : ''}</div>`).join('')}</div><label class="evoice-volume"><span>Volume messaggio</span><input type="range" min="0" max="100" value="${ttsVolume}" style="--volume:${ttsVolume}%" data-tts-volume><output>${ttsVolume}%</output></label><textarea id="evoice-tts-message" maxlength="500" rows="3" placeholder="Scrivi il messaggio da pronunciare"></textarea><button class="evoice-send" data-tts-send>INVIA MESSAGGIO</button></section>` : ''
   const sourceGlyph = activeMediaSourceMarkup(selected, 'device-glyph', mainIcon)
-  const navigatorIcon = selected.provider === 'control4' && /tunein/i.test(selected.source || '') && recentRoomId ? `<button type="button" class="media-navigator-open" data-msp-open data-msp-room="${recentRoomId}" title="Apri TuneIn">${sourceGlyph}</button>` : sourceGlyph
-  const navigatorArtwork = navigatorIcon !== sourceGlyph ? mainArtwork.replace('class="media-artwork', `data-msp-open data-msp-room="${recentRoomId}" role="button" tabindex="0" class="media-artwork`) : mainArtwork
+  const serviceName = /tunein/i.test(selected.source || '') ? 'tunein' : /amazon music/i.test(selected.source || '') ? 'amazon' : /tidal/i.test(selected.source || '') ? 'tidal' : ''
+  const navigatorIcon = selected.provider === 'control4' && serviceName && recentRoomId ? `<button type="button" class="media-navigator-open" data-msp-open data-msp-service="${serviceName}" data-msp-room="${recentRoomId}" title="Apri ${esc(selected.source)}">${sourceGlyph}</button>` : sourceGlyph
+  const navigatorArtwork = navigatorIcon !== sourceGlyph ? mainArtwork.replace('class="media-artwork', `data-msp-open data-msp-service="${serviceName}" data-msp-room="${recentRoomId}" role="button" tabindex="0" class="media-artwork`) : mainArtwork
   const roomLabel = activeMediaRoom ? '' : `<span class="media-session-room" title="Stanza comandata: ${esc(selected.room || selected.name)}">${esc(selected.room || selected.name)}</span>`
   $('#device-list').innerHTML = `<article class="media-session ${experienceClass} ${deviceVisualClass(selected)}" data-device-id="${esc(selected.id)}">${navigatorArtwork}${navigatorIcon}<div class="media-session-info"><strong>${esc(selected.title || selected.source || selected.name)}</strong><small>${esc(selected.artist || selected.source || selected.room)}</small><span class="media-track">${esc(selected.album || selected.name)}</span></div>${roomLabel}${power}${deviceActions(selected, { hidePower: true })}</article>${voicePanel}${recent}<div class="media-library media-room-library"><button class="media-library-toggle" data-media-section-toggle="rooms" aria-expanded="${mediaSections.rooms}"><strong>Stanze</strong><span class="mdi-mask" style="${mdiStyle(mediaSections.rooms ? 'mdi:chevron-up' : 'mdi:chevron-down', 'chevron-down')}"></span></button><div class="media-service-grid" ${mediaSections.rooms ? '' : 'hidden'}>${players}</div></div><div class="media-library media-source-library"><h3>Sorgenti e servizi</h3><div class="media-service-grid">${sources || '<span class="empty-state">Nessuna sorgente disponibile</span>'}</div></div>`
   if (recent) loadRecentlyPlayed(selected)
@@ -539,12 +540,12 @@ function hiddenRecentlyPlayedHtml(items) {
   return items.map((item) => `<div class="media-recent-hidden-row"><span>${esc(item.title || 'Senza titolo')}</span><button type="button" data-recent-restore-one="${esc(item.key)}">Ripristina</button></div>`).join('')
 }
 
-const tuneInState = { proxyId: 0, roomId: 0, tab: 'Home', stack: [], items: [], total: 0, more: false, search: '', busy: false }
+const tuneInState = { service: 'tunein', name: 'TuneIn', proxyId: 0, roomId: 0, tab: 'Home', stack: [], items: [], total: 0, more: false, search: '', busy: false }
 
 async function tuneInRequest(payload) {
-  const response = await fetch(apiUrl('api/control4/music/tunein/navigate'), { method: 'POST', headers: { 'Content-Type': 'application/json' }, cache: 'no-store', body: JSON.stringify({ proxy_id: tuneInState.proxyId, room_id: tuneInState.roomId, tab: tuneInState.tab, ...payload }) })
+  const response = await fetch(apiUrl(`api/control4/music/${tuneInState.service}/navigate`), { method: 'POST', headers: { 'Content-Type': 'application/json' }, cache: 'no-store', body: JSON.stringify({ proxy_id: tuneInState.proxyId, room_id: tuneInState.roomId, tab: tuneInState.tab, ...payload }) })
   const result = await response.json()
-  if (!response.ok) throw new Error(result.detail || 'TuneIn non disponibile')
+  if (!response.ok) throw new Error(result.detail || `${tuneInState.name} non disponibile`)
   return result
 }
 
@@ -578,20 +579,34 @@ async function loadTuneInNavigator(parent = '', append = false) {
   finally { tuneInState.busy = false }
 }
 
-async function openTuneInNavigator(roomId) {
+async function openTuneInNavigator(roomId, service = 'tunein') {
   const dialog = $('#music-navigator-dialog')
+  tuneInState.service = service
+  tuneInState.name = ({tunein:'TuneIn',amazon:'Amazon Music',tidal:'TIDAL'})[service] || 'Musica'
   tuneInState.roomId = roomId
   tuneInState.tab = 'Home'; tuneInState.stack = []; tuneInState.items = []; tuneInState.search = ''
+  $('#music-navigator-title').textContent = tuneInState.name
+  $('#music-navigator-query').placeholder = `Cerca in ${tuneInState.name}`
   $('#music-navigator-search').hidden = true
   dialog.showModal()
-  $('#music-navigator-list').innerHTML = '<p class="music-navigator-empty">Connessione a TuneIn…</p>'
+  $('#music-navigator-list').innerHTML = `<p class="music-navigator-empty">Connessione a ${esc(tuneInState.name)}…</p>`
   try {
     const response = await fetch(apiUrl('api/control4/music/account-services'), { cache: 'no-store' })
     if (!response.ok) throw new Error('Servizi Control4 non disponibili')
     const data = await response.json()
-    const tunein = (data.services || []).find((service) => service.name?.toLowerCase() === 'tunein')
-    if (!tunein?.proxy_id) throw new Error('TuneIn non presente nell’impianto')
-    tuneInState.proxyId = Number(tunein.proxy_id)
+    const source = (data.services || []).find((item) => item.name?.toLowerCase() === tuneInState.name.toLowerCase())
+    if (!source?.proxy_id) throw new Error(`${tuneInState.name} non presente nell’impianto`)
+    tuneInState.proxyId = Number(source.proxy_id)
+    const tabs = service === 'tunein' ? [{id:'Home',name:'Home'},{id:'Browse',name:'Sfoglia'},{id:'Favorites',name:'Preferiti'},{id:'Settings',name:'Impostazioni'}] : (await tuneInRequest({operation:'tabs'})).tabs
+    if (!tabs.length) throw new Error(`Nessuna sezione ${tuneInState.name} disponibile`)
+    $('#music-navigator-tabs').innerHTML = tabs.map((tab) => `<button type="button" data-msp-tab="${esc(tab.id)}">${esc(tab.id === 'Settings' ? 'Impostazioni' : tab.name)}</button>`).join('')
+    $('#music-navigator-tabs').setAttribute('aria-label', `Sezioni ${tuneInState.name}`)
+    const savedTab = localStorage.getItem(`eface-msp-tab-${service}`)
+    tuneInState.tab = tabs.some((tab) => tab.id === savedTab) ? savedTab : tabs[0].id
+    if (service === 'tidal') {
+      const account = await tuneInRequest({tab:'Settings'})
+      if (/logged out/i.test(account.status || '')) tuneInState.tab = 'Settings'
+    }
     await loadTuneInNavigator()
   } catch (error) { $('#music-navigator-list').innerHTML = `<p class="music-navigator-empty">${esc(error.message)}</p>` }
 }
@@ -606,6 +621,7 @@ $('#music-navigator-tabs').addEventListener('click', (event) => {
   const button = event.target.closest('[data-msp-tab]')
   if (!button) return
   tuneInState.tab = button.dataset.mspTab; tuneInState.stack = []; tuneInState.search = ''
+  localStorage.setItem(`eface-msp-tab-${tuneInState.service}`, tuneInState.tab)
   loadTuneInNavigator()
 })
 $('#music-navigator-search-toggle').addEventListener('click', () => {
@@ -628,8 +644,8 @@ $('#music-navigator-list').addEventListener('click', async (event) => {
     const existing = menuButton.parentElement.querySelector('.music-navigator-actions')
     if (existing) return existing.remove()
     document.querySelectorAll('.music-navigator-actions').forEach((node) => node.remove())
-    const choices = item.actions.filter((action) => ['Play', 'Follow', 'Unfollow', 'FavoriteToRoom', 'FavoriteToHome'].includes(action))
-    menuButton.parentElement.insertAdjacentHTML('beforeend', `<div class="music-navigator-actions">${choices.map((action) => `<button type="button" data-msp-action="${action}" data-msp-action-item="${esc(id)}">${esc(({ Play: 'Play', Follow: 'Aggiungi ai preferiti TuneIn', Unfollow: 'Rimuovi dai preferiti TuneIn', FavoriteToRoom: 'Aggiungi ai preferiti della stanza', FavoriteToHome: 'Aggiungi alla Home' })[action])}</button>`).join('')}</div>`)
+    const choices = item.actions.filter((action) => ['Play', 'Follow', 'Unfollow', 'FavoriteToRoom', 'FavoriteToHome', 'PlayNow', 'PlayShuffle', 'PlayNext', 'AddToQueue', 'ReplaceQueue', 'AddToLibrary', 'RemoveFromLibrary'].includes(action))
+    menuButton.parentElement.insertAdjacentHTML('beforeend', `<div class="music-navigator-actions">${choices.map((action) => `<button type="button" data-msp-action="${action}" data-msp-action-item="${esc(id)}">${esc(({ Play: 'Play', Follow: 'Aggiungi ai preferiti TuneIn', Unfollow: 'Rimuovi dai preferiti TuneIn', FavoriteToRoom: 'Aggiungi ai preferiti della stanza', FavoriteToHome: 'Aggiungi alla Home', PlayNow: 'Riproduci ora', PlayShuffle: 'Riproduci casualmente', PlayNext: 'Riproduci dopo', AddToQueue: 'Aggiungi alla coda', ReplaceQueue: 'Sostituisci coda', AddToLibrary: 'Aggiungi alla libreria', RemoveFromLibrary: 'Rimuovi dalla libreria' })[action] || action)}</button>`).join('')}</div>`)
     return
   }
   if (item.link || item.default_action === 'Browse') {
@@ -648,7 +664,7 @@ $('#music-navigator-list').addEventListener('click', async (event) => {
   button.disabled = true
   try {
     await tuneInRequest({ action: button.dataset.mspAction, item_id: button.dataset.mspActionItem })
-    if (button.dataset.mspAction === 'Play') $('#music-navigator-dialog').close()
+    if (button.dataset.mspAction === 'Play' || button.dataset.mspAction in {PlayNow:1,PlayShuffle:1,PlayNext:1,AddToQueue:1,ReplaceQueue:1}) $('#music-navigator-dialog').close()
     else await loadTuneInNavigator(tuneInState.stack.at(-1)?.id || '')
   } catch (error) { fail(error) }
   finally { button.disabled = false }
@@ -1663,7 +1679,7 @@ $('#scenario-list').addEventListener('click', (event) => {
 })
 $('#device-list').addEventListener('click', (event) => {
   const navigatorButton = event.target.closest('[data-msp-open]')
-  if (navigatorButton) return openTuneInNavigator(Number(navigatorButton.dataset.mspRoom))
+  if (navigatorButton) return openTuneInNavigator(Number(navigatorButton.dataset.mspRoom), navigatorButton.dataset.mspService || 'tunein')
   const hideRecent = event.target.closest('[data-recent-hide]')
   const restoreOneRecent = event.target.closest('[data-recent-restore-one]')
   const showHiddenRecents = event.target.closest('[data-recent-show-hidden]')
@@ -1826,7 +1842,7 @@ $('#device-list').addEventListener('keydown', (event) => {
   const navigator = event.target.closest('[data-msp-open]')
   if (navigator && (event.key === 'Enter' || event.key === ' ')) {
     event.preventDefault()
-    return openTuneInNavigator(Number(navigator.dataset.mspRoom))
+    return openTuneInNavigator(Number(navigator.dataset.mspRoom), navigator.dataset.mspService || 'tunein')
   }
   if (!['Enter',' '].includes(event.key) || !event.target.matches('[data-device-toggle],[data-rgb-toggle],.security-zone,.security-area')) return
   event.preventDefault()

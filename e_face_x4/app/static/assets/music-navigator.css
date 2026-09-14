@@ -37,3 +37,4 @@
 .music-navigator-row,.music-navigator-actions,.music-navigator-actions button,#music-navigator-search,#music-navigator-more{background:var(--user-card-cell)}
 .music-navigator-placeholder,#music-navigator-search input,.music-navigator-hidden{background:var(--user-card-field)}
 #music-navigator-search button,#music-navigator-more button{background:var(--user-card-soft)}
+.music-navigator-dialog>nav{justify-content:flex-start;overflow-x:auto;scrollbar-width:none}.music-navigator-dialog>nav::-webkit-scrollbar{display:none}.music-navigator-dialog>nav button{flex:0 0 auto}
