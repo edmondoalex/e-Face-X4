@@ -1,5 +1,8 @@
 # Changelog
 
+## 2.20.91 — 2026-09-14
+- Player delle viste generali Ascolta e Guarda: etichetta con il nome della stanza comandata, anche su mobile, usando la palette scelta dall'utente. Nella vista stanza resta solo l'intestazione esistente.
+
 ## 2.20.90 — 2026-09-14
 - Navigatore TuneIn e pannello Nascosti: le superfici seguono la palette delle schede scelta dall'utente, anziché usare sfondi grigi fissi.
 
