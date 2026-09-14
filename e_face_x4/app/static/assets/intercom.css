@@ -37,6 +37,8 @@ body{background:#20272b}.embedded,.embedded body{background:transparent}
 .intercom-settings-body input[type=range],.intercom-settings-body .intercom-option input{accent-color:#75ddbb}
 svg.station-icon{fill:none;stroke:currentColor;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
 .intercom-call-panel[hidden]{display:none}
+.intercom-call-label #audio-status{display:block;margin-top:6px;color:#9fb5b8;font-size:11px}
+.intercom-call-panel #audio-retry{background:#75ddbb;color:#102b25}
 .embedded:not(.admin-intercom) .sip-station-row,.embedded:not(.admin-intercom) .intercom-settings{display:none}
 html:not(.admin-intercom) .sip-station-row,html:not(.admin-intercom) .intercom-settings{display:none}
 .admin-intercom .intercom-station-row:not(.sip-station-row){display:none}

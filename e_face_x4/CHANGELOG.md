@@ -1,5 +1,8 @@
 # Changelog
 
+## 2.21.14 — 2026-09-14
+- Audio Intercom: ricezione sul cellulare tramite elemento audio nativo, senza passaggio dell'uscita attraverso WebAudio. Durante la chiamata mostra pacchetti audio ricevuti e stato del player; se il browser blocca la riproduzione compare ATTIVA AUDIO. Il volume dell'uscita diretta arriva al 100%, mentre il guadagno microfono resta invariato. Correzione da verificare con una chiamata reale.
+
 ## 2.21.13 — 2026-09-14
 - Intercom può chiamare singolarmente i tablet Control4: Ufficio 8291 e Tavolo 8292, oltre al gruppo 8290. Sul sito beta i numeri sono aggiunti al dialplan persistente con backup del file precedente. In modalità remota il browser propone solo candidati TURN relay per evitare tentativi verso indirizzi privati non raggiungibili, in seguito a un caso di audio monodirezionale; l'esito audio richiede ancora prova fisica.
 

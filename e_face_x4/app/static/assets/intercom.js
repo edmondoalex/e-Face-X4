@@ -7,7 +7,7 @@
   let phone = null
   let call = null
   let audioContext = null
-  let speakerGain = null
+  let audioStatsTimer = null
   let micInput = null
   let micOutput = null
   let micSource = null
@@ -129,9 +129,9 @@
   $('#sip-password').parentElement.firstChild.textContent = 'Password SIP alternativa (facoltativa)'
   $('#sip-password').placeholder = 'Vuoto = usa la credenziale salvata in e-Face'
   if (adminMode) $('.intercom-settings').open = true
-  for (const [id, fallback] of [['speaker-gain', 200], ['microphone-gain', 100]]) {
+  for (const [id, fallback] of [['speaker-gain', 100], ['microphone-gain', 100]]) {
     try {
-      const stored = Number(localStorage.getItem(`eface-intercom-${id}-v1`))
+      const stored = Number(localStorage.getItem(`eface-intercom-${id}-${id === 'speaker-gain' ? 'v2' : 'v1'}`))
       if (stored >= Number($(`#${id}`).min) && stored <= Number($(`#${id}`).max)) $(`#${id}`).value = stored
     } catch (_) { /* storage unavailable */ }
     $(`#${id}-value`).textContent = `${$(`#${id}`).value || fallback}%`
@@ -160,14 +160,22 @@
       const AudioContextClass = window.AudioContext || window.webkitAudioContext
       if (!AudioContextClass) return
       audioContext = new AudioContextClass()
-      const source = audioContext.createMediaElementSource($('#remote-audio'))
-      speakerGain = audioContext.createGain()
-      source.connect(speakerGain)
-      speakerGain.connect(audioContext.destination)
-      speakerGain.gain.value = Number($('#speaker-gain').value) / 100
     }
     if (audioContext.state !== 'running') await audioContext.resume()
+    $('#remote-audio').volume = Number($('#speaker-gain').value) / 100
   }
+
+  async function playRemoteAudio() {
+    if (!$('#remote-audio').srcObject) return
+    try {
+      await $('#remote-audio').play()
+      $('#audio-retry').hidden = true
+    } catch (_) {
+      $('#audio-retry').hidden = false
+      $('#audio-status').textContent = 'Audio bloccato dal browser: premi ATTIVA AUDIO'
+    }
+  }
+  $('#audio-retry').addEventListener('click', playRemoteAudio)
 
   function error(message) {
     $('#intercom-error').textContent = message
@@ -184,9 +192,13 @@
 
   function clearCall(text) {
     call = null
+    clearInterval(audioStatsTimer)
+    audioStatsTimer = null
     $('#intercom-call-panel').hidden = true
     releaseMicrophone()
     $('#remote-audio').srcObject = null
+    $('#audio-retry').hidden = true
+    $('#audio-status').textContent = 'Audio in ingresso: in attesa'
     $('#call-status').textContent = text
     $('#call-answer').disabled = true
     $('#call-hangup').disabled = true
@@ -196,9 +208,8 @@
   $('#speaker-gain').addEventListener('input', () => {
     const percent = Number($('#speaker-gain').value)
     $('#speaker-gain-value').textContent = `${percent}%`
-    try { localStorage.setItem('eface-intercom-speaker-gain-v1', String(percent)) } catch (_) { /* storage unavailable */ }
-    if (speakerGain) speakerGain.gain.value = percent / 100
-    else $('#remote-audio').volume = Math.min(percent / 100, 1)
+    try { localStorage.setItem('eface-intercom-speaker-gain-v2', String(percent)) } catch (_) { /* storage unavailable */ }
+    $('#remote-audio').volume = percent / 100
   })
 
   $('#microphone-gain').addEventListener('input', () => {
@@ -239,10 +250,22 @@
     $('#call-hangup').disabled = false
     setDialButtonsDisabled(true)
     session.on('peerconnection', ({peerconnection}) => {
+      clearInterval(audioStatsTimer)
+      audioStatsTimer = setInterval(async () => {
+        try {
+          const stats = await peerconnection.getStats()
+          let packets = 0
+          stats.forEach((item) => { if (item.type === 'inbound-rtp' && (item.kind === 'audio' || item.mediaType === 'audio')) packets += item.packetsReceived || 0 })
+          if (call !== session) return
+          const player = $('#remote-audio').paused ? 'riproduzione sospesa' : 'riproduzione attiva'
+          $('#audio-status').textContent = `Audio ricevuto: ${packets} pacchetti · ${player}`
+          if (packets > 0 && $('#remote-audio').paused) $('#audio-retry').hidden = false
+        } catch (_) { /* stats unavailable on this browser */ }
+      }, 2000)
       peerconnection.addEventListener('track', (event) => {
         if (event.track.kind !== 'audio') return
         $('#remote-audio').srcObject = event.streams[0] || new MediaStream([event.track])
-        $('#remote-audio').play().catch(() => error('Tocca lo schermo per abilitare la riproduzione audio.'))
+        playRemoteAudio()
       })
     })
     session.on('connecting', () => { $('#call-status').textContent = 'Preparazione rete audio…' })
@@ -261,7 +284,7 @@
     session.on('sdp', ({originator}) => { if (originator === 'local') clearTimeout(iceReadyTimer) })
     session.on('sending', () => { $('#call-status').textContent = 'INVITE inviato ad Asterisk…' })
     session.on('progress', () => { $('#call-status').textContent = 'I tablet stanno squillando…' })
-    session.on('confirmed', () => { $('#call-status').textContent = 'In conversazione' })
+    session.on('confirmed', () => { $('#call-status').textContent = 'In conversazione'; playRemoteAudio() })
     session.on('ended', () => { clearTimeout(iceReadyTimer); clearCall('Chiamata terminata.') })
     session.on('failed', ({cause}) => { clearTimeout(iceReadyTimer); clearCall(`Chiamata non riuscita: ${cause || 'errore sconosciuto'}`) })
     session.on('getusermediafailed', ({name, message}) => error(`Microfono: ${name || 'errore'} ${message || ''}`))

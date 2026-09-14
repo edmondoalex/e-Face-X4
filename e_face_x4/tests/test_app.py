@@ -95,6 +95,10 @@ def test_intercom_is_in_sidebar_with_embedded_view() -> None:
     assert "iceTransportPolicy: 'relay'" in client_script
     assert "iceReadySent = true" in client_script
     assert "Chiusura chiamata…" in client_script
+    assert 'id="audio-status"' in intercom
+    assert 'id="audio-retry"' in intercom
+    assert "peerconnection.getStats()" in client_script
+    assert "createMediaElementSource" not in client_script
     assert "$('#intercom-frame').src = apiUrl('intercom?embedded=1')" in script
     assert "$('#intercom-frame').removeAttribute('src')" not in script
 
