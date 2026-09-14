@@ -226,6 +226,7 @@
     call = session
     $('#intercom-call-panel').hidden = false
     let iceReadyTimer = null
+    let iceReadySent = false
     $('#call-status').textContent = session.direction === 'incoming' ? `Chiamata da ${session.remote_identity?.display_name || session.remote_identity?.uri?.user || 'sconosciuto'}` : 'Chiamata in uscita…'
     $('#call-answer').disabled = session.direction !== 'incoming'
     $('#call-hangup').disabled = false
@@ -239,11 +240,16 @@
     })
     session.on('connecting', () => { $('#call-status').textContent = 'Preparazione rete audio…' })
     session.on('icecandidate', ({candidate, ready}) => {
-      if (!$('#fast-ice').checked || iceReadyTimer || candidate?.type !== 'host' || candidate?.protocol?.toLowerCase() !== 'udp') return
+      const fastLocal = $('#fast-ice').checked
+      const usable = fastLocal
+        ? candidate?.type === 'host' && candidate?.protocol?.toLowerCase() === 'udp'
+        : candidate?.type === 'relay'
+      if (iceReadyTimer || iceReadySent || !usable) return
       iceReadyTimer = setTimeout(() => {
         iceReadyTimer = null
+        iceReadySent = true
         ready()
-      }, 1500)
+      }, fastLocal ? 1500 : 250)
     })
     session.on('sdp', ({originator}) => { if (originator === 'local') clearTimeout(iceReadyTimer) })
     session.on('sending', () => { $('#call-status').textContent = 'INVITE inviato ad Asterisk…' })
@@ -348,7 +354,12 @@
     catch (exception) { releaseMicrophone(); error(exception.message) }
   })
 
-  $('#call-hangup').addEventListener('click', () => { if (call) call.terminate() })
+  $('#call-hangup').addEventListener('click', () => {
+    if (!call) return
+    $('#call-status').textContent = 'Chiusura chiamata…'
+    $('#call-hangup').disabled = true
+    call.terminate()
+  })
   if (!adminMode) $('#sip-connect').click()
   window.addEventListener('pagehide', () => { if (phone) phone.stop() })
 })()

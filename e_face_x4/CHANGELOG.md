@@ -1,5 +1,8 @@
 # Changelog
 
+## 2.21.12 — 2026-09-14
+- Chiamate remote: JsSIP invia la descrizione audio appena è disponibile un candidato TURN relay, senza aspettare la fine di tutta la raccolta ICE; il tasto Termina mostra subito lo stato di chiusura e non accetta pressioni duplicate. L'accesso HTTP locale su IP non può usare il microfono del browser: per le prove audio serve il dominio HTTPS.
+
 ## 2.21.11 — 2026-09-14
 - La schermata Intercom mostra solo le postazioni e toglie le descrizioni superflue. Collegamento SIP e impostazioni audio passano a Strumenti → Admin → Videocitofono; il client SIP dell'app si registra automaticamente all'apertura di e-Face e resta attivo durante la navigazione interna. Il video DoorBird si apre solo nella schermata Intercom.
 

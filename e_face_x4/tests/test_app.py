@@ -89,6 +89,9 @@ def test_intercom_is_in_sidebar_with_embedded_view() -> None:
     assert 'class="admin-intercom"' not in intercom
     client_script = (static / "assets" / "intercom.js").read_text(encoding="utf-8")
     assert "if (!adminMode) $('#sip-connect').click()" in client_script
+    assert "candidate?.type === 'relay'" in client_script
+    assert "iceReadySent = true" in client_script
+    assert "Chiusura chiamata…" in client_script
     assert "$('#intercom-frame').src = apiUrl('intercom?embedded=1')" in script
     assert "$('#intercom-frame').removeAttribute('src')" not in script
 
