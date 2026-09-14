@@ -7,6 +7,7 @@ ARGS, and asynchronous OnDataToUI/data.RESPONSE messages correlated by SEQ.
 from __future__ import annotations
 
 import asyncio
+import re
 import secrets
 import time
 from html import escape
@@ -20,6 +21,11 @@ from .control4 import control4_director, load_control4_config
 _ITEMS: dict[str, tuple[float, int, int, str, dict[str, Any]]] = {}
 _TTL = 900
 _FIELDS = ("Type", "ContainerType", "Title", "Subtitle", "GuideId", "Image", "Url")
+_ACTIONS = {"Browse", "Play", "Follow", "Unfollow", "Profile", "FavoriteToRoom", "FavoriteToHome"}
+
+
+def _item_actions(item: dict[str, Any]) -> list[str]:
+    return [action for action in re.split(r"[\s,]+", str(item.get("actions_list") or "")) if action in _ACTIONS]
 
 
 def _args(values: dict[str, Any]) -> str:
@@ -106,7 +112,7 @@ async def tunein_browse(proxy_id: int, room_id: int, tab: str, parent: str | Non
             "id": key, "title": str(entry.get("Title") or ""),
             "subtitle": str(entry.get("Subtitle") or ""),
             "image": _image_url(entry.get("Image")),
-            "actions": [part.strip() for part in str(entry.get("actions_list") or "").split(",") if part.strip() in {"Browse", "Play", "Follow", "Unfollow", "Profile", "FavoriteToRoom", "FavoriteToHome"}],
+            "actions": _item_actions(entry),
             "default_action": str(entry.get("default_action") or ""),
             "link": str(entry.get("isLink") or "").lower() == "true",
         })
@@ -118,7 +124,8 @@ async def tunein_action(proxy_id: int, room_id: int, tab: str, item_id: str, act
     if not stored or stored[0] < time.monotonic() or stored[1:4] != (proxy_id, room_id, tab):
         raise ValueError("Voce scaduta: riapri il servizio")
     item = stored[4]
-    allowed = {part.strip() for part in str(item.get("actions_list") or "").split(",")}
+    allowed = set(_item_actions(item))
+    allowed.add(str(item.get("default_action") or ""))
     if action not in {"Play", "Follow", "Unfollow", "FavoriteToRoom", "FavoriteToHome"} or action not in allowed:
         raise ValueError("Azione non disponibile")
     values = {key: item.get(key) for key in _FIELDS if key in item}

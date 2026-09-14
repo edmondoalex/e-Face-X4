@@ -1720,6 +1720,36 @@ def test_control4_shared_audio_route_becomes_one_session_without_queue() -> None
     assert players[2].get("group") is None
 
 
+def test_control4_digital_media_uses_actual_tunein_service_and_shared_stream() -> None:
+    ui = {"experiences": [
+        {"type": "listen", "room_id": room, "sources": {"source": [
+            {"id": 100002, "name": "Digital Media"}, {"id": 615, "name": "TuneIn"},
+        ]}} for room in (51, 61)
+    ]}
+    rooms = [{"id": 51, "name": "Ufficio Alex"}, {"id": 61, "name": "Sala"}]
+    variables = [
+        {"id": 51, "varName": "POWER_STATE", "value": 1},
+        {"id": 51, "varName": "CURRENT_AUDIO_DEVICE", "value": 100002},
+        {"id": 51, "varName": "PLAYING_AUDIO_DEVICE", "value": 615},
+        {"id": 51, "varName": "CURRENT MEDIA INFO", "value": {"mediainfo": {"title": "Track", "album": "Energy Hits", "img": "https://img.example/station.jpg", "meta": {"audioFormat": "MPEG-1 Layer 3 (MP3)"}}}},
+        {"id": 61, "varName": "POWER_STATE", "value": 1},
+        {"id": 61, "varName": "CURRENT_AUDIO_DEVICE", "value": 615},
+        {"id": 61, "varName": "PLAYING_AUDIO_DEVICE", "value": 615},
+        {"id": 61, "varName": "CURRENT MEDIA INFO", "value": {"mediainfo": {"title": "Energy Hits", "album": "Energy Hits", "img": "https://img.example/station.jpg"}}},
+    ]
+    players = normalize_control4_media(ui, rooms, variables)
+    office = next(player for player in players if player["room"] == "Ufficio Alex")
+    assert office["selected_source_id"] == 100002
+    assert office["playing_source_id"] == 615
+    assert office["active_source_id"] == 615
+    assert office["source"] == "TuneIn"
+    groups = normalize_control4_groups(players, variables)
+    assert len(groups) == 1
+    assert groups[0]["member_registry_ids"] == ["c4room:51", "c4room:61"]
+    assert groups[0]["owner_registry_id"] == "c4room:61"
+    assert groups[0]["inferred_from_stream"] is True
+
+
 def test_control4_group_volume_uses_owner_as_reference(monkeypatch) -> None:
     import asyncio
     from app.connectors import control4_media

@@ -376,6 +376,8 @@ def normalize_control4_media(ui: Any, all_items: Any, variables: Any) -> list[di
         playing_device = values.get("PLAYING_AUDIO_DEVICE")
         audio_device = values.get("CURRENT_AUDIO_DEVICE")
         video_device = values.get("CURRENT_VIDEO_DEVICE")
+        playing_source_id = int(playing_device) if str(playing_device or "").isdigit() and int(playing_device) > 0 else None
+        selected_source_id = active_source_id
         media_type = str(media.get("mediatypeV2") or media.get("mediatype") or "").upper()
         has_video_session = (
             (str(video_device or "0").isdigit() and int(video_device or 0) > 0)
@@ -385,8 +387,13 @@ def normalize_control4_media(ui: Any, all_items: Any, variables: Any) -> list[di
         has_audio_session = not has_video_session and any(str(value or "0").isdigit() and int(value or 0) > 0 for value in (playing_device, audio_device))
         active_experience = "watch" if has_video_session else "listen" if has_audio_session else None
         display_source = active_source if active_experience == "watch" else (str(media.get("meta", {}).get("audioFormat") or active_source or "") if isinstance(media.get("meta"), dict) else active_source)
+        if active_experience == "listen" and selected_source_id == 100002 and playing_source_id:
+            playing_option = next((source for source in data["source_options"] if source["source_id"] == playing_source_id and source["experience"] == "listen"), None)
+            if playing_option:
+                active_source_id = playing_source_id
+                display_source = playing_option["label"]
         can_group = "listen" in data["experiences"] and (has_audio_session or has_video_session)
-        result.append({"id": f"c4media:{room_id}", "registry_id": registry_id, "entity_id": f"control4.room.{room_id}", "provider": "control4", "kind": "media_player", "icon": icon, "name": name, "room": name, "state": state_name, "availability": "available", "connection_status": "online", "volume": volume, "muted": str(values.get("IS_MUTED")) in {"1", "True", "true"}, "source": display_source, "active_source_id": active_source_id, "title": media.get("title"), "artist": media.get("artist"), "album": media.get("album"), "content_fingerprint": fingerprint, "source_options": data["source_options"], "source_list": [source["label"] for source in data["source_options"]], "experiences": data["experiences"], "active_experience": active_experience, "capabilities": {"play": True, "pause": True, "stop": True, "previous": True, "next": True, "turn_off": True, "set_volume": volume is not None, "mute": True, "select_source": bool(data["source_options"]), "grouping": can_group, "artwork": bool(fingerprint)}})
+        result.append({"id": f"c4media:{room_id}", "registry_id": registry_id, "entity_id": f"control4.room.{room_id}", "provider": "control4", "kind": "media_player", "icon": icon, "name": name, "room": name, "state": state_name, "availability": "available", "connection_status": "online", "volume": volume, "muted": str(values.get("IS_MUTED")) in {"1", "True", "true"}, "source": display_source, "active_source_id": active_source_id, "selected_source_id": selected_source_id, "playing_source_id": playing_source_id, "title": media.get("title"), "artist": media.get("artist"), "album": media.get("album"), "content_fingerprint": fingerprint, "source_options": data["source_options"], "source_list": [source["label"] for source in data["source_options"]], "experiences": data["experiences"], "active_experience": active_experience, "capabilities": {"play": True, "pause": True, "stop": True, "previous": True, "next": True, "turn_off": True, "set_volume": volume is not None, "mute": True, "select_source": bool(data["source_options"]), "grouping": can_group, "artwork": bool(fingerprint)}})
     return result
 
 
@@ -521,6 +528,31 @@ def normalize_control4_groups(items: list[dict[str, Any]], variables: Any) -> li
         for player in items:
             if player.get("registry_id") in members:
                 player["group"] = group
+    shared_streams: dict[tuple[int, str, str], list[dict[str, Any]]] = {}
+    for player in items:
+        if player.get("group") or player.get("active_experience") != "listen":
+            continue
+        source_id = int(player.get("playing_source_id") or 0)
+        fingerprint = str(player.get("content_fingerprint") or "")
+        album = str(player.get("album") or "").strip().casefold()
+        if source_id > 0 and fingerprint and album:
+            shared_streams.setdefault((source_id, fingerprint, album), []).append(player)
+    for (source_id, fingerprint, _album), players in shared_streams.items():
+        direct = [player for player in players if player.get("selected_source_id") == source_id]
+        digital = [player for player in players if player.get("selected_source_id") == 100002]
+        if not direct or not digital:
+            continue
+        members = [str(player["registry_id"]) for player in players]
+        owner = str(direct[0]["registry_id"])
+        group = {
+            "group_id": f"c4stream:{source_id}:{fingerprint[:16]}",
+            "name": "Sessione audio", "owner_registry_id": owner,
+            "member_registry_ids": members, "completeness": "complete",
+            "resource_revision": source_id, "inferred_from_stream": True,
+        }
+        groups.append(group)
+        for player in players:
+            player["group"] = group
     routed: dict[tuple[int, str], list[dict[str, Any]]] = {}
     for player in items:
         if player.get("group") or player.get("active_experience") != "listen":

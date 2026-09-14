@@ -30,3 +30,17 @@ def test_settings_never_expose_driver_password(monkeypatch):
     result = asyncio.run(msp.tunein_settings(615, 51))
     assert result == {"username": "edmondoalex", "status": "Free"}
     assert "secret" not in str(result)
+
+
+def test_tunein_actions_are_space_separated_and_default_play_is_allowed(monkeypatch):
+    assert msp._item_actions({"actions_list": "Play FavoriteToRoom Follow Profile"}) == ["Play", "FavoriteToRoom", "Follow", "Profile"]
+    assert msp._item_actions({"actions_list": "Play,Unfollow"}) == ["Play", "Unfollow"]
+
+    async def command(proxy, room, name, values, wait_response=True):
+        assert name == "Play"
+        assert values["Title"] == "Radio"
+        return None
+
+    monkeypatch.setattr(msp, "_command", command)
+    msp._ITEMS["radio"] = (msp.time.monotonic() + 60, 615, 51, "Home", {"Title": "Radio", "default_action": "Play", "actions_list": ""})
+    assert asyncio.run(msp.tunein_action(615, 51, "Home", "radio", "Play")) == {"ok": True}

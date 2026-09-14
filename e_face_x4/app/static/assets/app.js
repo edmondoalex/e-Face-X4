@@ -483,7 +483,7 @@ function renderMediaExperience(devices) {
   const cachedRecent = recentCache.get(recentScope)
   const recentContent = cachedRecent ? recentlyPlayedHtml(cachedRecent.items, recentRoomId) : '<span class="empty-state">Caricamento…</span>'
   const showRecent = selected.provider === 'control4' && (currentMediaExperience === 'listen' || (activeMediaRoom && selected.active_experience !== 'watch'))
-  const recent = showRecent ? `<div class="media-recent" data-recently-played data-recent-scope="${recentScope}" ${cachedRecent && !cachedRecent.items.length ? 'hidden' : ''}><h3>Ascoltati di recente</h3><div class="media-recent-strip">${recentContent}</div></div>` : ''
+  const recent = showRecent ? `<div class="media-recent" data-recently-played data-recent-scope="${recentScope}" ${cachedRecent && !cachedRecent.items.length && !cachedRecent.hiddenCount ? 'hidden' : ''}><header><h3>Ascoltati di recente</h3><button type="button" data-recent-restore ${cachedRecent?.hiddenCount ? '' : 'hidden'}>Ripristina nascosti (${cachedRecent?.hiddenCount || 0})</button></header><div class="media-recent-strip">${recentContent}</div></div>` : ''
   const ttsPlayers = currentDevices.filter((device) => device.kind === 'media_player' && device.provider === 'evoice' && device.tts_enabled)
   const ttsVolume = Math.max(0, Math.min(100, Number(localStorage.getItem('eface-tts-volume') ?? 50)))
   const voicePanel = selected.provider === 'evoice' && selected.tts_enabled && ttsPlayers.length ? `<section class="evoice-panel"><div class="evoice-heading"><h3>Messaggio vocale</h3><label><input type="checkbox" data-tts-select-all ${ttsPlayers.length === 1 ? 'checked' : ''}> Seleziona tutti</label></div><div class="evoice-targets">${ttsPlayers.map((device) => `<div class="evoice-target"><label><input type="checkbox" data-tts-target value="${esc(device.id)}" ${device.id === selected.id ? 'checked' : ''}><span>${esc(device.name)}</span><small>${esc(device.room)}</small></label>${device.dnd_available ? `<button class="evoice-dnd ${device.dnd ? 'active' : ''}" data-dnd-device="${esc(device.id)}" data-dnd-value="${device.dnd ? 'false' : 'true'}">DND</button>` : ''}</div>`).join('')}</div><label class="evoice-volume"><span>Volume messaggio</span><input type="range" min="0" max="100" value="${ttsVolume}" style="--volume:${ttsVolume}%" data-tts-volume><output>${ttsVolume}%</output></label><textarea id="evoice-tts-message" maxlength="500" rows="3" placeholder="Scrivi il messaggio da pronunciare"></textarea><button class="evoice-send" data-tts-send>INVIA MESSAGGIO</button></section>` : ''
@@ -508,10 +508,14 @@ async function loadRecentlyPlayed(selected) {
       const data = await response.json()
       const host = document.querySelector('[data-recently-played]')
       const items = Array.isArray(data.items) ? data.items : []
-      recentCache.set(scope, { items, updated: Date.now() })
+      const hiddenCount = Number(data.hidden_count || 0)
+      recentCache.set(scope, { items, hiddenCount, updated: Date.now() })
       if (!host || host.dataset.recentScope !== scope) return
-      host.hidden = !items.length
+      host.hidden = !items.length && !hiddenCount
       host.querySelector('.media-recent-strip').innerHTML = recentlyPlayedHtml(items, roomId)
+      const restore = host.querySelector('[data-recent-restore]')
+      restore.hidden = !hiddenCount
+      restore.textContent = `Ripristina nascosti (${hiddenCount})`
     } catch (_) {
       const host = document.querySelector('[data-recently-played]')
       if (!cached && host?.dataset.recentScope === scope) host.hidden = true
@@ -524,7 +528,7 @@ async function loadRecentlyPlayed(selected) {
 function recentlyPlayedHtml(items, roomId) {
   return items.map((item) => {
     const art = item.content_fingerprint ? apiUrl(`api/media/${encodeURIComponent(item.registry_id)}/artwork?fingerprint=${encodeURIComponent(item.content_fingerprint)}`) : ''
-    return `<button class="media-recent-item" data-recent-key="${esc(item.key)}" data-recent-room="${roomId}" title="${esc(item.title)}">${art ? `<img src="${esc(art)}" alt="" loading="lazy" draggable="false">` : '<span class="media-recent-art mdi-mask" style="'+mdiStyle('mdi:music-circle','music-circle')+'"></span>'}<b>${esc(item.title || 'Senza titolo')}</b><small>${esc(item.subtitle || '')}</small><em><span class="mdi-mask" style="${mdiStyle(item.driver_id === 1569 ? 'mdi:spotify' : 'mdi:radio', 'music-circle')}"></span>${esc(item.item_type || 'Audio')}</em></button>`
+    return `<span class="media-recent-card"><button class="media-recent-item" data-recent-key="${esc(item.key)}" data-recent-room="${roomId}" title="${esc(item.title)}">${art ? `<img src="${esc(art)}" alt="" loading="lazy" draggable="false">` : '<span class="media-recent-art mdi-mask" style="'+mdiStyle('mdi:music-circle','music-circle')+'"></span>'}<b>${esc(item.title || 'Senza titolo')}</b><small>${esc(item.subtitle || '')}</small><em><span class="mdi-mask" style="${mdiStyle(item.driver_id === 1569 ? 'mdi:spotify' : 'mdi:radio', 'music-circle')}"></span>${esc(item.item_type || 'Audio')}</em></button><button type="button" class="media-recent-hide" data-recent-hide="${esc(item.key)}" aria-label="Nascondi ${esc(item.title)}" title="Nascondi da Ascoltati di recente">×</button></span>`
   }).join('')
 }
 
@@ -618,14 +622,14 @@ $('#music-navigator-list').addEventListener('click', async (event) => {
     if (existing) return existing.remove()
     document.querySelectorAll('.music-navigator-actions').forEach((node) => node.remove())
     const choices = item.actions.filter((action) => ['Play', 'Follow', 'Unfollow', 'FavoriteToRoom', 'FavoriteToHome'].includes(action))
-    menuButton.parentElement.insertAdjacentHTML('beforeend', `<div class="music-navigator-actions">${choices.map((action) => `<button type="button" data-msp-action="${action}" data-msp-action-item="${esc(id)}">${esc(({ Play: 'Play', Follow: 'Preferito', Unfollow: 'Rimuovi preferito', FavoriteToRoom: 'Aggiungi ai preferiti della stanza', FavoriteToHome: 'Aggiungi alla Home' })[action])}</button>`).join('')}</div>`)
+    menuButton.parentElement.insertAdjacentHTML('beforeend', `<div class="music-navigator-actions">${choices.map((action) => `<button type="button" data-msp-action="${action}" data-msp-action-item="${esc(id)}">${esc(({ Play: 'Play', Follow: 'Aggiungi ai preferiti TuneIn', Unfollow: 'Rimuovi dai preferiti TuneIn', FavoriteToRoom: 'Aggiungi ai preferiti della stanza', FavoriteToHome: 'Aggiungi alla Home' })[action])}</button>`).join('')}</div>`)
     return
   }
   if (item.link || item.default_action === 'Browse') {
     tuneInState.stack.push({ id, title: item.title })
     return loadTuneInNavigator(id)
   }
-  if (item.actions.includes('Play')) {
+  if (item.default_action === 'Play' || item.actions.includes('Play')) {
     try { await tuneInRequest({ action: 'Play', item_id: id }); $('#music-navigator-dialog').close() }
     catch (error) { fail(error) }
   }
@@ -1653,6 +1657,18 @@ $('#scenario-list').addEventListener('click', (event) => {
 $('#device-list').addEventListener('click', (event) => {
   const navigatorButton = event.target.closest('[data-msp-open]')
   if (navigatorButton) return openTuneInNavigator(Number(navigatorButton.dataset.mspRoom))
+  const hideRecent = event.target.closest('[data-recent-hide]')
+  const restoreRecents = event.target.closest('[data-recent-restore]')
+  if (hideRecent || restoreRecents) {
+    const control = hideRecent || restoreRecents
+    control.disabled = true
+    const scope = control.closest('[data-recently-played]')?.dataset.recentScope || ''
+    const path = hideRecent ? 'hide' : 'restore'
+    fetch(apiUrl(`api/control4/recently-played/${path}`), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(hideRecent ? { key: hideRecent.dataset.recentHide } : {}) })
+      .then(async (response) => { if (!response.ok) throw new Error((await response.json()).detail || 'Modifica non riuscita'); recentCache.delete(scope); await refresh() })
+      .catch(fail).finally(() => { control.disabled = false })
+    return
+  }
   if (Date.now() < recentDragSuppressUntil && event.target.closest('[data-recent-key]')) { event.preventDefault(); return }
   if (devicePointerGesture?.moved) { devicePointerGesture = null; return }
   const recentButton = event.target.closest('[data-recent-key]')

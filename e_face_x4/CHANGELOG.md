@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.20.87 — 2026-09-14
+- TuneIn: corretta la lettura delle azioni separate da spazi; tap sulla stazione avvia Play e il menu offre preferiti del servizio e della stanza. Verificati sul Director Play e Follow/Unfollow con ripristino dello stato iniziale.
+- Sessioni Control4: Digital Media mostra il servizio effettivo indicato da `PLAYING_AUDIO_DEVICE`; stanze con stesso servizio, cover e album vengono mostrate nella stessa sessione logica quando una usa la coda digitale.
+- Ascoltati di recente: schede allineate e possibilità di nascondere singoli elementi in e-Face e ripristinarli; la cronologia del Director non viene modificata.
+
 ## 2.20.86 — 2026-09-14
 - Anche la cover grande apre il navigatore TuneIn. Aggiunta la scheda Impostazioni con stato e nome utente, senza esporre la password restituita dal driver.
 
