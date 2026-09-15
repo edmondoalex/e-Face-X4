@@ -2,7 +2,7 @@
   const $ = (selector) => document.querySelector(selector)
   const adminMode = document.documentElement.classList.contains('admin-intercom')
   const root = new URL('./', location.href)
-  const currentVersion = '2.21.27'
+  const currentVersion = '2.21.39'
   let updateAvailable = false
   async function checkForUpdate() {
     if (document.hidden || !intercomVisible) return
@@ -22,6 +22,8 @@
   let ownExtension = ''
   let call = null
   let audioContext = null
+  let ringtoneTimer = null
+  let ringtoneActive = false
   let audioStatsTimer = null
   let micInput = null
   let micOutput = null
@@ -370,7 +372,55 @@
       $('#audio-status').textContent = 'Audio bloccato dal browser: premi ATTIVA AUDIO'
     }
   }
-  $('#audio-retry').addEventListener('click', playRemoteAudio)
+
+  function ringBurst() {
+    if (!ringtoneActive || !audioContext || audioContext.state !== 'running') return
+    const now = audioContext.currentTime
+    for (const [frequency, delay] of [[880, 0], [660, .24]]) {
+      const oscillator = audioContext.createOscillator()
+      const gain = audioContext.createGain()
+      oscillator.frequency.value = frequency
+      oscillator.type = 'sine'
+      gain.gain.setValueAtTime(0.0001, now + delay)
+      gain.gain.exponentialRampToValueAtTime(0.22, now + delay + .025)
+      gain.gain.exponentialRampToValueAtTime(0.0001, now + delay + .2)
+      oscillator.connect(gain)
+      gain.connect(audioContext.destination)
+      oscillator.start(now + delay)
+      oscillator.stop(now + delay + .22)
+    }
+  }
+
+  async function startRingtone() {
+    if (ringtoneActive) return
+    ringtoneActive = true
+    navigator.vibrate?.([500, 250, 500, 900, 500, 250, 500])
+    try {
+      await prepareSpeaker()
+      ringBurst()
+      ringtoneTimer = setInterval(ringBurst, 2200)
+    } catch (_) {
+      $('#audio-retry').textContent = 'ATTIVA SUONERIA'
+      $('#audio-retry').hidden = false
+    }
+  }
+
+  function stopRingtone() {
+    ringtoneActive = false
+    clearInterval(ringtoneTimer)
+    ringtoneTimer = null
+    navigator.vibrate?.(0)
+    $('#audio-retry').textContent = 'ATTIVA AUDIO'
+  }
+
+  $('#audio-retry').addEventListener('click', async () => {
+    if (call?.direction === 'incoming' && !call.isEstablished?.()) {
+      ringtoneActive = false
+      await startRingtone()
+      return
+    }
+    await playRemoteAudio()
+  })
 
   function error(message) {
     $('#intercom-error').textContent = message
@@ -386,6 +436,7 @@
   }
 
   function clearCall(text) {
+    stopRingtone()
     call = null
     if (updateAvailable) { location.reload(); return }
     clearInterval(audioStatsTimer)
@@ -448,6 +499,7 @@
     $('#call-answer').disabled = session.direction !== 'incoming'
     $('#call-hangup').disabled = false
     setDialButtonsDisabled(true)
+    if (session.direction === 'incoming') startRingtone()
     function syncRemoteAudio(peerconnection) {
       const receiver = peerconnection.getReceivers?.().find((item) => item.track?.kind === 'audio' && item.track.readyState === 'live')
       if (!receiver || $('#remote-audio').srcObject?.getAudioTracks?.()[0] === receiver.track) return
@@ -499,7 +551,7 @@
     session.on('sdp', ({originator}) => { if (originator === 'local') clearTimeout(iceReadyTimer) })
     session.on('sending', () => { $('#call-status').textContent = 'INVITE inviato ad Asterisk…' })
     session.on('progress', () => { $('#call-status').textContent = 'I tablet stanno squillando…' })
-    session.on('confirmed', () => { $('#call-status').textContent = 'In conversazione'; bindConnection(session.connection); if (boundConnection) syncRemoteAudio(boundConnection); playRemoteAudio() })
+    session.on('confirmed', () => { stopRingtone(); $('#call-status').textContent = 'In conversazione'; bindConnection(session.connection); if (boundConnection) syncRemoteAudio(boundConnection); playRemoteAudio() })
     session.on('ended', () => { clearTimeout(iceReadyTimer); clearInterval(connectionPollTimer); clearCall('Chiamata terminata.') })
     session.on('failed', ({cause}) => { clearTimeout(iceReadyTimer); clearInterval(connectionPollTimer); clearCall(`Chiamata non riuscita: ${cause || 'errore sconosciuto'}`) })
     session.on('getusermediafailed', ({name, message}) => error(`Microfono: ${name || 'errore'} ${message || ''}`))
@@ -617,6 +669,7 @@
     if (!call || call.direction !== 'incoming') return
     error('')
     const incoming = call
+    stopRingtone()
     try {
       await prepareSpeaker()
       const stream = await preparedMicrophone()

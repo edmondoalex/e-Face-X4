@@ -56,7 +56,7 @@ def test_health() -> None:
     response = TestClient(create_app()).get("/health")
     assert response.status_code == 200
     assert response.json()["ok"] is True
-    assert response.json()["version"] == "2.21.38"
+    assert response.json()["version"] == "2.21.39"
 
 
 def test_installed_app_starts_at_dashboard() -> None:
@@ -95,6 +95,7 @@ def test_intercom_is_in_sidebar_with_embedded_view() -> None:
     assert "Tablet Control4 · interno 8291" in intercom_page
     assert "Postazione esterna · interno 8201" in intercom_page
     assert "Postazione esterna · interno ${station.sip_extension}" in client_script
+    assert "startRingtone" in client_script
     assert "if (!adminMode) $('#sip-connect').click()" in client_script
     assert "candidate?.type === 'relay'" in client_script
     assert "iceTransportPolicy: 'relay'" in client_script

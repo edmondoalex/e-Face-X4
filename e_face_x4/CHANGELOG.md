@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.21.39 — 2026-09-15
+
+- Aggiunge suoneria locale ripetuta e vibrazione alle chiamate Intercom in ingresso, con arresto su risposta o termine.
+- Mostra un comando Attiva suoneria se il browser blocca la riproduzione automatica.
+
 ## 2.21.38 — 2026-09-15
 
 - Rimuove dalla schermata Videocitofono la vecchia gestione SIP manuale per utente: cellulari, tablet e PC usano soltanto i dispositivi personali automatici.
