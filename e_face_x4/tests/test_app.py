@@ -16,7 +16,7 @@ from app.connectors.control4_media import Control4MediaConnector, control4_icon_
 from app.connectors.supervisor import find_addon_url, find_host_url
 from app.media_preferences import apply_preferences, load_preferences, save_preferences
 from app.control4 import load_control4_config, public_control4_config, save_control4_config, summarize_ui_configuration
-from app.source_icons import delete_source_icon, load_builtin_source_icon, load_source_icon, save_source_icon
+from app.source_icons import delete_source_icon, load_builtin_source_icon, load_builtin_source_icon_by_id, load_source_icon, save_source_icon
 from app.backgrounds import load_background, load_background_image, load_backgrounds, save_background_image, save_card_theme, save_inherit, save_preset
 
 
@@ -56,7 +56,7 @@ def test_health() -> None:
     response = TestClient(create_app()).get("/health")
     assert response.status_code == 200
     assert response.json()["ok"] is True
-    assert response.json()["version"] == "2.21.81"
+    assert response.json()["version"] == "2.21.82"
 
 
 def test_installed_app_starts_at_dashboard() -> None:
@@ -95,7 +95,7 @@ def test_intercom_is_in_sidebar_with_embedded_view() -> None:
     client_script = (static / "assets" / "intercom.js").read_text(encoding="utf-8")
     intercom_page = (static / "intercom.html").read_text(encoding="utf-8")
     assert "Tablet Control4 · interno 8291" in intercom_page
-    assert "const currentVersion = '2.21.81'" in client_script
+    assert "const currentVersion = '2.21.82'" in client_script
     assert 'id="call-ufficio" data-dial-extension="8291" data-video-capable="true"' in intercom_page
     assert "Postazione esterna · interno 8201" in intercom_page
     assert "Postazione esterna · interno ${station.sip_extension}" in client_script
@@ -302,10 +302,10 @@ def test_intercom_dashboard_stores_only_local_settings(monkeypatch, tmp_path) ->
     assert 'id="users-tool"' in page
     assert 'id="logout"' in page
     assert page.index('id="logout"') < page.index('id="tools-user-section"')
-    assert "tools-dashboard.js?v=2.21.81" in page
+    assert "tools-dashboard.js?v=2.21.82" in page
     home = client.get("/").text
     assert "backgrounds.css?v=2.21.43" in home
-    assert "app.js?v=2.21.81" in home
+    assert "app.js?v=2.21.82" in home
 
 
 def test_external_stations_api_requires_login_and_hides_secrets(monkeypatch, tmp_path) -> None:
@@ -688,7 +688,7 @@ def test_tools_page_starts_with_selected_background_and_card_theme(monkeypatch, 
     login = client.get("/login").text
     assert '<body class="app-theme" data-background="midnight" data-card-theme="slate">' in home
     assert 'ui-theme-contract.css?v=2.21.29' in home
-    assert 'app.js?v=2.21.81' in home
+    assert 'app.js?v=2.21.82' in home
     assert 'energy.css?v=2.21.30' in home
     assert 'home-comfort.css?v=2.21.31' in home
     assert '<body class="login-theme" data-background="midnight" data-card-theme="slate">' in login
@@ -965,7 +965,21 @@ def test_builtin_control4_source_icons_are_packaged() -> None:
         assert icon[0] == "image/png"
         assert icon[1].startswith(b"\x89PNG\r\n\x1a\n")
     assert load_builtin_source_icon("Sorgente sconosciuta") is None
-    assert load_builtin_source_icon("Sonos Rack Audio Sonos") == load_builtin_source_icon("Sonos")
+    assert load_builtin_source_icon("Sonos Rack Audio Sonos") is not None
+
+
+def test_imported_control4_source_icons_are_packaged_by_id() -> None:
+    expected_ids = {
+        22, 24, 210, 586, 592, 593, 599, 605, 615, 791, 803, 809, 1319,
+        1455, 1528, 1567, 1569, 1578, 1579, 1642, 1644, 1646, 1648, 1650,
+        1652, 1654, 1658, 1660, 1662, 1667, 100002,
+    }
+    for source_id in expected_ids:
+        icon = load_builtin_source_icon_by_id(source_id)
+        assert icon is not None
+        assert icon[0] == "image/png"
+        assert icon[1].startswith(b"\x89PNG\r\n\x1a\n")
+    assert load_builtin_source_icon_by_id(244) is None
 
 
 def test_backgrounds_are_persistent_globally_and_per_room(monkeypatch, tmp_path) -> None:

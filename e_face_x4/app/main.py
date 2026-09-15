@@ -56,7 +56,7 @@ from . import soundcloud_settings
 from . import soundcloud_library
 from .connectors.soundcloud import SoundCloudClient
 from .media_preferences import apply_preferences, load_preferences, save_preferences
-from .source_icons import delete_source_icon, hidden_source_ids, load_builtin_source_icon, load_source_icon, save_source_icon, set_source_hidden
+from .source_icons import delete_source_icon, hidden_source_ids, load_builtin_source_icon, load_builtin_source_icon_by_id, load_source_icon, save_source_icon, set_source_hidden
 from .backgrounds import CARD_THEMES, PRESETS, load_background, load_background_image, load_backgrounds, load_card_theme, load_card_glow, load_room_order, load_security_order, save_background_image, save_card_theme, save_card_glow, save_room_order, save_security_order, save_inherit, save_preset
 from .connectors import BusproConnector, Control4MediaConnector, EThermConnector, EkonexMediaConnector, EvoiceLocalMediaConnector, KseniaConnector
 from .connectors.ksenia import normalize_ksenia
@@ -65,7 +65,7 @@ from .connectors.control4_media import cached_control4_icon, cached_control4_ico
 from .connectors.supervisor import discover_addon_url, discover_host_url
 from .demo import dashboard as demo_dashboard
 
-VERSION = os.environ.get("EFACE_VERSION", "2.21.81")
+VERSION = os.environ.get("EFACE_VERSION", "2.21.82")
 STATIC = Path(__file__).parent / "static"
 logging.basicConfig(level=logging.WARNING, format="%(asctime)s %(levelname)s [e-face-x4] %(message)s")
 _reconnect_warning_at: dict[str, float] = {}
@@ -1949,8 +1949,8 @@ def create_app() -> FastAPI:
         page = page.replace("tools-dashboard.js?v=2.21.36", "tools-dashboard.js?v=2.21.38")
         page = page.replace("tools-dashboard.js?v=2.21.38", "tools-dashboard.js?v=2.21.41")
         page = page.replace("tools-dashboard.js?v=2.21.41", "tools-dashboard.js?v=2.21.42")
-        page = page.replace("tools-dashboard.js?v=2.21.42", "tools-dashboard.js?v=2.21.81")
-        page = page.replace("tools-dashboard.css?v=2.20.36", "tools-dashboard.css?v=2.21.81")
+        page = page.replace("tools-dashboard.js?v=2.21.42", "tools-dashboard.js?v=2.21.82")
+        page = page.replace("tools-dashboard.css?v=2.20.36", "tools-dashboard.css?v=2.21.82")
         page = page.replace("backgrounds.css?v=2.20.20", "backgrounds.css?v=2.21.43")
         page = page.replace("intercom.css?v=2.21.14", "intercom.css?v=2.21.46")
         page = page.replace("app.js?v=2.21.11", "app.js?v=2.21.29")
@@ -2560,7 +2560,7 @@ def create_app() -> FastAPI:
         custom = load_source_icon(source_id)
         if custom:
             return Response(custom[1], media_type=custom[0], headers={"Cache-Control": "private, max-age=86400", "X-Content-Type-Options": "nosniff"})
-        builtin = load_builtin_source_icon(cached_control4_source_label(source_id))
+        builtin = load_builtin_source_icon_by_id(source_id) or load_builtin_source_icon(cached_control4_source_label(source_id))
         if builtin:
             return Response(builtin[1], media_type=builtin[0], headers={"Cache-Control": "public, max-age=86400", "X-Content-Type-Options": "nosniff"})
         cached = cached_control4_icon(source_id)

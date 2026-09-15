@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.21.82 — 2026-09-15
+
+- Include nel pacchetto Git le 31 icone Control4/player caricate manualmente nell’add-on, mantenendo prioritarie le personalizzazioni future dell’utente.
+- Risolve le icone prima per ID reale della sorgente e poi per nome portabile, senza dipendere dalla cache del Director dopo un riavvio.
+- Distingue nei Preferiti i brani WiiM salvati da e-Face con il badge e-Face; i preset nativi conservano il badge WiiM.
+
 ## 2.21.81 — 2026-09-15
 
 - Mostra la X anche sui preset WiiM e, dopo conferma, elimina realmente lo slot dal dispositivo tramite `SetKeyMapping`, facendolo sparire anche da e-Face.
