@@ -61,7 +61,7 @@ from .connectors.control4_media import cached_control4_icon, cached_control4_ico
 from .connectors.supervisor import discover_addon_url, discover_host_url
 from .demo import dashboard as demo_dashboard
 
-VERSION = os.environ.get("EFACE_VERSION", "2.21.70")
+VERSION = os.environ.get("EFACE_VERSION", "2.21.71")
 STATIC = Path(__file__).parent / "static"
 logging.basicConfig(level=logging.WARNING, format="%(asctime)s %(levelname)s [e-face-x4] %(message)s")
 _reconnect_warning_at: dict[str, float] = {}
@@ -175,6 +175,47 @@ def create_app() -> FastAPI:
         except (httpx.HTTPError, RuntimeError) as exc:
             raise HTTPException(status_code=502, detail="WiiM non raggiungibile") from exc
         return {"ok": True, "device": device}
+
+    def configured_wiim() -> WiiMClient:
+        settings = wiim_settings.load()
+        if not settings["enabled"] or not settings["host"]:
+            raise HTTPException(status_code=503, detail="WiiM non configurato")
+        return WiiMClient(settings["host"])
+
+    @app.get("/api/wiim/snapshot")
+    async def wiim_snapshot() -> dict:
+        try:
+            return {"device": await configured_wiim().snapshot()}
+        except (httpx.HTTPError, RuntimeError) as exc:
+            raise HTTPException(status_code=502, detail="WiiM non raggiungibile") from exc
+
+    @app.get("/api/wiim/presets")
+    async def wiim_presets() -> dict:
+        try:
+            return {"items": await configured_wiim().presets()}
+        except (httpx.HTTPError, RuntimeError) as exc:
+            raise HTTPException(status_code=502, detail="Preset WiiM non disponibili") from exc
+
+    @app.post("/api/wiim/action")
+    async def wiim_action(request: Request) -> dict:
+        try:
+            payload = await request.json()
+            await configured_wiim().player_action(str(payload.get("action") or ""), payload.get("value"))
+            return {"ok": True, "device": await configured_wiim().snapshot()}
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        except (httpx.HTTPError, RuntimeError) as exc:
+            raise HTTPException(status_code=502, detail="Comando WiiM non riuscito") from exc
+
+    @app.post("/api/wiim/presets/{index}")
+    async def wiim_play_preset(index: int) -> dict:
+        try:
+            await configured_wiim().play_preset(index)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        except (httpx.HTTPError, RuntimeError) as exc:
+            raise HTTPException(status_code=502, detail="Preset WiiM non avviato") from exc
+        return {"ok": True}
 
     @app.get("/api/admin/installation/preflight")
     async def admin_installation_preflight(request: Request) -> dict:
@@ -1704,6 +1745,7 @@ def create_app() -> FastAPI:
             page = page.replace(placeholder, value)
         page = page.replace('content="#263f48"', 'content="#181c1f"')
         page = page.replace("manifest.webmanifest?v=2.20.38", "manifest.webmanifest?v=2.21.59")
+        page = page.replace("app.css?v=2.20.20", "app.css?v=2.21.71")
         page = page.replace("ui-theme-contract.css?v=2.21.27", "ui-theme-contract.css?v=2.21.29")
         page = page.replace("tools-dashboard.js?v=2.21.27", "tools-dashboard.js?v=2.21.33")
         page = page.replace("tools-dashboard.js?v=2.21.33", "tools-dashboard.js?v=2.21.34")
@@ -1721,6 +1763,7 @@ def create_app() -> FastAPI:
         page = page.replace("app.js?v=2.21.30", "app.js?v=2.21.31")
         page = page.replace("app.js?v=2.21.31", "app.js?v=2.21.32")
         page = page.replace("app.js?v=2.21.32", "app.js?v=2.21.60")
+        page = page.replace("app.js?v=2.21.60", "app.js?v=2.21.71")
         page = page.replace("home-comfort.css?v=2.20.20", "home-comfort.css?v=2.21.31")
         if "--initial-background:" not in page:
             page = page.replace('<html lang="it">', f'<html lang="it" style="background:var(--initial-background,#181c1f);--initial-background:{replacements["__INITIAL_BACKGROUND__"]}">', 1)
@@ -1750,6 +1793,10 @@ def create_app() -> FastAPI:
         if request.query_params.get("admin") == "1":
             require_admin(request)
         return HTMLResponse(themed_page("intercom.html"), headers={"Cache-Control": "no-store"})
+
+    @app.get("/wiim", include_in_schema=False)
+    async def wiim_page() -> HTMLResponse:
+        return HTMLResponse(themed_page("wiim.html", "wiim-theme"), headers={"Cache-Control": "no-store"})
 
     async def resolved_provider(config, slug: str, port: int, timeout: float):
         manual = str(config.base_url or "").lower()

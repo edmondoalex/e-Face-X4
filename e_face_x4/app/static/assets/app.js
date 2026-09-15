@@ -1397,7 +1397,25 @@ function closeIntercom() {
   $('#intercom-frame').contentWindow?.postMessage({type:'eface-intercom-visible',visible:false}, location.origin)
 }
 
+function closeWiim() {
+  $('#wiim-view').hidden = true
+}
+
+function openWiim() {
+  closeIntercom()
+  stopEnergyRefresh()
+  applyBackground('')
+  activeDetailIds = null
+  $('#home-view').hidden = true
+  $('#detail-view').hidden = true
+  $('#energy-view').hidden = true
+  $('#wiim-view').hidden = false
+  if (!$('#wiim-frame').getAttribute('src')) $('#wiim-frame').src = apiUrl('wiim')
+  window.scrollTo({top: 0, behavior: 'smooth'})
+}
+
 function openIntercom() {
+  closeWiim()
   stopEnergyRefresh()
   applyBackground('')
   activeDetailIds = null
@@ -1412,6 +1430,7 @@ function openIntercom() {
 
 function openDevices(title, devices, options = {}) {
   closeIntercom()
+  closeWiim()
   $('#energy-view').hidden = true
   const mediaOnly = devices.length > 0 && devices.every((device) => device.kind === 'media_player')
   activeMediaRoom = options.room && mediaOnly ? options.room : ''
@@ -1446,6 +1465,7 @@ function openDevices(title, devices, options = {}) {
 
 function openScenariosPage() {
   closeIntercom()
+  closeWiim()
   $('#energy-view').hidden = true
   applyBackground('')
   activeDetailIds = null
@@ -1505,6 +1525,7 @@ async function sendScenarioCommand(id, action, button) {
 
 function showHome() {
   closeIntercom()
+  closeWiim()
   stopEnergyRefresh()
   applyBackground('')
   activeDetailIds = null
@@ -1522,6 +1543,7 @@ function showHome() {
 
 function openEnergy() {
   closeIntercom()
+  closeWiim()
   applyBackground('')
   activeDetailIds = null
   $('#home-view').hidden = true
@@ -1794,6 +1816,7 @@ document.querySelectorAll('.rail button').forEach((button) => button.addEventLis
   if (button.dataset.view === 'watch') openDevices('Guarda', currentDevices.filter((device) => ['camera', 'doorbell'].includes(device.kind) || (device.kind === 'media_player' && device.experiences?.includes('watch'))), { av: true, experience: 'watch' })
   if (button.dataset.view === 'listen') openDevices('Ascolta', currentDevices.filter((device) => ['media_player', 'media'].includes(device.kind) && (device.experiences?.includes('listen') || device.tts_enabled)), { av: true, experience: 'listen' })
   if (button.dataset.view === 'intercom') openIntercom()
+  if (button.dataset.view === 'wiim') openWiim()
   if (button.dataset.view === 'lights') openDevices('Luci', currentDevices.filter((device) => device.kind === 'light'), { lights: true, filters: true })
   if (button.dataset.view === 'extra') openDevices('Extra', currentDevices.filter((device) => device.kind === 'switch'), { filters: true })
   if (button.dataset.view === 'scenarios') openScenariosPage()

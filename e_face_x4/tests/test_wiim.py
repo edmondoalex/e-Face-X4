@@ -40,6 +40,27 @@ async def test_native_wiim_snapshot() -> None:
     assert data["volume"] == 78
 
 
+@pytest.mark.asyncio
+async def test_native_wiim_actions_and_presets() -> None:
+    commands = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        command = request.url.params["command"]
+        commands.append(command)
+        if command == "getPresetInfo":
+            return httpx.Response(200, json={"preset_list": [{"number": "1", "name": "526164696F"}]})
+        return httpx.Response(200, text="OK")
+
+    client = WiiMClient("192.168.3.52", transport=httpx.MockTransport(handler))
+    await client.player_action("volume", 42)
+    await client.player_action("next")
+    assert await client.presets() == [{"index": 1, "name": "Radio", "artwork": ""}]
+    await client.play_preset(1)
+    assert commands == ["setPlayerCmd:vol:42", "setPlayerCmd:next", "getPresetInfo", "MCUKeyShortClick:1"]
+    with pytest.raises(ValueError):
+        await client.player_action("volume", 101)
+
+
 def test_admin_wiim_configuration_is_protected_and_verified(monkeypatch, tmp_path) -> None:
     monkeypatch.setenv("EFACE_AUTH_DIR", str(tmp_path / "auth"))
     monkeypatch.setenv("EFACE_WIIM_CONFIG", str(tmp_path / "wiim.json"))
@@ -75,3 +96,10 @@ def test_wiim_admin_ui_is_present() -> None:
     assert 'id="wiim-config"' in page
     assert "Collegamento diretto e-Face → WiiM" in page
     assert "Home Assistant non è nel percorso funzionale" in page
+    home = TestClient(create_app()).get("/").text
+    assert 'data-view="wiim"' in home
+    assert 'id="wiim-frame"' in home
+    player = TestClient(create_app()).get("/wiim").text
+    assert 'id="artwork"' in player
+    assert 'id="volume"' in player
+    assert 'id="preset-list"' in player

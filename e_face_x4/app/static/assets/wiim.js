@@ -1,0 +1,19 @@
+const $ = (selector) => document.querySelector(selector)
+const base = new URL('.', location.href)
+const api = (path) => new URL(path, base).toString()
+let device = {}
+let busy = false
+const esc = (value) => String(value ?? '').replace(/[&<>"']/g, (char) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]))
+const clock = (seconds) => `${Math.floor(Number(seconds || 0) / 60)}:${String(Math.floor(Number(seconds || 0) % 60)).padStart(2, '0')}`
+function notice(text){const node=$('#wiim-notice');node.textContent=text;node.hidden=false;setTimeout(()=>node.hidden=true,3500)}
+async function request(path, options){const response=await fetch(api(path),{cache:'no-store',...options});if(!response.ok)throw new Error((await response.json().catch(()=>({}))).detail||`HTTP ${response.status}`);return response.json()}
+function render(next){device=next||{};$('#connection-state').textContent='ONLINE';$('#connection-state').classList.add('online');$('#device-name').textContent=device.name||'WiiM';$('#device-detail').textContent=`${device.model||'WiiM'} · firmware ${device.firmware||'—'}`;$('#source').textContent=device.source||'WiiM';$('#title').textContent=device.title||'Nessun brano';$('#artist').textContent=device.artist||'—';$('#album').textContent=device.album||'';const art=$('#artwork');if(device.artwork){art.src=device.artwork;art.hidden=false;$('#artwork-fallback').hidden=true}else{art.hidden=true;$('#artwork-fallback').hidden=false}$('#timeline').max=Math.max(1,Number(device.duration||1));$('#timeline').value=Math.min(Number(device.position||0),Number(device.duration||1));$('#position').textContent=clock(device.position);$('#duration').textContent=clock(device.duration);$('#volume').value=Number(device.volume||0);$('#volume-value').textContent=`${Number(device.volume||0)}%`;$('#mute').textContent=device.muted?'RIATTIVA':'MUTO';$('#mute').dataset.action=device.muted?'unmute':'mute';$('#play').dataset.action=device.state==='playing'?'pause':'play';$('#play').textContent=device.state==='playing'?'Ⅱ':'▶';$('#play-state').textContent=String(device.state||'—').toUpperCase();$('#quality').textContent=[device.sample_rate?`${device.sample_rate} Hz`:'',device.bit_depth?`${device.bit_depth} bit`:'',device.bit_rate?`${device.bit_rate} kbps`:''].filter(Boolean).join(' · ')||'—'}
+async function refresh(){if(busy)return;try{render((await request('api/wiim/snapshot')).device)}catch(error){$('#connection-state').textContent='OFFLINE';$('#connection-state').classList.remove('online');notice(error.message)}}
+async function action(name,value){busy=true;try{render((await request('api/wiim/action',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:name,value})})).device)}catch(error){notice(error.message)}finally{busy=false}}
+async function presets(){try{const data=await request('api/wiim/presets');$('#preset-list').innerHTML=data.items.length?data.items.map(item=>`<button data-preset="${item.index}">${esc(item.name)}</button>`).join(''):'<span class="empty">Nessun preset salvato sul WiiM.</span>'}catch(error){$('#preset-list').innerHTML=`<span class="empty">${esc(error.message)}</span>`}}
+document.addEventListener('click',(event)=>{const button=event.target.closest('[data-action]');if(button)action(button.dataset.action);const preset=event.target.closest('[data-preset]');if(preset)request(`api/wiim/presets/${preset.dataset.preset}`,{method:'POST'}).then(()=>setTimeout(refresh,500)).catch(error=>notice(error.message))})
+$('#volume').addEventListener('input',(event)=>$('#volume-value').textContent=`${event.target.value}%`)
+$('#volume').addEventListener('change',(event)=>action('volume',Number(event.target.value)))
+$('#refresh').addEventListener('click',()=>{refresh();presets()})
+$('#artwork').addEventListener('error',()=>{$('#artwork').hidden=true;$('#artwork-fallback').hidden=false})
+refresh();presets();setInterval(refresh,2000)

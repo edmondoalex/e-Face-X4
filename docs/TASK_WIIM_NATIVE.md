@@ -36,3 +36,7 @@ Il driver Control4 espone comandi base, 12 preset, code e repeat/shuffle. Il suo
 Creati `app/connectors/wiim.py` e `tests/test_wiim.py` con validazione LAN, client HTTPS, decodifica metadata e snapshot normalizzato. È disponibile in Amministrazione la scheda WiiM nativa con configurazione persistente, test diretto e riepilogo del dispositivo. Il salvataggio avviene soltanto dopo una verifica positiva, così un indirizzo errato non sostituisce una configurazione funzionante.
 
 Restano da sviluppare l'inventario multi-player/discovery, la pagina WiiM per l'utente, i comandi completi e gli adattatori dei servizi musicali.
+
+## Avanzamento 2.21.71
+
+Aggiunta la pagina WiiM nella navigazione principale con polling diretto ogni due secondi, cover, metadata, timeline, qualità, volume, mute, trasporto e preset. I comandi ammessi sono tradotti server-side tramite una allowlist; il browser non può inviare comandi Linkplay arbitrari. Restano aperti discovery multi-player, coda/ingressi/EQ/multiroom e gli adattatori autenticati per i cataloghi dei servizi musicali.

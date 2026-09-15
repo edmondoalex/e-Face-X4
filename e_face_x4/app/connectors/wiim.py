@@ -45,16 +45,56 @@ class WiiMClient:
         self._transport = transport
         self.timeout = max(1.0, min(float(timeout), 15.0))
 
-    async def command(self, name: str) -> Any:
+    async def command(self, name: str, *, json_response: bool = True) -> Any:
         if not re.fullmatch(r"[A-Za-z0-9_:,./?=&%+ -]{1,512}", name):
             raise ValueError("Comando WiiM non valido")
         async with httpx.AsyncClient(verify=False, timeout=self.timeout, transport=self._transport) as client:
             response = await client.get(f"https://{self.host}/httpapi.asp", params={"command": name})
             response.raise_for_status()
+            if not json_response:
+                return response.text.strip()
             try:
                 return response.json()
             except ValueError as exc:
                 raise RuntimeError("Risposta WiiM non valida") from exc
+
+    async def player_action(self, action: str, value: int | None = None) -> str:
+        commands = {
+            "play": "setPlayerCmd:play",
+            "pause": "setPlayerCmd:pause",
+            "stop": "setPlayerCmd:stop",
+            "next": "setPlayerCmd:next",
+            "previous": "setPlayerCmd:prev",
+            "mute": "setPlayerCmd:mute:1",
+            "unmute": "setPlayerCmd:mute:0",
+        }
+        if action == "volume":
+            if value is None or not 0 <= int(value) <= 100:
+                raise ValueError("Volume WiiM non valido")
+            command = f"setPlayerCmd:vol:{int(value)}"
+        else:
+            command = commands.get(action, "")
+        if not command:
+            raise ValueError("Azione WiiM non valida")
+        return str(await self.command(command, json_response=False))
+
+    async def presets(self) -> list[dict[str, Any]]:
+        payload = await self.command("getPresetInfo")
+        entries = payload.get("preset_list", payload.get("presets", [])) if isinstance(payload, dict) else []
+        if not isinstance(entries, list):
+            return []
+        result = []
+        for position, item in enumerate(entries, 1):
+            if not isinstance(item, dict):
+                continue
+            index = int(item.get("number") or item.get("preset_num") or item.get("index") or position)
+            result.append({"index": index, "name": decode_linkplay_text(item.get("name") or item.get("title") or f"Preset {index}"), "artwork": public_artwork(item.get("picurl") or item.get("artwork"))})
+        return result
+
+    async def play_preset(self, index: int) -> str:
+        if not 1 <= int(index) <= 12:
+            raise ValueError("Preset WiiM non valido")
+        return str(await self.command(f"MCUKeyShortClick:{int(index)}", json_response=False))
 
     async def snapshot(self) -> dict[str, Any]:
         status, player, metadata = await asyncio.gather(
@@ -72,7 +112,7 @@ class WiiMClient:
             "model": str(status.get("project") or "WiiM"),
             "firmware": str(status.get("firmware") or ""),
             "state": {"play": "playing", "pause": "paused", "stop": "idle"}.get(str(player.get("status") or "").lower(), str(player.get("status") or "unknown")),
-            "source": str(player.get("mode") or ""),
+            "source": str(player.get("vendor") or player.get("mode") or ""),
             "title": decode_linkplay_text(metadata.get("title") or player.get("Title")),
             "artist": decode_linkplay_text(metadata.get("artist") or player.get("Artist")),
             "album": decode_linkplay_text(metadata.get("album") or player.get("Album")),

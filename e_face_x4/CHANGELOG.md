@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.21.71 — 2026-09-15
+
+- Aggiunge nella navigazione utente la pagina WiiM nativa con cover, metadata, timeline, qualità audio, stato e volume aggiornati direttamente dalla LAN.
+- Abilita play/pausa, stop, precedente, successivo, mute e regolazione volume senza passare da Home Assistant o Control4.
+- Mostra e richiama i preset salvati nel WiiM, mantenendo Control4 fuori dal percorso dei comandi del player.
+
 ## 2.21.70 — 2026-09-15
 
 - Aggiunge in Amministrazione la configurazione WiiM nativa e-Face → WiiM, con verifica diretta del player sulla LAN e riepilogo di modello, firmware, stato, volume e brano.
