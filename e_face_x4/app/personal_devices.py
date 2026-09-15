@@ -22,11 +22,12 @@ def preferences(record: dict) -> dict[str, Any]:
     volume = record.get("ring_volume", 80)
     vibration = record.get("vibration", True)
     silent = record.get("silent", False)
+    dnd = record.get("dnd", False)
     if ringtone not in _RINGTONES or not isinstance(volume, int) or isinstance(volume, bool) or not 0 <= volume <= 100:
         raise ValueError("Impostazioni suoneria non valide")
-    if not isinstance(vibration, bool) or not isinstance(silent, bool):
+    if not isinstance(vibration, bool) or not isinstance(silent, bool) or not isinstance(dnd, bool):
         raise ValueError("Impostazioni suoneria non valide")
-    return {"ringtone": ringtone, "ring_volume": volume, "vibration": vibration, "silent": silent}
+    return {"ringtone": ringtone, "ring_volume": volume, "vibration": vibration, "silent": silent, "dnd": dnd}
 
 
 def device_type(value: object, name: str = "") -> str:
@@ -69,7 +70,7 @@ def validate(records: object) -> dict[str, dict[str, Any]]:
     for device_id, record in records.items():
         validate_id(device_id)
         required = {"owner", "name", "extension", "password"}
-        optional = {"device_type", "ringtone", "ring_volume", "vibration", "silent"}
+        optional = {"device_type", "ringtone", "ring_volume", "vibration", "silent", "dnd"}
         if not isinstance(record, dict) or not required.issubset(record) or set(record) - required - optional:
             raise ValueError("Dati dispositivo personale incompleti")
         owner, name, extension, password = (record[key] for key in ("owner", "name", "extension", "password"))
@@ -120,7 +121,7 @@ def new_record(device_id: str, owner: str, name: str, records: dict, reserved: s
     if extension is None:
         raise ValueError("Nessun interno personale disponibile")
     record = {"owner": owner, "name": name, "extension": extension, "password": secrets.token_urlsafe(36),
-              "device_type": device_type(kind, name), "ringtone": "doorbell", "ring_volume": 80, "vibration": True, "silent": False}
+              "device_type": device_type(kind, name), "ringtone": "doorbell", "ring_volume": 80, "vibration": True, "silent": False, "dnd": False}
     validate({**records, device_id: record})
     return record
 

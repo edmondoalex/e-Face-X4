@@ -188,6 +188,7 @@ async function intercom() {
   $('#intercom-turn-password').value = ''
   $('#intercom-turn-password').placeholder = turn.password_configured ? 'Password gia configurata' : 'Password TURN'
   await personalDevices()
+  await loadGroups()
   await provisionerStatus()
   await externalStations()
   await internalStations()
@@ -510,6 +511,27 @@ const legacySipSection = $('#sip-accounts-list')?.closest('.admin-form')
 legacySipSection?.before(personalAdmin)
 legacySipSection?.remove()
 
+const groupAdmin=document.createElement('section')
+groupAdmin.className='admin-form';groupAdmin.innerHTML='<div class="admin-info"><b>Gruppi Intercom</b><p>Crea gruppi e scegli gli interni. Tutti (8290) include automaticamente i dispositivi e-Face con DND disattivato; i tablet Control4 applicano il proprio DND.</p></div><div id="intercom-group-list" class="admin-users-list"></div><div class="admin-form-actions"><button type="button" id="intercom-group-add">AGGIUNGI GRUPPO</button><button type="button" id="intercom-group-save">SALVA GRUPPI</button></div>'
+personalAdmin.before(groupAdmin)
+let groupModel=[],groupMembers=[]
+function renderGroups(){
+ const list=$('#intercom-group-list');list.replaceChildren()
+ for(const group of groupModel){
+  const card=document.createElement('fieldset');card.className='admin-info intercom-group-card';card.dataset.extension=group.extension
+  const legend=document.createElement('legend');legend.textContent=group.extension==='8290'?'Tutti · 8290':`Gruppo · ${group.extension}`;card.append(legend)
+  const name=document.createElement('input');name.value=group.name;name.maxLength=48;name.disabled=group.extension==='8290';name.dataset.groupName='';card.append(name)
+  const choices=document.createElement('div');choices.className='intercom-group-members'
+  for(const member of groupMembers){const label=document.createElement('label'),box=document.createElement('input');box.type='checkbox';box.value=member.extension;box.checked=group.members.includes(member.extension);box.disabled=group.extension==='8290';label.append(box,document.createTextNode(` ${member.name} · ${member.extension}${member.dnd?' · DND':''}`));choices.append(label)}
+  card.append(choices)
+  if(group.extension!=='8290')composerAction(card,'ELIMINA',()=>{groupModel=groupModel.filter(x=>x!==group);renderGroups()})
+  list.append(card)
+ }
+}
+async function loadGroups(){const data=await request('api/admin/intercom/groups');groupModel=data.groups;groupMembers=data.members;renderGroups()}
+$('#intercom-group-add').addEventListener('click',()=>{const used=new Set(groupModel.map(x=>x.extension));const extension=[...Array(10)].map((_,i)=>String(8280+i)).find(x=>!used.has(x));if(!extension)return message('Numeri gruppo esauriti');groupModel.push({extension,name:`Gruppo ${extension}`,members:[]});renderGroups()})
+$('#intercom-group-save').addEventListener('click',async()=>{try{const groups=[...document.querySelectorAll('.intercom-group-card')].map(card=>({extension:card.dataset.extension,name:card.querySelector('[data-group-name]').value.trim(),members:[...card.querySelectorAll('input[type=checkbox]:checked')].map(x=>x.value)}));await request('api/admin/intercom/groups',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({groups})});await loadGroups();message('Gruppi Intercom aggiornati')}catch(error){message(error.message)}})
+
 async function personalDevices() {
   const {devices} = await request('api/admin/intercom/personal-devices')
   const list = $('#personal-device-list')
@@ -821,6 +843,7 @@ deviceSoundPanel.innerHTML = '<header><button type="button" aria-label="Torna a 
 document.body.append(deviceSoundPanel)
 const deviceSoundForm = deviceSoundPanel.querySelector('form')
 deviceSoundForm.elements.ringtone.innerHTML = '<option value="doorbell">Videocitofono</option><option value="dingdong">Din-don</option><option value="double">Campanello doppio</option><option value="bell">Campana</option><option value="classic">Classica</option><option value="soft">Delicata</option>'
+deviceSoundForm.elements.silent.closest('label').insertAdjacentHTML('afterend','<label><span><input name="dnd" type="checkbox"> DND · Non disturbare</span><small>Esclude questo dispositivo dalle chiamate di gruppo.</small></label>')
 let currentPersonalDeviceId = ''
 function previewDeviceSound() {
   if (deviceSoundForm.elements.silent.checked) return message('Modalità silenziosa attiva')
@@ -843,6 +866,7 @@ async function openDeviceSound(status) {
   for (const key of ['name','ringtone','ring_volume']) deviceSoundForm.elements[key].value = data[key]
   deviceSoundForm.elements.vibration.checked = data.vibration
   deviceSoundForm.elements.silent.checked = data.silent
+  deviceSoundForm.elements.dnd.checked = data.dnd
   if ('serviceWorker' in navigator && 'PushManager' in window) {
     const registration = await navigator.serviceWorker.register(api('service-worker.js'), {scope:new URL('./', api('service-worker.js')).pathname})
     deviceSoundForm.elements.push_enabled.checked = Boolean(await registration.pushManager.getSubscription())
@@ -881,7 +905,7 @@ async function savePushPreference(enabled) {
 deviceSoundForm.addEventListener('submit', async event => {
   event.preventDefault()
   try {
-    await request(`api/intercom/personal-device/${encodeURIComponent(currentPersonalDeviceId)}/preferences`, {method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify({name:deviceSoundForm.elements.name.value.trim(), ringtone:deviceSoundForm.elements.ringtone.value, ring_volume:Number(deviceSoundForm.elements.ring_volume.value), vibration:deviceSoundForm.elements.vibration.checked, silent:deviceSoundForm.elements.silent.checked})})
+    await request(`api/intercom/personal-device/${encodeURIComponent(currentPersonalDeviceId)}/preferences`, {method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify({name:deviceSoundForm.elements.name.value.trim(), ringtone:deviceSoundForm.elements.ringtone.value, ring_volume:Number(deviceSoundForm.elements.ring_volume.value), vibration:deviceSoundForm.elements.vibration.checked, silent:deviceSoundForm.elements.silent.checked, dnd:deviceSoundForm.elements.dnd.checked})})
     await savePushPreference(deviceSoundForm.elements.push_enabled.checked)
     message('Impostazioni del dispositivo salvate')
     closePanel(deviceSoundPanel.id)

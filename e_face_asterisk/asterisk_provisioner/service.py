@@ -18,9 +18,10 @@ from typing import Callable
 from .managed_config import ManagedConfig
 from .external_routes import ExternalRoutes, reload_dialplan, extension_exists
 from .control4_routes import Control4Routes
+from .intercom_groups import IntercomGroups
 
 _USER = re.compile(r"[a-z][a-z0-9_-]{2,31}\Z")
-_MAX_BODY = 4096
+_MAX_BODY = 16384
 
 
 def make_handler(
@@ -30,6 +31,7 @@ def make_handler(
     endpoint_exists: Callable[[str], bool],
     external_routes: ExternalRoutes | None = None,
     control4_routes: Control4Routes | None = None,
+    intercom_groups: IntercomGroups | None = None,
 ) -> type[BaseHTTPRequestHandler]:
     if len(token) < 32:
         raise ValueError("Token provisioner mancante o troppo corto")
@@ -108,13 +110,15 @@ def make_handler(
                 self._reply(200, {"stations": external_routes.load()})
             elif self.path == "/v1/control4-tablets" and control4_routes is not None:
                 self._reply(200, {"tablets": control4_routes.load()})
+            elif self.path == "/v1/intercom-groups" and intercom_groups is not None:
+                self._reply(200, {"groups": intercom_groups.load()})
             else:
                 self._reply(404, {"error": "Operazione sconosciuta"})
 
         def do_PUT(self) -> None:
             if not self._authorized():
                 return
-            if self.path not in ("/v1/external-stations", "/v1/control4-tablets"):
+            if self.path not in ("/v1/external-stations", "/v1/control4-tablets", "/v1/intercom-groups"):
                 self._reply(404, {"error": "Operazione sconosciuta"})
                 return
             if self.path == "/v1/control4-tablets":
@@ -137,6 +141,19 @@ def make_handler(
                     return
                 self._reply(200, {"tablets": tablets, "provisioned": True})
                 return
+            if self.path == "/v1/intercom-groups":
+                if intercom_groups is None:
+                    self._reply(404, {"error": "Operazione sconosciuta"}); return
+                payload = self._json_body()
+                if payload is None: return
+                if set(payload) != {"groups"}:
+                    self._reply(400, {"error": "Elenco gruppi non valido"}); return
+                try: groups = intercom_groups.replace(payload["groups"])
+                except ValueError as exc:
+                    self._reply(400, {"error": str(exc)}); return
+                except Exception:
+                    self._reply(503, {"error": "Gruppi Intercom non confermati"}); return
+                self._reply(200, {"groups": groups, "provisioned": True}); return
             if external_routes is None:
                 self._reply(404, {"error": "Operazione sconosciuta"})
                 return
@@ -205,6 +222,7 @@ def make_https_server(
     private_key: Path,
     external_routes: ExternalRoutes | None = None,
     control4_routes: Control4Routes | None = None,
+    intercom_groups: IntercomGroups | None = None,
 ) -> ThreadingHTTPServer:
     """Create a TLS-only service on one explicit local IPv4 address.
 
@@ -219,6 +237,6 @@ def make_https_server(
     context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
     context.minimum_version = ssl.TLSVersion.TLSv1_2
     context.load_cert_chain(str(certificate), str(private_key))
-    server = ThreadingHTTPServer((bind_host, port), make_handler(config, token, reload_pjsip, endpoint_exists, external_routes, control4_routes))
+    server = ThreadingHTTPServer((bind_host, port), make_handler(config, token, reload_pjsip, endpoint_exists, external_routes, control4_routes, intercom_groups))
     server.socket = context.wrap_socket(server.socket, server_side=True)
     return server

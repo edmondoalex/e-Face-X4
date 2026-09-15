@@ -2335,6 +2335,12 @@ navigator.serviceWorker?.addEventListener('message', (event) => {
 window.addEventListener('message', (event) => {
   if (event.origin === location.origin && event.source === $('#intercom-frame').contentWindow && event.data?.type === 'eface-intercom-incoming') openIntercom()
 })
+window.addEventListener('message', (event) => {
+  if (event.origin !== location.origin || event.source !== $('#intercom-frame').contentWindow || event.data?.type !== 'eface-intercom-state') return
+  const button=document.querySelector('[data-view="intercom"]')
+  button.dataset.intercomState=['idle','available','ringing','active'].includes(event.data.state)?event.data.state:'idle'
+  button.title={idle:'Intercom non collegato',available:'Intercom disponibile',ringing:'Chiamata in arrivo',active:'Intercomunicazione attiva'}[button.dataset.intercomState]
+})
 document.addEventListener('pointerdown', () => {
   try { $('#intercom-frame').contentWindow?.efaceUnlockIntercomAudio?.() } catch (_) {}
 }, {once:true, capture:true})

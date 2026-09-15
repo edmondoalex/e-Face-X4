@@ -2,7 +2,7 @@
   const $ = (selector) => document.querySelector(selector)
   const adminMode = document.documentElement.classList.contains('admin-intercom')
   const root = new URL('./', location.href)
-  const currentVersion = '2.21.55'
+  const currentVersion = '2.21.60'
   function newDeviceId() {
     if (typeof crypto.randomUUID === 'function') return crypto.randomUUID()
     const bytes = new Uint8Array(16)
@@ -37,6 +37,8 @@
   let ringtoneKind = ''
   let ringtoneActive = false
   let ringPreferences = {ringtone:'doorbell', ring_volume:80, vibration:true, silent:false}
+  let deviceDnd = false
+  let currentDeviceId = ''
   let rejectIncomingUntil = 0
   let audioStatsTimer = null
   let micInput = null
@@ -53,6 +55,10 @@
   let intercomVisible = !document.documentElement.classList.contains('embedded')
   let stationsSignature = ''
   const pushedCaller = new URLSearchParams(location.search).get('from')
+  $('.intercom-station-list').prepend($('.doorbird-row'))
+  function publishIntercomState(state) {
+    if (window.parent !== window) window.parent.postMessage({type:'eface-intercom-state', state}, location.origin)
+  }
   if (pushedCaller) $('#call-status').textContent = `Chiamata da ${pushedCaller} · collegamento in corso…`
   async function refreshExternalStations() {
     try {
@@ -222,21 +228,48 @@
         title.textContent = device.name
         const subtitle = document.createElement('small')
         subtitle.textContent = `${device.owner} · interno ${device.extension}${device.extension === ownExtension ? ' · questo dispositivo' : ''}`
-        const dial = document.createElement('button')
-        dial.type = 'button'
-        dial.textContent = 'CHIAMA'
-        dial.dataset.dialExtension = device.extension
-        dial.dataset.stationReady = String(device.extension !== ownExtension)
-        dial.disabled = device.extension === ownExtension || !phone?.isRegistered() || !!call
         copy.append(title, subtitle)
-        row.append(icon, copy, dial)
-        anchor.after(row)
-        anchor = row
+        if (device.extension === ownExtension) {
+          row.classList.add('current-device-row')
+          const controls = document.createElement('div'); controls.className = 'current-device-controls'
+          const levelControl=(label,source)=>{const wrap=document.createElement('label'),output=document.createElement('output'),slider=source.cloneNode();slider.removeAttribute('id');output.textContent=`${source.value}%`;wrap.append(document.createTextNode(label),output,slider);slider.addEventListener('input',()=>{source.value=slider.value;source.dispatchEvent(new Event('input'));output.textContent=`${slider.value}%`});return wrap}
+          controls.append(levelControl('Volume altoparlante',$('#speaker-gain')),levelControl('Livello microfono',$('#microphone-gain')))
+          const dnd = document.createElement('button'); dnd.type='button'; dnd.className='dnd-switch'
+          const renderDnd=()=>{ dnd.classList.toggle('active',deviceDnd); dnd.innerHTML=`<span class="mdi-switch"></span><b>DND ${deviceDnd?'ATTIVO':'DISATTIVO'}</b>` }
+          renderDnd(); dnd.addEventListener('click', async()=>{
+            const next=!deviceDnd
+            const response=await fetch(new URL(`api/intercom/personal-device/${encodeURIComponent(currentDeviceId)}/preferences`,root),{method:'PUT',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:device.name,ringtone:ringPreferences.ringtone,ring_volume:ringPreferences.ring_volume,vibration:ringPreferences.vibration,silent:ringPreferences.silent,dnd:next})})
+            if(!response.ok){const data=await response.json().catch(()=>({}));error(data.detail||'DND non aggiornato');return}
+            deviceDnd=next; renderDnd()
+          }); controls.append(dnd); row.append(icon,copy,controls); $('.doorbird-row').after(row)
+        } else {
+          const dial = document.createElement('button'); dial.type='button'; dial.textContent='CHIAMA'; dial.dataset.dialExtension=device.extension; dial.dataset.stationReady='true'; dial.disabled=!phone?.isRegistered()||!!call
+          row.append(icon,copy,dial); anchor.after(row); anchor=row
+        }
       }
     } catch (_) { /* Keep last known list while offline. */ }
   }
   refreshPersonalDevices()
   setInterval(refreshPersonalDevices, 30000)
+  async function refreshGroups() {
+    try {
+      const response=await fetch(new URL('api/intercom/groups',root),{cache:'no-store',credentials:'same-origin'})
+      if(!response.ok)return
+      const {groups}=await response.json()
+      document.querySelectorAll('.custom-group-row').forEach(row=>row.remove())
+      const all=groups.find(group=>group.extension==='8290')
+      if(all) $('#call-control4').previousElementSibling.querySelector('strong').textContent=all.name
+      let anchor=$('#call-control4').closest('.intercom-station-row')
+      for(const group of groups.filter(group=>group.extension!=='8290')){
+        const row=document.createElement('div');row.className='intercom-station-row custom-group-row'
+        row.innerHTML='<svg class="station-icon" viewBox="0 0 24 24"><path d="M4 8h4l4-3v14l-4-3H4zM16 9c2 2 2 4 0 6M19 6c4 4 4 8 0 12"/></svg><div class="station-copy"><strong></strong><small></small></div><button>CHIAMA</button>'
+        row.querySelector('strong').textContent=group.name;row.querySelector('small').textContent=`Gruppo ${group.extension} · ${group.members.length} interni`
+        const button=row.querySelector('button');button.dataset.dialExtension=group.extension;button.disabled=!phone?.isRegistered()||!!call
+        anchor.after(row);anchor=row
+      }
+    }catch(_){}
+  }
+  refreshGroups();setInterval(refreshGroups,30000)
   $('#doorbird-expand').addEventListener('click', () => {
     const expanded = $('.doorbird-row').classList.toggle('expanded')
     $('#doorbird-expand').setAttribute('aria-expanded', String(expanded))
@@ -532,6 +565,7 @@
     $('#sip-connect').disabled = connected
     $('#sip-disconnect').disabled = !phone
     setDialButtonsDisabled(!connected || !!call)
+    publishIntercomState(connected ? 'available' : 'idle')
   }
 
   function clearCall(text) {
@@ -549,6 +583,7 @@
     $('#call-answer').disabled = true
     $('#call-hangup').disabled = true
     setDialButtonsDisabled(!phone || !phone.isRegistered())
+    publishIntercomState(phone?.isRegistered() ? 'available' : 'idle')
   }
 
   $('#speaker-gain').addEventListener('input', () => {
@@ -587,6 +622,12 @@
   }
 
   function track(session) {
+    if (session.direction === 'incoming' && deviceDnd) {
+      rejectIncomingUntil = Date.now() + 60000
+      session.terminate({status_code:486, reason_phrase:'DND'})
+      publishIntercomState(phone?.isRegistered() ? 'available' : 'idle')
+      return
+    }
     call = session
     $('#intercom-call-panel').hidden = false
     $('#audio-status').textContent = 'Connessione audio in preparazione…'
@@ -599,6 +640,7 @@
     $('#call-hangup').disabled = false
     setDialButtonsDisabled(true)
     if (session.direction === 'incoming') {
+      publishIntercomState('ringing')
       if (window.parent !== window) {
         window.parent.postMessage({type:'eface-intercom-incoming'}, location.origin)
         setTimeout(startRingtone, 120)
@@ -655,7 +697,7 @@
     session.on('sdp', ({originator}) => { if (originator === 'local') clearTimeout(iceReadyTimer) })
     session.on('sending', () => { $('#call-status').textContent = 'INVITE inviato ad Asterisk…' })
     session.on('progress', () => { $('#call-status').textContent = 'I tablet stanno squillando…' })
-    session.on('confirmed', () => { stopRingtone(); $('#call-status').textContent = 'In conversazione'; bindConnection(session.connection); if (boundConnection) syncRemoteAudio(boundConnection); playRemoteAudio() })
+    session.on('confirmed', () => { stopRingtone(); publishIntercomState('active'); $('#call-status').textContent = 'In conversazione'; bindConnection(session.connection); if (boundConnection) syncRemoteAudio(boundConnection); playRemoteAudio() })
     session.on('ended', () => { clearTimeout(iceReadyTimer); clearInterval(connectionPollTimer); clearCall('Chiamata terminata.') })
     session.on('failed', ({cause}) => { clearTimeout(iceReadyTimer); clearInterval(connectionPollTimer); clearCall(`Chiamata non riuscita: ${cause || 'errore sconosciuto'}`) })
     session.on('getusermediafailed', ({name, message}) => error(`Microfono: ${name || 'errore'} ${message || ''}`))
@@ -693,6 +735,7 @@
           deviceId = newDeviceId()
           localStorage.setItem(key, deviceId)
         }
+        currentDeviceId = deviceId
         const kind = /iPad|Tablet/i.test(navigator.userAgent) || (/Android/i.test(navigator.userAgent) && !/Mobile/i.test(navigator.userAgent)) ? 'tablet' : /iPhone|Android|Mobile/i.test(navigator.userAgent) ? 'phone' : 'desktop'
         const deviceType = {phone:'Cellulare', tablet:'Tablet', desktop:'PC'}[kind]
         response = await fetch(new URL('api/intercom/sip/personal-device', root), {
@@ -703,6 +746,7 @@
       const data = await response.json().catch(() => ({}))
       if (!response.ok) throw new Error(data.detail || 'Credenziale SIP non disponibile in e-Face')
       ringPreferences = {ringtone:data.ringtone || 'doorbell', ring_volume:Number.isInteger(data.ring_volume) ? data.ring_volume : 80, vibration:data.vibration !== false, silent:data.silent === true}
+      deviceDnd = data.dnd === true
       const extension = data.username
       if (!/^[0-9]{4}$/.test(extension)) throw new Error('Interno SIP non valido')
       if (!password) password = data.password

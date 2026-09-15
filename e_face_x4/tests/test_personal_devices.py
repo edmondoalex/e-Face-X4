@@ -35,8 +35,11 @@ def test_personal_device_api_provisions_and_revokes_individually(monkeypatch, tm
     monkeypatch.setenv("EFACE_PERSONAL_DEVICES", str(tmp_path / "devices.json"))
     monkeypatch.setenv("EFACE_SIP_ACCOUNTS", str(tmp_path / "legacy.json"))
     remote = {}
+    remote_groups = {"groups": []}
 
     async def fake_request(method, path, payload=None):
+        if path == "/v1/intercom-groups" and method == "GET": return remote_groups
+        if path == "/v1/intercom-groups" and method == "PUT": remote_groups["groups"] = payload["groups"]; return {"groups": payload["groups"], "provisioned": True}
         if method == "POST":
             remote[payload["username"]] = payload
             return {"extension": payload["extension"], "provisioned": True}
@@ -65,6 +68,9 @@ def test_personal_device_api_provisions_and_revokes_individually(monkeypatch, tm
     preferences = person.put(f"/api/intercom/personal-device/{device_id}/preferences", json={"name": "Poco Mario", "ringtone": "soft", "ring_volume": 55, "vibration": False, "silent": False})
     assert preferences.status_code == 200, preferences.text
     assert preferences.json()["ring_volume"] == 55
+    dnd = person.put(f"/api/intercom/personal-device/{device_id}/preferences", json={"name":"Poco Mario","ringtone":"soft","ring_volume":55,"vibration":False,"silent":False,"dnd":True})
+    assert dnd.json()["dnd"] is True
+    assert "8302" not in next(group for group in remote_groups["groups"] if group["extension"] == "8290")["members"]
     assert person.get(f"/api/intercom/personal-device/{device_id}/preferences").json()["name"] == "Poco Mario"
     assert admin.put(f"/api/admin/intercom/personal-devices/{device_id}", json={"name": "Telefono Mario"}).status_code == 200
     assert person.post("/api/intercom/sip/personal-device", json=payload).json()["name"] == "Telefono Mario"
@@ -80,6 +86,8 @@ def test_personal_device_push_subscription_and_call(monkeypatch, tmp_path):
     monkeypatch.setenv("EFACE_SIP_ACCOUNTS", str(tmp_path / "legacy.json"))
     monkeypatch.setenv("EFACE_PUSH_DIR", str(tmp_path / "push"))
     async def fake_provision(method, path, payload=None):
+        if path == "/v1/intercom-groups" and method == "GET": return {"groups": []}
+        if path == "/v1/intercom-groups" and method == "PUT": return {"groups": payload["groups"], "provisioned": True}
         return {"extension": payload["extension"], "provisioned": True}
     monkeypatch.setattr(provisioner_client, "request", fake_provision)
     create_admin("password-admin-lunga")
@@ -98,6 +106,7 @@ def test_personal_device_push_subscription_and_call(monkeypatch, tmp_path):
         return stored == subscription and payload["extension"] == extension
     monkeypatch.setattr(push_notifications, "send", fake_send)
     assert person.post(f"/api/intercom/push/call/{extension}").json() == {"sent": 1}
+    assert person.post("/api/intercom/push/call/8290").json() == {"sent": 1}
     assert pushed["target"].startswith("intercom/wake/")
     person.post("/api/auth/logout")
     wake = person.get(f"/{pushed['target']}", follow_redirects=False, headers={"X-Forwarded-Proto": "https"})
@@ -125,6 +134,9 @@ def test_personal_device_skips_unmanaged_asterisk_extension(monkeypatch, tmp_pat
     monkeypatch.setenv("EFACE_SIP_ACCOUNTS", str(tmp_path / "legacy.json"))
 
     async def fake_request(method, path, payload=None):
+        if path == "/v1/intercom-groups" and method == "GET": return {"groups": []}
+        if path == "/v1/intercom-groups" and method == "PUT": return {"groups": payload["groups"], "provisioned": True}
+        if method == "DELETE": return {"removed": True}
         if payload["extension"] == "8302":
             raise RuntimeError("Interno non valido o già assegnato")
         return {"extension": payload["extension"], "provisioned": True}

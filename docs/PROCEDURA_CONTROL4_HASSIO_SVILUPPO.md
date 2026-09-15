@@ -105,3 +105,11 @@ Prima di chiedere un gesto manuale, rispondere internamente a quattro domande: *
 ## 7. Quando aggiornare automaticamente questo task
 
 L'agente non deve aspettare un promemoria dell'utente: nello stesso turno in cui verifica un nuovo meccanismo Control4/HA o risolve un guasto che generalizza a più sorgenti, aggiorna questa procedura (o il task specifico) con: **data, evidenza ottenuta, confine di sicurezza, comando/sonda ripetibile e risultato ancora da verificare**. Lo fa anche dopo una modifica alla persistenza o un test reale che conferma/smentisce un'ipotesi. Non apre un task separato per ogni dettaglio puramente estetico e non scrive credenziali o dump integrali. La regola è resa scopribile alle sessioni future tramite `AGENTS.md` alla radice del repository.
+
+# Gruppi Intercom e-Face (15/09/2026)
+
+- Asterisk e-Face `6.2.0-eface.9` gestisce i gruppi `8280–8289` e il gruppo automatico Tutti `8290` tramite `/config/asterisk/eface/intercom_groups.json` e `intercom_groups.conf`.
+- Al primo avvio la sola rotta legacy `8290` viene migrata verso il contesto isolato `eface-groups`; il sorgente precedente viene conservato in `extensions.before-intercom-groups.bak` e ogni errore di reload provoca rollback.
+- e-Face `2.21.60` mantiene Tutti sincronizzato con i tablet Control4, i telefoni VoIP e i dispositivi personali che hanno DND disattivato. Il DND dei tablet Control4 resta nativo e non viene duplicato da e-Face.
+- I gruppi personalizzati si configurano in Amministrazione > Videocitofono selezionando gli interni; nessuna credenziale SIP viene salvata nell'inventario dei gruppi.
+- Verifica minima dopo una distribuzione: salute dei due add-on, `dialplan show 8290@eface-test`, `dialplan show 8290@eface-groups`, contenuto non sensibile dell'inventario gruppi e una chiamata reale per convalidare squillo/audio.

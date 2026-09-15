@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.21.60 — 2026-09-15
+
+- Postazioni esterne in cima e dispositivo corrente subito sotto, senza pulsante CHIAMA e con livelli audio e DND persistente.
+- Icona Intercom dinamica: grigia offline, verde disponibile, rossa durante lo squillo e gialla in conversazione.
+- Gestione Admin dei gruppi Intercom con selezione degli interni; Tutti (8290) segue automaticamente il DND e-Face e lascia ai Control4 il DND nativo.
+
 ## 2.21.59 — 2026-09-15
 
 - La splash nativa della PWA usa nero puro per sfondo e barra di sistema, eliminando definitivamente il precedente verde-petrolio dalle nuove installazioni.

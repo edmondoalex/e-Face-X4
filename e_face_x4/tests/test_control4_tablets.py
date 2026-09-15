@@ -41,13 +41,23 @@ def test_tablets_api_confirms_route_before_persisting(monkeypatch, tmp_path):
 
     monkeypatch.setenv("EFACE_AUTH_DIR", str(tmp_path / "auth"))
     monkeypatch.setenv("EFACE_CONTROL4_TABLETS", str(tmp_path / "tablets.json"))
+    monkeypatch.setenv("EFACE_PERSONAL_DEVICES", str(tmp_path / "devices.json"))
+    monkeypatch.setenv("EFACE_VOIP_PHONES", str(tmp_path / "phones.json"))
     routes = []
+    groups = []
 
     async def fake_request(method, path, payload=None):
-        assert path == "/v1/control4-tablets"
-        if method == "PUT":
+        if path == "/v1/control4-tablets" and method == "PUT":
             routes[:] = payload["tablets"]
-        return {"tablets": list(routes), "provisioned": True}
+            return {"tablets": list(routes), "provisioned": True}
+        if path == "/v1/control4-tablets" and method == "GET":
+            return {"tablets": list(routes)}
+        if path == "/v1/intercom-groups" and method == "GET":
+            return {"groups": list(groups)}
+        if path == "/v1/intercom-groups" and method == "PUT":
+            groups[:] = payload["groups"]
+            return {"groups": list(groups)}
+        raise AssertionError((method, path))
 
     monkeypatch.setattr(provisioner_client, "request", fake_request)
     monkeypatch.setattr(provisioner_client, "public", lambda: {"configured": True})
@@ -59,6 +69,7 @@ def test_tablets_api_confirms_route_before_persisting(monkeypatch, tmp_path):
     assert response.status_code == 200, response.text
     assert response.json()["tablets"] == [{**tablet, "status": "route_present"}]
     assert control4_tablets.load() == [tablet]
+    assert groups[0]["members"] == ["8291", "8292", "8293"]
     assert client.get("/api/intercom/internal-stations").json()["tablets"] == [
         {"extension": "8293", "name": "Cucina", "ready": True}
     ]

@@ -42,6 +42,7 @@ from . import internal_stations
 from . import control4_tablets
 from . import voip_phones
 from . import personal_devices
+from . import intercom_groups
 from . import push_notifications
 from . import provisioner_client
 from . import installation
@@ -58,7 +59,7 @@ from .connectors.control4_media import cached_control4_icon, cached_control4_ico
 from .connectors.supervisor import discover_addon_url, discover_host_url
 from .demo import dashboard as demo_dashboard
 
-VERSION = os.environ.get("EFACE_VERSION", "2.21.59")
+VERSION = os.environ.get("EFACE_VERSION", "2.21.60")
 STATIC = Path(__file__).parent / "static"
 logging.basicConfig(level=logging.WARNING, format="%(asctime)s %(levelname)s [e-face-x4] %(message)s")
 _reconnect_warning_at: dict[str, float] = {}
@@ -106,6 +107,12 @@ def create_app() -> FastAPI:
     push_wake_tokens: dict[str, dict] = {}
     control4_support_tokens: dict[str, float] = {}
     doorbird_video_slots = asyncio.Semaphore(2)
+
+    async def sync_default_intercom_group(records: dict | None = None) -> None:
+        remote = await provisioner_client.request("GET", "/v1/intercom-groups")
+        groups = intercom_groups.with_default(remote.get("groups", []), records)
+        if groups != intercom_groups.validate(remote.get("groups", [])):
+            await provisioner_client.request("PUT", "/v1/intercom-groups", {"groups": groups})
 
     def secure_cookie(request: Request) -> bool:
         return request.url.scheme == "https" or request.headers.get("x-forwarded-proto", "").lower() == "https"
@@ -171,6 +178,7 @@ def create_app() -> FastAPI:
     @app.put("/api/admin/intercom/control4-tablets")
     async def admin_save_control4_tablets(request: Request, payload: dict) -> Response:
         require_admin(request)
+        previous_tablets = control4_tablets.load()
         try:
             if set(payload) != {"tablets"}:
                 raise ValueError("Elenco tablet non valido")
@@ -185,7 +193,9 @@ def create_app() -> FastAPI:
             raise HTTPException(status_code=503, detail=str(exc)) from exc
         try:
             control4_tablets.save(tablets)
+            await sync_default_intercom_group()
         except Exception:
+            control4_tablets.save(previous_tablets)
             await provisioner_client.request("PUT", "/v1/control4-tablets", {"tablets": old_routes["tablets"]})
             raise
         return JSONResponse({"tablets": [{**tablet, "status": "route_present"} for tablet in tablets]}, headers={"Cache-Control": "no-store, private"})
@@ -232,7 +242,9 @@ def create_app() -> FastAPI:
                 raise HTTPException(status_code=503, detail=str(exc)) from exc
             try:
                 voip_phones.save({**current, extension: record})
+                await sync_default_intercom_group()
             except Exception:
+                voip_phones.save(current)
                 await provisioner_client.request("DELETE", f"/v1/voip-phones/voip_{extension}")
                 raise
         return JSONResponse({"extension": extension, "username": extension, "password": record["password"],
@@ -278,7 +290,9 @@ def create_app() -> FastAPI:
                 raise HTTPException(status_code=503, detail=str(exc)) from exc
             try:
                 voip_phones.save({key: value for key, value in current.items() if key != extension})
+                await sync_default_intercom_group()
             except Exception:
+                voip_phones.save(current)
                 await provisioner_client.request("POST", "/v1/voip-phones", {"username": f"voip_{extension}", "extension": extension, **old})
                 raise
         return JSONResponse({"removed": True}, headers={"Cache-Control": "no-store, private"})
@@ -1124,10 +1138,14 @@ def create_app() -> FastAPI:
                     raise HTTPException(status_code=503, detail=str(exc)) from exc
             if not existing:
                 try:
-                    personal_devices.save({**records, device_id: record})
+                    updated_records = {**records, device_id: record}
+                    await sync_default_intercom_group(updated_records)
+                    personal_devices.save(updated_records)
                 except Exception:
                     await provisioner_client.request("DELETE", f"/v1/phones/{username}")
                     raise
+            else:
+                await sync_default_intercom_group(records)
         return JSONResponse({"username": record["extension"], "password": record["password"], "name": record["name"], **personal_devices.preferences(record)},
                             headers={"Cache-Control": "no-store, private", "Pragma": "no-cache", "Vary": "Cookie", "X-Content-Type-Options": "nosniff"})
 
@@ -1142,14 +1160,15 @@ def create_app() -> FastAPI:
     @app.put("/api/intercom/personal-device/{device_id}/preferences")
     async def update_personal_device_preferences(device_id: str, request: Request, payload: dict) -> Response:
         owner = user_auth.session_user(request.cookies.get(user_auth.COOKIE))
-        if set(payload) != {"name", "ringtone", "ring_volume", "vibration", "silent"}:
+        required_preferences = {"name", "ringtone", "ring_volume", "vibration", "silent"}
+        if not required_preferences.issubset(payload) or set(payload) - required_preferences - {"dnd"}:
             raise HTTPException(status_code=400, detail="Impostazioni dispositivo non valide")
         async with personal_lock:
             records = personal_devices.load()
             old = records.get(device_id)
             if not owner or not old or old["owner"] != owner:
                 raise HTTPException(status_code=404, detail="Dispositivo personale non trovato")
-            new = {**old, **payload}
+            new = {**old, **payload, "dnd": payload.get("dnd", old.get("dnd", False))}
             try:
                 personal_devices.validate({device_id: new})
                 await provisioner_client.request("POST", "/v1/phones", {
@@ -1157,9 +1176,13 @@ def create_app() -> FastAPI:
                     "password": new["password"], "name": new["name"],
                 })
                 personal_devices.save({**records, device_id: new})
+                if new["dnd"] != old.get("dnd", False):
+                    await sync_default_intercom_group({**records, device_id: new})
             except ValueError as exc:
                 raise HTTPException(status_code=400, detail=str(exc)) from exc
             except RuntimeError as exc:
+                if personal_devices.load().get(device_id) == new:
+                    personal_devices.save(records)
                 raise HTTPException(status_code=503, detail=str(exc)) from exc
         return JSONResponse({"device_id": device_id, "name": new["name"], **personal_devices.preferences(new)}, headers={"Cache-Control": "no-store, private"})
 
@@ -1205,9 +1228,17 @@ def create_app() -> FastAPI:
     @app.post("/api/intercom/push/call/{extension}")
     async def intercom_push_call(extension: str, request: Request) -> Response:
         caller = user_auth.session_user(request.cookies.get(user_auth.COOKIE))
-        if not caller or not re.fullmatch(r"83(?:0[2-9]|[1-4][0-9])", extension):
+        if not caller or not re.fullmatch(r"(?:828[0-9]|8290|83(?:0[2-9]|[1-4][0-9]))", extension):
             raise HTTPException(status_code=403, detail="Chiamata push non autorizzata")
-        targets = [(device_id, item) for device_id, item in push_notifications.load().items() if item.get("extension") == extension]
+        target_extensions = {extension}
+        if extension.startswith("828") or extension == "8290":
+            try:
+                remote = await provisioner_client.request("GET", "/v1/intercom-groups")
+                group = next((item for item in intercom_groups.with_default(remote.get("groups", [])) if item["extension"] == extension), None)
+                target_extensions = {member for member in (group or {}).get("members", []) if member.startswith("83")}
+            except RuntimeError:
+                target_extensions = set()
+        targets = [(device_id, item) for device_id, item in push_notifications.load().items() if item.get("extension") in target_extensions]
         for key, value in list(push_wake_tokens.items()):
             if value["expires"] < time.monotonic():
                 push_wake_tokens.pop(key, None)
@@ -1217,7 +1248,7 @@ def create_app() -> FastAPI:
             push_wake_tokens[token] = {"owner": item["owner"], "caller": user_auth.account(caller)["name"], "expires": time.monotonic() + 120}
             ok = await asyncio.to_thread(push_notifications.send, item["subscription"], {
                 "title": "Chiamata Intercom", "body": f"Chiamata da {user_auth.account(caller)['name']}",
-                "caller": user_auth.account(caller)["name"], "extension": extension, "target": f"intercom/wake/{token}",
+                "caller": user_auth.account(caller)["name"], "extension": item["extension"], "target": f"intercom/wake/{token}",
             })
             if ok:
                 sent += 1
@@ -1245,6 +1276,31 @@ def create_app() -> FastAPI:
     async def admin_personal_devices(request: Request) -> Response:
         require_admin(request)
         return JSONResponse({"devices": personal_devices.public(personal_devices.load())}, headers={"Cache-Control": "no-store, private"})
+
+    @app.get("/api/admin/intercom/groups")
+    async def admin_intercom_groups(request: Request) -> Response:
+        require_admin(request)
+        remote = await provisioner_client.request("GET", "/v1/intercom-groups")
+        groups = intercom_groups.with_default(remote.get("groups", []))
+        return JSONResponse({"groups": groups, "members": intercom_groups.available_members()}, headers={"Cache-Control":"no-store, private"})
+
+    @app.get("/api/intercom/groups")
+    async def public_intercom_groups(request: Request) -> Response:
+        if not user_auth.session_user(request.cookies.get(user_auth.COOKIE)):
+            raise HTTPException(status_code=401, detail="Accesso richiesto")
+        remote = await provisioner_client.request("GET", "/v1/intercom-groups")
+        return JSONResponse({"groups": intercom_groups.with_default(remote.get("groups", []))}, headers={"Cache-Control":"no-store, private"})
+
+    @app.put("/api/admin/intercom/groups")
+    async def admin_save_intercom_groups(request: Request, payload: dict) -> Response:
+        require_admin(request)
+        if set(payload) != {"groups"}: raise HTTPException(status_code=400, detail="Elenco gruppi non valido")
+        try:
+            groups = intercom_groups.with_default(payload["groups"])
+            result = await provisioner_client.request("PUT", "/v1/intercom-groups", {"groups": groups})
+        except ValueError as exc: raise HTTPException(status_code=400, detail=str(exc)) from exc
+        except RuntimeError as exc: raise HTTPException(status_code=503, detail=str(exc)) from exc
+        return JSONResponse({"groups": result["groups"]}, headers={"Cache-Control":"no-store, private"})
 
     @app.put("/api/admin/intercom/personal-devices/{device_id}")
     async def admin_rename_personal_device(device_id: str, request: Request, payload: dict) -> Response:
@@ -1292,7 +1348,9 @@ def create_app() -> FastAPI:
             except RuntimeError as exc:
                 raise HTTPException(status_code=503, detail=str(exc)) from exc
             try:
-                personal_devices.save({key: value for key, value in records.items() if key != device_id})
+                updated_records = {key: value for key, value in records.items() if key != device_id}
+                await sync_default_intercom_group(updated_records)
+                personal_devices.save(updated_records)
             except Exception:
                 await provisioner_client.request("POST", "/v1/phones", {
                     "username": username, "extension": old["extension"],
@@ -1614,8 +1672,8 @@ def create_app() -> FastAPI:
         page = page.replace("tools-dashboard.js?v=2.21.36", "tools-dashboard.js?v=2.21.38")
         page = page.replace("tools-dashboard.js?v=2.21.38", "tools-dashboard.js?v=2.21.41")
         page = page.replace("tools-dashboard.js?v=2.21.41", "tools-dashboard.js?v=2.21.42")
-        page = page.replace("tools-dashboard.js?v=2.21.42", "tools-dashboard.js?v=2.21.56")
-        page = page.replace("tools-dashboard.css?v=2.20.36", "tools-dashboard.css?v=2.21.56")
+        page = page.replace("tools-dashboard.js?v=2.21.42", "tools-dashboard.js?v=2.21.60")
+        page = page.replace("tools-dashboard.css?v=2.20.36", "tools-dashboard.css?v=2.21.60")
         page = page.replace("backgrounds.css?v=2.20.20", "backgrounds.css?v=2.21.43")
         page = page.replace("intercom.css?v=2.21.14", "intercom.css?v=2.21.46")
         page = page.replace("app.js?v=2.21.11", "app.js?v=2.21.29")
@@ -1623,7 +1681,7 @@ def create_app() -> FastAPI:
         page = page.replace("app.js?v=2.21.29", "app.js?v=2.21.30")
         page = page.replace("app.js?v=2.21.30", "app.js?v=2.21.31")
         page = page.replace("app.js?v=2.21.31", "app.js?v=2.21.32")
-        page = page.replace("app.js?v=2.21.32", "app.js?v=2.21.55")
+        page = page.replace("app.js?v=2.21.32", "app.js?v=2.21.60")
         page = page.replace("home-comfort.css?v=2.20.20", "home-comfort.css?v=2.21.31")
         if "--initial-background:" not in page:
             page = page.replace('<html lang="it">', f'<html lang="it" style="background:var(--initial-background,#181c1f);--initial-background:{replacements["__INITIAL_BACKGROUND__"]}">', 1)

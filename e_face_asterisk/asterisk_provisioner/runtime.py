@@ -14,6 +14,7 @@ from .service import make_https_server
 from .external_routes import ExternalRoutes, reload_dialplan
 from .control4_routes import Control4Routes
 from .voip_routes import VoipRoutes
+from .intercom_groups import IntercomGroups
 
 
 def assert_ready(config_root: Path) -> ManagedConfig:
@@ -45,10 +46,12 @@ def serve(config_root: Path, bind_host: str, port: int) -> None:
     control4_routes = Control4Routes(config_root)
     control4_routes.ensure(reload_dialplan)
     VoipRoutes(config_root).ensure(reload_dialplan)
+    intercom_groups = IntercomGroups(config_root)
+    intercom_groups.ensure(reload_dialplan)
     identity = SiteIdentity(config_root / "eface").ensure()
     with make_https_server(
         config, identity.token, reload_pjsip, endpoint_exists,
-        bind_host, port, identity.certificate, identity.private_key, external_routes, control4_routes,
+        bind_host, port, identity.certificate, identity.private_key, external_routes, control4_routes, intercom_groups,
     ) as server:
         server.serve_forever()
 

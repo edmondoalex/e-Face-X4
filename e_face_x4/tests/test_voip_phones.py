@@ -61,9 +61,17 @@ def test_voip_route_content_update_reloads_existing_include(tmp_path):
 def test_voip_api_provisions_before_exposing_credentials(monkeypatch, tmp_path):
     monkeypatch.setenv("EFACE_AUTH_DIR", str(tmp_path / "auth"))
     monkeypatch.setenv("EFACE_VOIP_PHONES", str(tmp_path / "phones.json"))
+    monkeypatch.setenv("EFACE_PERSONAL_DEVICES", str(tmp_path / "devices.json"))
+    monkeypatch.setenv("EFACE_CONTROL4_TABLETS", str(tmp_path / "tablets.json"))
     remote = {}
+    groups = []
 
     async def fake_request(method, path, payload=None):
+        if path == "/v1/intercom-groups" and method == "GET":
+            return {"groups": list(groups)}
+        if path == "/v1/intercom-groups" and method == "PUT":
+            groups[:] = payload["groups"]
+            return {"groups": list(groups)}
         if method == "GET":
             return {"phones": [{"extension": item["extension"], "name": item["name"], "profile": item["profile"]} for item in remote.values()]}
         if method == "POST":
@@ -83,6 +91,7 @@ def test_voip_api_provisions_before_exposing_credentials(monkeypatch, tmp_path):
     created = client.post("/api/admin/intercom/voip-phones", json={"name": "Studio", "profile": "voip_audio"})
     assert created.status_code == 200, created.text
     assert created.json()["extension"] == "8350"
+    assert "8350" in groups[0]["members"]
     assert created.json()["password"] == voip_phones.load()["8350"]["password"]
     listed = client.get("/api/admin/intercom/voip-phones")
     assert listed.json()["phones"] == [{"extension": "8350", "name": "Studio", "profile": "voip_audio", "endpoint_present": True}]
@@ -91,6 +100,7 @@ def test_voip_api_provisions_before_exposing_credentials(monkeypatch, tmp_path):
     assert voip_phones.load()["8350"]["profile"] == "voip_video"
     assert client.delete("/api/admin/intercom/voip-phones/8350").json() == {"removed": True}
     assert voip_phones.load() == {}
+    assert "8350" not in groups[0]["members"]
 
 
 @pytest.mark.parametrize("profile", ["invalid", "browser", "voip_video\n[other]"])
