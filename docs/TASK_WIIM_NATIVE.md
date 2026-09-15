@@ -87,11 +87,13 @@ Evidenza read-only del 15/09/2026 sul WiiM Pro firmware `Linkplay.4.8.827634`, d
 - `getStatusEx.preset_key=12` indica il numero di tasti preset disponibili, non il preset corrente;
 - non è quindi possibile associare in modo affidabile il brano corrente a una coppia `<preset>:<track>` usando i dati osservati.
 
+Prova mutante controllata del 15/09/2026 sul preset 6 “Cover e remix” (YouTube Music): il firmware accetta `MCUKeyShortClick:6:1` e `MCUKeyShortClick:6:2` restituendo `OK` e cambia effettivamente brano. La prima sequenza ha prodotto rispettivamente “Universe Of Love (Extended Mix)” e “Just a Film”. Ripetendo però lo stesso comando `MCUKeyShortClick:6:1` è partito “9 PM (Till I Come)”, non “Universe Of Love”. Lo shuffle era disattivato (`loop=4`) e `plicurr/plicount` sono rimasti entrambi a zero. Su questo preset cloud il parametro traccia non costituisce quindi un identificatore stabile: il richiamo rigenera o ricarica una coda YouTube Music dinamica.
+
 Prossime verifiche, in ordine:
 
 1. Salvare fixture redatte di `getPlayerStatus`, `getMetaInfo` e `getPresetInfo` per ciascun provider e confrontare i campi durante avvio preset, cambio traccia e riapertura dell'app WiiM.
 2. Verificare se gli eventi UPnP `AVTransport`/`PlayQueue` o le azioni `GetMediaInfo`, `GetPositionInfo` e Browse della coda espongono URI, indice o DIDL-Lite aggiuntivi mentre la sola API HTTP restituisce zero.
-3. Provare `MCUKeyShortClick:<preset>:<track>` soltanto su una playlist di test con indice noto e dopo test unitari; è una mutazione della riproduzione e richiede una prova fisica controllata.
+3. Ripetere `MCUKeyShortClick:<preset>:<track>` su un preset locale o una playlist statica con indice noto: la prova YouTube Music è completata e ha dimostrato che lo stesso indice non è deterministico per quel contenuto cloud.
 4. Se il firmware continua a nascondere indice e URI per i servizi cloud, limitare la funzione ai provider/contenuti che restituiscono un riferimento riproducibile e mostrare chiaramente “richiama preset” invece di promettere “richiama brano”.
 5. Non memorizzare token dell'app WiiM, URL firmati privati o credenziali dei provider e non dedurre il numero traccia dal solo titolo, perché shuffle e duplicati renderebbero il richiamo inaffidabile.
 
