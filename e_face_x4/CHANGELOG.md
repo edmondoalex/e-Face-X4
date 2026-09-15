@@ -1,5 +1,9 @@
 # Changelog
 
+## 2.21.57 — 2026-09-15
+
+- Il tocco sulla notifica porta l'eventuale finestra e-Face già aperta direttamente al collegamento Intercom della chiamata; se non esiste, ne apre una nuova.
+
 ## 2.21.56 — 2026-09-15
 
 - Ripristinata la suoneria Classica nel selettore, così i dispositivi con una preferenza precedente non mostrano un valore vuoto e possono salvare correttamente.

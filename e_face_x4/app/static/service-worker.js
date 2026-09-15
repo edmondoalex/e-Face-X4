@@ -1,3 +1,4 @@
+self.EFACE_SERVICE_WORKER_VERSION = '2.21.57'
 self.addEventListener('install', () => self.skipWaiting())
 self.addEventListener('activate', event => event.waitUntil(clients.claim()))
 self.addEventListener('push', event => {
@@ -13,5 +14,17 @@ self.addEventListener('push', event => {
 self.addEventListener('notificationclick', event => {
   event.notification.close()
   if (event.action === 'dismiss') return
-  event.waitUntil(clients.openWindow(event.notification.data.target))
+  event.waitUntil((async () => {
+    const target = event.notification.data.target
+    const targetUrl = new URL(target)
+    const windows = await clients.matchAll({type:'window', includeUncontrolled:true})
+    const current = windows.find(client => new URL(client.url).origin === targetUrl.origin)
+    if (current) {
+      const navigated = await current.navigate(target)
+      await (navigated || current).focus()
+      ;(navigated || current).postMessage({type:'eface-open-intercom', target})
+      return
+    }
+    await clients.openWindow(target)
+  })())
 })

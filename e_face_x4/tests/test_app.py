@@ -56,7 +56,7 @@ def test_health() -> None:
     response = TestClient(create_app()).get("/health")
     assert response.status_code == 200
     assert response.json()["ok"] is True
-    assert response.json()["version"] == "2.21.56"
+    assert response.json()["version"] == "2.21.57"
 
 
 def test_installed_app_starts_at_dashboard() -> None:
