@@ -52,7 +52,7 @@ async function users() {
     const name = document.createElement('strong')
     name.textContent = user.name
     const detail = document.createElement('small')
-    detail.textContent = `${user.username} · ${user.role === 'admin' ? 'Amministratore' : 'Utente'} · ${user.active ? 'Attivo' : 'Disattivato'}`
+    detail.textContent = `${user.username} · ${user.role === 'admin' ? 'Amministratore' : 'Utente'} · ${user.active ? 'Attivo' : 'Disattivato'} · ${user.origin === 'vps' ? 'VPS' : 'Locale'}`
     identity.append(name, detail)
     const actions = document.createElement('div')
     actions.className = 'admin-user-actions'
@@ -122,13 +122,17 @@ async function users() {
 
 $('#users-tool').addEventListener('click', async () => { try { await users(); openPanel('users-config') } catch(error) { message(error.message) } })
 $('#users-back').addEventListener('click', () => closePanel('users-config'))
+const userOriginLabel = document.createElement('label')
+userOriginLabel.textContent = 'Origine account'
+userOriginLabel.innerHTML += '<select id="user-origin"><option value="local">Locale · creato dall’amministratore</option><option value="cloud" disabled>Cloud/VPS · e-Voice o e-Manager (da definire)</option></select><small>Il servizio cloud non riceverà la password locale.</small>'
+$('#user-create-form .admin-form-grid').append(userOriginLabel)
 $('#user-create-form').addEventListener('submit', async (event) => {
   event.preventDefault()
   const form = event.currentTarget
   const button = form.querySelector('button[type=submit]')
   button.disabled = true
   try {
-    await request('api/admin/users', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({name:$('#user-name').value, username:$('#user-username').value, password:$('#user-password').value})})
+    await request('api/admin/users', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({name:$('#user-name').value, username:$('#user-username').value, password:$('#user-password').value, origin:$('#user-origin').value})})
     form.reset()
     await users()
     message('Utente creato')

@@ -8,6 +8,7 @@ import re
 import secrets
 import threading
 import time
+from datetime import datetime, timezone
 from pathlib import Path
 
 COOKIE = "eface_user"
@@ -78,26 +79,49 @@ def account(username: str) -> dict | None:
     user = _users().get(username)
     if not isinstance(user, dict):
         return None
-    return {"username": username, "name": str(user.get("name") or username), "role": "admin" if username == "admin" else "user", "active": user.get("active") is not False}
+    return {
+        "username": username,
+        "name": str(user.get("name") or username),
+        "role": "admin" if username == "admin" else "user",
+        "active": user.get("active") is not False,
+        "origin": str(user.get("origin") or "local"),
+        "sync_status": str(user.get("sync_status") or "local"),
+        "created_at": str(user.get("created_at") or ""),
+        "provider": str(user.get("provider") or ""),
+    }
 
 
 def accounts() -> list[dict]:
     return [item for name in sorted(_users()) if (item := account(name)) is not None]
 
 
-def create_account(username: str, name: str, password: str) -> dict:
+def create_account(username: str, name: str, password: str, origin: str = "local") -> dict:
     username = username.strip().lower()
     name = name.strip()
     if not _USERNAME.fullmatch(username):
         raise ValueError("Nome utente non valido: usa 3-32 lettere minuscole, numeri, _ o -")
     if not 1 <= len(name) <= 64:
         raise ValueError("Il nome deve avere da 1 a 64 caratteri")
+    if origin != "local":
+        raise ValueError("Gli inviti VPS non sono ancora disponibili")
     fields = _password_fields(password)
     with _LOCK:
         users = _users()
         if username in users:
             raise ValueError("Nome utente già presente")
-        users[username] = {**fields, "name": name, "role": "user", "active": True, "session_version": 0}
+        users[username] = {
+            **fields,
+            "name": name,
+            "role": "user",
+            "active": True,
+            "session_version": 0,
+            "origin": "local",
+            "sync_status": "local",
+            "created_at": datetime.now(timezone.utc).isoformat(),
+            "external_id": None,
+            "provider": None,
+            "expires_at": None,
+        }
         _save_users(users)
     return account(username) or {}
 

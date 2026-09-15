@@ -56,7 +56,7 @@ def test_health() -> None:
     response = TestClient(create_app()).get("/health")
     assert response.status_code == 200
     assert response.json()["ok"] is True
-    assert response.json()["version"] == "2.21.33"
+    assert response.json()["version"] == "2.21.34"
 
 
 def test_installed_app_starts_at_dashboard() -> None:
@@ -153,7 +153,9 @@ def test_admin_accounts_are_isolated_and_sessions_can_be_revoked(monkeypatch, tm
     assert admin.post("/api/auth/login", json={"username": "admin", "password": "password-admin-lunga"}).status_code == 200
     created = admin.post("/api/admin/users", json={"username": "mario", "name": "Mario Rossi", "password": "password-mario-lunga"})
     assert created.status_code == 200
-    assert created.json()["user"] == {"username": "mario", "name": "Mario Rossi", "role": "user", "active": True}
+    assert created.json()["user"] | {"created_at": ""} == {"username": "mario", "name": "Mario Rossi", "role": "user", "active": True, "origin": "local", "sync_status": "local", "created_at": "", "provider": ""}
+    assert created.json()["user"]["created_at"]
+    assert admin.post("/api/admin/users", json={"username": "cloud", "name": "Cloud", "password": "password-cloud-lunga", "origin": "cloud"}).status_code == 400
     assert person.post("/api/auth/login", json={"username": "mario", "password": "password-mario-lunga"}).status_code == 200
     assert person.get("/api/auth/status").json()["role"] == "user"
     assert person.get("/api/admin/users").status_code == 403
@@ -249,7 +251,7 @@ def test_intercom_dashboard_stores_only_local_settings(monkeypatch, tmp_path) ->
     assert 'id="tools-admin-nav"' in page
     assert 'id="intercom-tool"' in page
     assert 'id="users-tool"' in page
-    assert "tools-dashboard.js?v=2.21.33" in page
+    assert "tools-dashboard.js?v=2.21.34" in page
 
 
 def test_external_stations_api_requires_login_and_hides_secrets(monkeypatch, tmp_path) -> None:

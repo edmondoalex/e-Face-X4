@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.21.34 — 2026-09-15
+
+- Prepara gli account per la futura origine VPS senza esporre password: origine locale persistente, stato sincronizzazione e data creazione.
+- Mostra in Admin l'origine account e l'opzione VPS disabilitata finché inviti firmati, anti-replay e audit non saranno operativi.
+
 ## 2.21.33 — 2026-09-15
 
 - Aggiunge in Amministrazione l'eliminazione definitiva degli utenti, con protezione di admin e controllo delle risorse Intercom associate.
