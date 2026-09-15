@@ -52,7 +52,7 @@ async function users() {
     const name = document.createElement('strong')
     name.textContent = user.name
     const detail = document.createElement('small')
-    detail.textContent = `${user.username} · ${user.role === 'admin' ? 'Amministratore' : 'Utente'} · ${user.active ? 'Attivo' : 'Disattivato'} · ${user.origin === 'vps' ? 'VPS' : 'Locale'}`
+    detail.textContent = `${user.username} · ${user.role === 'admin' ? 'Amministratore' : 'Utente'} · ${user.active ? 'Attivo' : 'Disattivato'} · ${user.origin === 'vps' ? 'VPS' : 'Locale'} · Accesso persistente ${user.trusted_access ? 'Sì' : 'No'}`
     identity.append(name, detail)
     const actions = document.createElement('div')
     actions.className = 'admin-user-actions'
@@ -87,6 +87,20 @@ async function users() {
       input.focus()
     })
     actions.append(reset)
+    const trusted = document.createElement('button')
+    trusted.type = 'button'
+    trusted.className = 'secondary'
+    trusted.textContent = user.trusted_access ? 'Persistenza: SÌ' : 'Persistenza: NO'
+    trusted.addEventListener('click', async () => {
+      if (user.trusted_access && !confirm(`Disattivare l'accesso persistente per ${user.name}? Le sessioni attuali verranno chiuse.`)) return
+      try {
+        await request(`api/admin/users/${encodeURIComponent(user.username)}`, {method:'PATCH', headers:{'Content-Type':'application/json'}, body:JSON.stringify({trusted_access:!user.trusted_access})})
+        if (user.username === 'admin' && user.trusted_access) { location.href = api('login'); return }
+        await users()
+        message(user.trusted_access ? 'Accesso persistente disattivato' : 'Accesso persistente attivato')
+      } catch(error) { message(error.message) }
+    })
+    actions.append(trusted)
     if (user.role !== 'admin') {
       const toggle = document.createElement('button')
       toggle.type = 'button'
@@ -126,13 +140,16 @@ const userOriginLabel = document.createElement('label')
 userOriginLabel.textContent = 'Origine account'
 userOriginLabel.innerHTML += '<select id="user-origin"><option value="local">Locale · creato dall’amministratore</option><option value="cloud" disabled>Cloud/VPS · e-Voice o e-Manager (da definire)</option></select><small>Il servizio cloud non riceverà la password locale.</small>'
 $('#user-create-form .admin-form-grid').append(userOriginLabel)
+const trustedAccessLabel = document.createElement('label')
+trustedAccessLabel.innerHTML = '<span><input id="user-trusted-access" type="checkbox"> Accesso persistente sui dispositivi</span><small>L’admin può revocarlo in qualsiasi momento.</small>'
+$('#user-create-form .admin-form-grid').append(trustedAccessLabel)
 $('#user-create-form').addEventListener('submit', async (event) => {
   event.preventDefault()
   const form = event.currentTarget
   const button = form.querySelector('button[type=submit]')
   button.disabled = true
   try {
-    await request('api/admin/users', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({name:$('#user-name').value, username:$('#user-username').value, password:$('#user-password').value, origin:$('#user-origin').value})})
+    await request('api/admin/users', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({name:$('#user-name').value, username:$('#user-username').value, password:$('#user-password').value, origin:$('#user-origin').value, trusted_access:$('#user-trusted-access').checked})})
     form.reset()
     await users()
     message('Utente creato')

@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.21.36 — 2026-09-15
+
+- Consente all'admin di abilitare o revocare l'accesso persistente separatamente per ogni utente.
+- La revoca invalida le sessioni esistenti; gli account senza permesso restano limitati a 12 ore anche se il dispositivo chiede di essere ricordato.
+
 ## 2.21.35 — 2026-09-15
 
 - Aggiunge l'accesso persistente per dispositivi fidati, revocabile con logout, cambio password, disattivazione o eliminazione utente.

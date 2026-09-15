@@ -56,7 +56,7 @@ from .connectors.control4_media import cached_control4_icon, cached_control4_ico
 from .connectors.supervisor import discover_addon_url, discover_host_url
 from .demo import dashboard as demo_dashboard
 
-VERSION = os.environ.get("EFACE_VERSION", "2.21.35")
+VERSION = os.environ.get("EFACE_VERSION", "2.21.36")
 STATIC = Path(__file__).parent / "static"
 logging.basicConfig(level=logging.WARNING, format="%(asctime)s %(levelname)s [e-face-x4] %(message)s")
 _reconnect_warning_at: dict[str, float] = {}
@@ -370,7 +370,7 @@ def create_app() -> FastAPI:
         require_admin(request)
         origin = str(payload.get("origin") or "local")
         try:
-            user = user_auth.create_account(str(payload.get("username") or ""), str(payload.get("name") or ""), str(payload.get("password") or ""), origin)
+            user = user_auth.create_account(str(payload.get("username") or ""), str(payload.get("name") or ""), str(payload.get("password") or ""), origin, payload.get("trusted_access") is True)
         except ValueError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
         return {"user": user}
@@ -378,7 +378,7 @@ def create_app() -> FastAPI:
     @app.patch("/api/admin/users/{username}")
     async def admin_update_user(username: str, request: Request, payload: dict) -> dict:
         require_admin(request)
-        if not payload or set(payload) - {"name", "password", "active"}:
+        if not payload or set(payload) - {"name", "password", "active", "trusted_access"}:
             raise HTTPException(status_code=400, detail="Campi non validi")
         if "active" in payload and not isinstance(payload["active"], bool):
             raise HTTPException(status_code=400, detail="Stato non valido")
@@ -386,8 +386,10 @@ def create_app() -> FastAPI:
             raise HTTPException(status_code=400, detail="Nome non valido")
         if "password" in payload and not isinstance(payload["password"], str):
             raise HTTPException(status_code=400, detail="Password non valida")
+        if "trusted_access" in payload and not isinstance(payload["trusted_access"], bool):
+            raise HTTPException(status_code=400, detail="Impostazione accesso persistente non valida")
         try:
-            user = user_auth.update_account(username, name=payload.get("name"), password=payload.get("password"), active=payload.get("active"))
+            user = user_auth.update_account(username, name=payload.get("name"), password=payload.get("password"), active=payload.get("active"), trusted_access=payload.get("trusted_access"))
         except ValueError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
         return {"user": user}
@@ -1457,7 +1459,8 @@ def create_app() -> FastAPI:
             login_failures[key] = [*failures, now]
             raise HTTPException(status_code=401, detail="Credenziali non valide")
         login_failures.pop(key, None)
-        lifetime = user_auth.TRUSTED_DEVICE_SECONDS if payload.get("remember") is True else user_auth.SESSION_SECONDS
+        persistent = payload.get("remember") is True and bool(user_auth.account(username).get("trusted_access"))
+        lifetime = user_auth.TRUSTED_DEVICE_SECONDS if persistent else user_auth.SESSION_SECONDS
         response = JSONResponse({"ok": True})
         response.set_cookie(user_auth.COOKIE, user_auth.create_session(username, lifetime), max_age=lifetime, httponly=True, samesite="strict", secure=secure_cookie(request), path="/")
         return response
@@ -1495,6 +1498,7 @@ def create_app() -> FastAPI:
         page = page.replace("ui-theme-contract.css?v=2.21.27", "ui-theme-contract.css?v=2.21.29")
         page = page.replace("tools-dashboard.js?v=2.21.27", "tools-dashboard.js?v=2.21.33")
         page = page.replace("tools-dashboard.js?v=2.21.33", "tools-dashboard.js?v=2.21.34")
+        page = page.replace("tools-dashboard.js?v=2.21.34", "tools-dashboard.js?v=2.21.36")
         page = page.replace("app.js?v=2.21.11", "app.js?v=2.21.29")
         page = page.replace("energy.css?v=2.20.20", "energy.css?v=2.21.30")
         page = page.replace("app.js?v=2.21.29", "app.js?v=2.21.30")

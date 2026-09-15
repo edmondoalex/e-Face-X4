@@ -89,6 +89,7 @@ def account(username: str) -> dict | None:
         "sync_status": str(user.get("sync_status") or "local"),
         "created_at": str(user.get("created_at") or ""),
         "provider": str(user.get("provider") or ""),
+        "trusted_access": user.get("trusted_access", username == "admin") is True,
     }
 
 
@@ -96,7 +97,7 @@ def accounts() -> list[dict]:
     return [item for name in sorted(_users()) if (item := account(name)) is not None]
 
 
-def create_account(username: str, name: str, password: str, origin: str = "local") -> dict:
+def create_account(username: str, name: str, password: str, origin: str = "local", trusted_access: bool = False) -> dict:
     username = username.strip().lower()
     name = name.strip()
     if not _USERNAME.fullmatch(username):
@@ -105,6 +106,8 @@ def create_account(username: str, name: str, password: str, origin: str = "local
         raise ValueError("Il nome deve avere da 1 a 64 caratteri")
     if origin != "local":
         raise ValueError("Gli inviti VPS non sono ancora disponibili")
+    if not isinstance(trusted_access, bool):
+        raise ValueError("Impostazione accesso persistente non valida")
     fields = _password_fields(password)
     with _LOCK:
         users = _users()
@@ -122,12 +125,13 @@ def create_account(username: str, name: str, password: str, origin: str = "local
             "external_id": None,
             "provider": None,
             "expires_at": None,
+            "trusted_access": trusted_access,
         }
         _save_users(users)
     return account(username) or {}
 
 
-def update_account(username: str, *, name: str | None = None, password: str | None = None, active: bool | None = None) -> dict:
+def update_account(username: str, *, name: str | None = None, password: str | None = None, active: bool | None = None, trusted_access: bool | None = None) -> dict:
     with _LOCK:
         users = _users()
         user = users.get(username)
@@ -144,7 +148,11 @@ def update_account(username: str, *, name: str | None = None, password: str | No
             user.update(_password_fields(password))
         if active is not None:
             user["active"] = active
-        if password is not None or active is False:
+        if trusted_access is not None:
+            if not isinstance(trusted_access, bool):
+                raise ValueError("Impostazione accesso persistente non valida")
+            user["trusted_access"] = trusted_access
+        if password is not None or active is False or trusted_access is False:
             user["session_version"] = int(user.get("session_version", 0)) + 1
         _save_users(users)
     return account(username) or {}
@@ -169,7 +177,7 @@ def create_admin(password: str) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("x", encoding="utf-8") as file:
         os.chmod(path, 0o600)
-        json.dump({"admin": {**fields, "name": "Admin", "role": "admin", "active": True, "session_version": 0}}, file)
+        json.dump({"admin": {**fields, "name": "Admin", "role": "admin", "active": True, "session_version": 0, "trusted_access": True}}, file)
 
 
 def verify(username: str, password: str) -> bool:
