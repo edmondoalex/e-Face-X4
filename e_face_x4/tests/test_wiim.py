@@ -137,4 +137,45 @@ async def test_soundcloud_official_search_normalization() -> None:
         return httpx.Response(200, json={"collection": [{"urn": "soundcloud:tracks:42", "title": "Track", "duration": 123000, "access": "playable", "user": {"username": "Artist"}}]})
 
     items = await SoundCloudClient("client-id", "client-secret", transport=httpx.MockTransport(handler)).search_tracks("house")
-    assert items == [{"urn": "soundcloud:tracks:42", "title": "Track", "artist": "Artist", "artwork": "", "duration": 123, "permalink_url": "", "playable": True}]
+    assert items == [{"type": "track", "urn": "soundcloud:tracks:42", "title": "Track", "artist": "Artist", "artwork": "", "duration": 123, "permalink_url": "", "playable": True}]
+
+
+@pytest.mark.asyncio
+async def test_soundcloud_catalog_stream_and_wiim_play_url() -> None:
+    from app.connectors.soundcloud import SoundCloudClient
+
+    def soundcloud_handler(request: httpx.Request) -> httpx.Response:
+        if request.url.host == "secure.soundcloud.com":
+            return httpx.Response(200, json={"access_token": "token", "expires_in": 3600})
+        if request.url.path.endswith("/streams"):
+            return httpx.Response(200, json={"hls_aac_160_url": "https://media.example/playlist.m3u8?sig=abc"})
+        return httpx.Response(200, json={"collection": [{"urn": "soundcloud:playlists:7", "title": "Set", "track_count": 4, "user": {"username": "DJ"}}]})
+
+    client = SoundCloudClient("catalog-client", "catalog-secret", transport=httpx.MockTransport(soundcloud_handler))
+    assert (await client.search("house", "playlists"))[0]["type"] == "playlist"
+    assert await client.stream("soundcloud:tracks:42") == {"url": "https://media.example/playlist.m3u8?sig=abc", "quality": "hls_aac_160_url"}
+
+    commands = []
+    def wiim_handler(request: httpx.Request) -> httpx.Response:
+        commands.append(request.url.params["command"]); return httpx.Response(200, text="OK")
+    await WiiMClient("192.168.3.52", transport=httpx.MockTransport(wiim_handler)).play_url("https://media.example/playlist.m3u8?sig=abc")
+    assert commands == ["setPlayerCmd:play:https://media.example/playlist.m3u8?sig=abc"]
+
+
+def test_soundcloud_admin_experience_assets_present() -> None:
+    from app.main import create_app
+    app = create_app()
+    assert (app_module := __import__("app.main", fromlist=["STATIC"])).STATIC.joinpath("soundcloud.html").is_file()
+    page = app_module.STATIC.joinpath("soundcloud.html").read_text(encoding="utf-8")
+    script = app_module.STATIC.joinpath("assets", "soundcloud.js").read_text(encoding="utf-8")
+    assert "Cerca su SoundCloud" in page
+    assert 'data-kind="playlists"' in page and "related" in script
+
+
+def test_soundcloud_local_library_is_persistent(monkeypatch, tmp_path) -> None:
+    from app import soundcloud_library
+    monkeypatch.setenv("EFACE_SOUNDCLOUD_LIBRARY", str(tmp_path / "library.json"))
+    track = {"urn": "soundcloud:tracks:42", "title": "Track", "artist": "Artist", "artwork": "https://example.com/a.jpg", "duration": 123}
+    assert soundcloud_library.remember(track)["recent"][0]["title"] == "Track"
+    assert soundcloud_library.toggle(track)["favorites"][0]["urn"] == track["urn"]
+    assert soundcloud_library.toggle(track)["favorites"] == []

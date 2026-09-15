@@ -53,6 +53,7 @@ from . import doorbird_api
 from . import wiim_settings
 from . import wiim_services
 from . import soundcloud_settings
+from . import soundcloud_library
 from .connectors.soundcloud import SoundCloudClient
 from .media_preferences import apply_preferences, load_preferences, save_preferences
 from .source_icons import delete_source_icon, hidden_source_ids, load_builtin_source_icon, load_source_icon, save_source_icon, set_source_hidden
@@ -64,7 +65,7 @@ from .connectors.control4_media import cached_control4_icon, cached_control4_ico
 from .connectors.supervisor import discover_addon_url, discover_host_url
 from .demo import dashboard as demo_dashboard
 
-VERSION = os.environ.get("EFACE_VERSION", "2.21.75")
+VERSION = os.environ.get("EFACE_VERSION", "2.21.76")
 STATIC = Path(__file__).parent / "static"
 logging.basicConfig(level=logging.WARNING, format="%(asctime)s %(levelname)s [e-face-x4] %(message)s")
 _reconnect_warning_at: dict[str, float] = {}
@@ -201,15 +202,66 @@ def create_app() -> FastAPI:
         except ValueError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
 
-    @app.get("/api/wiim/services/soundcloud/search")
-    async def soundcloud_search(q: str = "") -> dict:
+    def configured_soundcloud() -> SoundCloudClient:
         settings = soundcloud_settings.load()
+        return SoundCloudClient(settings["client_id"], settings["client_secret"])
+
+    @app.get("/api/wiim/services/soundcloud/search")
+    async def soundcloud_search(request: Request, q: str = "", kind: str = "tracks") -> dict:
+        require_admin(request)
         try:
-            return {"items": await SoundCloudClient(settings["client_id"], settings["client_secret"]).search_tracks(q)}
+            return {"items": await configured_soundcloud().search(q, kind)}
         except ValueError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
         except (httpx.HTTPError, RuntimeError) as exc:
             raise HTTPException(status_code=502, detail="SoundCloud non raggiungibile o credenziali rifiutate") from exc
+
+    @app.get("/api/wiim/services/soundcloud/collection")
+    async def soundcloud_collection(request: Request, urn: str, kind: str) -> dict:
+        require_admin(request)
+        try:
+            client = configured_soundcloud()
+            if kind == "playlist":
+                items = await client.playlist_tracks(urn)
+            elif kind == "user":
+                items = await client.user_tracks(urn)
+            elif kind == "related":
+                items = await client.related_tracks(urn)
+            else:
+                raise ValueError("Raccolta SoundCloud non valida")
+            return {"items": items}
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        except (httpx.HTTPError, RuntimeError) as exc:
+            raise HTTPException(status_code=502, detail="Contenuto SoundCloud non disponibile") from exc
+
+    @app.post("/api/wiim/services/soundcloud/play")
+    async def soundcloud_play(request: Request) -> dict:
+        require_admin(request)
+        try:
+            payload = await request.json()
+            stream = await configured_soundcloud().stream(str(payload.get("urn") or ""))
+            await configured_wiim().play_url(stream["url"])
+            soundcloud_library.remember(payload)
+            await asyncio.sleep(0.25)
+            return {"ok": True, "quality": stream["quality"], "device": await configured_wiim().snapshot()}
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        except (httpx.HTTPError, RuntimeError) as exc:
+            raise HTTPException(status_code=502, detail="Riproduzione SoundCloud sul WiiM non riuscita") from exc
+
+    @app.get("/api/wiim/services/soundcloud/library")
+    async def soundcloud_local_library(request: Request) -> dict:
+        require_admin(request)
+        return soundcloud_library.load()
+
+    @app.post("/api/wiim/services/soundcloud/favorite")
+    async def soundcloud_local_favorite(request: Request) -> dict:
+        require_admin(request)
+        try:
+            return soundcloud_library.toggle(await request.json())
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
 
     def configured_wiim() -> WiiMClient:
         settings = wiim_settings.load()
@@ -1795,8 +1847,8 @@ def create_app() -> FastAPI:
         page = page.replace("tools-dashboard.js?v=2.21.36", "tools-dashboard.js?v=2.21.38")
         page = page.replace("tools-dashboard.js?v=2.21.38", "tools-dashboard.js?v=2.21.41")
         page = page.replace("tools-dashboard.js?v=2.21.41", "tools-dashboard.js?v=2.21.42")
-        page = page.replace("tools-dashboard.js?v=2.21.42", "tools-dashboard.js?v=2.21.75")
-        page = page.replace("tools-dashboard.css?v=2.20.36", "tools-dashboard.css?v=2.21.75")
+        page = page.replace("tools-dashboard.js?v=2.21.42", "tools-dashboard.js?v=2.21.76")
+        page = page.replace("tools-dashboard.css?v=2.20.36", "tools-dashboard.css?v=2.21.76")
         page = page.replace("backgrounds.css?v=2.20.20", "backgrounds.css?v=2.21.43")
         page = page.replace("intercom.css?v=2.21.14", "intercom.css?v=2.21.46")
         page = page.replace("app.js?v=2.21.11", "app.js?v=2.21.29")
@@ -1840,6 +1892,11 @@ def create_app() -> FastAPI:
     async def wiim_page(request: Request) -> HTMLResponse:
         require_admin(request)
         return HTMLResponse(themed_page("wiim.html", "wiim-theme"), headers={"Cache-Control": "no-store"})
+
+    @app.get("/soundcloud", include_in_schema=False)
+    async def soundcloud_page(request: Request) -> HTMLResponse:
+        require_admin(request)
+        return HTMLResponse(themed_page("soundcloud.html", "soundcloud-theme"), headers={"Cache-Control": "no-store"})
 
     async def resolved_provider(config, slug: str, port: int, timeout: float):
         manual = str(config.base_url or "").lower()

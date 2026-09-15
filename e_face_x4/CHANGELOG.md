@@ -1,5 +1,12 @@
 # Changelog
 
+## 2.21.76 — 2026-09-15
+
+- Aggiunge in Amministrazione una console SoundCloud completa per il collaudo prima dell'integrazione in Ascolta.
+- Supporta ricerca separata di brani, playlist e artisti, navigazione delle raccolte e suggerimenti correlati.
+- Avvia sul WiiM gli stream SoundCloud ufficiali preferendo AAC HLS 160 kbps e mantiene visibile il player live e-Face.
+- Conserva cronologia e preferiti SoundCloud locali e-Face senza richiedere accesso all'account personale.
+
 ## 2.21.75 — 2026-09-15
 
 - Allinea i comandi WiiM alle icone MDI già usate nella sezione Ascolta, con SVG visibili anche sotto Ingress/PWA.

@@ -46,7 +46,7 @@ class WiiMClient:
         self.timeout = max(1.0, min(float(timeout), 15.0))
 
     async def command(self, name: str, *, json_response: bool = True) -> Any:
-        if not re.fullmatch(r"[A-Za-z0-9_:,./?=&%+ -]{1,512}", name):
+        if not re.fullmatch(r"[A-Za-z0-9_:,./?=&%+ -]{1,4608}", name):
             raise ValueError("Comando WiiM non valido")
         async with httpx.AsyncClient(verify=False, timeout=self.timeout, transport=self._transport) as client:
             response = await client.get(f"https://{self.host}/httpapi.asp", params={"command": name})
@@ -103,6 +103,13 @@ class WiiMClient:
         if not 1 <= int(index) <= 12:
             raise ValueError("Preset WiiM non valido")
         return str(await self.command(f"MCUKeyShortClick:{int(index)}", json_response=False))
+
+    async def play_url(self, url: str) -> str:
+        value = str(url).strip()
+        parts = urlsplit(value)
+        if parts.scheme != "https" or not parts.hostname or parts.username or parts.password or len(value) > 4096:
+            raise ValueError("URL audio non valido")
+        return str(await self.command(f"setPlayerCmd:play:{value}", json_response=False))
 
     async def multiroom(self) -> dict[str, Any]:
         status, topology = await asyncio.gather(self.command("getStatusEx"), self.command("multiroom:getSlaveList"))

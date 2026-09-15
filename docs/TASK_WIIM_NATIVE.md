@@ -58,3 +58,7 @@ Servizi richiesti per l'inventario: Amazon Music, BBC Radio, Calm Radio, Deezer,
 Il seek usa il comando ufficiale `setPlayerCmd:seek:<secondi>` ed è collegato allo slider della console. Aggiunti i controlli e-Face per shuffle/ripetizione e predisposte le azioni playlist/preferito per il catalogo.
 
 SoundCloud diventa il primo provider. Implementati archivio credenziali protetto, Client Credentials OAuth e ricerca tracce con identificatori URN. La configurazione richiede Client ID e Client Secret di un'app SoundCloud; non usa la password personale. Restano da implementare OAuth utente con PKCE per likes/playlist personali e il relay di playback autorizzato verso WiiM.
+
+## Avanzamento 2.21.76
+
+Prima dell'inserimento nella pagina utente Ascolta è disponibile in Amministrazione una console SoundCloud di collaudo a tutto schermo. Riusa il player WiiM nativo e supporta ricerca di brani, playlist e artisti, apertura di playlist/profili, correlati, cronologia e preferiti locali e-Face. Il backend richiede uno stream ufficiale con OAuth, preferisce HLS AAC 160/96 e passa il relativo URL HTTPS al comando WiiM documentato `setPlayerCmd:play:url`; credenziali e token restano server-side. Da verificare fisicamente: durata effettiva dei signed URL sul firmware installato e riproduzione continua. Likes e libreria personale SoundCloud richiedono ancora consenso utente OAuth Authorization Code + PKCE.

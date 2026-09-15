@@ -976,6 +976,8 @@ async function loadWiim() {
   $('#wiim-host').value = settings.host || '192.168.3.52'
   $('#wiim-control4-source').value = settings.control4_source_id || 1667
   $('#wiim-control4-protocol').value = settings.control4_protocol_id || 1666
+  const actions = $('#wiim-form .admin-form-actions')
+  if (actions && !$('#soundcloud-open')) actions.insertAdjacentHTML('beforeend', '<a id="soundcloud-open" class="secondary" href="soundcloud">APRI SOUNDCLOUD</a>')
   const labels = {configuration_required:'DA CONFIGURARE',planned:'PIANIFICATO',research_required:'DA VERIFICARE',next:'PROSSIMO',unsupported_catalog:'SOLO PERCORSO SUPPORTATO',inventory:'INVENTARIO APERTO'}
   const safeClientId = String(soundcloud.settings.client_id || '').replace(/[&<>"']/g, '')
   $('#wiim-services').innerHTML = services.items.map((item) => `<article><div><b>${item.name}</b><small>${item.features.join(' · ')}</small></div><span>${labels[item.status] || item.status}</span></article>`).join('') + `<form id="soundcloud-form" class="admin-form" autocomplete="off"><h3>SoundCloud · primo provider</h3><p>Usa Client ID e Client Secret dell'app SoundCloud, mai la password personale.</p><div class="admin-form-grid"><label>Client ID<input id="soundcloud-client-id" maxlength="256" value="${safeClientId}"></label><label>Client Secret<input id="soundcloud-client-secret" type="password" maxlength="512" autocomplete="new-password" placeholder="${soundcloud.settings.secret_configured ? 'Configurato · lascia vuoto per mantenerlo' : 'Da configurare'}"></label></div><button type="submit">SALVA SOUNDCLOUD</button><div id="soundcloud-status" class="admin-status">${soundcloud.settings.ready ? 'Credenziali SoundCloud configurate.' : 'SoundCloud da configurare.'}</div></form>`
