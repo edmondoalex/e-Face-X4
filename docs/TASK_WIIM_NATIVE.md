@@ -116,3 +116,11 @@ Criterio di completamento: la prova nella stessa sessione è riuscita. Per chiud
 ## Avanzamento 2.21.79
 
 Il player principale Ascolta riconosce la sorgente WiiM attiva nella stanza Control4 e integra la timeline nativa: polling ogni due secondi di posizione/durata, tempo trascorso e residuo, e seek tramite `setPlayerCmd:seek:<secondi>`. Shuffle e repeat agiscono direttamente sul WiiM e preservano le modalità combinate LinkPlay 0–5; precedente, play/pausa, successivo, volume e zone restano sul percorso Control4 già operativo per la stanza. Il pulsante coda non viene mostrato finché non dispone di un pannello utente completo e realmente comandabile.
+
+## Verifica PlayQueue del 15/09/2026
+
+Il `description.xml` reale dichiara il service type proprietario `urn:schemas-wiimu-com:service:PlayQueue:1`, non `urn:schemas-upnp-org:service:PlayQueue:1`. Endpoint e azione corretti con namespace errato restituiscono sistematicamente SOAP/HTTP 500 e avevano falsato parte delle sonde precedenti.
+
+Con il namespace corretto, `BrowseQueue` e `BrowseQueueEx` rispondono 200 sulla coda YouTube Music attiva. `BrowseQueueEx` con indice 0 e limite 10 restituisce esattamente 10 elementi, mentre `BrowseQueue` ne restituisce 200; il contesto dichiara `ContentType=station` e `LastPlayIndex=6`. Sul firmware osservato, i valori di `QueueName` provati (`0`, titolo della lista e ID provider) hanno restituito la medesima coda attiva: non considerarli quindi identificatori convalidati finché non vengono confrontate più code.
+
+`GetQueueOnline` continua a restituire 500 anche usando il namespace corretto, l'ID playlist rilevato e una matrice minima `QueueType={station,0,1,10}` / `QueueAutoInsert={0,1}`. Resta necessario acquisire la richiesta originale di WiiM Home. La cattura va limitata a `192.168.3.52:49152`; questa porta usa HTTP in chiaro e non richiede MITM TLS. Non conservare URL firmati o dati di autorizzazione presenti nel `QueueContext`.
