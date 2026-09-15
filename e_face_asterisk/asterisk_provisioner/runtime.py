@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 import subprocess
+import time
 from pathlib import Path
 
 from .asterisk_adapter import endpoint_exists, reload_pjsip
@@ -27,11 +28,16 @@ def assert_ready(config_root: Path) -> ManagedConfig:
         raise RuntimeError("Include PJSIP persistente non valido")
     if not config.pjsip.is_file() or config.pjsip.read_text(encoding="utf-8") != render(config.load()):
         raise RuntimeError("Configurazione PJSIP e-Face non riconciliata")
-    result = subprocess.run(
-        ["asterisk", "-rx", "core waitfullybooted"],
-        capture_output=True, text=True, timeout=20, check=False,
-    )
-    if result.returncode != 0:
+    for attempt in range(45):
+        result = subprocess.run(
+            ["asterisk", "-rx", "core waitfullybooted"],
+            capture_output=True, text=True, timeout=20, check=False,
+        )
+        if result.returncode == 0:
+            break
+        if attempt < 44:
+            time.sleep(1)
+    else:
         raise RuntimeError("Asterisk non pronto")
     for record in config.load().values():
         if not endpoint_exists(str(record["extension"])):

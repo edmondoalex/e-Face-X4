@@ -43,9 +43,20 @@ def test_runtime_refuses_modified_include_or_generated_config(tmp_path, monkeypa
 
 def test_runtime_refuses_asterisk_not_ready(tmp_path, monkeypatch) -> None:
     root = prepared(tmp_path, monkeypatch)
+    monkeypatch.setattr(runtime.time, "sleep", lambda _: None)
     monkeypatch.setattr(
         runtime.subprocess, "run",
         lambda args, **kwargs: subprocess.CompletedProcess(args, 1, "", "not ready"),
     )
     with pytest.raises(RuntimeError, match="non pronto"):
         runtime.assert_ready(root)
+
+
+def test_runtime_waits_for_asterisk_boot(tmp_path, monkeypatch) -> None:
+    root = prepared(tmp_path, monkeypatch)
+    attempts = iter((1, 1, 0))
+    sleeps = []
+    monkeypatch.setattr(runtime.time, "sleep", lambda seconds: sleeps.append(seconds))
+    monkeypatch.setattr(runtime.subprocess, "run", lambda args, **kwargs: subprocess.CompletedProcess(args, next(attempts), "", ""))
+    assert runtime.assert_ready(root).load() == {}
+    assert sleeps == [1, 1]
