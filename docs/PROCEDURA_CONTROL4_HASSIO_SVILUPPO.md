@@ -119,6 +119,9 @@ L'agente non deve aspettare un promemoria dell'utente: nello stesso turno in cui
 
 # Video Intercom e-Face (15/09/2026)
 
+- La lettura Director reale del 15/09/2026 conferma che i T3/T4 hanno proxy `intercomproxy` dedicati (`Intercom`, `Intercom 2`, `Intercom 3`) e che il progetto contiene l'agente `control4_agent_videointercom`; sono inoltre presenti i proxy Universal SIP Phone e Asterisk e-Face. Quindi i tablet Control4 non vanno classificati genericamente come incapaci di video. Questo però non cambia da solo il profilo PJSIP Asterisk corrente, che espone soltanto alaw/ulaw: prima di abilitarlo occorre mappare proxy/endpoint e verificare l'offerta SDP reale, mantenendo separati comandi Director `ANSWER/REJECT/HANGUP` e trasporto media SIP.
+- Su Android è stato osservato che un Web Push normale poteva restare accodato fino alla riattivazione del Poco. Dalla `2.21.65` il push parte prima di microfono/camera ed è inviato con `Urgency: high` e topic stabile; TTL resta 60 secondi per evitare notifiche di chiamate ormai concluse.
+
 - Prova reale: la chiamata Poco `8303` verso PC `8302` ha squillato, risposto ed è entrata nel bridge, ma non è comparso alcun elemento video nonostante entrambi i dispositivi risultassero abilitati. In e-Face `2.21.62` il pannello viene aperto prima della richiesta camera, mostra permesso o errore effettivo, usa un fallback camera senza vincoli avanzati e non deduce più la possibilità di ricevere video dalla camera del destinatario. La presenza delle immagini resta da confermare con una chiamata reale.
 
 - Gli endpoint WebRTC personali e i telefoni con profilo `voip_video` negoziano H.264/VP8 mantenendo sempre i codec audio. Se la destinazione rifiuta il video con errore di compatibilità, il client riprova una volta solo audio.

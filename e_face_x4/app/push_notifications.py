@@ -73,7 +73,8 @@ def send(subscription: dict, payload: dict) -> bool:
     private_path, _ = keys()
     try:
         webpush(subscription_info=subscription, data=json.dumps(payload), vapid_private_key=str(private_path),
-                vapid_claims={"sub": "mailto:push@e-control.tech"}, ttl=60)
+                vapid_claims={"sub": "mailto:push@e-control.tech"}, ttl=60,
+                headers={"Urgency": "high", "Topic": "eface-intercom-call"})
         return True
     except Exception:
         return False

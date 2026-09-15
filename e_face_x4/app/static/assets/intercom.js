@@ -897,6 +897,9 @@
     setDialButtonsDisabled(true)
     $('#call-status').textContent = 'Richiesta accesso al microfono…'
     try {
+      const pushPromise = fetch(new URL(`api/intercom/push/call/${encodeURIComponent(button.dataset.dialExtension)}`, root), {method:'POST', cache:'no-store', credentials:'same-origin'})
+        .then(async response => ({response, result:await response.json().catch(() => ({}))}))
+        .catch(() => null)
       await prepareSpeaker()
       const includeVideo = button.dataset.videoCapable === 'true' && videoEnabled
       const stream = await preparedMicrophone(includeVideo)
@@ -908,11 +911,8 @@
         if (!response.ok || result.extension !== button.dataset.dialExtension) throw new Error(result.detail || 'Postazione esterna non pronta')
       }
       if (!phone?.isRegistered() || call) { releaseMicrophone(); return }
-      try {
-        const pushResponse = await fetch(new URL(`api/intercom/push/call/${encodeURIComponent(button.dataset.dialExtension)}`, root), {method:'POST', cache:'no-store', credentials:'same-origin'})
-        const pushResult = await pushResponse.json().catch(() => ({}))
-        if (pushResponse.ok && pushResult.sent > 0) $('#call-status').textContent = 'Notifica inviata, chiamo il dispositivo…'
-      } catch (_) {}
+      const push = await pushPromise
+      if (push?.response.ok && push.result.sent > 0) $('#call-status').textContent = 'Notifica urgente inviata, chiamo il dispositivo…'
       const session=phone.call(`sip:${button.dataset.dialExtension}@asterisk`, {mediaStream:stream, mediaConstraints:{audio:true, video:stream.getVideoTracks().length > 0}, pcConfig:peerConfig()})
       session._efaceTarget=button.dataset.dialExtension;session._efaceHadVideo=stream.getVideoTracks().length>0
     } catch (exception) {

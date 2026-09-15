@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.21.65 — 2026-09-15
+
+- Invia il Web Push della chiamata prima della preparazione di microfono e camera.
+- Marca le chiamate Intercom come Web Push ad alta urgenza per ridurre l'accodamento sui telefoni Android in standby.
+- Rilevazione Director: i T3/T4 installati espongono proxy Intercom e il progetto include l'agente Video Intercom; la relativa abilitazione SIP verrà basata sulla negoziazione reale, non su una classificazione audio fissa.
+
 ## 2.21.64 — 2026-09-15
 
 - Stabilizza l'elenco Intercom: i controlli del dispositivo corrente non vengono più eliminati e ricreati a ogni refresh invariato.
