@@ -1,5 +1,13 @@
 # Changelog
 
+## 2.21.66 — 2026-09-15
+
+- Apre sempre il pannello video nelle chiamate verso interni e-Face, anche quando la camera locale è disattivata.
+- Porta automaticamente in primo piano i controlli e il video della chiamata avviata da una riga più in basso nell'elenco.
+- Mostra il nome dell'interno chiamato durante composizione, squillo e conversazione.
+- Porta direttamente in vista l'anteprima della camera locale prima dell'invio della chiamata, così il chiamante può sistemare l'inquadratura durante lo squillo.
+- Sul dispositivo chiamato apre il video e prepara l'anteprima camera già durante lo squillo; il microfono resta inattivo fino a RISPONDI.
+
 ## 2.21.65 — 2026-09-15
 
 - Invia il Web Push della chiamata prima della preparazione di microfono e camera.

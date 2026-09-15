@@ -56,7 +56,7 @@ def test_health() -> None:
     response = TestClient(create_app()).get("/health")
     assert response.status_code == 200
     assert response.json()["ok"] is True
-    assert response.json()["version"] == "2.21.65"
+    assert response.json()["version"] == "2.21.66"
 
 
 def test_installed_app_starts_at_dashboard() -> None:
@@ -116,6 +116,12 @@ def test_intercom_is_in_sidebar_with_embedded_view() -> None:
     assert "sessionOffersVideo" in client_script
     assert "const pushPromise = fetch" in client_script
     assert "Notifica urgente inviata" in client_script
+    assert "const videoDestination = button.dataset.videoCapable === 'true'" in client_script
+    assert client_script.count("$('#intercom-video-panel').scrollIntoView({behavior:'smooth', block:'start'})") == 3
+    assert "prepareCameraPreview()" in client_script
+    assert "Preparo il video prima della risposta…" in client_script
+    assert "Chiamata a ${targetName} · squilla…" in client_script
+    assert "In conversazione con ${targetName}" in client_script
     assert "replaceTrack" in client_script
     assert "video:stream.getVideoTracks().length > 0" in client_script
     assert "peerconnection.getStats()" in client_script
@@ -287,7 +293,7 @@ def test_intercom_dashboard_stores_only_local_settings(monkeypatch, tmp_path) ->
     assert 'id="users-tool"' in page
     assert 'id="logout"' in page
     assert page.index('id="logout"') < page.index('id="tools-user-section"')
-    assert "tools-dashboard.js?v=2.21.65" in page
+    assert "tools-dashboard.js?v=2.21.66" in page
     home = client.get("/").text
     assert "backgrounds.css?v=2.21.43" in home
     assert "app.js?v=2.21.60" in home

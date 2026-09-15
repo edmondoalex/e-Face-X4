@@ -641,6 +641,36 @@
     localVideoStream = null
   }
 
+  async function prepareCameraPreview() {
+    const existing = localVideoStream?.getVideoTracks?.().find(track => track.readyState === 'live')
+    if (existing) return existing
+    if (!videoCapable || !videoEnabled) return null
+      $('#intercom-video-panel').hidden = false
+      $('#video-status').textContent = 'Richiesta accesso alla camera…'
+    try {
+        try {
+          localVideoStream = await navigator.mediaDevices.getUserMedia({audio:false,video:{facingMode:{ideal:cameraFacing},width:{ideal:1280},height:{ideal:720}}})
+        } catch (firstError) {
+          if (firstError?.name === 'NotAllowedError' || firstError?.name === 'SecurityError') throw firstError
+          localVideoStream = await navigator.mediaDevices.getUserMedia({audio:false,video:true})
+        }
+        const track = localVideoStream.getVideoTracks()[0]
+        if (!track) throw new Error('Nessuna camera disponibile')
+        $('#local-video').srcObject = localVideoStream
+        $('.local-video-wrap').hidden = false
+        $('#intercom-video-panel').classList.add('has-local')
+        $('.local-video-wrap').classList.toggle('environment', cameraFacing === 'environment')
+        $('#intercom-video-panel').hidden = false
+        $('#video-status').textContent = 'Video locale pronto'
+        requestAnimationFrame(() => $('#intercom-video-panel').scrollIntoView({behavior:'smooth', block:'start'}))
+        return track
+    } catch (exception) {
+        const denied = exception?.name === 'NotAllowedError' || exception?.name === 'SecurityError'
+        $('#video-status').textContent = denied ? 'Permesso camera negato · abilitalo nelle impostazioni del dispositivo' : `Camera non disponibile · ${exception?.message || 'chiamata solo audio'}`
+        return null
+    }
+  }
+
   async function preparedMicrophone(includeVideo = false) {
     micInput = await microphone()
     if (!audioContext) micOutput = micInput
@@ -653,29 +683,9 @@
       micGain.connect(destination)
       micOutput = destination.stream
     }
-    if (includeVideo && videoCapable && videoEnabled) {
-      $('#intercom-video-panel').hidden = false
-      $('#video-status').textContent = 'Richiesta accesso alla camera…'
-      try {
-        try {
-          localVideoStream = await navigator.mediaDevices.getUserMedia({audio:false,video:{facingMode:{ideal:cameraFacing},width:{ideal:1280},height:{ideal:720}}})
-        } catch (firstError) {
-          if (firstError?.name === 'NotAllowedError' || firstError?.name === 'SecurityError') throw firstError
-          localVideoStream = await navigator.mediaDevices.getUserMedia({audio:false,video:true})
-        }
-        const track = localVideoStream.getVideoTracks()[0]
-        if (!track) throw new Error('Nessuna camera disponibile')
-        micOutput.addTrack(track)
-        $('#local-video').srcObject = localVideoStream
-        $('.local-video-wrap').hidden = false
-        $('#intercom-video-panel').classList.add('has-local')
-        $('.local-video-wrap').classList.toggle('environment', cameraFacing === 'environment')
-        $('#intercom-video-panel').hidden = false
-        $('#video-status').textContent = 'Video locale pronto'
-      } catch (exception) {
-        const denied = exception?.name === 'NotAllowedError' || exception?.name === 'SecurityError'
-        $('#video-status').textContent = denied ? 'Permesso camera negato · abilitalo nelle impostazioni del dispositivo' : `Camera non disponibile · ${exception?.message || 'chiamata solo audio'}`
-      }
+    if (includeVideo) {
+      const track = await prepareCameraPreview()
+      if (track) micOutput.addTrack(track)
     }
     return micOutput
   }
@@ -699,17 +709,24 @@
     const remoteOffersVideo = session.direction === 'incoming' && sessionOffersVideo(session)
     const remoteExtension = String(session.remote_identity?.uri?.user || '')
     const remoteName = String(session.remote_identity?.display_name || '').toLowerCase()
+    const targetName = String(session.data?.efaceTargetName || session.remote_identity?.display_name || session.remote_identity?.uri?.user || 'interno')
     const externalStation = externalVideoByExtension.get(remoteExtension) || ((remoteExtension === '8000' || remoteName.includes('doorbird')) ? externalVideoByExtension.values().next().value : '')
     if (session.direction === 'incoming' && externalStation) {
       const preview=$('#call-doorbird-preview');preview.src=new URL(`api/intercom/external-stations/${encodeURIComponent(externalStation)}/video`,root).toString();preview.hidden=false
       $('#remote-video-placeholder').hidden=true;$('#intercom-video-panel').hidden=false;$('#video-status').textContent='Anteprima postazione esterna attiva'
     }
-    if (remoteOffersVideo) $('#intercom-video-panel').hidden = false
+    const personalIncoming = session.direction === 'incoming' && /^83[0-9]{2}$/.test(remoteExtension)
+    if (remoteOffersVideo || personalIncoming) {
+      $('#intercom-video-panel').hidden = false
+      $('#video-status').textContent = 'Preparo il video prima della risposta…'
+      requestAnimationFrame(() => $('#intercom-video-panel').scrollIntoView({behavior:'smooth', block:'start'}))
+      if (session.direction === 'incoming') prepareCameraPreview()
+    }
     let iceReadyTimer = null
     let iceReadySent = false
     let boundConnection = null
     let connectionPollTimer = null
-    $('#call-status').textContent = session.direction === 'incoming' ? `Chiamata da ${session.remote_identity?.display_name || session.remote_identity?.uri?.user || 'sconosciuto'}` : 'Chiamata in uscita…'
+    $('#call-status').textContent = session.direction === 'incoming' ? `Chiamata da ${targetName}` : `Chiamata a ${targetName}…`
     $('#call-answer').disabled = session.direction !== 'incoming'
     $('#call-hangup').disabled = false
     setDialButtonsDisabled(true)
@@ -782,15 +799,15 @@
     })
     session.on('sdp', ({originator}) => { if (originator === 'local') clearTimeout(iceReadyTimer) })
     session.on('sending', () => { $('#call-status').textContent = 'INVITE inviato ad Asterisk…' })
-    session.on('progress', () => { $('#call-status').textContent = 'I tablet stanno squillando…' })
-    session.on('confirmed', () => { stopRingtone(); publishIntercomState('active'); $('#call-status').textContent = 'In conversazione'; bindConnection(session.connection); if (boundConnection) { syncRemoteAudio(boundConnection); syncRemoteVideo(boundConnection); activeVideoSender=boundConnection.getSenders?.().find(sender=>sender.track?.kind==='video') || null } playRemoteAudio() })
+    session.on('progress', () => { $('#call-status').textContent = `Chiamata a ${targetName} · squilla…` })
+    session.on('confirmed', () => { stopRingtone(); publishIntercomState('active'); $('#call-status').textContent = `In conversazione con ${targetName}`; bindConnection(session.connection); if (boundConnection) { syncRemoteAudio(boundConnection); syncRemoteVideo(boundConnection); activeVideoSender=boundConnection.getSenders?.().find(sender=>sender.track?.kind==='video') || null } playRemoteAudio() })
     session.on('ended', () => { clearTimeout(iceReadyTimer); clearInterval(connectionPollTimer); clearCall('Chiamata terminata.') })
     session.on('failed', ({cause}) => {
       clearTimeout(iceReadyTimer);clearInterval(connectionPollTimer)
       const retryAudio=session.direction==='outgoing'&&session._efaceHadVideo&&!session._efaceRetried&&/488|not acceptable|unsupported|media/i.test(String(cause||''))
       const target=session._efaceTarget
       clearCall(retryAudio?'Video non compatibile · riprovo solo audio…':`Chiamata non riuscita: ${cause || 'errore sconosciuto'}`)
-      if(retryAudio&&target&&phone?.isRegistered())setTimeout(async()=>{try{const stream=await preparedMicrophone(false);const retry=phone.call(`sip:${target}@asterisk`,{mediaStream:stream,mediaConstraints:{audio:true,video:false},pcConfig:peerConfig()});retry._efaceTarget=target;retry._efaceRetried=true}catch(exception){releaseMicrophone();error(exception.message)}},180)
+      if(retryAudio&&target&&phone?.isRegistered())setTimeout(async()=>{try{const stream=await preparedMicrophone(false);const retry=phone.call(`sip:${target}@asterisk`,{mediaStream:stream,mediaConstraints:{audio:true,video:false},pcConfig:peerConfig(),data:{efaceTarget:target,efaceTargetName:targetName}});retry._efaceTarget=target;retry._efaceRetried=true}catch(exception){releaseMicrophone();error(exception.message)}},180)
     })
     session.on('getusermediafailed', ({name, message}) => error(`Microfono: ${name || 'errore'} ${message || ''}`))
   }
@@ -897,11 +914,19 @@
     setDialButtonsDisabled(true)
     $('#call-status').textContent = 'Richiesta accesso al microfono…'
     try {
+      const videoDestination = button.dataset.videoCapable === 'true'
+      const targetName = button.closest('.intercom-station-row')?.querySelector('.station-copy strong')?.textContent?.trim() || button.dataset.dialExtension
+      if (videoDestination) {
+        $('#intercom-call-panel').hidden = false
+        $('#intercom-video-panel').hidden = false
+        $('#video-status').textContent = videoEnabled ? 'Preparazione video…' : 'Camera locale disattivata · attendo il video remoto'
+        requestAnimationFrame(() => $('#intercom-video-panel').scrollIntoView({behavior:'smooth', block:'start'}))
+      }
       const pushPromise = fetch(new URL(`api/intercom/push/call/${encodeURIComponent(button.dataset.dialExtension)}`, root), {method:'POST', cache:'no-store', credentials:'same-origin'})
         .then(async response => ({response, result:await response.json().catch(() => ({}))}))
         .catch(() => null)
       await prepareSpeaker()
-      const includeVideo = button.dataset.videoCapable === 'true' && videoEnabled
+      const includeVideo = videoDestination && videoEnabled
       const stream = await preparedMicrophone(includeVideo)
       if (button.dataset.externalStation) {
         $('#call-status').textContent = 'Preparo la postazione esterna…'
@@ -913,7 +938,7 @@
       if (!phone?.isRegistered() || call) { releaseMicrophone(); return }
       const push = await pushPromise
       if (push?.response.ok && push.result.sent > 0) $('#call-status').textContent = 'Notifica urgente inviata, chiamo il dispositivo…'
-      const session=phone.call(`sip:${button.dataset.dialExtension}@asterisk`, {mediaStream:stream, mediaConstraints:{audio:true, video:stream.getVideoTracks().length > 0}, pcConfig:peerConfig()})
+      const session=phone.call(`sip:${button.dataset.dialExtension}@asterisk`, {mediaStream:stream, mediaConstraints:{audio:true, video:stream.getVideoTracks().length > 0}, pcConfig:peerConfig(), data:{efaceTarget:button.dataset.dialExtension, efaceTargetName:targetName}})
       session._efaceTarget=button.dataset.dialExtension;session._efaceHadVideo=stream.getVideoTracks().length>0
     } catch (exception) {
       releaseMicrophone()
