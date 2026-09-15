@@ -2,7 +2,7 @@
   const $ = (selector) => document.querySelector(selector)
   const adminMode = document.documentElement.classList.contains('admin-intercom')
   const root = new URL('./', location.href)
-  const currentVersion = '2.21.53'
+  const currentVersion = '2.21.54'
   function newDeviceId() {
     if (typeof crypto.randomUUID === 'function') return crypto.randomUUID()
     const bytes = new Uint8Array(16)
@@ -316,7 +316,12 @@
     if (intercomVisible) {
       startDoorbirdVideo()
       if (call?.direction === 'incoming' && ringtoneActive) {
-        audioContext?.resume().then(ringBurst).catch(() => {})
+        prepareRingtoneAudio().play().catch(() => {
+          audioContext?.resume().then(() => {
+            ringBurst()
+            if (!ringtoneTimer) ringtoneTimer = setInterval(ringBurst, 2200)
+          }).catch(() => {})
+        })
       }
     }
     else {

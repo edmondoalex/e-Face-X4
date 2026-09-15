@@ -1,5 +1,9 @@
 # Changelog
 
+## 2.21.54 — 2026-09-15
+
+- Quando il Tablet 4 apre automaticamente l'Intercom, la pagina visibile riavvia il campanello HTML precedentemente bloccato nell'iframe nascosto.
+
 ## 2.21.53 — 2026-09-15
 
 - Il Tablet 4 riproduce la chiamata con un elemento audio reale in autoplay; WebAudio resta disponibile come riserva.
