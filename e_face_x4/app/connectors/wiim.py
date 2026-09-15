@@ -114,7 +114,7 @@ class WiiMClient:
         return str(await self.command(f"setPlayerCmd:play:{value}", json_response=False))
 
     async def _playqueue(self, action: str, arguments: dict[str, Any]) -> str:
-        if action not in {"BrowseQueue", "BrowseQueueEx", "PlayQueueWithIndex"}:
+        if action not in {"BrowseQueue", "BrowseQueueEx", "PlayQueueWithIndex", "GetKeyMapping", "SetKeyMapping"}:
             raise ValueError("Azione coda WiiM non valida")
         service = "urn:schemas-wiimu-com:service:PlayQueue:1"
         values = "".join(f"<{key}>{html.escape(str(value))}</{key}>" for key, value in arguments.items())
@@ -132,7 +132,7 @@ class WiiMClient:
                 headers={"Content-Type": 'text/xml; charset="utf-8"', "SOAPAction": f'"{service}#{action}"'},
             )
             response.raise_for_status()
-        if action == "PlayQueueWithIndex":
+        if action in {"PlayQueueWithIndex", "SetKeyMapping"}:
             return ""
         try:
             root = ET.fromstring(response.text)
@@ -170,6 +170,21 @@ class WiiMClient:
         if not 0 <= int(index) <= 10_000:
             raise ValueError("Indice coda WiiM non valido")
         await self._playqueue("PlayQueueWithIndex", {"QueueName": "0", "Index": int(index)})
+
+    async def delete_preset(self, index: int) -> None:
+        index = int(index)
+        if not 1 <= index <= 33:
+            raise ValueError("Preset WiiM non valido")
+        context = await self._playqueue("GetKeyMapping", {})
+        pattern = re.compile(fr"<Key{index}>.*?</Key{index}>", re.I | re.S)
+        match = pattern.search(context)
+        if not match or not self._queue_value(match.group(0), "Name"):
+            raise ValueError("Preset WiiM non disponibile")
+        updated = pattern.sub(f"<Key{index}><RoutineId>Empty</RoutineId></Key{index}>", context, count=1)
+        await self._playqueue("SetKeyMapping", {"QueueContext": updated})
+        remaining = await self.presets()
+        if any(int(item["index"]) == index for item in remaining):
+            raise RuntimeError("Il WiiM non ha confermato la cancellazione del preset")
 
     async def multiroom(self) -> dict[str, Any]:
         status, topology = await asyncio.gather(self.command("getStatusEx"), self.command("multiroom:getSlaveList"))

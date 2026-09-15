@@ -618,7 +618,8 @@ function mediaFavoritesHtml(items, roomId) {
     const fallback = `<span class="media-recent-art mdi-mask" style="${mdiStyle(fallbackIcon, 'music-circle')}${displayArt ? ';display:none' : ''}"></span>`
     const imageError = spotify && art ? `if(!this.dataset.fallback){this.dataset.fallback='1';this.src='${spotifyLogo}';return}` : ''
     const serviceLogo = wiimPreset || wiimTrack ? `<span class="mdi-mask" style="${mdiStyle(fallbackIcon, 'music-circle')}"></span><span class="mdi-mask media-favorite-wiim" style="${mdiStyle('mdi:speaker-wireless', 'speaker')}"></span>` : Number.isSafeInteger(serviceId) && serviceId > 0 ? `<img class="media-favorite-service-icon" src="${apiUrl(`api/control4/source-icon/${serviceId}`)}" alt="" loading="lazy" onerror="this.style.display='none';this.nextElementSibling.style.display='block'"><span class="mdi-mask" style="${mdiStyle(fallbackIcon, 'music-circle')};display:none"></span>` : `<span class="mdi-mask" style="${mdiStyle(fallbackIcon, 'music-circle')}"></span>`
-    return `<span class="media-recent-card"><button class="media-recent-item" data-favorite-select="${esc(item.id)}" data-favorite-room="${roomId}" title="${esc(item.title)}">${displayArt ? `<img src="${esc(displayArt)}" alt="" loading="lazy" draggable="false" onerror="${imageError}this.style.display='none';this.nextElementSibling.style.display='block'">` : ''}${fallback}<b>${esc(item.title)}</b><small>${esc(item.subtitle || '')}</small><em>${serviceLogo}${esc(wiimPreset || wiimTrack ? item.service || 'WiiM' : item.kind === 'station' ? 'Stations' : spotify ? 'Spotify' : item.item_type || 'Audio')}</em></button>${wiimPreset ? '' : `<button type="button" class="media-recent-hide" data-favorite-remove="${esc(item.id)}" aria-label="Rimuovi ${esc(item.title)} dai Preferiti" title="Rimuovi dai Preferiti">×</button>`}</span>`
+    const remove = wiimPreset ? `<button type="button" class="media-recent-hide" data-wiim-preset-remove="${Number(item.preset_index)}" aria-label="Elimina ${esc(item.title)} da WiiM ed e-Face" title="Elimina da WiiM ed e-Face">×</button>` : `<button type="button" class="media-recent-hide" data-favorite-remove="${esc(item.id)}" aria-label="Rimuovi ${esc(item.title)} dai Preferiti" title="Rimuovi dai Preferiti">×</button>`
+    return `<span class="media-recent-card"><button class="media-recent-item" data-favorite-select="${esc(item.id)}" data-favorite-room="${roomId}" title="${esc(item.title)}">${displayArt ? `<img src="${esc(displayArt)}" alt="" loading="lazy" draggable="false" onerror="${imageError}this.style.display='none';this.nextElementSibling.style.display='block'">` : ''}${fallback}<b>${esc(item.title)}</b><small>${esc(item.subtitle || '')}</small><em>${serviceLogo}${esc(wiimPreset || wiimTrack ? item.service || 'WiiM' : item.kind === 'station' ? 'Stations' : spotify ? 'Spotify' : item.item_type || 'Audio')}</em></button>${remove}</span>`
   }).join('')
 }
 
@@ -2034,8 +2035,17 @@ $('#device-list').addEventListener('click', (event) => {
   const navigatorButton = event.target.closest('[data-msp-open]')
   if (navigatorButton) return openTuneInNavigator(Number(navigatorButton.dataset.mspRoom), navigatorButton.dataset.mspService || 'tunein')
   const pinRecent = event.target.closest('[data-recent-pin]')
+  const removeWiimPreset = event.target.closest('[data-wiim-preset-remove]')
   const removeFavorite = event.target.closest('[data-favorite-remove]')
   const selectFavorite = event.target.closest('[data-favorite-select]')
+  if (removeWiimPreset) {
+    if (!confirm('Eliminare questo preset dal WiiM e da e-Face?')) return
+    removeWiimPreset.disabled = true
+    fetch(apiUrl(`api/wiim/presets/${encodeURIComponent(removeWiimPreset.dataset.wiimPresetRemove)}`), { method: 'DELETE' })
+      .then(async (response) => { if (!response.ok) throw new Error((await response.json().catch(() => ({}))).detail || 'Preset WiiM non eliminato'); favoritesCache = null; await loadMediaFavorites(true) })
+      .catch(fail).finally(() => { removeWiimPreset.disabled = false })
+    return
+  }
   if (pinRecent || removeFavorite || selectFavorite) {
     if (Date.now() < recentDragSuppressUntil) { event.preventDefault(); return }
     const control = pinRecent || removeFavorite || selectFavorite

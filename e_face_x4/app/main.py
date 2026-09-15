@@ -65,7 +65,7 @@ from .connectors.control4_media import cached_control4_icon, cached_control4_ico
 from .connectors.supervisor import discover_addon_url, discover_host_url
 from .demo import dashboard as demo_dashboard
 
-VERSION = os.environ.get("EFACE_VERSION", "2.21.80")
+VERSION = os.environ.get("EFACE_VERSION", "2.21.81")
 STATIC = Path(__file__).parent / "static"
 logging.basicConfig(level=logging.WARNING, format="%(asctime)s %(levelname)s [e-face-x4] %(message)s")
 _reconnect_warning_at: dict[str, float] = {}
@@ -283,6 +283,18 @@ def create_app() -> FastAPI:
             return {"items": await configured_wiim().presets()}
         except (httpx.HTTPError, RuntimeError) as exc:
             raise HTTPException(status_code=502, detail="Preset WiiM non disponibili") from exc
+
+    @app.delete("/api/wiim/presets/{index}")
+    async def wiim_delete_preset(index: int) -> dict:
+        try:
+            await configured_wiim().delete_preset(index)
+            wiim_presets_cache["expires"] = 0.0
+            wiim_presets_cache["items"] = []
+            return {"ok": True, "index": index}
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        except (httpx.HTTPError, RuntimeError) as exc:
+            raise HTTPException(status_code=502, detail="Cancellazione preset WiiM non riuscita") from exc
 
     @app.post("/api/wiim/action")
     async def wiim_action(request: Request) -> dict:
@@ -1027,7 +1039,7 @@ def create_app() -> FastAPI:
 
     @app.get("/api/control4/favorites")
     async def control4_list_favorites() -> dict:
-        items = list_favorites()
+        items = list(reversed(list_favorites()))
         try:
             if time.monotonic() >= float(wiim_presets_cache["expires"]):
                 wiim_presets_cache["items"] = await configured_wiim().presets()
@@ -1937,8 +1949,8 @@ def create_app() -> FastAPI:
         page = page.replace("tools-dashboard.js?v=2.21.36", "tools-dashboard.js?v=2.21.38")
         page = page.replace("tools-dashboard.js?v=2.21.38", "tools-dashboard.js?v=2.21.41")
         page = page.replace("tools-dashboard.js?v=2.21.41", "tools-dashboard.js?v=2.21.42")
-        page = page.replace("tools-dashboard.js?v=2.21.42", "tools-dashboard.js?v=2.21.80")
-        page = page.replace("tools-dashboard.css?v=2.20.36", "tools-dashboard.css?v=2.21.80")
+        page = page.replace("tools-dashboard.js?v=2.21.42", "tools-dashboard.js?v=2.21.81")
+        page = page.replace("tools-dashboard.css?v=2.20.36", "tools-dashboard.css?v=2.21.81")
         page = page.replace("backgrounds.css?v=2.20.20", "backgrounds.css?v=2.21.43")
         page = page.replace("intercom.css?v=2.21.14", "intercom.css?v=2.21.46")
         page = page.replace("app.js?v=2.21.11", "app.js?v=2.21.29")

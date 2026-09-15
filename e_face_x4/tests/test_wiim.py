@@ -100,6 +100,27 @@ async def test_native_wiim_queue_browse_and_exact_play() -> None:
     assert all("schemas-wiimu-com:service:PlayQueue:1" in body for _, body in actions)
 
 
+@pytest.mark.asyncio
+async def test_native_wiim_delete_preset_clears_key_mapping() -> None:
+    requests = []
+    mapping = "<?xml version=\"1.0\"?><KeyList><Key1><Name>Radio</Name><RoutineId>Empty</RoutineId></Key1><Key2><RoutineId>Empty</RoutineId></Key2></KeyList>"
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        requests.append((str(request.url), request.content.decode() if request.content else ""))
+        if request.method == "POST" and "GetKeyMapping" in request.headers.get("soapaction", ""):
+            escaped = mapping.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+            return httpx.Response(200, text=f'<s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/"><s:Body><QueueContext>{escaped}</QueueContext></s:Body></s:Envelope>')
+        if request.method == "POST":
+            return httpx.Response(200, text='<s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/"><s:Body/></s:Envelope>')
+        return httpx.Response(200, json={"preset_list": []})
+
+    await WiiMClient("192.168.3.52", transport=httpx.MockTransport(handler)).delete_preset(1)
+    set_body = requests[1][1]
+    assert "SetKeyMapping" in set_body
+    assert "&lt;Key1&gt;&lt;RoutineId&gt;Empty&lt;/RoutineId&gt;&lt;/Key1&gt;" in set_body
+    assert "Radio" not in set_body
+
+
 def test_admin_wiim_configuration_is_protected_and_verified(monkeypatch, tmp_path) -> None:
     monkeypatch.setenv("EFACE_AUTH_DIR", str(tmp_path / "auth"))
     monkeypatch.setenv("EFACE_WIIM_CONFIG", str(tmp_path / "wiim.json"))

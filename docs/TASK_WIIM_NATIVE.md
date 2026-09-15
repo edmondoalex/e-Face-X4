@@ -130,3 +130,7 @@ La cattura successiva del client WiiM Windows ha mostrato che, durante apertura 
 ## Avanzamento 2.21.80
 
 Implementato il preferito brano WiiM basato su preset e ID provider stabile. Al salvataggio e-Face legge snapshot, preset e coda corrente, associa il nome lista al preset e persiste soltanto preset, ID traccia e metadati visivi, mai l'URL firmato. Al richiamo avvia il preset, seleziona la sorgente WiiM nella stanza Control4, attende la nuova coda, cerca l'ID a prescindere dal vecchio indice e usa `PlayQueueWithIndex`; il brano parte nel contesto completo e continua con gli elementi successivi. Se preset o ID non sono più disponibili, l'operazione fallisce esplicitamente senza avviare una traccia diversa.
+
+## Avanzamento 2.21.81
+
+`GetKeyMapping` con il namespace proprietario restituisce 33 slot e la configurazione completa dei preset; uno slot occupato può essere rimosso sostituendo il relativo blocco con `RoutineId=Empty` e inviando l'intero contesto tramite `SetKeyMapping`. e-Face espone questa operazione soltanto dietro conferma esplicita della X: dopo l'invio rilegge `getPresetInfo` e considera riuscita la cancellazione solo se lo slot è realmente assente. I preset sono dati del WiiM, quindi la loro rimozione dal dispositivo li elimina automaticamente anche dalla lista e-Face. I preferiti persistenti e-Face vengono invece restituiti in ordine inverso d'inserimento, dal più recente.

@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.21.81 — 2026-09-15
+
+- Mostra la X anche sui preset WiiM e, dopo conferma, elimina realmente lo slot dal dispositivo tramite `SetKeyMapping`, facendolo sparire anche da e-Face.
+- Ordina i preferiti e-Face persistenti dal più recente al meno recente, mantenendo i preset WiiM nel naturale ordine degli slot.
+- Conserva il richiamo dei brani salvati tramite numero del preset e ID traccia anche dopo successive rinominazioni del preset.
+
 ## 2.21.80 — 2026-09-15
 
 - La stella del player salva il brano WiiM corrente insieme al preset di origine e al suo ID stabile, senza conservare l'URL audio temporaneo.
