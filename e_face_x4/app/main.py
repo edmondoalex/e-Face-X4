@@ -61,7 +61,7 @@ from .connectors.control4_media import cached_control4_icon, cached_control4_ico
 from .connectors.supervisor import discover_addon_url, discover_host_url
 from .demo import dashboard as demo_dashboard
 
-VERSION = os.environ.get("EFACE_VERSION", "2.21.71")
+VERSION = os.environ.get("EFACE_VERSION", "2.21.72")
 STATIC = Path(__file__).parent / "static"
 logging.basicConfig(level=logging.WARNING, format="%(asctime)s %(levelname)s [e-face-x4] %(message)s")
 _reconnect_warning_at: dict[str, float] = {}
@@ -216,6 +216,13 @@ def create_app() -> FastAPI:
         except (httpx.HTTPError, RuntimeError) as exc:
             raise HTTPException(status_code=502, detail="Preset WiiM non avviato") from exc
         return {"ok": True}
+
+    @app.get("/api/wiim/multiroom")
+    async def wiim_multiroom() -> dict:
+        try:
+            return {"multiroom": await configured_wiim().multiroom()}
+        except (httpx.HTTPError, RuntimeError) as exc:
+            raise HTTPException(status_code=502, detail="Stato multiroom WiiM non disponibile") from exc
 
     @app.get("/api/admin/installation/preflight")
     async def admin_installation_preflight(request: Request) -> dict:
@@ -1745,7 +1752,7 @@ def create_app() -> FastAPI:
             page = page.replace(placeholder, value)
         page = page.replace('content="#263f48"', 'content="#181c1f"')
         page = page.replace("manifest.webmanifest?v=2.20.38", "manifest.webmanifest?v=2.21.59")
-        page = page.replace("app.css?v=2.20.20", "app.css?v=2.21.71")
+        page = page.replace("app.css?v=2.20.20", "app.css?v=2.21.72")
         page = page.replace("ui-theme-contract.css?v=2.21.27", "ui-theme-contract.css?v=2.21.29")
         page = page.replace("tools-dashboard.js?v=2.21.27", "tools-dashboard.js?v=2.21.33")
         page = page.replace("tools-dashboard.js?v=2.21.33", "tools-dashboard.js?v=2.21.34")
@@ -1763,7 +1770,7 @@ def create_app() -> FastAPI:
         page = page.replace("app.js?v=2.21.30", "app.js?v=2.21.31")
         page = page.replace("app.js?v=2.21.31", "app.js?v=2.21.32")
         page = page.replace("app.js?v=2.21.32", "app.js?v=2.21.60")
-        page = page.replace("app.js?v=2.21.60", "app.js?v=2.21.71")
+        page = page.replace("app.js?v=2.21.60", "app.js?v=2.21.72")
         page = page.replace("home-comfort.css?v=2.20.20", "home-comfort.css?v=2.21.31")
         if "--initial-background:" not in page:
             page = page.replace('<html lang="it">', f'<html lang="it" style="background:var(--initial-background,#181c1f);--initial-background:{replacements["__INITIAL_BACKGROUND__"]}">', 1)

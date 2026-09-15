@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.21.72 — 2026-09-15
+
+- Prepara il multiroom WiiM nativo con lettura diretta di ruolo, nome gruppo, membri e versione del protocollo WMRM.
+- Aggiunge al player una sezione Multiroom già collegata alle API; i comandi di unione e separazione restano volutamente disabilitati finché non saranno verificati sui dispositivi reali.
+
 ## 2.21.71 — 2026-09-15
 
 - Aggiunge nella navigazione utente la pagina WiiM nativa con cover, metadata, timeline, qualità audio, stato e volume aggiornati direttamente dalla LAN.

@@ -96,6 +96,19 @@ class WiiMClient:
             raise ValueError("Preset WiiM non valido")
         return str(await self.command(f"MCUKeyShortClick:{int(index)}", json_response=False))
 
+    async def multiroom(self) -> dict[str, Any]:
+        status, topology = await asyncio.gather(self.command("getStatusEx"), self.command("multiroom:getSlaveList"))
+        status = status if isinstance(status, dict) else {}
+        topology = topology if isinstance(topology, dict) else {}
+        raw_members = topology.get("slave_list") or topology.get("slaves_list") or []
+        members = []
+        if isinstance(raw_members, list):
+            for item in raw_members:
+                if isinstance(item, dict):
+                    members.append({"name": str(item.get("name") or item.get("DeviceName") or "WiiM"), "ip": str(item.get("ip") or item.get("IP") or "")})
+        member_count = int(topology.get("slaves") or len(members) or 0)
+        return {"grouped": str(status.get("group") or "0") != "0" or member_count > 0, "role": "master" if member_count > 0 else "standalone", "group_name": str(status.get("GroupName") or status.get("DeviceName") or "WiiM"), "members": members, "member_count": member_count, "protocol_version": str(topology.get("wmrm_version") or ""), "group_type": str(topology.get("group_type") or "")}
+
     async def snapshot(self) -> dict[str, Any]:
         status, player, metadata = await asyncio.gather(
             self.command("getStatusEx"), self.command("getPlayerStatus"), self.command("getMetaInfo")

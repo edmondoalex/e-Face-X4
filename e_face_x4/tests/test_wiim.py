@@ -61,6 +61,19 @@ async def test_native_wiim_actions_and_presets() -> None:
         await client.player_action("volume", 101)
 
 
+@pytest.mark.asyncio
+async def test_native_wiim_multiroom_foundation() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.params["command"] == "getStatusEx":
+            return httpx.Response(200, json={"group": "0", "GroupName": "WiiM Studio"})
+        return httpx.Response(200, json={"slaves": 0, "wmrm_version": "4.3", "group_type": -1})
+
+    data = await WiiMClient("192.168.3.52", transport=httpx.MockTransport(handler)).multiroom()
+    assert data["grouped"] is False
+    assert data["role"] == "standalone"
+    assert data["protocol_version"] == "4.3"
+
+
 def test_admin_wiim_configuration_is_protected_and_verified(monkeypatch, tmp_path) -> None:
     monkeypatch.setenv("EFACE_AUTH_DIR", str(tmp_path / "auth"))
     monkeypatch.setenv("EFACE_WIIM_CONFIG", str(tmp_path / "wiim.json"))

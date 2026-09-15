@@ -11,9 +11,10 @@ function render(next){device=next||{};$('#connection-state').textContent='ONLINE
 async function refresh(){if(busy)return;try{render((await request('api/wiim/snapshot')).device)}catch(error){$('#connection-state').textContent='OFFLINE';$('#connection-state').classList.remove('online');notice(error.message)}}
 async function action(name,value){busy=true;try{render((await request('api/wiim/action',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:name,value})})).device)}catch(error){notice(error.message)}finally{busy=false}}
 async function presets(){try{const data=await request('api/wiim/presets');$('#preset-list').innerHTML=data.items.length?data.items.map(item=>`<button data-preset="${item.index}">${esc(item.name)}</button>`).join(''):'<span class="empty">Nessun preset salvato sul WiiM.</span>'}catch(error){$('#preset-list').innerHTML=`<span class="empty">${esc(error.message)}</span>`}}
+async function multiroom(){try{const {multiroom:data}=await request('api/wiim/multiroom');$('#multiroom-role').textContent=data.grouped?String(data.role).toUpperCase():'AUTONOMO';$('#multiroom-summary').textContent=data.grouped?`${data.group_name} · ${data.member_count} membri collegati`:`${data.group_name} è attualmente un player autonomo · protocollo multiroom ${data.protocol_version||'—'}`;$('#multiroom-members').innerHTML=(data.members||[]).map(item=>`<span>${esc(item.name)}${item.ip?` · ${esc(item.ip)}`:''}</span>`).join('')}catch(error){$('#multiroom-summary').textContent=error.message}}
 document.addEventListener('click',(event)=>{const button=event.target.closest('[data-action]');if(button)action(button.dataset.action);const preset=event.target.closest('[data-preset]');if(preset)request(`api/wiim/presets/${preset.dataset.preset}`,{method:'POST'}).then(()=>setTimeout(refresh,500)).catch(error=>notice(error.message))})
 $('#volume').addEventListener('input',(event)=>$('#volume-value').textContent=`${event.target.value}%`)
 $('#volume').addEventListener('change',(event)=>action('volume',Number(event.target.value)))
-$('#refresh').addEventListener('click',()=>{refresh();presets()})
+$('#refresh').addEventListener('click',()=>{refresh();presets();multiroom()})
 $('#artwork').addEventListener('error',()=>{$('#artwork').hidden=true;$('#artwork-fallback').hidden=false})
-refresh();presets();setInterval(refresh,2000)
+refresh();presets();multiroom();setInterval(refresh,2000)

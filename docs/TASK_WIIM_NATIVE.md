@@ -40,3 +40,7 @@ Restano da sviluppare l'inventario multi-player/discovery, la pagina WiiM per l'
 ## Avanzamento 2.21.71
 
 Aggiunta la pagina WiiM nella navigazione principale con polling diretto ogni due secondi, cover, metadata, timeline, qualità, volume, mute, trasporto e preset. I comandi ammessi sono tradotti server-side tramite una allowlist; il browser non può inviare comandi Linkplay arbitrari. Restano aperti discovery multi-player, coda/ingressi/EQ/multiroom e gli adattatori autenticati per i cataloghi dei servizi musicali.
+
+## Avanzamento 2.21.72
+
+Predisposta la funzione multiroom con endpoint nativo read-only basato su `getStatusEx` e `multiroom:getSlaveList`. Sul WiiM Pro di prova il protocollo WMRM 4.3 risponde correttamente e il player risulta autonomo. La UI mostra già ruolo, gruppo e membri; le operazioni distruttive di join/kickout non vengono esposte finché non saranno verificate con almeno due WiiM reali.
