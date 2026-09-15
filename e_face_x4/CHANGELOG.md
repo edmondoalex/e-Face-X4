@@ -1,5 +1,9 @@
 # Changelog
 
+## 2.21.56 — 2026-09-15
+
+- Ripristinata la suoneria Classica nel selettore, così i dispositivi con una preferenza precedente non mostrano un valore vuoto e possono salvare correttamente.
+
 ## 2.21.55 — 2026-09-15
 
 - Il primo tocco sulla Home, sugli Strumenti o sull'Intercom sblocca preventivamente il canale audio della suoneria nei WebView Android che vietano l'autoplay.
