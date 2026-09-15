@@ -1,5 +1,9 @@
 # Changelog
 
+## 2.21.68 — 2026-09-15
+
+- Abilita la prima prova video H.264 e-Face → tablet Control4 Ufficio/8100; Tavolo resta audio come riferimento.
+
 ## 2.21.67 — 2026-09-15
 
 - La testata grande mostra sempre `Chiamata a <interno>` o `Chiamata da <interno>`; la riga tecnica SIP sottostante è nascosta.
