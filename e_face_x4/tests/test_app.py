@@ -56,7 +56,7 @@ def test_health() -> None:
     response = TestClient(create_app()).get("/health")
     assert response.status_code == 200
     assert response.json()["ok"] is True
-    assert response.json()["version"] == "2.21.30"
+    assert response.json()["version"] == "2.21.31"
 
 
 def test_installed_app_starts_at_dashboard() -> None:
@@ -613,8 +613,9 @@ def test_tools_page_starts_with_selected_background_and_card_theme(monkeypatch, 
     login = client.get("/login").text
     assert '<body class="app-theme" data-background="midnight" data-card-theme="slate">' in home
     assert 'ui-theme-contract.css?v=2.21.29' in home
-    assert 'app.js?v=2.21.30' in home
+    assert 'app.js?v=2.21.31' in home
     assert 'energy.css?v=2.21.30' in home
+    assert 'home-comfort.css?v=2.21.31' in home
     assert '<body class="login-theme" data-background="midnight" data-card-theme="slate">' in login
     assert "__INITIAL_BACKGROUND__" not in home + login
 
@@ -806,6 +807,9 @@ def test_x4_shell_and_brand_assets_are_served() -> None:
     assert "function renderHomeMediaSessions()" in app_js
     assert "function renderHomeStatusCounters()" in app_js
     assert "function renderHomeComfort()" in app_js
+    assert "mdi:coolant-temperature" in app_js
+    assert "comfort-heating" in app_js
+    assert "comfort-cooling" in app_js
     assert "function updateEnergyMasterIcon(flows)" in app_js
     assert "linear-gradient(90deg," in app_js
     assert "{ kind: 'comfort', label: 'Comfort'" not in app_js

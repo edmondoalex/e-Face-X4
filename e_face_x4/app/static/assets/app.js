@@ -234,12 +234,13 @@ function renderHomeComfort() {
   const heating = thermostats.filter((device) => String(device.state).toUpperCase() === 'HEATING').length
   const cooling = thermostats.filter((device) => String(device.state).toUpperCase() === 'COOLING').length
   const mode = heating && cooling ? 'mixed' : heating ? 'heat' : cooling ? 'cool' : 'idle'
-  const status = heating && cooling ? `${heating} caldo · ${cooling} freddo` : heating ? `${heating} ${heating === 1 ? 'zona' : 'zone'} in riscaldamento` : cooling ? `${cooling} ${cooling === 1 ? 'zona' : 'zone'} in raffrescamento` : 'Nessuna richiesta'
-  const icon = mode === 'heat' ? 'mdi:radiator' : mode === 'cool' ? 'mdi:snowflake' : mode === 'mixed' ? 'mdi:thermostat' : 'mdi:home-thermometer-outline'
+  const heatingStatus = `${heating} ${heating === 1 ? 'zona' : 'zone'} in riscaldamento`
+  const coolingStatus = `${cooling} ${cooling === 1 ? 'zona' : 'zone'} in raffrescamento`
+  const status = heating && cooling ? `<span class="comfort-heating">${heatingStatus}</span><span class="comfort-cooling">${coolingStatus}</span>` : heating ? `<span class="comfort-heating">${heatingStatus}</span>` : cooling ? `<span class="comfort-cooling">${coolingStatus}</span>` : 'Nessuna richiesta'
   const average = temperatures.length ? temperatures.reduce((sum, value) => sum + value, 0) / temperatures.length : NaN
   card.className = `climate-card home-comfort-summary xcard comfort-${mode}`
-  $('#home-comfort-icon').setAttribute('style', mdiStyle(icon, 'thermostat'))
-  $('#home-comfort-state').textContent = status
+  $('#home-comfort-icon').setAttribute('style', mdiStyle('mdi:coolant-temperature', 'thermostat'))
+  $('#home-comfort-state').innerHTML = status
   $('#home-comfort-inside').textContent = Number.isFinite(average) ? `${average.toFixed(1)}°` : '--'
   const outside = Number(external?.temperature ?? external?.state ?? external?.value)
   $('#home-comfort-outside').textContent = Number.isFinite(outside) ? `${outside.toFixed(1)}°` : '--'

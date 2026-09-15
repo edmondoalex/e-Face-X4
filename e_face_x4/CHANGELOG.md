@@ -1,5 +1,9 @@
 # Changelog
 
+## 2.21.31 — 2026-09-15
+
+- Usa `mdi:coolant-temperature` nel master Comfort e divide icona/testo fra riscaldamento e raffrescamento quando entrambi sono attivi.
+
 ## 2.21.30 — 2026-09-15
 
 - L'icona master Energia segue il colore del flusso dominante di ogni impianto e si divide quando i feed hanno colori differenti.
