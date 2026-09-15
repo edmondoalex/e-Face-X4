@@ -2,7 +2,7 @@
   const $ = (selector) => document.querySelector(selector)
   const adminMode = document.documentElement.classList.contains('admin-intercom')
   const root = new URL('./', location.href)
-  const currentVersion = '2.21.54'
+  const currentVersion = '2.21.55'
   function newDeviceId() {
     if (typeof crypto.randomUUID === 'function') return crypto.randomUUID()
     const bytes = new Uint8Array(16)
@@ -463,6 +463,25 @@
     player.currentTime = 0
     return player
   }
+
+  async function unlockRingtoneAudio() {
+    const player = prepareRingtoneAudio()
+    const savedVolume = player.volume
+    player.volume = 0
+    try {
+      await player.play()
+      player.pause()
+      player.currentTime = 0
+      player.volume = savedVolume
+      document.documentElement.dataset.ringtoneUnlocked = 'true'
+      return true
+    } catch (_) {
+      player.volume = savedVolume
+      return false
+    }
+  }
+  window.efaceUnlockIntercomAudio = unlockRingtoneAudio
+  document.addEventListener('pointerdown', unlockRingtoneAudio, {once:true, capture:true})
 
   async function startRingtone() {
     if (ringtoneActive) return

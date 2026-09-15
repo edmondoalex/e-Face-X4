@@ -1,5 +1,9 @@
 # Changelog
 
+## 2.21.55 — 2026-09-15
+
+- Il primo tocco sulla Home, sugli Strumenti o sull'Intercom sblocca preventivamente il canale audio della suoneria nei WebView Android che vietano l'autoplay.
+
 ## 2.21.54 — 2026-09-15
 
 - Quando il Tablet 4 apre automaticamente l'Intercom, la pagina visibile riavvia il campanello HTML precedentemente bloccato nell'iframe nascosto.

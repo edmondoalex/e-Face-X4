@@ -17,6 +17,9 @@ window.addEventListener('message', event => {
 })
 toolsIntercomFrame.addEventListener('load', () => toolsIntercomFrame.contentWindow?.postMessage({type:'eface-intercom-visible', visible:false}, location.origin))
 toolsIntercomFrame.src = api('intercom?embedded=1')
+document.addEventListener('pointerdown', () => {
+  try { toolsIntercomFrame.contentWindow?.efaceUnlockIntercomAudio?.() } catch (_) {}
+}, {once:true, capture:true})
 
 function message(value) {
   const notice = $('#tools-notice')

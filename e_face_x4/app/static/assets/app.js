@@ -2335,6 +2335,9 @@ navigator.serviceWorker?.addEventListener('message', (event) => {
 window.addEventListener('message', (event) => {
   if (event.origin === location.origin && event.source === $('#intercom-frame').contentWindow && event.data?.type === 'eface-intercom-incoming') openIntercom()
 })
+document.addEventListener('pointerdown', () => {
+  try { $('#intercom-frame').contentWindow?.efaceUnlockIntercomAudio?.() } catch (_) {}
+}, {once:true, capture:true})
 tick()
 setInterval(tick, 30000)
 window.addEventListener('keydown', (event) => {
