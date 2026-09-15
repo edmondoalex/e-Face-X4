@@ -72,3 +72,27 @@ Sonda read-only del 15/09/2026 sul WiiM di prova: quattro preset disponibili, un
 ## Avanzamento 2.21.78
 
 Il richiamo di un preset è ora coordinato con Control4: e-Face valida la stanza corrente e il `control4_source_id`, avvia il preset direttamente sul WiiM e seleziona poi `listen:<control4_source_id>` nella stanza tramite il comando nativo Control4 `set_audio_source`. In questo modo una sessione precedente, per esempio Spotify Connect, non resta selezionata nella stanza. La UI continua a eseguire il refresh immediato e differito di stato e copertina. Se il preset è partito ma Control4 non accetta il cambio sorgente, l'endpoint restituisce un errore esplicito di successo parziale.
+
+## Task aperto: richiamo esatto di un brano cloud
+
+Obiettivo: consentire a e-Face di salvare e richiamare lo stesso brano attualmente riprodotto dal WiiM, anche quando proviene da YouTube Music, SoundCloud o un altro servizio cloud, senza usare API private o sottrarre credenziali all'app WiiM.
+
+Riferimento tecnico da riesaminare: progetto community `cvdlinden/wiim-httpapi`, che documenta l'API HTTP LinkPlay/WiiM e in particolare `MCUKeyShortClick:<preset>:<track>`. Il secondo parametro seleziona una traccia, numerata da 1, all'interno del contenuto associato al preset. Il progetto è un proxy/OpenAPI sopra la medesima API locale del dispositivo e non offre autonomamente accesso ai cataloghi o agli stream protetti dei provider.
+
+Evidenza read-only del 15/09/2026 sul WiiM Pro firmware `Linkplay.4.8.827634`, durante la riproduzione YouTube Music di “GIGI D'AGOSTINO - RADICI DAG - [ IERI E OGGI MIX VOL 1 ]”:
+
+- `getMetaInfo` espone titolo, artista, copertina e `trackId`, ma non un URL audio riproducibile;
+- `getPlayerStatus` restituisce `vendor=YouTubeMusic`, `mode=10`, `plicurr=0` e `plicount=0`;
+- `getPresetInfo` restituisce `url=unknow` per tutti i sei preset cloud;
+- `getStatusEx.preset_key=12` indica il numero di tasti preset disponibili, non il preset corrente;
+- non è quindi possibile associare in modo affidabile il brano corrente a una coppia `<preset>:<track>` usando i dati osservati.
+
+Prossime verifiche, in ordine:
+
+1. Salvare fixture redatte di `getPlayerStatus`, `getMetaInfo` e `getPresetInfo` per ciascun provider e confrontare i campi durante avvio preset, cambio traccia e riapertura dell'app WiiM.
+2. Verificare se gli eventi UPnP `AVTransport`/`PlayQueue` o le azioni `GetMediaInfo`, `GetPositionInfo` e Browse della coda espongono URI, indice o DIDL-Lite aggiuntivi mentre la sola API HTTP restituisce zero.
+3. Provare `MCUKeyShortClick:<preset>:<track>` soltanto su una playlist di test con indice noto e dopo test unitari; è una mutazione della riproduzione e richiede una prova fisica controllata.
+4. Se il firmware continua a nascondere indice e URI per i servizi cloud, limitare la funzione ai provider/contenuti che restituiscono un riferimento riproducibile e mostrare chiaramente “richiama preset” invece di promettere “richiama brano”.
+5. Non memorizzare token dell'app WiiM, URL firmati privati o credenziali dei provider e non dedurre il numero traccia dal solo titolo, perché shuffle e duplicati renderebbero il richiamo inaffidabile.
+
+Criterio di completamento: un test reale deve dimostrare che, dopo aver cambiato contenuto o riavviato la sessione, e-Face richiama lo stesso brano e non soltanto il preset/playlist; il test deve includere aggiornamento corretto di Control4, titolo, copertina e posizione iniziale.
