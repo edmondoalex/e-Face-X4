@@ -52,3 +52,9 @@ La console player introdotta nelle versioni 2.21.71–72 viene spostata dalla na
 La guida ufficiale WiiM descrive ricerca universale e navigazione per brani, artisti, album, playlist, stazioni e show nell'app WiiM Home. L'API HTTP locale ufficialmente documentata non espone però un catalogo universale equivalente. Architettura scelta: adattatori e-Face separati per ciascun servizio e relativa autorizzazione ufficiale; WiiM resta la destinazione locale di riproduzione. Primo provider da preparare: Spotify. Non verranno acquisiti token privati dell'app WiiM né usate API cloud non documentate.
 
 Servizi richiesti per l'inventario: Amazon Music, BBC Radio, Calm Radio, Deezer, Hotmix, iHeartRadio, SoundCloud, YouTube Music, Spotify, TIDAL, Qobuz, radio/podcast, libreria locale e gli ulteriori servizi che emergeranno dal dispositivo/app. `Apri flusso di rete` è prioritario perché può usare direttamente URL audio o playlist supportati dal WiiM. YouTube Music non dispone di un catalogo pubblico ufficiale adatto a questa integrazione: verranno valutati soltanto Cast, apertura dell'app o futuri percorsi ufficiali, non scraping o token privati.
+
+## Avanzamento 2.21.74
+
+Il seek usa il comando ufficiale `setPlayerCmd:seek:<secondi>` ed è collegato allo slider della console. Aggiunti i controlli e-Face per shuffle/ripetizione e predisposte le azioni playlist/preferito per il catalogo.
+
+SoundCloud diventa il primo provider. Implementati archivio credenziali protetto, Client Credentials OAuth e ricerca tracce con identificatori URN. La configurazione richiede Client ID e Client Secret di un'app SoundCloud; non usa la password personale. Restano da implementare OAuth utente con PKCE per likes/playlist personali e il relay di playback autorizzato verso WiiM.

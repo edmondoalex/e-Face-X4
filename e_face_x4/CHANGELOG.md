@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.21.74 — 2026-09-15
+
+- Rende operativo lo slider di avanzamento con seek nativo WiiM in secondi e impedisce al polling di spostarlo mentre l'utente lo trascina.
+- Uniforma i controlli della console alle icone media e-Face e aggiunge shuffle, ripetizione, stop, aggiungi e preferito; shuffle e repeat comandano realmente il WiiM.
+- Avvia l'adattatore SoundCloud ufficiale con configurazione protetta in Admin, token Client Credentials riutilizzabile e ricerca normalizzata delle tracce tramite URN.
+
 ## 2.21.73 — 2026-09-15
 
 - Sposta la console tecnica WiiM dalla navigazione principale alla sezione Admin, dove resta disponibile per debug e verifiche future.

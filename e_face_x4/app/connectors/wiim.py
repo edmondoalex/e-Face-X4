@@ -72,6 +72,14 @@ class WiiMClient:
             if value is None or not 0 <= int(value) <= 100:
                 raise ValueError("Volume WiiM non valido")
             command = f"setPlayerCmd:vol:{int(value)}"
+        elif action == "seek":
+            if value is None or not 0 <= int(value) <= 86_400:
+                raise ValueError("Posizione WiiM non valida")
+            command = f"setPlayerCmd:seek:{int(value)}"
+        elif action == "loop":
+            if value is None or int(value) not in {-1, 0, 1, 2, 3, 4}:
+                raise ValueError("Modalità ripetizione WiiM non valida")
+            command = f"setPlayerCmd:loopmode:{int(value)}"
         else:
             command = commands.get(action, "")
         if not command:

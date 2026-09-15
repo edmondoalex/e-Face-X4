@@ -53,10 +53,11 @@ async def test_native_wiim_actions_and_presets() -> None:
 
     client = WiiMClient("192.168.3.52", transport=httpx.MockTransport(handler))
     await client.player_action("volume", 42)
+    await client.player_action("seek", 73)
     await client.player_action("next")
     assert await client.presets() == [{"index": 1, "name": "Radio", "artwork": ""}]
     await client.play_preset(1)
-    assert commands == ["setPlayerCmd:vol:42", "setPlayerCmd:next", "getPresetInfo", "MCUKeyShortClick:1"]
+    assert commands == ["setPlayerCmd:vol:42", "setPlayerCmd:seek:73", "setPlayerCmd:next", "getPresetInfo", "MCUKeyShortClick:1"]
     with pytest.raises(ValueError):
         await client.player_action("volume", 101)
 
@@ -115,10 +116,25 @@ def test_wiim_admin_ui_is_present() -> None:
     assert 'href="wiim">APRI CONSOLE DEBUG' in page
 
 
-def test_wiim_service_registry_starts_with_spotify() -> None:
+def test_wiim_service_registry_starts_with_soundcloud() -> None:
     from app.wiim_services import catalog
 
     services = catalog()
-    assert services[0]["id"] == "spotify"
+    assert services[0]["id"] == "soundcloud"
     assert services[0]["status"] == "configuration_required"
     assert "search" in services[0]["features"]
+
+
+@pytest.mark.asyncio
+async def test_soundcloud_official_search_normalization() -> None:
+    from app.connectors.soundcloud import SoundCloudClient
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.host == "secure.soundcloud.com":
+            assert request.headers["authorization"].startswith("Basic ")
+            return httpx.Response(200, json={"access_token": "token", "expires_in": 3600})
+        assert request.headers["authorization"] == "OAuth token"
+        return httpx.Response(200, json={"collection": [{"urn": "soundcloud:tracks:42", "title": "Track", "duration": 123000, "access": "playable", "user": {"username": "Artist"}}]})
+
+    items = await SoundCloudClient("client-id", "client-secret", transport=httpx.MockTransport(handler)).search_tracks("house")
+    assert items == [{"urn": "soundcloud:tracks:42", "title": "Track", "artist": "Artist", "artwork": "", "duration": 123, "permalink_url": "", "playable": True}]
