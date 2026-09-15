@@ -1,5 +1,9 @@
 # Changelog
 
+## 2.21.35 — 2026-09-15
+
+- Aggiunge l'accesso persistente per dispositivi fidati, revocabile con logout, cambio password, disattivazione o eliminazione utente.
+
 ## 2.21.34 — 2026-09-15
 
 - Prepara gli account per la futura origine VPS senza esporre password: origine locale persistente, stato sincronizzazione e data creazione.

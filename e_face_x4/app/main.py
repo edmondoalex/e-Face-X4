@@ -56,7 +56,7 @@ from .connectors.control4_media import cached_control4_icon, cached_control4_ico
 from .connectors.supervisor import discover_addon_url, discover_host_url
 from .demo import dashboard as demo_dashboard
 
-VERSION = os.environ.get("EFACE_VERSION", "2.21.34")
+VERSION = os.environ.get("EFACE_VERSION", "2.21.35")
 STATIC = Path(__file__).parent / "static"
 logging.basicConfig(level=logging.WARNING, format="%(asctime)s %(levelname)s [e-face-x4] %(message)s")
 _reconnect_warning_at: dict[str, float] = {}
@@ -1457,8 +1457,9 @@ def create_app() -> FastAPI:
             login_failures[key] = [*failures, now]
             raise HTTPException(status_code=401, detail="Credenziali non valide")
         login_failures.pop(key, None)
+        lifetime = user_auth.TRUSTED_DEVICE_SECONDS if payload.get("remember") is True else user_auth.SESSION_SECONDS
         response = JSONResponse({"ok": True})
-        response.set_cookie(user_auth.COOKIE, user_auth.create_session(username), max_age=user_auth.SESSION_SECONDS, httponly=True, samesite="strict", secure=secure_cookie(request), path="/")
+        response.set_cookie(user_auth.COOKIE, user_auth.create_session(username, lifetime), max_age=lifetime, httponly=True, samesite="strict", secure=secure_cookie(request), path="/")
         return response
 
     @app.post("/api/auth/logout")
@@ -1510,6 +1511,10 @@ def create_app() -> FastAPI:
     async def login_page() -> HTMLResponse:
         page = themed_page("login.html", "login-theme")
         theme_links = '<link rel="stylesheet" href="assets/card-themes.css?v=2.21.27"><link rel="stylesheet" href="assets/ui-theme-contract.css?v=2.21.27">'
+        trusted = '<label class="trusted-device"><input id="remember" type="checkbox" checked> Mantieni l’accesso su questo dispositivo</label>'
+        page = page.replace('<button>ACCEDI</button>', f'{trusted}<button>ACCEDI</button>', 1)
+        page = page.replace("password:document.getElementById('password').value", "password:document.getElementById('password').value,remember:document.getElementById('remember').checked")
+        page = page.replace('</style>', '.trusted-device{display:flex;align-items:center;gap:9px;margin-top:18px}.trusted-device input{width:19px;height:19px;accent-color:var(--ui-accent)}</style>', 1)
         return HTMLResponse(page.replace("</head>", f"{theme_links}</head>", 1), headers={"Cache-Control": "no-store"})
 
     @app.get("/intercom", include_in_schema=False)

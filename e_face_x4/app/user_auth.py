@@ -13,6 +13,7 @@ from pathlib import Path
 
 COOKIE = "eface_user"
 SESSION_SECONDS = 12 * 60 * 60
+TRUSTED_DEVICE_SECONDS = 5 * 365 * 24 * 60 * 60
 _LOCK = threading.RLock()
 _USERNAME = re.compile(r"^[a-z][a-z0-9_-]{2,31}$")
 
@@ -182,8 +183,8 @@ def verify(username: str, password: str) -> bool:
         return False
 
 
-def create_session(username: str) -> str:
-    expiry = int(time.time()) + SESSION_SECONDS
+def create_session(username: str, lifetime: int = SESSION_SECONDS) -> str:
+    expiry = int(time.time()) + lifetime
     nonce = secrets.token_hex(16)
     user = _users().get(username, {})
     version = int(user.get("session_version", 0))
