@@ -1,5 +1,9 @@
 # Changelog
 
+## 2.21.49 — 2026-09-15
+
+- La sessione persistente usa `SameSite=Lax`: Android può presentarla quando e-Face viene aperta da PWA o notifica, mantenendo HttpOnly, Secure su HTTPS e la protezione Origin delle API mutative.
+
 ## 2.21.48 — 2026-09-15
 
 - Aggiorna forzatamente lo script Home che riceve dall'Intercom nascosto l'evento di chiamata, evitando che tablet con cache precedente squillino senza aprire la schermata di risposta.

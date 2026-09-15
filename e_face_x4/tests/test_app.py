@@ -56,7 +56,7 @@ def test_health() -> None:
     response = TestClient(create_app()).get("/health")
     assert response.status_code == 200
     assert response.json()["ok"] is True
-    assert response.json()["version"] == "2.21.48"
+    assert response.json()["version"] == "2.21.49"
 
 
 def test_installed_app_starts_at_dashboard() -> None:
@@ -137,7 +137,7 @@ def test_admin_migration_guards_pages_apis_and_websocket(monkeypatch, tmp_path) 
     login = client.post("/api/auth/login", headers={"X-Forwarded-Proto": "https"}, json={"username": "admin", "password": "nuova-password-lunga", "remember": True})
     assert login.status_code == 200
     assert "Max-Age=157680000" in login.headers["set-cookie"]
-    assert "HttpOnly" in login.headers["set-cookie"] and "Secure" in login.headers["set-cookie"] and "SameSite=strict" in login.headers["set-cookie"]
+    assert "HttpOnly" in login.headers["set-cookie"] and "Secure" in login.headers["set-cookie"] and "SameSite=lax" in login.headers["set-cookie"]
     assert 'id="remember"' in client.get("/login").text
     assert client.post("/api/auth/login", json={"username": "admin", "password": "nuova-password-lunga"}).status_code == 200
     options.write_text(json.dumps({"installer_password": ""}), encoding="utf-8")

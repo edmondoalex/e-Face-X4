@@ -10,6 +10,7 @@ import re
 import secrets
 import time
 import uuid
+from datetime import datetime, timedelta, timezone
 from html import escape
 from pathlib import Path
 from dataclasses import replace
@@ -57,7 +58,7 @@ from .connectors.control4_media import cached_control4_icon, cached_control4_ico
 from .connectors.supervisor import discover_addon_url, discover_host_url
 from .demo import dashboard as demo_dashboard
 
-VERSION = os.environ.get("EFACE_VERSION", "2.21.48")
+VERSION = os.environ.get("EFACE_VERSION", "2.21.49")
 STATIC = Path(__file__).parent / "static"
 logging.basicConfig(level=logging.WARNING, format="%(asctime)s %(levelname)s [e-face-x4] %(message)s")
 _reconnect_warning_at: dict[str, float] = {}
@@ -1236,7 +1237,8 @@ def create_app() -> FastAPI:
         caller = str(wake.get("caller") or "")
         response = RedirectResponse(f"/intercom?push=1&from={quote(caller, safe='')}", status_code=303)
         response.set_cookie(user_auth.COOKIE, user_auth.create_session(wake["owner"], lifetime), max_age=lifetime,
-                            httponly=True, samesite="strict", secure=secure_cookie(request), path="/")
+                            expires=datetime.now(timezone.utc) + timedelta(seconds=lifetime),
+                            httponly=True, samesite="lax", secure=secure_cookie(request), path="/")
         return response
 
     @app.get("/api/admin/intercom/personal-devices")
@@ -1549,7 +1551,9 @@ def create_app() -> FastAPI:
         except ValueError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
         response = JSONResponse({"ok": True})
-        response.set_cookie(user_auth.COOKIE, user_auth.create_session("admin"), max_age=user_auth.SESSION_SECONDS, httponly=True, samesite="strict", secure=secure_cookie(request), path="/")
+        response.set_cookie(user_auth.COOKIE, user_auth.create_session("admin"), max_age=user_auth.SESSION_SECONDS,
+                            expires=datetime.now(timezone.utc) + timedelta(seconds=user_auth.SESSION_SECONDS),
+                            httponly=True, samesite="lax", secure=secure_cookie(request), path="/")
         return response
 
     @app.post("/api/auth/login")
@@ -1568,7 +1572,9 @@ def create_app() -> FastAPI:
         persistent = bool(user_auth.account(username).get("trusted_access"))
         lifetime = user_auth.TRUSTED_DEVICE_SECONDS if persistent else user_auth.SESSION_SECONDS
         response = JSONResponse({"ok": True})
-        response.set_cookie(user_auth.COOKIE, user_auth.create_session(username, lifetime), max_age=lifetime, httponly=True, samesite="strict", secure=secure_cookie(request), path="/")
+        response.set_cookie(user_auth.COOKIE, user_auth.create_session(username, lifetime), max_age=lifetime,
+                            expires=datetime.now(timezone.utc) + timedelta(seconds=lifetime),
+                            httponly=True, samesite="lax", secure=secure_cookie(request), path="/")
         return response
 
     @app.post("/api/auth/logout")
