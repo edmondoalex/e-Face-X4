@@ -31,6 +31,8 @@ let activeEnergyDashboard = null
 let energyRefreshTimer = null
 let energyRefreshRunning = false
 let energyMasterInitialized = false
+let energyMasterColors = []
+let energyMasterPending = { signature:'', confirmations:0 }
 const securitySections = { areas: false, zones: false }
 let currentSecurityOrder = ['scenarios', 'areas', 'zones', 'locks']
 const mediaSections = { rooms: true, playing: true }
@@ -187,6 +189,7 @@ function render(data) {
   document.querySelectorAll('.nav-icon').forEach((node) => {
     node.setAttribute('style', mdiStyle(navIcons[node.dataset.icon], 'shape'))
   })
+  paintEnergyMasterIcon()
   $('#demo-cameras').hidden = data.mode !== 'demo'
   const failedProvider = providers.find((provider) => provider.status === 'offline' || provider.status === 'misconfigured')
   if (data.mode === 'live' && failedProvider) {
@@ -1602,11 +1605,26 @@ async function loadEnergyDashboards(showLoading = true) {
 }
 
 function updateEnergyMasterIcon(flows) {
-  const icon = document.querySelector('[data-view="energy"] .nav-icon')
-  if (!icon) return
   const colors = { solar:'#ffd34e', battery:'#61d8f2', grid:'#ff704f', export:'#62e6a2', idle:'#87979a' }
   const unique = [...new Set((flows || []).map((flow) => colors[flow] || colors.idle))]
   const active = unique.length ? unique : [colors.idle]
+  const signature = active.join('|')
+  const current = energyMasterColors.join('|')
+  if (current && signature !== current) {
+    energyMasterPending = energyMasterPending.signature === signature
+      ? { signature, confirmations:energyMasterPending.confirmations + 1 }
+      : { signature, confirmations:1 }
+    if (energyMasterPending.confirmations < 3) return
+  }
+  energyMasterColors = active
+  energyMasterPending = { signature:'', confirmations:0 }
+  paintEnergyMasterIcon()
+}
+
+function paintEnergyMasterIcon() {
+  const icon = document.querySelector('[data-view="energy"] .nav-icon')
+  if (!icon || !energyMasterColors.length) return
+  const active = energyMasterColors
   icon.classList.add('energy-master-icon')
   icon.style.color = active[0]
   icon.style.setProperty('--energy-master-fill', active.length === 1

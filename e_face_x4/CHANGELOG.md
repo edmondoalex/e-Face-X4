@@ -1,5 +1,9 @@
 # Changelog
 
+## 2.21.32 — 2026-09-15
+
+- Stabilizza i colori dell'icona master Energia durante refresh e variazioni rapide dei feed.
+
 ## 2.21.31 — 2026-09-15
 
 - Usa `mdi:coolant-temperature` nel master Comfort e divide icona/testo fra riscaldamento e raffrescamento quando entrambi sono attivi.
