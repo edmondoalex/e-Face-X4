@@ -89,12 +89,20 @@ Evidenza read-only del 15/09/2026 sul WiiM Pro firmware `Linkplay.4.8.827634`, d
 
 Prova mutante controllata del 15/09/2026 sul preset 6 “Cover e remix” (YouTube Music): il firmware accetta `MCUKeyShortClick:6:1` e `MCUKeyShortClick:6:2` restituendo `OK` e cambia effettivamente brano. La prima sequenza ha prodotto rispettivamente “Universe Of Love (Extended Mix)” e “Just a Film”. Ripetendo però lo stesso comando `MCUKeyShortClick:6:1` è partito “9 PM (Till I Come)”, non “Universe Of Love”. Lo shuffle era disattivato (`loop=4`) e `plicurr/plicount` sono rimasti entrambi a zero. Su questo preset cloud il parametro traccia non costituisce quindi un identificatore stabile: il richiamo rigenera o ricarica una coda YouTube Music dinamica.
 
+### Percorso UPnP verificato
+
+Una cattura passiva limitata esclusivamente all'IP del WiiM ha mostrato che WiiM Home apre sul PC una callback HTTP UPnP (`NOTIFY /Event`) per AVTransport e PlayQueue. Gli eventi contengono dati che `getPlayerStatus`/`getMetaInfo` non espongono: `CurrentTrackURI`, metadati DIDL-Lite, ID playlist e brano, indice corrente e numero elementi. Non è necessario mantenere uno sniffer: la stessa informazione è ottenibile direttamente e in sola lettura con l'azione SOAP `GetPositionInfo` su `/upnp/control/rendertransport1`.
+
+Prova end-to-end del 15/09/2026: e-Face ha letto in memoria URI firmato e metadati di “GIGI D'AGOSTINO - RADICI DAG - [ IERI E OGGI MIX VOL 1 ]”, ha avanzato a “Amore Mio (T'AMO T'AMO T'AMO)” e ha poi inviato `SetAVTransportURI` seguito da `Play`. Il WiiM è tornato esattamente al primo titolo. L'URL non è stato stampato, versionato o conservato dopo la prova.
+
+Questa verifica dimostra il richiamo esatto **finché il CurrentTrackURI firmato è valido**. Prima dell'integrazione utente occorre misurarne la scadenza, verificare comportamento dopo riavvio e distinguere contenuti riutilizzabili da URL temporanei. L'archivio e-Face non deve persistere URL firmati oltre il necessario né esporli al browser; URI e metadati devono restare server-side. Se il link è scaduto, la UI deve dichiararlo senza ripiegare silenziosamente sul preset dinamico.
+
 Prossime verifiche, in ordine:
 
 1. Salvare fixture redatte di `getPlayerStatus`, `getMetaInfo` e `getPresetInfo` per ciascun provider e confrontare i campi durante avvio preset, cambio traccia e riapertura dell'app WiiM.
-2. Verificare se gli eventi UPnP `AVTransport`/`PlayQueue` o le azioni `GetMediaInfo`, `GetPositionInfo` e Browse della coda espongono URI, indice o DIDL-Lite aggiuntivi mentre la sola API HTTP restituisce zero.
+2. Implementare un client UPnP server-side minimo per `GetPositionInfo`, `SetAVTransportURI` e `Play`, con validazione LAN, XML sicuro, timeout e URL mai restituiti al browser; AVTransport e PlayQueue hanno già confermato URI, indice e DIDL-Lite aggiuntivi.
 3. Ripetere `MCUKeyShortClick:<preset>:<track>` su un preset locale o una playlist statica con indice noto: la prova YouTube Music è completata e ha dimostrato che lo stesso indice non è deterministico per quel contenuto cloud.
 4. Se il firmware continua a nascondere indice e URI per i servizi cloud, limitare la funzione ai provider/contenuti che restituiscono un riferimento riproducibile e mostrare chiaramente “richiama preset” invece di promettere “richiama brano”.
 5. Non memorizzare token dell'app WiiM, URL firmati privati o credenziali dei provider e non dedurre il numero traccia dal solo titolo, perché shuffle e duplicati renderebbero il richiamo inaffidabile.
 
-Criterio di completamento: un test reale deve dimostrare che, dopo aver cambiato contenuto o riavviato la sessione, e-Face richiama lo stesso brano e non soltanto il preset/playlist; il test deve includere aggiornamento corretto di Control4, titolo, copertina e posizione iniziale.
+Criterio di completamento: la prova nella stessa sessione è riuscita. Per chiudere il task resta da dimostrare che e-Face gestisce correttamente link valido e link scaduto, senza esporre URI firmati, e che dopo il richiamo aggiorna Control4, titolo, copertina e posizione iniziale.
