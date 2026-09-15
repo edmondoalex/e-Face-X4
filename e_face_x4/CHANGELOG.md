@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.21.75 — 2026-09-15
+
+- Allinea i comandi WiiM alle icone MDI già usate nella sezione Ascolta, con SVG visibili anche sotto Ingress/PWA.
+- Aggiunge in Amministrazione la ricerca di prova del catalogo SoundCloud con titolo, autore e copertina.
+- Invalida in sicurezza il token SoundCloud quando cambiano le credenziali.
+
 ## 2.21.74 — 2026-09-15
 
 - Rende operativo lo slider di avanzamento con seek nativo WiiM in secondi e impedisce al polling di spostarlo mentre l'utente lo trascina.
