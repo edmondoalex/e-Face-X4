@@ -52,7 +52,7 @@ def test_personal_device_api_provisions_and_revokes_individually(monkeypatch, tm
     assert admin.post("/api/auth/login", json={"username": "admin", "password": "password-admin-lunga"}).status_code == 200
     assert person.post("/api/auth/login", json={"username": "mario", "password": "password-mario-lunga"}).status_code == 200
     device_id = str(uuid.uuid4())
-    payload = {"device_id": device_id, "name": "Cellulare mario"}
+    payload = {"device_id": device_id, "name": "Cellulare mario", "device_type": "phone"}
     created = person.post("/api/intercom/sip/personal-device", json=payload)
     assert created.status_code == 200, created.text
     assert created.json()["username"] == "8302"
@@ -60,6 +60,7 @@ def test_personal_device_api_provisions_and_revokes_individually(monkeypatch, tm
     assert len(remote) == 1
     listed = admin.get("/api/admin/intercom/personal-devices")
     assert listed.json()["devices"][0]["extension"] == "8302"
+    assert listed.json()["devices"][0]["device_type"] == "phone"
     assert "password" not in listed.text
     assert admin.put(f"/api/admin/intercom/personal-devices/{device_id}", json={"name": "Telefono Mario"}).status_code == 200
     assert person.post("/api/intercom/sip/personal-device", json=payload).json()["name"] == "Telefono Mario"
@@ -75,7 +76,7 @@ def test_personal_device_rejects_invalid_id_and_admin(monkeypatch, tmp_path):
     create_admin("password-admin-lunga")
     admin = TestClient(create_app())
     assert admin.post("/api/auth/login", json={"username": "admin", "password": "password-admin-lunga"}).status_code == 200
-    assert admin.post("/api/intercom/sip/personal-device", json={"device_id": str(uuid.uuid4()), "name": "PC"}).status_code == 403
+    assert admin.post("/api/intercom/sip/personal-device", json={"device_id": str(uuid.uuid4()), "name": "PC", "device_type": "desktop"}).status_code == 403
 
 
 def test_personal_device_skips_unmanaged_asterisk_extension(monkeypatch, tmp_path):
@@ -93,6 +94,6 @@ def test_personal_device_skips_unmanaged_asterisk_extension(monkeypatch, tmp_pat
     create_account("mario", "Mario Rossi", "password-mario-lunga")
     person = TestClient(create_app())
     person.post("/api/auth/login", json={"username": "mario", "password": "password-mario-lunga"})
-    result = person.post("/api/intercom/sip/personal-device", json={"device_id": str(uuid.uuid4()), "name": "PC mario"})
+    result = person.post("/api/intercom/sip/personal-device", json={"device_id": str(uuid.uuid4()), "name": "PC mario", "device_type": "desktop"})
     assert result.status_code == 200, result.text
     assert result.json()["username"] == "8303"

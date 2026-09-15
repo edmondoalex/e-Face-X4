@@ -12,6 +12,18 @@ from pathlib import Path
 _EXTENSION = re.compile(r"83(?:0[2-9]|[1-4][0-9])\Z")
 _PASSWORD = re.compile(r"[A-Za-z0-9_-]{20,128}\Z")
 _OWNER = re.compile(r"[a-z][a-z0-9_-]{2,31}\Z")
+_DEVICE_TYPES = {"phone", "tablet", "desktop"}
+
+
+def device_type(value: object, name: str = "") -> str:
+    if value in _DEVICE_TYPES:
+        return str(value)
+    lowered = name.lower()
+    if any(word in lowered for word in ("cellulare", "telefono", "phone", "iphone", "android", "redmi", "poco")):
+        return "phone"
+    if any(word in lowered for word in ("tablet", "ipad", "inwall")):
+        return "tablet"
+    return "desktop"
 
 
 def _path() -> Path:
@@ -42,7 +54,7 @@ def validate(records: object) -> dict[str, dict[str, str]]:
     owners: dict[str, int] = {}
     for device_id, record in records.items():
         validate_id(device_id)
-        if not isinstance(record, dict) or set(record) != {"owner", "name", "extension", "password"}:
+        if not isinstance(record, dict) or set(record) not in ({"owner", "name", "extension", "password"}, {"owner", "name", "extension", "password", "device_type"}):
             raise ValueError("Dati dispositivo personale incompleti")
         owner, name, extension, password = (record[key] for key in ("owner", "name", "extension", "password"))
         if not isinstance(owner, str) or not _OWNER.fullmatch(owner):
@@ -57,7 +69,8 @@ def validate(records: object) -> dict[str, dict[str, str]]:
         if owners[owner] > 6:
             raise ValueError("Massimo sei dispositivi per utente")
         extensions.add(extension)
-        result[device_id] = {"owner": owner, "name": name.strip(), "extension": extension, "password": password}
+        result[device_id] = {"owner": owner, "name": name.strip(), "extension": extension, "password": password,
+                             "device_type": device_type(record.get("device_type"), name)}
     return result
 
 
@@ -85,12 +98,12 @@ def save(records: object) -> dict[str, dict[str, str]]:
     return value
 
 
-def new_record(device_id: str, owner: str, name: str, records: dict, reserved: set[str]) -> dict[str, str]:
+def new_record(device_id: str, owner: str, name: str, records: dict, reserved: set[str], kind: str = "desktop") -> dict[str, str]:
     used = {record["extension"] for record in records.values()} | reserved
     extension = next((str(number) for number in range(8302, 8350) if str(number) not in used), None)
     if extension is None:
         raise ValueError("Nessun interno personale disponibile")
-    record = {"owner": owner, "name": name, "extension": extension, "password": secrets.token_urlsafe(36)}
+    record = {"owner": owner, "name": name, "extension": extension, "password": secrets.token_urlsafe(36), "device_type": device_type(kind, name)}
     validate({**records, device_id: record})
     return record
 
@@ -128,5 +141,5 @@ def revoke_id(device_id: str) -> None:
 
 
 def public(records: dict[str, dict[str, str]]) -> list[dict[str, str]]:
-    return [{"device_id": device_id, "owner": record["owner"], "name": record["name"], "extension": record["extension"]}
+    return [{"device_id": device_id, "owner": record["owner"], "name": record["name"], "extension": record["extension"], "device_type": record["device_type"]}
             for device_id, record in sorted(records.items(), key=lambda item: item[1]["extension"])]

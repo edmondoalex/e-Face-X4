@@ -1,5 +1,9 @@
 # Changelog
 
+## 2.21.40 — 2026-09-15
+
+- Distingue cellulari, tablet e PC nella rubrica Intercom con icone dedicate e migra automaticamente i dispositivi già registrati.
+
 ## 2.21.39 — 2026-09-15
 
 - Aggiunge suoneria locale ripetuta e vibrazione alle chiamate Intercom in ingresso, con arresto su risposta o termine.

@@ -2,7 +2,7 @@
   const $ = (selector) => document.querySelector(selector)
   const adminMode = document.documentElement.classList.contains('admin-intercom')
   const root = new URL('./', location.href)
-  const currentVersion = '2.21.39'
+  const currentVersion = '2.21.40'
   let updateAvailable = false
   async function checkForUpdate() {
     if (document.hidden || !intercomVisible) return
@@ -192,9 +192,14 @@
       for (const device of devices) {
         const row = document.createElement('div')
         row.className = 'intercom-station-row personal-device-row'
-        const icon = document.createElement('span')
-        icon.className = 'station-icon'
-        icon.textContent = '▣'
+        const icon = document.createElementNS('http://www.w3.org/2000/svg', 'svg')
+        icon.setAttribute('class', 'station-icon')
+        icon.setAttribute('viewBox', '0 0 24 24')
+        icon.innerHTML = device.device_type === 'phone'
+          ? '<rect x="7" y="2" width="10" height="20" rx="2"/><path d="M10 18h4"/>'
+          : device.device_type === 'tablet'
+            ? '<rect x="4" y="2" width="16" height="20" rx="2"/><path d="M11 18h2"/>'
+            : '<path d="M3 4h18v13H3zM8 21h8M12 17v4"/>'
         const copy = document.createElement('div')
         copy.className = 'station-copy'
         const title = document.createElement('strong')
@@ -589,10 +594,11 @@
           deviceId = crypto.randomUUID()
           localStorage.setItem(key, deviceId)
         }
-        const deviceType = /iPad|Tablet/i.test(navigator.userAgent) ? 'Tablet' : /iPhone|Android|Mobile/i.test(navigator.userAgent) ? 'Cellulare' : 'PC'
+        const kind = /iPad|Tablet/i.test(navigator.userAgent) || (/Android/i.test(navigator.userAgent) && !/Mobile/i.test(navigator.userAgent)) ? 'tablet' : /iPhone|Android|Mobile/i.test(navigator.userAgent) ? 'phone' : 'desktop'
+        const deviceType = {phone:'Cellulare', tablet:'Tablet', desktop:'PC'}[kind]
         response = await fetch(new URL('api/intercom/sip/personal-device', root), {
           method:'POST', cache:'no-store', credentials:'same-origin', headers:{'Content-Type':'application/json'},
-          body:JSON.stringify({device_id:deviceId, name:`${deviceType} ${status.user}`}),
+          body:JSON.stringify({device_id:deviceId, name:`${deviceType} ${status.user}`, device_type:kind}),
         })
       }
       const data = await response.json().catch(() => ({}))

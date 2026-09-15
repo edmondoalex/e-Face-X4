@@ -56,7 +56,7 @@ from .connectors.control4_media import cached_control4_icon, cached_control4_ico
 from .connectors.supervisor import discover_addon_url, discover_host_url
 from .demo import dashboard as demo_dashboard
 
-VERSION = os.environ.get("EFACE_VERSION", "2.21.39")
+VERSION = os.environ.get("EFACE_VERSION", "2.21.40")
 STATIC = Path(__file__).parent / "static"
 logging.basicConfig(level=logging.WARNING, format="%(asctime)s %(levelname)s [e-face-x4] %(message)s")
 _reconnect_warning_at: dict[str, float] = {}
@@ -1082,7 +1082,7 @@ def create_app() -> FastAPI:
         owner = user_auth.session_user(request.cookies.get(user_auth.COOKIE))
         if not owner or owner == "admin" or not user_auth.account(owner)["active"]:
             raise HTTPException(status_code=403, detail="Utente personale attivo richiesto")
-        if set(payload) != {"device_id", "name"}:
+        if set(payload) != {"device_id", "name", "device_type"} or payload.get("device_type") not in {"phone", "tablet", "desktop"}:
             raise HTTPException(status_code=400, detail="Dati dispositivo non validi")
         device_id, name = payload["device_id"], payload["name"]
         try:
@@ -1104,7 +1104,7 @@ def create_app() -> FastAPI:
             while True:
                 if not existing:
                     try:
-                        record = personal_devices.new_record(device_id, owner, name, records, reserved)
+                        record = personal_devices.new_record(device_id, owner, name, records, reserved, payload["device_type"])
                     except (ValueError, TypeError) as exc:
                         raise HTTPException(status_code=409, detail=str(exc)) from exc
                 try:
