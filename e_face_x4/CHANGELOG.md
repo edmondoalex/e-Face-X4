@@ -1,5 +1,9 @@
 # Changelog
 
+## 2.21.59 — 2026-09-15
+
+- La splash nativa della PWA usa nero puro per sfondo e barra di sistema, eliminando definitivamente il precedente verde-petrolio dalle nuove installazioni.
+
 ## 2.21.58 — 2026-09-15
 
 - L'Intercom usa lo sfondo scelto in Personalizzazione e non il precedente gradiente verde-petrolio fisso.
