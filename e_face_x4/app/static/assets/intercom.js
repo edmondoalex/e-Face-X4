@@ -2,7 +2,7 @@
   const $ = (selector) => document.querySelector(selector)
   const adminMode = document.documentElement.classList.contains('admin-intercom')
   const root = new URL('./', location.href)
-  const currentVersion = '2.21.68'
+  const currentVersion = '2.21.69'
   function newDeviceId() {
     if (typeof crypto.randomUUID === 'function') return crypto.randomUUID()
     const bytes = new Uint8Array(16)
@@ -699,7 +699,7 @@
 
   function track(session) {
     if (session.direction === 'incoming' && deviceDnd) {
-      rejectIncomingUntil = Date.now() + 60000
+      rejectIncomingUntil = Date.now() + 1500
       session.terminate({status_code:486, reason_phrase:'DND'})
       publishIntercomState(phone?.isRegistered() ? 'available' : 'idle')
       return
@@ -764,6 +764,10 @@
       clearInterval(audioStatsTimer)
       audioStatsTimer = setInterval(async () => {
         try {
+          if (session.isEnded?.() || ['closed', 'failed'].includes(peerconnection.connectionState)) {
+            clearCall('Chiamata terminata.')
+            return
+          }
           syncRemoteAudio(peerconnection)
           syncRemoteVideo(peerconnection)
           const stats = await peerconnection.getStats()
@@ -780,6 +784,10 @@
           $('#remote-audio').srcObject = event.streams[0] || new MediaStream([event.track])
           playRemoteAudio()
         } else if (event.track.kind === 'video') syncRemoteVideo(peerconnection)
+      })
+      peerconnection.addEventListener('connectionstatechange', () => {
+        if (call !== session || !['closed', 'failed'].includes(peerconnection.connectionState)) return
+        clearCall('Chiamata terminata.')
       })
       syncRemoteAudio(peerconnection)
       syncRemoteVideo(peerconnection)
@@ -974,7 +982,7 @@
     $('#call-status').textContent = 'Chiusura chiamata…'
     $('#call-hangup').disabled = true
     stopRingtone()
-    if (incoming) rejectIncomingUntil = Date.now() + 60000
+    if (incoming) rejectIncomingUntil = Date.now() + 1500
     call.terminate(incoming ? {status_code:486, reason_phrase:'Declined'} : undefined)
   })
   $('#video-toggle').addEventListener('click', () => {

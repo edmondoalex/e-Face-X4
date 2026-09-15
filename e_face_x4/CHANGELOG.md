@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.21.69 — 2026-09-15
+
+- Riduce da 60 secondi a 1,5 secondi il blocco anti-duplicato dopo il rifiuto o la chiusura di una chiamata: una nuova chiamata non riceve più erroneamente `486 Busy`.
+- Chiude la scheda chiamata quando la sessione SIP o la PeerConnection risulta realmente terminata, evitando chiamate fantasma senza audio dopo la chiusura dal touch Control4.
+
 ## 2.21.68 — 2026-09-15
 
 - Abilita la prima prova video H.264 e-Face → tablet Control4 Ufficio/8100; Tavolo resta audio come riferimento.
