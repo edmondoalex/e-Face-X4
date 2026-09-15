@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.21.46 — 2026-09-15
+
+- Con e-Face già aperta, una chiamata in ingresso porta automaticamente il tablet alla sezione Intercom.
+- Il pannello Rispondi/Termina è ora il primo elemento della pagina e rimane visibile in alto durante la chiamata.
+
 ## 2.21.45 — 2026-09-15
 
 - Il tap sulla notifica apre sempre la pagina Intercom autonoma, evitando il passaggio Home/iframe che su alcuni Android non avviava la registrazione SIP.

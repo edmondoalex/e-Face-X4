@@ -2,7 +2,7 @@
   const $ = (selector) => document.querySelector(selector)
   const adminMode = document.documentElement.classList.contains('admin-intercom')
   const root = new URL('./', location.href)
-  const currentVersion = '2.21.45'
+  const currentVersion = '2.21.46'
   function newDeviceId() {
     if (typeof crypto.randomUUID === 'function') return crypto.randomUUID()
     const bytes = new Uint8Array(16)
@@ -519,7 +519,10 @@
     $('#call-answer').disabled = session.direction !== 'incoming'
     $('#call-hangup').disabled = false
     setDialButtonsDisabled(true)
-    if (session.direction === 'incoming') startRingtone()
+    if (session.direction === 'incoming') {
+      if (window.parent !== window) window.parent.postMessage({type:'eface-intercom-incoming'}, location.origin)
+      startRingtone()
+    }
     function syncRemoteAudio(peerconnection) {
       const receiver = peerconnection.getReceivers?.().find((item) => item.track?.kind === 'audio' && item.track.readyState === 'live')
       if (!receiver || $('#remote-audio').srcObject?.getAudioTracks?.()[0] === receiver.track) return

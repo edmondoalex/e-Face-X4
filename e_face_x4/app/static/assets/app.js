@@ -2332,6 +2332,9 @@ document.addEventListener('visibilitychange', () => { if (!document.hidden) { re
 navigator.serviceWorker?.addEventListener('message', (event) => {
   if (event.data?.type === 'eface-open-intercom') openIntercom()
 })
+window.addEventListener('message', (event) => {
+  if (event.origin === location.origin && event.source === $('#intercom-frame').contentWindow && event.data?.type === 'eface-intercom-incoming') openIntercom()
+})
 tick()
 setInterval(tick, 30000)
 window.addEventListener('keydown', (event) => {
