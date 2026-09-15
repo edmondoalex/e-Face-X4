@@ -1,5 +1,9 @@
 # Changelog
 
+## 2.21.52 — 2026-09-15
+
+- Anche la pagina Strumenti mantiene un client Intercom registrato in background e apre automaticamente la schermata di risposta senza perdere la chiamata.
+
 ## 2.21.51 — 2026-09-15
 
 - Sul tablet la suoneria viene riattivata appena l'Intercom nascosto diventa visibile, evitando l'attesa dell'AudioContext sospeso nell'iframe.

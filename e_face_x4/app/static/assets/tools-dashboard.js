@@ -1,6 +1,23 @@
 const $ = (selector) => document.querySelector(selector)
 const api = (path) => new URL(`../${path}`, location.href.endsWith('/') ? location.href : `${location.href}/`).toString()
 
+const toolsIntercom = document.createElement('section')
+toolsIntercom.id = 'tools-intercom-live'
+toolsIntercom.className = 'media-config admin-dashboard-panel tools-intercom-live'
+toolsIntercom.hidden = true
+toolsIntercom.innerHTML = '<header><button type="button" aria-label="Torna agli Strumenti">‹</button><div><small>CHIAMATA</small><h2>Intercom</h2></div></header><iframe title="Chiamata Intercom" allow="microphone; autoplay"></iframe>'
+document.body.append(toolsIntercom)
+const toolsIntercomFrame = toolsIntercom.querySelector('iframe')
+toolsIntercom.querySelector('header button').addEventListener('click', () => { toolsIntercom.hidden = true; document.body.style.overflow = '' })
+window.addEventListener('message', event => {
+  if (event.origin !== location.origin || event.source !== toolsIntercomFrame.contentWindow || event.data?.type !== 'eface-intercom-incoming') return
+  toolsIntercom.hidden = false
+  document.body.style.overflow = 'hidden'
+  toolsIntercomFrame.contentWindow?.postMessage({type:'eface-intercom-visible', visible:true}, location.origin)
+})
+toolsIntercomFrame.addEventListener('load', () => toolsIntercomFrame.contentWindow?.postMessage({type:'eface-intercom-visible', visible:false}, location.origin))
+toolsIntercomFrame.src = api('intercom?embedded=1')
+
 function message(value) {
   const notice = $('#tools-notice')
   notice.textContent = value
