@@ -1,5 +1,9 @@
 # Changelog
 
+## 2.21.28 — 2026-09-15
+
+- Rimuove il verde fisso dalla barra di stato Android, dalla barra di navigazione mobile e dal primo frame di caricamento.
+
 ## 2.21.27 — 2026-09-15
 
 - Applica sfondo e colore card salvati già nel primo HTML, eliminando il lampo verde durante l'avvio.

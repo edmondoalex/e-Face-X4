@@ -1,6 +1,8 @@
 /* Final palette contract: structural surfaces follow UI choices. Semantic
    colours (alarm, online, provider and active-media states) remain distinct. */
 :root{--ui-page-background:var(--initial-background,linear-gradient(145deg,#596066,#181c1f 65%));--ui-surface:var(--user-card,rgba(30,30,30,.96));--ui-surface-soft:var(--user-card-soft,rgba(38,38,38,.97));--ui-cell:var(--user-card-cell,rgba(255,255,255,.055));--ui-field:var(--user-card-field,rgba(14,14,14,.58));--ui-accent:var(--user-card-accent,#b9c2c6)}
+body.app-theme{background-color:#181c1f!important}
+@media(max-width:700px){body.app-theme .rail{background:var(--ui-surface)!important}}
 .tools-theme,.tools-theme .media-config,.tools-theme .admin-dashboard-panel{background-color:#181c1f!important;background-image:var(--tools-background,var(--ui-page-background))!important}
 .tools-header,.tools-sidebar,.tools-section,.admin-dashboard-panel>header,.admin-form,.admin-info,.admin-user-row,.admin-status,.player-list,.source-icon-list,.control4-form,.control4-result,.music-account-row{background:var(--ui-surface)!important}
 .tool-card,.player-row,.source-icon-row,.control4-actions button,.background-upload,.background-inherit,.tools-sidebar button:hover{background:var(--ui-cell)!important}
