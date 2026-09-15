@@ -56,7 +56,7 @@ def test_health() -> None:
     response = TestClient(create_app()).get("/health")
     assert response.status_code == 200
     assert response.json()["ok"] is True
-    assert response.json()["version"] == "2.21.63"
+    assert response.json()["version"] == "2.21.64"
 
 
 def test_installed_app_starts_at_dashboard() -> None:
@@ -99,6 +99,8 @@ def test_intercom_is_in_sidebar_with_embedded_view() -> None:
     assert "Postazione esterna · interno ${station.sip_extension}" in client_script
     assert "startRingtone" in client_script
     assert "current-device-controls" in client_script
+    assert "signature === personalDevicesSignature" in client_script
+    assert "requestId !== personalDevicesRequest" in client_script
     assert "eface-intercom-state" in client_script
     assert "api/intercom/groups" in client_script
     assert "if (!adminMode) $('#sip-connect').click()" in client_script
@@ -283,7 +285,7 @@ def test_intercom_dashboard_stores_only_local_settings(monkeypatch, tmp_path) ->
     assert 'id="users-tool"' in page
     assert 'id="logout"' in page
     assert page.index('id="logout"') < page.index('id="tools-user-section"')
-    assert "tools-dashboard.js?v=2.21.63" in page
+    assert "tools-dashboard.js?v=2.21.64" in page
     home = client.get("/").text
     assert "backgrounds.css?v=2.21.43" in home
     assert "app.js?v=2.21.60" in home

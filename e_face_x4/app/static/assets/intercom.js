@@ -213,11 +213,21 @@
   }
   refreshVoipPhones()
   setInterval(refreshVoipPhones, 30000)
+  let personalDevicesSignature = ''
+  let personalDevicesRequest = 0
   async function refreshPersonalDevices() {
+    const requestId = ++personalDevicesRequest
     try {
       const response = await fetch(new URL('api/intercom/personal-devices', root), {cache:'no-store', credentials:'same-origin'})
       if (!response.ok) return
       const {devices} = await response.json()
+      if (requestId !== personalDevicesRequest) return
+      const signature = JSON.stringify({ownExtension, devices:devices.map(device => ({
+        id:device.id, name:device.name, owner:device.owner, extension:device.extension,
+        device_type:device.device_type, video_capable:device.video_capable, video_enabled:device.video_enabled,
+      }))})
+      if (signature === personalDevicesSignature) return
+      personalDevicesSignature = signature
       document.querySelectorAll('.personal-device-row').forEach(row => row.remove())
       const voipRows = [...document.querySelectorAll('.voip-phone-row')]
       const control4Rows = [...document.querySelectorAll('.control4-extra-row')]

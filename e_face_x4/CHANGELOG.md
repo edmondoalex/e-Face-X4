@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.21.64 — 2026-09-15
+
+- Stabilizza l'elenco Intercom: i controlli del dispositivo corrente non vengono più eliminati e ricreati a ogni refresh invariato.
+- Ignora le risposte obsolete quando due aggiornamenti degli interni si sovrappongono.
+
 ## 2.21.63 — 2026-09-15
 
 - Evita falsi `ReadTimeout` di eKonex Voice locale durante la ricostruzione delle entità dopo un riavvio Home Assistant.
