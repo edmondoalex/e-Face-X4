@@ -30,6 +30,7 @@ let activeBackgroundRoom = ''
 let activeEnergyDashboard = null
 let energyRefreshTimer = null
 let energyRefreshRunning = false
+let energyMasterInitialized = false
 const securitySections = { areas: false, zones: false }
 let currentSecurityOrder = ['scenarios', 'areas', 'zones', 'locks']
 const mediaSections = { rooms: true, playing: true }
@@ -173,6 +174,7 @@ function render(data) {
     if (!override.state && !Object.hasOwn(override, 'muted') && !Object.hasOwn(override, 'volume')) mediaTransportOverrides.delete(String(device.id))
   })
   updateGlobalMediaSession()
+  if (!energyMasterInitialized) { energyMasterInitialized = true; loadEnergyDashboards(false) }
   renderHomeMediaSessions()
   updateNavigationStates()
   if (activeDetailIds && !$('#detail-view').hidden) {
@@ -1569,6 +1571,7 @@ async function loadEnergyDashboards(showLoading = true) {
       if (pv > threshold) return { key: 'solar', icon: 'mdi:solar-power-variant', label: 'Produzione fotovoltaica', watts: pv }
       return { key: 'idle', icon: 'mdi:home-outline', label: 'Flusso minimo', watts: Math.max(0, pv, Math.abs(grid), Math.abs(battery)) }
     }
+    const masterFlows = []
     picker.innerHTML = sites.map((site, index) => {
       const id = String(site.site_id || site.id || energy.selected_site_id || 'default')
       const name = String(site.site_name || site.name || `Impianto ${index + 1}`)
@@ -1577,6 +1580,7 @@ async function loadEnergyDashboards(showLoading = true) {
       const batterySoc = Number(live.battery_soc_pct)
       const grid = Number(live.grid_power_w) || 0
       const flow = flowState(live)
+      masterFlows.push(flow.key)
       const batteryFlow = Math.abs(battery) < 1
         ? { key: 'idle', icon: 'mdi:battery-outline', label: 'BATTERIA' }
         : battery < 0
@@ -1590,9 +1594,23 @@ async function loadEnergyDashboards(showLoading = true) {
       const socLabel = Number.isFinite(batterySoc) ? ` · ${Math.round(batterySoc)}%` : ''
       return `<button class="energy-dashboard-card energy-flow-${flow.key}" data-energy-dashboard="${esc(id)}" data-energy-name="${esc(name)}" title="${esc(flow.label)}"><span class="energy-main-icon mdi-mask" style="${mdiStyle(flow.icon, 'home-outline')}"></span><strong class="energy-dashboard-name">${esc(name)}</strong><span class="energy-flow-metrics"><span class="solar"><i class="mdi-mask" style="${mdiStyle('mdi:solar-power-variant', 'solar-power-variant')}"></i><small>FV</small><b>${power(live.pv_power_w)}</b></span><span class="battery ${batteryFlow.key}"><i class="mdi-mask" style="${mdiStyle(batteryFlow.icon, 'battery-outline')}"></i><small>${batteryFlow.label}</small><b>${power(Math.abs(battery))}${socLabel}</b></span><span class="home"><i class="mdi-mask" style="${mdiStyle('mdi:home-outline', 'home-outline')}"></i><small>CASA</small><b>${power(live.home_power_w)}</b></span><span class="grid ${gridFlow.key}"><i class="mdi-mask" style="${mdiStyle(gridFlow.icon, 'transmission-tower')}"></i><small>${gridFlow.label}</small><b>${power(Math.abs(grid))}</b></span></span></button>`
     }).join('')
+    updateEnergyMasterIcon(masterFlows)
   } catch (error) {
     if (showLoading) picker.innerHTML = `<span class="empty-state">e-SunMind non disponibile: ${esc(error.message)}</span>`
   } finally { energyRefreshRunning = false }
+}
+
+function updateEnergyMasterIcon(flows) {
+  const icon = document.querySelector('[data-view="energy"] .nav-icon')
+  if (!icon) return
+  const colors = { solar:'#ffd34e', battery:'#61d8f2', grid:'#ff704f', export:'#62e6a2', idle:'#87979a' }
+  const unique = [...new Set((flows || []).map((flow) => colors[flow] || colors.idle))]
+  const active = unique.length ? unique : [colors.idle]
+  icon.classList.add('energy-master-icon')
+  icon.style.color = active[0]
+  icon.style.setProperty('--energy-master-fill', active.length === 1
+    ? active[0]
+    : `linear-gradient(90deg,${active.map((color, index) => `${color} ${(index / active.length) * 100}% ${((index + 1) / active.length) * 100}%`).join(',')})`)
 }
 
 function openEnergyDashboard(id, name) {

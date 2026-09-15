@@ -1,5 +1,9 @@
 # Changelog
 
+## 2.21.30 — 2026-09-15
+
+- L'icona master Energia segue il colore del flusso dominante di ogni impianto e si divide quando i feed hanno colori differenti.
+
 ## 2.21.29 — 2026-09-15
 
 - Uniforma gli slider volume delle schede media: verde per audio e celeste per video.
