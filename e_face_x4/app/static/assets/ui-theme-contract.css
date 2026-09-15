@@ -1,0 +1,20 @@
+/* Final palette contract: structural surfaces follow UI choices. Semantic
+   colours (alarm, online, provider and active-media states) remain distinct. */
+:root{--ui-page-background:var(--initial-background,linear-gradient(145deg,#596066,#181c1f 65%));--ui-surface:var(--user-card,rgba(30,30,30,.96));--ui-surface-soft:var(--user-card-soft,rgba(38,38,38,.97));--ui-cell:var(--user-card-cell,rgba(255,255,255,.055));--ui-field:var(--user-card-field,rgba(14,14,14,.58));--ui-accent:var(--user-card-accent,#b9c2c6)}
+.tools-theme,.tools-theme .media-config,.tools-theme .admin-dashboard-panel{background-color:#181c1f!important;background-image:var(--tools-background,var(--ui-page-background))!important}
+.tools-header,.tools-sidebar,.tools-section,.admin-dashboard-panel>header,.admin-form,.admin-info,.admin-user-row,.admin-status,.player-list,.source-icon-list,.control4-form,.control4-result,.music-account-row{background:var(--ui-surface)!important}
+.tool-card,.player-row,.source-icon-row,.control4-actions button,.background-upload,.background-inherit,.tools-sidebar button:hover{background:var(--ui-cell)!important}
+.tools-sidebar button.active{border-color:color-mix(in srgb,var(--ui-accent) 38%,transparent)!important;background:var(--ui-surface-soft)!important}
+.tool-card>span,.tools-sidebar button>b{background:var(--ui-cell)!important}
+.admin-form-grid input,.admin-form-grid select,.login-card input,.control4-form input,.background-scope select,.admin-form input,.admin-form select,.admin-form textarea{background:var(--ui-field)!important}
+.login-card,.card-theme-preview{background:var(--ui-surface-soft)!important}
+.tools-section-intro>span,.admin-dashboard-panel>header small,.admin-info b,#composer-wizard-progress,.tool-card>span{color:var(--ui-accent)!important}
+.admin-form button:not(.secondary):not(.danger),.admin-user-actions button:not(.secondary):not(.danger){background:var(--ui-accent)!important;color:#15191b!important}.admin-form button.secondary,.admin-user-actions button.secondary{background:var(--ui-cell)!important}
+body.intercom-theme{background-color:#181c1f!important;background-image:var(--initial-background,var(--ui-page-background))!important;background-position:center!important;background-size:cover!important;background-attachment:fixed!important}
+.intercom-theme .intercom-page-heading,.intercom-theme .intercom-station-list,.intercom-theme .intercom-call-panel,.intercom-theme .intercom-settings{background:var(--ui-surface)!important}
+.intercom-theme .intercom-station-row{background:transparent!important}
+.intercom-theme .intercom-station-row button:not(.danger):not(#call-answer),.intercom-theme .intercom-settings-body input{background:var(--ui-cell)!important}
+.intercom-theme .station-text-button{background:transparent!important;color:var(--ui-accent)!important}
+.embedded body.intercom-theme{background:transparent!important;background-image:none!important}
+body.login-theme{background-color:#181c1f!important;background-image:var(--initial-background,var(--ui-page-background))!important;background-position:center!important;background-size:cover!important}
+.login-theme main{background:var(--ui-surface)!important}.login-theme input{background:var(--ui-field)!important}.login-theme button{background:var(--ui-accent)!important;color:#15191b!important}

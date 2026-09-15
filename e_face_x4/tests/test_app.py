@@ -56,6 +56,7 @@ def test_health() -> None:
     response = TestClient(create_app()).get("/health")
     assert response.status_code == 200
     assert response.json()["ok"] is True
+    assert response.json()["version"] == "2.21.27"
 
 
 def test_installed_app_starts_at_dashboard() -> None:
@@ -230,7 +231,7 @@ def test_intercom_dashboard_stores_only_local_settings(monkeypatch, tmp_path) ->
     assert 'id="tools-admin-nav"' in page
     assert 'id="intercom-tool"' in page
     assert 'id="users-tool"' in page
-    assert "tools-dashboard.js?v=2.21.26" in page
+    assert "tools-dashboard.js?v=2.21.27" in page
 
 
 def test_external_stations_api_requires_login_and_hides_secrets(monkeypatch, tmp_path) -> None:
@@ -604,8 +605,16 @@ def test_tools_page_starts_with_selected_background_and_card_theme(monkeypatch, 
     save_card_theme("slate")
     page = TestClient(create_app()).get("/tools").text
     assert 'style="--tools-background:radial-gradient(circle at 70% 20%,#263f61,#08121e 65%)"' in page
-    assert '<body data-card-theme="slate">' in page
+    assert '<body class="tools-theme" data-background="midnight" data-card-theme="slate">' in page
     assert "__TOOLS_BACKGROUND__" not in page
+
+    client = TestClient(create_app())
+    home = client.get("/").text
+    login = client.get("/login").text
+    assert '<body class="app-theme" data-background="midnight" data-card-theme="slate">' in home
+    assert 'ui-theme-contract.css?v=2.21.27' in home
+    assert '<body class="login-theme" data-background="midnight" data-card-theme="slate">' in login
+    assert "__INITIAL_BACKGROUND__" not in home + login
 
 
 def test_user_appearance_persists_room_order_and_glow(monkeypatch, tmp_path) -> None:

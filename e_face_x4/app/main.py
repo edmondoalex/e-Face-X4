@@ -5,6 +5,7 @@ import hashlib
 import hmac
 import json
 import logging
+import os
 import re
 import secrets
 import time
@@ -55,7 +56,7 @@ from .connectors.control4_media import cached_control4_icon, cached_control4_ico
 from .connectors.supervisor import discover_addon_url, discover_host_url
 from .demo import dashboard as demo_dashboard
 
-VERSION = "2.21.15"
+VERSION = os.environ.get("EFACE_VERSION", "2.21.27")
 STATIC = Path(__file__).parent / "static"
 logging.basicConfig(level=logging.WARNING, format="%(asctime)s %(levelname)s [e-face-x4] %(message)s")
 _reconnect_warning_at: dict[str, float] = {}
@@ -1447,17 +1448,47 @@ def create_app() -> FastAPI:
         response.delete_cookie(user_auth.COOKIE, path="/")
         return response
 
+    def themed_page(filename: str, body_class: str = "") -> str:
+        selected = load_background()
+        presets = {
+            "teal": "linear-gradient(135deg,#84bfd5,#137073 58%,#0e4a4e)",
+            "midnight": "radial-gradient(circle at 70% 20%,#263f61,#08121e 65%)",
+            "graphite": "linear-gradient(145deg,#596066,#181c1f 65%)",
+            "ocean": "radial-gradient(circle at 25% 20%,#43a8ca,#075079 48%,#03273e)",
+            "warm": "radial-gradient(circle at 20% 20%,#b77955,#59372f 52%,#24191b)",
+        }
+        background = "linear-gradient(rgba(4,22,26,.28),rgba(4,22,26,.48)),url('api/user/background/image')" if selected["mode"] == "custom" else presets[selected["preset"]]
+        page = (STATIC / filename).read_text(encoding="utf-8")
+        initial_background = background
+        if selected["mode"] == "custom":
+            initial_background += ";--custom-background:url('api/user/background/image')"
+        replacements = {
+            "__INITIAL_BACKGROUND__": escape(initial_background, quote=True),
+            "__TOOLS_BACKGROUND__": escape(background, quote=True),
+            "__BACKGROUND_PRESET__": escape("custom" if selected["mode"] == "custom" else selected["preset"], quote=True),
+            "__CARD_THEME__": escape(load_card_theme(), quote=True),
+        }
+        for placeholder, value in replacements.items():
+            page = page.replace(placeholder, value)
+        if "--initial-background:" not in page:
+            page = page.replace('<html lang="it">', f'<html lang="it" style="--initial-background:{replacements["__INITIAL_BACKGROUND__"]}">', 1)
+        if body_class and "<body>" in page:
+            page = page.replace("<body>", f'<body class="{body_class}" data-background="{replacements["__BACKGROUND_PRESET__"]}" data-card-theme="{replacements["__CARD_THEME__"]}">', 1)
+        return page
+
     @app.get("/login", include_in_schema=False)
-    async def login_page() -> FileResponse:
-        return FileResponse(STATIC / "login.html", headers={"Cache-Control": "no-store"})
+    async def login_page() -> HTMLResponse:
+        page = themed_page("login.html", "login-theme")
+        theme_links = '<link rel="stylesheet" href="assets/card-themes.css?v=2.21.27"><link rel="stylesheet" href="assets/ui-theme-contract.css?v=2.21.27">'
+        return HTMLResponse(page.replace("</head>", f"{theme_links}</head>", 1), headers={"Cache-Control": "no-store"})
 
     @app.get("/intercom", include_in_schema=False)
-    async def intercom_page(request: Request) -> FileResponse:
+    async def intercom_page(request: Request) -> HTMLResponse:
         if not user_auth.session_user(request.cookies.get(user_auth.COOKIE)):
             raise HTTPException(status_code=401, detail="Accesso richiesto")
         if request.query_params.get("admin") == "1":
             require_admin(request)
-        return FileResponse(STATIC / "intercom.html", headers={"Cache-Control": "no-store"})
+        return HTMLResponse(themed_page("intercom.html"), headers={"Cache-Control": "no-store"})
 
     async def resolved_provider(config, slug: str, port: int, timeout: float):
         manual = str(config.base_url or "").lower()
@@ -1622,18 +1653,7 @@ def create_app() -> FastAPI:
     @app.get("/tools", include_in_schema=False)
     @app.get("/installer", include_in_schema=False)
     async def tools_page() -> HTMLResponse:
-        selected = load_background()
-        presets = {
-            "teal": "linear-gradient(135deg,#84bfd5,#137073 58%,#0e4a4e)",
-            "midnight": "radial-gradient(circle at 70% 20%,#263f61,#08121e 65%)",
-            "graphite": "linear-gradient(145deg,#596066,#181c1f 65%)",
-            "ocean": "radial-gradient(circle at 25% 20%,#43a8ca,#075079 48%,#03273e)",
-            "warm": "radial-gradient(circle at 20% 20%,#b77955,#59372f 52%,#24191b)",
-        }
-        background = "linear-gradient(rgba(4,22,26,.28),rgba(4,22,26,.48)),url('api/user/background/image')" if selected["mode"] == "custom" else presets[selected["preset"]]
-        page = (STATIC / "tools.html").read_text(encoding="utf-8")
-        page = page.replace("__TOOLS_BACKGROUND__", escape(background, quote=True)).replace("__CARD_THEME__", escape(load_card_theme(), quote=True))
-        return HTMLResponse(page, headers={"Cache-Control": "no-cache"})
+        return HTMLResponse(themed_page("tools.html"), headers={"Cache-Control": "no-cache"})
 
     @app.post("/api/installer/login")
     async def installer_login(payload: dict) -> JSONResponse:
@@ -2257,8 +2277,8 @@ def create_app() -> FastAPI:
             raise HTTPException(status_code=502, detail="Comando scenario e-HDL fallito")
 
     @app.get("/{path:path}", include_in_schema=False)
-    async def frontend(path: str) -> FileResponse:
-        return FileResponse(STATIC / "index.html", headers={"Cache-Control": "no-cache"})
+    async def frontend(path: str) -> HTMLResponse:
+        return HTMLResponse(themed_page("index.html", "app-theme"), headers={"Cache-Control": "no-cache"})
 
     return app
 

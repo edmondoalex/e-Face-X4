@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.21.27 — 2026-09-15
+
+- Applica sfondo e colore card salvati già nel primo HTML, eliminando il lampo verde durante l'avvio.
+- Estende la palette scelta a Strumenti, Amministrazione, wizard, Intercom e login senza alterare i colori semantici di stato.
+- Allinea la versione mostrata in Strumenti alla versione reale dell'add-on.
+
 ## 2.21.26 — 2026-09-15
 - Ogni cellulare, tablet o PC con un account e-Face personale ottiene un proprio interno SIP 8302–8349 al primo accesso Intercom. L’identità del browser, inventario e credenziali sono persistenti; Asterisk conferma il provisioning prima che e-Face consegni le credenziali. Admin può rinominare e revocare ogni dispositivo. Gli account SIP manuali legacy non vengono rimossi. Il client riceve chiamate quando Intercom è aperto; chiamate con app chiusa/background non sono ancora supportate.
 
