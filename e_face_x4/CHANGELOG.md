@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.21.77 — 2026-09-15
+
+- Integra automaticamente i preset nativi WiiM nella barra Preferiti di e-Face senza copiarli o richiedere credenziali dei provider.
+- Mostra per ogni preset cover, icona del servizio e icona WiiM; il tocco richiama direttamente il preset sul player.
+- Rimuove dall'Admin la configurazione SoundCloud API a pagamento e indica il percorso nativo tramite WiiM.
+
 ## 2.21.76 — 2026-09-15
 
 - Aggiunge in Amministrazione una console SoundCloud completa per il collaudo prima dell'integrazione in Ascolta.

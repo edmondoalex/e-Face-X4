@@ -971,45 +971,16 @@ function showWiim(data) {
     : 'WiiM configurato; premi Test diretto.'
 }
 async function loadWiim() {
-  const [{settings}, services, soundcloud] = await Promise.all([request('api/admin/wiim'), request('api/admin/wiim/services'), request('api/admin/wiim/soundcloud')])
+  const [{settings}, services] = await Promise.all([request('api/admin/wiim'), request('api/admin/wiim/services')])
   $('#wiim-enabled').checked = settings.enabled !== false
   $('#wiim-host').value = settings.host || '192.168.3.52'
   $('#wiim-control4-source').value = settings.control4_source_id || 1667
   $('#wiim-control4-protocol').value = settings.control4_protocol_id || 1666
   const actions = $('#wiim-form .admin-form-actions')
-  if (actions && !$('#soundcloud-open')) actions.insertAdjacentHTML('beforeend', '<a id="soundcloud-open" class="secondary" href="soundcloud">APRI SOUNDCLOUD</a>')
+  if (actions && !$('#wiim-console-open')) actions.insertAdjacentHTML('beforeend', '<a id="wiim-console-open" class="secondary" href="wiim">APRI PLAYER E PRESET</a>')
   const labels = {configuration_required:'DA CONFIGURARE',planned:'PIANIFICATO',research_required:'DA VERIFICARE',next:'PROSSIMO',unsupported_catalog:'SOLO PERCORSO SUPPORTATO',inventory:'INVENTARIO APERTO'}
-  const safeClientId = String(soundcloud.settings.client_id || '').replace(/[&<>"']/g, '')
-  $('#wiim-services').innerHTML = services.items.map((item) => `<article><div><b>${item.name}</b><small>${item.features.join(' · ')}</small></div><span>${labels[item.status] || item.status}</span></article>`).join('') + `<form id="soundcloud-form" class="admin-form" autocomplete="off"><h3>SoundCloud · primo provider</h3><p>Usa Client ID e Client Secret dell'app SoundCloud, mai la password personale.</p><div class="admin-form-grid"><label>Client ID<input id="soundcloud-client-id" maxlength="256" value="${safeClientId}"></label><label>Client Secret<input id="soundcloud-client-secret" type="password" maxlength="512" autocomplete="new-password" placeholder="${soundcloud.settings.secret_configured ? 'Configurato · lascia vuoto per mantenerlo' : 'Da configurare'}"></label></div><button type="submit">SALVA SOUNDCLOUD</button><div id="soundcloud-status" class="admin-status">${soundcloud.settings.ready ? 'Credenziali SoundCloud configurate.' : 'SoundCloud da configurare.'}</div></form>`
-  const search = document.createElement('form')
-  search.id = 'soundcloud-search-form'; search.className = 'admin-form'
-  search.innerHTML = `<h3>Test catalogo SoundCloud</h3><div class="admin-form-grid"><label>Cerca brani<input id="soundcloud-query" minlength="2" maxlength="120" placeholder="Artista o titolo" required></label></div><button type="submit" ${soundcloud.settings.ready ? '' : 'disabled'}>CERCA</button><div id="soundcloud-search-status" class="admin-status">${soundcloud.settings.ready ? 'Ricerca pronta.' : 'Salva prima le credenziali.'}</div><div id="soundcloud-results" class="soundcloud-results"></div>`
-  $('#wiim-services').append(search)
+  $('#wiim-services').innerHTML = `<article><div><b>Preset e preferiti WiiM</b><small>I preset salvati nell'app WiiM compaiono automaticamente nei Preferiti e-Face.</small></div><span>ATTIVO</span></article>` + services.items.filter(item => item.id !== 'soundcloud').map((item) => `<article><div><b>${item.name}</b><small>${item.features.join(' · ')}</small></div><span>${labels[item.status] || item.status}</span></article>`).join('')
 }
-document.addEventListener('submit', async (event) => {
-  if (event.target.id === 'soundcloud-search-form') {
-    event.preventDefault()
-    const status = $('#soundcloud-search-status'); const results = $('#soundcloud-results')
-    status.textContent = 'Ricerca in corso...'; results.replaceChildren()
-    try {
-      const data = await request(`api/wiim/services/soundcloud/search?q=${encodeURIComponent($('#soundcloud-query').value.trim())}`)
-      for (const track of data.items || []) {
-        const row = document.createElement('article'); const art = document.createElement('img'); const body = document.createElement('div'); const title = document.createElement('b'); const artist = document.createElement('small')
-        art.src = track.artwork || ''; art.alt = ''; art.hidden = !track.artwork; title.textContent = track.title || 'Senza titolo'; artist.textContent = track.artist || 'SoundCloud'; body.append(title, artist); row.append(art, body); results.append(row)
-      }
-      status.textContent = data.items?.length ? `${data.items.length} risultati SoundCloud.` : 'Nessun risultato.'
-    } catch (error) { status.textContent = error.message }
-    return
-  }
-  if (event.target.id !== 'soundcloud-form') return
-  event.preventDefault()
-  try {
-    const result = await request('api/admin/wiim/soundcloud', {method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify({client_id:$('#soundcloud-client-id').value.trim(), client_secret:$('#soundcloud-client-secret').value.trim()})})
-    $('#soundcloud-client-secret').value = ''
-    $('#soundcloud-status').textContent = result.settings.ready ? 'Credenziali SoundCloud salvate. Ricerca pronta.' : 'Configurazione incompleta.'
-    await loadWiim()
-  } catch (error) { $('#soundcloud-status').textContent = error.message }
-})
 $('#wiim-tool').addEventListener('click', async () => { try { await loadWiim(); openPanel('wiim-config') } catch (error) { message(error.message) } })
 $('#wiim-back').addEventListener('click', () => closePanel('wiim-config'))
 $('#wiim-test').addEventListener('click', async () => { try { showWiim(await request('api/admin/wiim/test', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({host:$('#wiim-host').value.trim()})})) } catch (error) { $('#wiim-result').textContent = error.message } })

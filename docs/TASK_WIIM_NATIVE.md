@@ -62,3 +62,9 @@ SoundCloud diventa il primo provider. Implementati archivio credenziali protetto
 ## Avanzamento 2.21.76
 
 Prima dell'inserimento nella pagina utente Ascolta è disponibile in Amministrazione una console SoundCloud di collaudo a tutto schermo. Riusa il player WiiM nativo e supporta ricerca di brani, playlist e artisti, apertura di playlist/profili, correlati, cronologia e preferiti locali e-Face. Il backend richiede uno stream ufficiale con OAuth, preferisce HLS AAC 160/96 e passa il relativo URL HTTPS al comando WiiM documentato `setPlayerCmd:play:url`; credenziali e token restano server-side. Da verificare fisicamente: durata effettiva dei signed URL sul firmware installato e riproduzione continua. Likes e libreria personale SoundCloud richiedono ancora consenso utente OAuth Authorization Code + PKCE.
+
+## Avanzamento 2.21.77
+
+Scelta corretta dopo verifica dei costi: non usare l'API SoundCloud a pagamento nel percorso utente. I preset nativi del WiiM vengono aggiunti dinamicamente ai Preferiti e-Face, con cache di 10 secondi, cover, icona del servizio e icona WiiM. Non sono copiati nell'archivio preferiti e non mostrano il comando Rimuovi: la fonte della verità resta l'app WiiM.
+
+Sonda read-only del 15/09/2026 sul WiiM di prova: quattro preset disponibili, uno Spotify, uno YouTube Music e due SoundCloud. Il descrittore `http://<wiim>:49152/description.xml` espone AVTransport, RenderingControl, ConnectionManager, PlayQueue e QPlay. Gli ID e i nomi dei preset devono sempre essere letti dal dispositivo, non fissati nel codice. Il tocco su un preset e-Face richiama `MCUKeyShortClick:<indice>`; la prova audio fisica resta distinta dai test automatici.

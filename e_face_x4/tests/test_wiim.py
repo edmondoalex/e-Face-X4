@@ -55,7 +55,7 @@ async def test_native_wiim_actions_and_presets() -> None:
     await client.player_action("volume", 42)
     await client.player_action("seek", 73)
     await client.player_action("next")
-    assert await client.presets() == [{"index": 1, "name": "Radio", "artwork": ""}]
+    assert await client.presets() == [{"index": 1, "name": "Radio", "source": "", "artwork": ""}]
     await client.play_preset(1)
     assert commands == ["setPlayerCmd:vol:42", "setPlayerCmd:seek:73", "setPlayerCmd:next", "getPresetInfo", "MCUKeyShortClick:1"]
     with pytest.raises(ValueError):
@@ -179,3 +179,9 @@ def test_soundcloud_local_library_is_persistent(monkeypatch, tmp_path) -> None:
     assert soundcloud_library.remember(track)["recent"][0]["title"] == "Track"
     assert soundcloud_library.toggle(track)["favorites"][0]["urn"] == track["urn"]
     assert soundcloud_library.toggle(track)["favorites"] == []
+
+
+def test_wiim_presets_are_rendered_as_eface_favorites() -> None:
+    script = __import__("app.main", fromlist=["STATIC"]).STATIC.joinpath("assets", "app.js").read_text(encoding="utf-8")
+    assert "wiim_preset" in script
+    assert "speaker-wireless" in script

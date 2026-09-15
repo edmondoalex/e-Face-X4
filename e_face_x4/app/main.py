@@ -65,7 +65,7 @@ from .connectors.control4_media import cached_control4_icon, cached_control4_ico
 from .connectors.supervisor import discover_addon_url, discover_host_url
 from .demo import dashboard as demo_dashboard
 
-VERSION = os.environ.get("EFACE_VERSION", "2.21.76")
+VERSION = os.environ.get("EFACE_VERSION", "2.21.77")
 STATIC = Path(__file__).parent / "static"
 logging.basicConfig(level=logging.WARNING, format="%(asctime)s %(levelname)s [e-face-x4] %(message)s")
 _reconnect_warning_at: dict[str, float] = {}
@@ -113,6 +113,7 @@ def create_app() -> FastAPI:
     push_wake_tokens: dict[str, dict] = {}
     control4_support_tokens: dict[str, float] = {}
     doorbird_video_slots = asyncio.Semaphore(2)
+    wiim_presets_cache: dict[str, object] = {"expires": 0.0, "items": []}
 
     async def sync_default_intercom_group(records: dict | None = None) -> None:
         remote = await provisioner_client.request("GET", "/v1/intercom-groups")
@@ -1026,7 +1027,16 @@ def create_app() -> FastAPI:
 
     @app.get("/api/control4/favorites")
     async def control4_list_favorites() -> dict:
-        return {"items": list_favorites()}
+        items = list_favorites()
+        try:
+            if time.monotonic() >= float(wiim_presets_cache["expires"]):
+                wiim_presets_cache["items"] = await configured_wiim().presets()
+                wiim_presets_cache["expires"] = time.monotonic() + 10.0
+            for preset in wiim_presets_cache["items"]:
+                items.append({"id": f"wiim:preset:{preset['index']}", "kind": "wiim_preset", "title": preset["name"], "subtitle": f"Preset {preset['index']}", "item_type": "Preset", "service": preset.get("source", ""), "artwork": preset.get("artwork", ""), "preset_index": preset["index"]})
+        except (HTTPException, httpx.HTTPError, RuntimeError, ValueError):
+            pass
+        return {"items": items}
 
     @app.post("/api/control4/favorites/current-station")
     async def control4_toggle_current_station_favorite(payload: dict) -> dict:
@@ -1155,10 +1165,15 @@ def create_app() -> FastAPI:
     @app.post("/api/control4/favorites/select")
     async def control4_select_favorite(payload: dict) -> dict:
         try:
+            identity = str(payload.get("id") or "")
+            match = re.fullmatch(r"wiim:preset:(\d{1,2})", identity)
+            if match:
+                await configured_wiim().play_preset(int(match.group(1)))
+                return {"ok": True, "target": "wiim"}
             room_id = int(payload.get("room_id") or 0)
             if room_id <= 0:
                 raise ValueError("Stanza non valida")
-            item = favorite_by_id(str(payload.get("id") or ""))
+            item = favorite_by_id(identity)
             if item["kind"] == "recent":
                 return await Control4MediaConnector(load_control4_config()).select_recent(room_id, str(item["key"]))
             proxy_id = int(item["proxy_id"])
@@ -1847,8 +1862,8 @@ def create_app() -> FastAPI:
         page = page.replace("tools-dashboard.js?v=2.21.36", "tools-dashboard.js?v=2.21.38")
         page = page.replace("tools-dashboard.js?v=2.21.38", "tools-dashboard.js?v=2.21.41")
         page = page.replace("tools-dashboard.js?v=2.21.41", "tools-dashboard.js?v=2.21.42")
-        page = page.replace("tools-dashboard.js?v=2.21.42", "tools-dashboard.js?v=2.21.76")
-        page = page.replace("tools-dashboard.css?v=2.20.36", "tools-dashboard.css?v=2.21.76")
+        page = page.replace("tools-dashboard.js?v=2.21.42", "tools-dashboard.js?v=2.21.77")
+        page = page.replace("tools-dashboard.css?v=2.20.36", "tools-dashboard.css?v=2.21.77")
         page = page.replace("backgrounds.css?v=2.20.20", "backgrounds.css?v=2.21.43")
         page = page.replace("intercom.css?v=2.21.14", "intercom.css?v=2.21.46")
         page = page.replace("app.js?v=2.21.11", "app.js?v=2.21.29")

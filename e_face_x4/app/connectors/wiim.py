@@ -96,7 +96,7 @@ class WiiMClient:
             if not isinstance(item, dict):
                 continue
             index = int(item.get("number") or item.get("preset_num") or item.get("index") or position)
-            result.append({"index": index, "name": decode_linkplay_text(item.get("name") or item.get("title") or f"Preset {index}"), "artwork": public_artwork(item.get("picurl") or item.get("artwork"))})
+            result.append({"index": index, "name": decode_linkplay_text(item.get("name") or item.get("title") or f"Preset {index}"), "source": str(item.get("source") or ""), "artwork": public_artwork(item.get("picurl") or item.get("artwork"))})
         return result
 
     async def play_preset(self, index: int) -> str:
