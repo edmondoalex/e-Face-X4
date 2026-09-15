@@ -2,7 +2,7 @@
   const $ = (selector) => document.querySelector(selector)
   const adminMode = document.documentElement.classList.contains('admin-intercom')
   const root = new URL('./', location.href)
-  const currentVersion = '2.21.42'
+  const currentVersion = '2.21.43'
   let updateAvailable = false
   async function checkForUpdate() {
     if (document.hidden || !intercomVisible) return
@@ -389,7 +389,7 @@
       oscillator.frequency.value = frequency
       oscillator.type = 'sine'
       gain.gain.setValueAtTime(0.0001, now + delay)
-      gain.gain.exponentialRampToValueAtTime(Math.max(.001, .25 * ringPreferences.ring_volume / 100), now + delay + .025)
+      gain.gain.exponentialRampToValueAtTime(Math.max(.001, .72 * ringPreferences.ring_volume / 100), now + delay + .025)
       gain.gain.exponentialRampToValueAtTime(0.0001, now + delay + .2)
       oscillator.connect(gain)
       gain.connect(audioContext.destination)
@@ -669,10 +669,7 @@
       try {
         const pushResponse = await fetch(new URL(`api/intercom/push/call/${encodeURIComponent(button.dataset.dialExtension)}`, root), {method:'POST', cache:'no-store', credentials:'same-origin'})
         const pushResult = await pushResponse.json().catch(() => ({}))
-        if (pushResponse.ok && pushResult.sent > 0) {
-        $('#call-status').textContent = 'Notifica inviata, attendo il dispositivo…'
-        await new Promise(resolve => setTimeout(resolve, 3500))
-        }
+        if (pushResponse.ok && pushResult.sent > 0) $('#call-status').textContent = 'Notifica inviata, chiamo il dispositivo…'
       } catch (_) {}
       phone.call(`sip:${button.dataset.dialExtension}@asterisk`, {mediaStream:stream, mediaConstraints:{audio:true, video:false}, pcConfig:peerConfig()})
     } catch (exception) {

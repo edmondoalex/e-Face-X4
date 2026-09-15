@@ -2328,6 +2328,9 @@ $('#device-list').addEventListener('change', (event) => {
 $('.home-title').addEventListener('click', showHome)
 $('#show-all-devices').addEventListener('click', () => openDevices('Tutti i dispositivi', currentDevices))
 document.addEventListener('visibilitychange', () => { if (!document.hidden) { refresh(); connectRealtime() } })
+navigator.serviceWorker?.addEventListener('message', (event) => {
+  if (event.data?.type === 'eface-open-intercom') openIntercom()
+})
 tick()
 setInterval(tick, 30000)
 window.addEventListener('keydown', (event) => {
@@ -2339,7 +2342,13 @@ setInterval(() => {
   if (!realtimeSocket || realtimeSocket.readyState !== WebSocket.OPEN) refresh()
 }, 30000)
 setInterval(refresh, 60000)
-refresh()
+refresh().then(() => {
+  const launch = new URLSearchParams(location.search)
+  if (launch.get('view') === 'intercom' || launch.get('push') === '1') {
+    openIntercom()
+    history.replaceState(null, '', location.pathname)
+  }
+})
 connectRealtime()
 setTimeout(() => {
   const splash = $('#startup-splash')

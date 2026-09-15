@@ -57,7 +57,7 @@ from .connectors.control4_media import cached_control4_icon, cached_control4_ico
 from .connectors.supervisor import discover_addon_url, discover_host_url
 from .demo import dashboard as demo_dashboard
 
-VERSION = os.environ.get("EFACE_VERSION", "2.21.42")
+VERSION = os.environ.get("EFACE_VERSION", "2.21.43")
 STATIC = Path(__file__).parent / "static"
 logging.basicConfig(level=logging.WARNING, format="%(asctime)s %(levelname)s [e-face-x4] %(message)s")
 _reconnect_warning_at: dict[str, float] = {}
@@ -1584,11 +1584,13 @@ def create_app() -> FastAPI:
         page = page.replace("tools-dashboard.js?v=2.21.36", "tools-dashboard.js?v=2.21.38")
         page = page.replace("tools-dashboard.js?v=2.21.38", "tools-dashboard.js?v=2.21.41")
         page = page.replace("tools-dashboard.js?v=2.21.41", "tools-dashboard.js?v=2.21.42")
+        page = page.replace("backgrounds.css?v=2.20.20", "backgrounds.css?v=2.21.43")
         page = page.replace("app.js?v=2.21.11", "app.js?v=2.21.29")
         page = page.replace("energy.css?v=2.20.20", "energy.css?v=2.21.30")
         page = page.replace("app.js?v=2.21.29", "app.js?v=2.21.30")
         page = page.replace("app.js?v=2.21.30", "app.js?v=2.21.31")
         page = page.replace("app.js?v=2.21.31", "app.js?v=2.21.32")
+        page = page.replace("app.js?v=2.21.32", "app.js?v=2.21.43")
         page = page.replace("home-comfort.css?v=2.20.20", "home-comfort.css?v=2.21.31")
         if "--initial-background:" not in page:
             page = page.replace('<html lang="it">', f'<html lang="it" style="background:var(--initial-background,#181c1f);--initial-background:{replacements["__INITIAL_BACKGROUND__"]}">', 1)

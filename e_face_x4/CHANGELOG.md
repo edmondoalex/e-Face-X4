@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.21.43 — 2026-09-15
+
+- Il tap sulla notifica apre direttamente la sezione Videocitofono anche quando la PWA era già aperta sulla Home.
+- La chiamata parte senza l'attesa artificiale di 3,5 secondi e la suoneria e-Face ha un livello più alto.
+- Lo sfondo della Home segue direttamente il preset o la foto scelti in Personalizzazione.
+
 ## 2.21.42 — 2026-09-15
 
 - Aggiunge Web Push/PWA per avvisare un dispositivo personale anche quando e-Face è chiusa.
