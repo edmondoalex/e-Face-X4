@@ -1,5 +1,9 @@
 # Changelog
 
+## 2.21.37 — 2026-09-15
+
+- Rende il comando Esci da e-Face visibile a tutti gli utenti nell'area comune di Strumenti.
+
 ## 2.21.36 — 2026-09-15
 
 - Consente all'admin di abilitare o revocare l'accesso persistente separatamente per ogni utente.
