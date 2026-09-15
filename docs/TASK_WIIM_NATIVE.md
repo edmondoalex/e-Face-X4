@@ -97,10 +97,14 @@ Prova end-to-end del 15/09/2026: e-Face ha letto in memoria URI firmato e metada
 
 Questa verifica dimostra il richiamo esatto **finché il CurrentTrackURI firmato è valido**. Prima dell'integrazione utente occorre misurarne la scadenza, verificare comportamento dopo riavvio e distinguere contenuti riutilizzabili da URL temporanei. L'archivio e-Face non deve persistere URL firmati oltre il necessario né esporli al browser; URI e metadati devono restare server-side. Se il link è scaduto, la UI deve dichiararlo senza ripiegare silenziosamente sul preset dinamico.
 
+La riproduzione del solo `CurrentTrackURI` termina dopo quel brano perché `SetAVTransportURI` non ricostruisce la coda. `BrowseQueue` sul servizio WiiM `PlayQueue:1` ha invece restituito la coda YouTube Music corrente completa: 50 tracce, `SearchUrl`, ID, metadati, URL, `LastPlayIndex` e nome lista. Prova reale con `PlayQueueWithIndex`: dal brano “Do You Hear Me” è stato eseguito Next verso “Surrender (Birretta Edit)”, poi l'indice 1 ha richiamato esattamente “Do You Hear Me” e un nuovo Next è tornato a “Surrender”. Il richiamo via coda conserva quindi la prosecuzione, a differenza del singolo URI.
+
+`BackUpQueue` applicato a una copia rinominata del contesto cloud ha restituito HTTP 500; la coda temporanea di test è stata rimossa. Non considerare quindi ancora verificata la persistenza di una coda cloud nominata nel WiiM. La prossima sonda deve analizzare `CreateQueue`/`ReplaceQueue` e soprattutto `GetQueueOnline`/`SearchQueueOnline`, che potrebbero rigenerare gli URL scaduti da `SearchUrl` e ID senza conservare token nel file preferiti.
+
 Prossime verifiche, in ordine:
 
 1. Salvare fixture redatte di `getPlayerStatus`, `getMetaInfo` e `getPresetInfo` per ciascun provider e confrontare i campi durante avvio preset, cambio traccia e riapertura dell'app WiiM.
-2. Implementare un client UPnP server-side minimo per `GetPositionInfo`, `SetAVTransportURI` e `Play`, con validazione LAN, XML sicuro, timeout e URL mai restituiti al browser; AVTransport e PlayQueue hanno già confermato URI, indice e DIDL-Lite aggiuntivi.
+2. Implementare un client UPnP server-side minimo per `GetPositionInfo`, `SetAVTransportURI`, `Play`, `BrowseQueue` e `PlayQueueWithIndex`, con validazione LAN, XML sicuro, timeout e URL mai restituiti al browser; AVTransport e PlayQueue hanno già confermato URI, indice, coda e DIDL-Lite aggiuntivi.
 3. Ripetere `MCUKeyShortClick:<preset>:<track>` su un preset locale o una playlist statica con indice noto: la prova YouTube Music è completata e ha dimostrato che lo stesso indice non è deterministico per quel contenuto cloud.
 4. Se il firmware continua a nascondere indice e URI per i servizi cloud, limitare la funzione ai provider/contenuti che restituiscono un riferimento riproducibile e mostrare chiaramente “richiama preset” invece di promettere “richiama brano”.
 5. Non memorizzare token dell'app WiiM, URL firmati privati o credenziali dei provider e non dedurre il numero traccia dal solo titolo, perché shuffle e duplicati renderebbero il richiamo inaffidabile.
