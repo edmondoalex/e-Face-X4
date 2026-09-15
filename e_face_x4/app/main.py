@@ -56,7 +56,7 @@ from .connectors.control4_media import cached_control4_icon, cached_control4_ico
 from .connectors.supervisor import discover_addon_url, discover_host_url
 from .demo import dashboard as demo_dashboard
 
-VERSION = os.environ.get("EFACE_VERSION", "2.21.40")
+VERSION = os.environ.get("EFACE_VERSION", "2.21.41")
 STATIC = Path(__file__).parent / "static"
 logging.basicConfig(level=logging.WARNING, format="%(asctime)s %(levelname)s [e-face-x4] %(message)s")
 _reconnect_warning_at: dict[str, float] = {}
@@ -1082,7 +1082,7 @@ def create_app() -> FastAPI:
         owner = user_auth.session_user(request.cookies.get(user_auth.COOKIE))
         if not owner or owner == "admin" or not user_auth.account(owner)["active"]:
             raise HTTPException(status_code=403, detail="Utente personale attivo richiesto")
-        if set(payload) != {"device_id", "name", "device_type"} or payload.get("device_type") not in {"phone", "tablet", "desktop"}:
+        if not {"device_id", "name"}.issubset(payload) or set(payload) - {"device_id", "name", "device_type"} or payload.get("device_type", "desktop") not in {"phone", "tablet", "desktop"}:
             raise HTTPException(status_code=400, detail="Dati dispositivo non validi")
         device_id, name = payload["device_id"], payload["name"]
         try:
@@ -1104,7 +1104,7 @@ def create_app() -> FastAPI:
             while True:
                 if not existing:
                     try:
-                        record = personal_devices.new_record(device_id, owner, name, records, reserved, payload["device_type"])
+                        record = personal_devices.new_record(device_id, owner, name, records, reserved, payload.get("device_type", "desktop"))
                     except (ValueError, TypeError) as exc:
                         raise HTTPException(status_code=409, detail=str(exc)) from exc
                 try:
@@ -1124,8 +1124,40 @@ def create_app() -> FastAPI:
                 except Exception:
                     await provisioner_client.request("DELETE", f"/v1/phones/{username}")
                     raise
-        return JSONResponse({"username": record["extension"], "password": record["password"], "name": record["name"]},
+        return JSONResponse({"username": record["extension"], "password": record["password"], "name": record["name"], **personal_devices.preferences(record)},
                             headers={"Cache-Control": "no-store, private", "Pragma": "no-cache", "Vary": "Cookie", "X-Content-Type-Options": "nosniff"})
+
+    @app.get("/api/intercom/personal-device/{device_id}/preferences")
+    async def personal_device_preferences(device_id: str, request: Request) -> Response:
+        owner = user_auth.session_user(request.cookies.get(user_auth.COOKIE))
+        record = personal_devices.load().get(device_id)
+        if not owner or not record or record["owner"] != owner:
+            raise HTTPException(status_code=404, detail="Dispositivo personale non trovato")
+        return JSONResponse({"device_id": device_id, "name": record["name"], **personal_devices.preferences(record)}, headers={"Cache-Control": "no-store, private"})
+
+    @app.put("/api/intercom/personal-device/{device_id}/preferences")
+    async def update_personal_device_preferences(device_id: str, request: Request, payload: dict) -> Response:
+        owner = user_auth.session_user(request.cookies.get(user_auth.COOKIE))
+        if set(payload) != {"name", "ringtone", "ring_volume", "vibration", "silent"}:
+            raise HTTPException(status_code=400, detail="Impostazioni dispositivo non valide")
+        async with personal_lock:
+            records = personal_devices.load()
+            old = records.get(device_id)
+            if not owner or not old or old["owner"] != owner:
+                raise HTTPException(status_code=404, detail="Dispositivo personale non trovato")
+            new = {**old, **payload}
+            try:
+                personal_devices.validate({device_id: new})
+                await provisioner_client.request("POST", "/v1/phones", {
+                    "username": personal_devices.asterisk_username(device_id), "extension": new["extension"],
+                    "password": new["password"], "name": new["name"],
+                })
+                personal_devices.save({**records, device_id: new})
+            except ValueError as exc:
+                raise HTTPException(status_code=400, detail=str(exc)) from exc
+            except RuntimeError as exc:
+                raise HTTPException(status_code=503, detail=str(exc)) from exc
+        return JSONResponse({"device_id": device_id, "name": new["name"], **personal_devices.preferences(new)}, headers={"Cache-Control": "no-store, private"})
 
     @app.get("/api/intercom/personal-devices")
     async def intercom_personal_devices(request: Request) -> Response:
@@ -1500,6 +1532,7 @@ def create_app() -> FastAPI:
         page = page.replace("tools-dashboard.js?v=2.21.33", "tools-dashboard.js?v=2.21.34")
         page = page.replace("tools-dashboard.js?v=2.21.34", "tools-dashboard.js?v=2.21.36")
         page = page.replace("tools-dashboard.js?v=2.21.36", "tools-dashboard.js?v=2.21.38")
+        page = page.replace("tools-dashboard.js?v=2.21.38", "tools-dashboard.js?v=2.21.41")
         page = page.replace("app.js?v=2.21.11", "app.js?v=2.21.29")
         page = page.replace("energy.css?v=2.20.20", "energy.css?v=2.21.30")
         page = page.replace("app.js?v=2.21.29", "app.js?v=2.21.30")

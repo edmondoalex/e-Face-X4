@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.21.41 — 2026-09-15
+
+- Aggiunge in Strumenti > Utente > Videocitofono nome, suoneria, volume, vibrazione, modalità silenziosa e prova audio per il dispositivo in uso.
+- Salva le preferenze centralmente per dispositivo e le applica automaticamente alle chiamate Intercom.
+
 ## 2.21.40 — 2026-09-15
 
 - Distingue cellulari, tablet e PC nella rubrica Intercom con icone dedicate e migra automaticamente i dispositivi già registrati.

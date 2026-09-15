@@ -2,7 +2,7 @@
   const $ = (selector) => document.querySelector(selector)
   const adminMode = document.documentElement.classList.contains('admin-intercom')
   const root = new URL('./', location.href)
-  const currentVersion = '2.21.40'
+  const currentVersion = '2.21.41'
   let updateAvailable = false
   async function checkForUpdate() {
     if (document.hidden || !intercomVisible) return
@@ -24,6 +24,7 @@
   let audioContext = null
   let ringtoneTimer = null
   let ringtoneActive = false
+  let ringPreferences = {ringtone:'classic', ring_volume:80, vibration:true, silent:false}
   let audioStatsTimer = null
   let micInput = null
   let micOutput = null
@@ -379,15 +380,16 @@
   }
 
   function ringBurst() {
-    if (!ringtoneActive || !audioContext || audioContext.state !== 'running') return
+    if (!ringtoneActive || ringPreferences.silent || !audioContext || audioContext.state !== 'running') return
     const now = audioContext.currentTime
-    for (const [frequency, delay] of [[880, 0], [660, .24]]) {
+    const patterns = {classic:[[880,0],[660,.24]], double:[[760,0],[760,.18],[940,.48]], soft:[[520,0],[650,.3]]}
+    for (const [frequency, delay] of patterns[ringPreferences.ringtone] || patterns.classic) {
       const oscillator = audioContext.createOscillator()
       const gain = audioContext.createGain()
       oscillator.frequency.value = frequency
       oscillator.type = 'sine'
       gain.gain.setValueAtTime(0.0001, now + delay)
-      gain.gain.exponentialRampToValueAtTime(0.22, now + delay + .025)
+      gain.gain.exponentialRampToValueAtTime(Math.max(.001, .25 * ringPreferences.ring_volume / 100), now + delay + .025)
       gain.gain.exponentialRampToValueAtTime(0.0001, now + delay + .2)
       oscillator.connect(gain)
       gain.connect(audioContext.destination)
@@ -399,7 +401,8 @@
   async function startRingtone() {
     if (ringtoneActive) return
     ringtoneActive = true
-    navigator.vibrate?.([500, 250, 500, 900, 500, 250, 500])
+    if (ringPreferences.vibration) navigator.vibrate?.([500, 250, 500, 900, 500, 250, 500])
+    if (ringPreferences.silent) return
     try {
       await prepareSpeaker()
       ringBurst()
@@ -603,6 +606,7 @@
       }
       const data = await response.json().catch(() => ({}))
       if (!response.ok) throw new Error(data.detail || 'Credenziale SIP non disponibile in e-Face')
+      ringPreferences = {ringtone:data.ringtone || 'classic', ring_volume:Number.isInteger(data.ring_volume) ? data.ring_volume : 80, vibration:data.vibration !== false, silent:data.silent === true}
       const extension = data.username
       if (!/^[0-9]{4}$/.test(extension)) throw new Error('Interno SIP non valido')
       if (!password) password = data.password

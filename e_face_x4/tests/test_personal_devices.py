@@ -62,6 +62,10 @@ def test_personal_device_api_provisions_and_revokes_individually(monkeypatch, tm
     assert listed.json()["devices"][0]["extension"] == "8302"
     assert listed.json()["devices"][0]["device_type"] == "phone"
     assert "password" not in listed.text
+    preferences = person.put(f"/api/intercom/personal-device/{device_id}/preferences", json={"name": "Poco Mario", "ringtone": "soft", "ring_volume": 55, "vibration": False, "silent": False})
+    assert preferences.status_code == 200, preferences.text
+    assert preferences.json()["ring_volume"] == 55
+    assert person.get(f"/api/intercom/personal-device/{device_id}/preferences").json()["name"] == "Poco Mario"
     assert admin.put(f"/api/admin/intercom/personal-devices/{device_id}", json={"name": "Telefono Mario"}).status_code == 200
     assert person.post("/api/intercom/sip/personal-device", json=payload).json()["name"] == "Telefono Mario"
     assert admin.delete(f"/api/admin/intercom/personal-devices/{device_id}").json() == {"removed": True}

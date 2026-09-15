@@ -793,13 +793,58 @@ $('#credential-reveal-form').addEventListener('submit', async (event) => {
 })
 window.addEventListener('pagehide', hideCredentialReveal)
 
+const deviceSoundPanel = document.createElement('section')
+deviceSoundPanel.id = 'personal-device-sound-config'
+deviceSoundPanel.className = 'media-config admin-dashboard-panel'
+deviceSoundPanel.hidden = true
+deviceSoundPanel.innerHTML = '<header><button type="button" aria-label="Torna a Utente">‹</button><div><small>UTENTE</small><h2>Questo dispositivo</h2></div></header><form class="admin-form"><div class="admin-info"><b>Identità e suoneria Intercom</b><p>Queste preferenze valgono soltanto sul cellulare, tablet o PC in uso.</p></div><div class="admin-form-grid"><label>Nome dispositivo<input name="name" maxlength="64" required></label><label>Suoneria<select name="ringtone"><option value="classic">Classica</option><option value="double">Doppio tono</option><option value="soft">Delicata</option></select></label><label>Volume suoneria <output name="volume_output">80%</output><input name="ring_volume" type="range" min="0" max="100" step="5"></label><label><span><input name="vibration" type="checkbox"> Vibrazione</span></label><label><span><input name="silent" type="checkbox"> Modalità silenziosa</span></label></div><div class="admin-form-actions"><button type="button" data-preview>PROVA SUONERIA</button><button type="submit">SALVA</button></div></form>'
+document.body.append(deviceSoundPanel)
+const deviceSoundForm = deviceSoundPanel.querySelector('form')
+let currentPersonalDeviceId = ''
+function previewDeviceSound() {
+  if (deviceSoundForm.elements.silent.checked) return message('Modalità silenziosa attiva')
+  const AudioContextClass = window.AudioContext || window.webkitAudioContext
+  if (!AudioContextClass) return message('Audio non disponibile in questo browser')
+  const context = new AudioContextClass()
+  const volume = Number(deviceSoundForm.elements.ring_volume.value) / 100
+  const patterns = {classic:[[880,0],[660,.24]], double:[[760,0],[760,.18],[940,.48]], soft:[[520,0],[650,.3]]}
+  const now = context.currentTime
+  for (const [frequency, delay] of patterns[deviceSoundForm.elements.ringtone.value]) {
+    const oscillator=context.createOscillator(), gain=context.createGain()
+    oscillator.frequency.value=frequency; gain.gain.setValueAtTime(.0001,now+delay); gain.gain.exponentialRampToValueAtTime(Math.max(.001,.25*volume),now+delay+.02); gain.gain.exponentialRampToValueAtTime(.0001,now+delay+.16); oscillator.connect(gain); gain.connect(context.destination); oscillator.start(now+delay); oscillator.stop(now+delay+.18)
+  }
+  setTimeout(() => context.close(), 1200)
+}
+async function openDeviceSound(status) {
+  currentPersonalDeviceId = localStorage.getItem(`eface-personal-device-id-${status.user}`) || ''
+  if (!currentPersonalDeviceId) return message('Apri prima Intercom su questo dispositivo per registrarlo')
+  const data = await request(`api/intercom/personal-device/${encodeURIComponent(currentPersonalDeviceId)}/preferences`)
+  for (const key of ['name','ringtone','ring_volume']) deviceSoundForm.elements[key].value = data[key]
+  deviceSoundForm.elements.vibration.checked = data.vibration
+  deviceSoundForm.elements.silent.checked = data.silent
+  deviceSoundForm.elements.volume_output.value = `${data.ring_volume}%`
+  openPanel(deviceSoundPanel.id)
+}
+deviceSoundPanel.querySelector('header button').addEventListener('click', () => closePanel(deviceSoundPanel.id))
+deviceSoundForm.elements.ring_volume.addEventListener('input', event => { deviceSoundForm.elements.volume_output.value = `${event.target.value}%` })
+deviceSoundForm.querySelector('[data-preview]').addEventListener('click', previewDeviceSound)
+deviceSoundForm.addEventListener('submit', async event => {
+  event.preventDefault()
+  try {
+    await request(`api/intercom/personal-device/${encodeURIComponent(currentPersonalDeviceId)}/preferences`, {method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify({name:deviceSoundForm.elements.name.value.trim(), ringtone:deviceSoundForm.elements.ringtone.value, ring_volume:Number(deviceSoundForm.elements.ring_volume.value), vibration:deviceSoundForm.elements.vibration.checked, silent:deviceSoundForm.elements.silent.checked})})
+    message('Impostazioni del dispositivo salvate')
+    closePanel(deviceSoundPanel.id)
+  } catch(error) { message(error.message) }
+})
+
 async function initialize() {
   const status = await request('api/auth/status')
   if (status.enabled) {
-    const phoneLink = document.createElement('a')
-    phoneLink.href = api('intercom')
+    const phoneLink = document.createElement('button')
+    phoneLink.type = 'button'
     phoneLink.className = 'tool-card'
-    phoneLink.innerHTML = '<span>☎</span><div><b>Citofono</b><small>Chiamate e intercomunicazione</small></div><i>›</i>'
+    phoneLink.innerHTML = '<span><svg viewBox="0 0 24 24" aria-hidden="true" style="width:30px;height:30px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round"><path d="M5 7v5M9 5v9M13 4v11M17 5v9M21 7v5M5 18c4.5 3 9.5 3 14 0"/></svg></span><div><b>Videocitofono</b><small>Nome e suoneria di questo dispositivo</small></div><i>›</i>'
+    phoneLink.addEventListener('click', () => openDeviceSound(status).catch(error => message(error.message)))
     $('#tools-user-section .tools-grid').append(phoneLink)
   }
   $('#tools-admin-nav').hidden = status.enabled && status.role !== 'admin'
