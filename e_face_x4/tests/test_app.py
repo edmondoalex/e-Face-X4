@@ -172,7 +172,7 @@ def test_admin_accounts_are_isolated_and_sessions_can_be_revoked(monkeypatch, tm
     assert person.get("/api/admin/intercom").status_code == 403
     assert person.get("/api/installer/control4").status_code == 403
     assert admin.patch("/api/admin/users/mario", json={"trusted_access": True}).json()["user"]["trusted_access"] is True
-    trusted_login = person.post("/api/auth/login", json={"username": "mario", "password": "password-mario-lunga", "remember": True})
+    trusted_login = person.post("/api/auth/login", json={"username": "mario", "password": "password-mario-lunga", "remember": False})
     assert trusted_login.status_code == 200
     assert "Max-Age=157680000" in trusted_login.headers["set-cookie"]
     assert admin.patch("/api/admin/users/mario", json={"trusted_access": False}).json()["user"]["trusted_access"] is False

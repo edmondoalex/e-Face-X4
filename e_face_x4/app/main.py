@@ -1565,7 +1565,7 @@ def create_app() -> FastAPI:
             login_failures[key] = [*failures, now]
             raise HTTPException(status_code=401, detail="Credenziali non valide")
         login_failures.pop(key, None)
-        persistent = payload.get("remember") is True and bool(user_auth.account(username).get("trusted_access"))
+        persistent = bool(user_auth.account(username).get("trusted_access"))
         lifetime = user_auth.TRUSTED_DEVICE_SECONDS if persistent else user_auth.SESSION_SECONDS
         response = JSONResponse({"ok": True})
         response.set_cookie(user_auth.COOKIE, user_auth.create_session(username, lifetime), max_age=lifetime, httponly=True, samesite="strict", secure=secure_cookie(request), path="/")

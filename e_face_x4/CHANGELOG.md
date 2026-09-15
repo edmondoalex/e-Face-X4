@@ -4,6 +4,7 @@
 
 - Le notifiche di chiamata usano un accesso monouso di breve durata associato al dispositivo: Android può aprire direttamente Intercom anche quando non condivide il cookie della PWA.
 - L'accesso monouso viene consumato al primo utilizzo e rinnova la sessione persistente solo se consentito per quell'utente.
+- Quando Admin abilita `Persistenza: Sì`, il login emette sempre la sessione persistente senza dipendere da una seconda casella eventualmente rimasta in cache sul dispositivo.
 
 ## 2.21.46 — 2026-09-15
 
