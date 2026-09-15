@@ -111,7 +111,9 @@ class EvoiceLocalMediaConnector(EkonexMediaConnector):
     label = "Ekonex Voice locale"
 
     def __init__(self, timeout: float) -> None:
-        self.timeout = timeout
+        # Home Assistant's local evoice snapshot can legitimately take over ten
+        # seconds while its entity registry is being rebuilt after a restart.
+        self.timeout = max(15.0, timeout)
         self.base_url = "http://supervisor/core/api/evoice/media"
         self.token = str(os.environ.get("SUPERVISOR_TOKEN") or "").strip()
 

@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.21.63 — 2026-09-15
+
+- Evita falsi `ReadTimeout` di eKonex Voice locale durante la ricostruzione delle entità dopo un riavvio Home Assistant.
+- Aggiorna il service worker PWA insieme agli asset Intercom.
+
 ## 2.21.62 — 2026-09-15
 
 - Apre subito il pannello video nelle chiamate e-Face e mostra l'esito reale dell'accesso alla camera.
