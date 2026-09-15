@@ -134,3 +134,7 @@ Implementato il preferito brano WiiM basato su preset e ID provider stabile. Al 
 ## Avanzamento 2.21.81
 
 `GetKeyMapping` con il namespace proprietario restituisce 33 slot e la configurazione completa dei preset; uno slot occupato può essere rimosso sostituendo il relativo blocco con `RoutineId=Empty` e inviando l'intero contesto tramite `SetKeyMapping`. e-Face espone questa operazione soltanto dietro conferma esplicita della X: dopo l'invio rilegge `getPresetInfo` e considera riuscita la cancellazione solo se lo slot è realmente assente. I preset sono dati del WiiM, quindi la loro rimozione dal dispositivo li elimina automaticamente anche dalla lista e-Face. I preferiti persistenti e-Face vengono invece restituiti in ordine inverso d'inserimento, dal più recente.
+
+## Promemoria asset player caricati manualmente
+
+Prima di chiudere il lavoro sull'interfaccia audio, importare dall'add-on locale tutte le immagini dei player che non erano disponibili nel repository e che sono state caricate manualmente dall'utente. Prima dell'importazione inventariare in sola lettura percorso persistente, associazione immagine→player, formato, MIME e dimensione; non sovrascrivere immagini già valide e non includere eventuali credenziali o URL temporanei. Copiare nel repository soltanto gli asset riutilizzabili e aggiornare i relativi fallback/cache-buster, quindi verificare resa desktop/mobile e persistenza dopo riavvio.
