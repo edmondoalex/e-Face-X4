@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.21.79 — 2026-09-15
+
+- Aggiunge al player Ascolta, quando la sorgente attiva è WiiM, lo slider operativo di avanzamento con tempo trascorso e residuo.
+- Integra shuffle e repeat nativi WiiM accanto ai controlli Control4 già presenti, mostrando lo stato attivo e preservando tutte le combinazioni di ripetizione.
+- Adatta il player esteso a desktop e mobile senza aggiungere pulsanti privi di una funzione reale.
+
 ## 2.21.78 — 2026-09-15
 
 - Quando si richiama un preset WiiM dai Preferiti, e-Face avvia il preset e seleziona subito la sorgente WiiM nella stanza Control4 corrente.

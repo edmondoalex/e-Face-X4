@@ -43,6 +43,10 @@ const recentCache = new Map()
 let favoritesCache = null
 let favoritesPending = null
 let hiddenSourceIds = new Set()
+let wiimTimelineTimer = null
+let wiimTimelineRequest = 0
+let wiimTimelineDragging = false
+let wiimLoopMode = 4
 const recentPending = new Map()
 const ttsVolumeRestores = new Map()
 
@@ -502,8 +506,11 @@ function renderMediaExperience(devices) {
   const serviceName = /tunein/i.test(selected.source || '') ? 'tunein' : /amazon music/i.test(selected.source || '') ? 'amazon' : /tidal/i.test(selected.source || '') ? 'tidal' : /stations/i.test(selected.source || '') ? 'stations' : /spotify connect/i.test(selected.source || '') ? 'spotify' : /wireless music bridge/i.test(selected.source || '') ? 'bridge' : ''
   const navigatorIcon = selected.provider === 'control4' && serviceName && recentRoomId ? `<button type="button" class="media-navigator-open" data-msp-open data-msp-service="${serviceName}" data-msp-room="${recentRoomId}" title="Apri ${esc(selected.source)}">${sourceGlyph}</button>` : sourceGlyph
   const navigatorArtwork = navigatorIcon !== sourceGlyph ? mainArtwork.replace('class="media-artwork', `data-msp-open data-msp-service="${serviceName}" data-msp-room="${recentRoomId}" role="button" tabindex="0" class="media-artwork`) : mainArtwork
+  const activeOption = (selected.source_options || []).find((source) => Number(source.source_id) === Number(selected.active_source_id))
+  const wiimActive = selected.active_experience === 'listen' && /wiim/i.test(`${selected.source || ''} ${activeOption?.label || ''}`)
+  const timeline = wiimActive ? '<label class="media-timeline" data-wiim-timeline><input type="range" min="0" max="1" step="1" value="0" style="--position:0%" data-wiim-seek aria-label="Avanzamento brano"><span><output data-wiim-elapsed>0:00</output><output data-wiim-remaining>-0:00</output></span></label>' : ''
   const roomLabel = activeMediaRoom ? '' : `<span class="media-session-room" title="Stanza comandata: ${esc(selected.room || selected.name)}">${esc(selected.room || selected.name)}</span>`
-  $('#device-list').innerHTML = `<article class="media-session ${experienceClass} ${deviceVisualClass(selected)}" data-device-id="${esc(selected.id)}">${navigatorArtwork}${navigatorIcon}<div class="media-session-info"><strong>${esc(selected.title || selected.source || selected.name)}</strong><small>${esc(selected.artist || selected.source || selected.room)}</small><span class="media-track">${esc(selected.album || selected.name)}</span></div>${roomLabel}${power}${deviceActions(selected, { hidePower: true })}</article>${voicePanel}${recent}${favorites}<div class="media-library media-room-library"><button class="media-library-toggle" data-media-section-toggle="rooms" aria-expanded="${mediaSections.rooms}"><strong>Stanze</strong><span class="mdi-mask" style="${mdiStyle(mediaSections.rooms ? 'mdi:chevron-up' : 'mdi:chevron-down', 'chevron-down')}"></span></button><div class="media-service-grid" ${mediaSections.rooms ? '' : 'hidden'}>${players}</div></div><div class="media-library media-source-library"><h3>Sorgenti e servizi</h3><div class="media-service-grid">${sources || '<span class="empty-state">Nessuna sorgente disponibile</span>'}</div></div>`
+  $('#device-list').innerHTML = `<article class="media-session ${wiimActive ? 'has-wiim-timeline' : ''} ${experienceClass} ${deviceVisualClass(selected)}" data-device-id="${esc(selected.id)}">${navigatorArtwork}${navigatorIcon}<div class="media-session-info"><strong>${esc(selected.title || selected.source || selected.name)}</strong><small>${esc(selected.artist || selected.source || selected.room)}</small><span class="media-track">${esc(selected.album || selected.name)}</span></div>${roomLabel}${power}${timeline}${deviceActions(selected, { hidePower: true, wiim: wiimActive })}</article>${voicePanel}${recent}${favorites}<div class="media-library media-room-library"><button class="media-library-toggle" data-media-section-toggle="rooms" aria-expanded="${mediaSections.rooms}"><strong>Stanze</strong><span class="mdi-mask" style="${mdiStyle(mediaSections.rooms ? 'mdi:chevron-up' : 'mdi:chevron-down', 'chevron-down')}"></span></button><div class="media-service-grid" ${mediaSections.rooms ? '' : 'hidden'}>${players}</div></div><div class="media-library media-source-library"><h3>Sorgenti e servizi</h3><div class="media-service-grid">${sources || '<span class="empty-state">Nessuna sorgente disponibile</span>'}</div></div>`
   if (showRecent) {
     const controls = $('#device-list .media-session .media-controls')
     if (controls) controls.insertAdjacentHTML('beforeend', '<button type="button" class="media-now-playing-favorite" data-now-playing-favorite aria-label="Aggiungi ai Preferiti e-Face" aria-pressed="false" title="Aggiungi ai Preferiti e-Face">★</button>')
@@ -511,6 +518,42 @@ function renderMediaExperience(devices) {
   }
   if (recent) loadRecentlyPlayed(selected)
   if (favorites) loadMediaFavorites()
+  if (wiimActive) loadWiimTimeline(selected.id)
+}
+
+function mediaTime(value) {
+  const seconds = Math.max(0, Math.round(Number(value) || 0))
+  return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`
+}
+
+async function loadWiimTimeline(deviceId) {
+  clearTimeout(wiimTimelineTimer)
+  const requestId = ++wiimTimelineRequest
+  try {
+    const response = await fetch(apiUrl('api/wiim/snapshot'), { cache: 'no-store' })
+    if (!response.ok) throw new Error(`HTTP ${response.status}`)
+    const payload = await response.json()
+    const device = payload.device || payload
+    const host = document.querySelector(`[data-device-id="${CSS.escape(String(deviceId))}"] [data-wiim-timeline]`)
+    if (!host || requestId !== wiimTimelineRequest) return
+    const duration = Math.max(0, Number(device.duration) || 0)
+    const position = Math.max(0, Math.min(duration || 0, Number(device.position) || 0))
+    wiimLoopMode = Number.isFinite(Number(device.loop)) ? Number(device.loop) : 4
+    const input = host.querySelector('[data-wiim-seek]')
+    input.max = String(Math.max(1, Math.round(duration)))
+    if (!wiimTimelineDragging) input.value = String(Math.round(position))
+    const shown = Number(input.value) || position
+    input.style.setProperty('--position', `${duration ? Math.min(100, shown / duration * 100) : 0}%`)
+    host.querySelector('[data-wiim-elapsed]').textContent = mediaTime(shown)
+    host.querySelector('[data-wiim-remaining]').textContent = `-${mediaTime(Math.max(0, duration - shown))}`
+    const card = host.closest('[data-device-id]')
+    card?.querySelector('[data-wiim-action="shuffle"]')?.classList.toggle('active', [2, 3, 5].includes(wiimLoopMode))
+    card?.querySelector('[data-wiim-action="repeat"]')?.classList.toggle('active', [0, 1, 2, 5].includes(wiimLoopMode))
+  } catch (_) {
+    // Il player Control4 resta utilizzabile anche se il WiiM non risponde al polling.
+  } finally {
+    if (document.querySelector(`[data-device-id="${CSS.escape(String(deviceId))}"] [data-wiim-timeline]`)) wiimTimelineTimer = setTimeout(() => loadWiimTimeline(deviceId), 2000)
+  }
 }
 
 async function loadRecentlyPlayed(selected) {
@@ -1038,7 +1081,8 @@ function deviceActions(device, options = {}) {
     const caps = device.capabilities || {}
     const disabled = device.connection_status === 'offline' || device.availability !== 'available'
     const button = (operation, icon, label, enabled = false, className = '') => enabled ? `<button class="${className}" data-media-action="${operation}" aria-label="${label}" ${disabled ? 'disabled' : ''}><span class="mdi-mask" style="${mdiStyle(`mdi:${icon}`, icon)}"></span></button>` : ''
-    const controls = [button('video_remote_menu', 'remote-tv', 'Telecomando video', device.active_experience === 'watch' && device.active_source_id), button('media_shuffle', 'shuffle-variant', 'Riproduzione casuale', caps.shuffle), button('media_previous', 'skip-previous', 'Precedente', caps.previous), String(device.state).toLowerCase() === 'playing' ? button('media_pause', 'pause', 'Pausa', caps.pause, 'primary') : button('media_play', 'play', 'Riproduci', caps.play, 'primary'), button('media_next', 'skip-next', 'Successivo', caps.next), button('media_repeat', 'repeat', 'Ripeti', caps.repeat), button('media_stop', 'stop', 'Stop', caps.stop && currentMediaExperience !== 'listen'), button('turn_off', 'power', 'Spegni stanza', caps.turn_off && !options.hidePower), button('media_zones', 'plus-box-outline', 'Aggiungi stanze', caps.grouping), options.nowPlayingFavorite ? `<button type="button" class="media-now-playing-favorite" data-now-playing-favorite aria-label="Aggiungi ai Preferiti e-Face" aria-pressed="false" title="Aggiungi ai Preferiti e-Face">★</button>` : ''].join('')
+    const wiimButton = (action, icon, label) => `<button data-wiim-action="${action}" aria-label="${label}"><span class="mdi-mask" style="${mdiStyle(`mdi:${icon}`, icon)}"></span></button>`
+    const controls = [button('video_remote_menu', 'remote-tv', 'Telecomando video', device.active_experience === 'watch' && device.active_source_id), options.wiim ? wiimButton('shuffle', 'shuffle-variant', 'Riproduzione casuale WiiM') : button('media_shuffle', 'shuffle-variant', 'Riproduzione casuale', caps.shuffle), button('media_previous', 'skip-previous', 'Precedente', caps.previous), String(device.state).toLowerCase() === 'playing' ? button('media_pause', 'pause', 'Pausa', caps.pause, 'primary') : button('media_play', 'play', 'Riproduci', caps.play, 'primary'), button('media_next', 'skip-next', 'Successivo', caps.next), options.wiim ? wiimButton('repeat', 'repeat', 'Ripetizione WiiM') : button('media_repeat', 'repeat', 'Ripeti', caps.repeat), button('media_stop', 'stop', 'Stop', caps.stop && currentMediaExperience !== 'listen'), button('turn_off', 'power', 'Spegni stanza', caps.turn_off && !options.hidePower), button('media_zones', 'plus-box-outline', 'Aggiungi stanze', caps.grouping), options.nowPlayingFavorite ? `<button type="button" class="media-now-playing-favorite" data-now-playing-favorite aria-label="Aggiungi ai Preferiti e-Face" aria-pressed="false" title="Aggiungi ai Preferiti e-Face">★</button>` : ''].join('')
     const mute = caps.mute ? button(device.muted ? 'volume_unmute' : 'volume_mute', device.muted ? 'volume-off' : 'volume-high', device.muted ? 'Riattiva audio' : 'Disattiva audio', true, 'media-volume-mute') : '<span></span>'
     const mediaVolume = Number(device.volume) || 0
     const volume = caps.set_volume ? `<label class="media-volume">${mute}<input type="range" min="0" max="100" step="1" value="${mediaVolume}" style="--volume:${mediaVolume}%" data-media-volume ${disabled ? 'disabled' : ''}><output>${mediaVolume}%</output></label>` : ''
@@ -1900,6 +1944,24 @@ $('#scenario-list').addEventListener('click', (event) => {
   if (button && card) sendScenarioCommand(card.dataset.scenarioId, button.dataset.scenarioAction, button)
 })
 $('#device-list').addEventListener('click', (event) => {
+  const wiimButton = event.target.closest('[data-wiim-action]')
+  if (wiimButton) {
+    const action = wiimButton.dataset.wiimAction
+    const shuffled = [2, 3, 5].includes(wiimLoopMode)
+    const repeatState = [1, 5].includes(wiimLoopMode) ? 'one' : [0, 2].includes(wiimLoopMode) ? 'all' : 'off'
+    let mode = wiimLoopMode
+    if (action === 'shuffle') mode = shuffled ? ({ 2: 0, 3: 4, 5: 1 }[wiimLoopMode] ?? 4) : ({ 0: 2, 1: 5, 4: 3 }[wiimLoopMode] ?? 3)
+    if (action === 'repeat') {
+      const next = repeatState === 'off' ? 'all' : repeatState === 'all' ? 'one' : 'off'
+      mode = shuffled ? ({ all: 2, one: 5, off: 3 }[next]) : ({ all: 0, one: 1, off: 4 }[next])
+    }
+    wiimButton.disabled = true
+    fetch(apiUrl('api/wiim/action'), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'loop', value: mode }) })
+      .then(async (response) => { if (!response.ok) throw new Error((await response.json().catch(() => ({}))).detail || `HTTP ${response.status}`); wiimLoopMode = mode; loadWiimTimeline(wiimButton.closest('[data-device-id]').dataset.deviceId) })
+      .catch((error) => fail(error))
+      .finally(() => { wiimButton.disabled = false })
+    return
+  }
   const nowFavoriteButton = event.target.closest('[data-now-playing-favorite]')
   if (nowFavoriteButton) {
     const selected = currentDevices.find((item) => String(item.id) === nowFavoriteButton.closest('[data-device-id]')?.dataset.deviceId)
@@ -2281,6 +2343,7 @@ $('#rgb-channel-controls').addEventListener('change', (event) => {
 $('#rgb-dialog').addEventListener('click', (event) => { const button = event.target.closest('[data-popup-rgb-action]'); if (button) sendRgbCommand(activeRgbGroup, button.dataset.popupRgbAction, null, button) })
 $('#rgb-wheel').addEventListener('pointerdown', (event) => { event.currentTarget.setPointerCapture(event.pointerId); sendRgbCommand(activeRgbGroup, 'color', wheelColor(event), event.currentTarget) })
 $('#device-list').addEventListener('pointerdown', (event) => {
+  if (event.target.matches('[data-wiim-seek]')) { wiimTimelineDragging = true; return }
   const input = event.target.closest('input[data-media-volume]')
   if (!input || input.disabled) return
   const rect = input.getBoundingClientRect()
@@ -2297,6 +2360,15 @@ $('#device-list').addEventListener('pointerdown', (event) => {
   if (card) sendDeviceCommand(card.dataset.deviceId, 'set_volume', input, next)
 }, { capture: true })
 $('#device-list').addEventListener('input', (event) => {
+  if (event.target.matches('[data-wiim-seek]')) {
+    const input = event.target
+    const duration = Number(input.max) || 0
+    const position = Number(input.value) || 0
+    input.style.setProperty('--position', `${duration ? position / duration * 100 : 0}%`)
+    const host = input.closest('[data-wiim-timeline]')
+    host.querySelector('[data-wiim-elapsed]').textContent = mediaTime(position)
+    host.querySelector('[data-wiim-remaining]').textContent = `-${mediaTime(Math.max(0, duration - position))}`
+  }
   if (event.target.matches('[data-media-volume]')) { event.target.style.setProperty('--volume', `${event.target.value}%`); event.target.nextElementSibling.textContent = `${event.target.value}%` }
   if (event.target.matches('[data-tts-volume]')) { event.target.nextElementSibling.textContent = `${event.target.value}%`; event.target.style.setProperty('--volume', `${event.target.value}%`) }
   if (event.target.matches('[data-brightness],[data-rgb-brightness]')) {
@@ -2309,6 +2381,15 @@ $('#device-list').addEventListener('input', (event) => {
   }
 })
 $('#device-list').addEventListener('change', (event) => {
+  if (event.target.matches('[data-wiim-seek]')) {
+    const input = event.target
+    input.disabled = true
+    fetch(apiUrl('api/wiim/action'), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'seek', value: Number(input.value) || 0 }) })
+      .then(async (response) => { if (!response.ok) throw new Error((await response.json().catch(() => ({}))).detail || `HTTP ${response.status}`) })
+      .catch((error) => fail(error))
+      .finally(() => { wiimTimelineDragging = false; input.disabled = false })
+    return
+  }
   if (event.target.matches('[data-tts-select-all]')) {
     document.querySelectorAll('[data-tts-target]').forEach((input) => { input.checked = event.target.checked })
     event.target.indeterminate = false

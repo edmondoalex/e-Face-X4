@@ -54,10 +54,11 @@ async def test_native_wiim_actions_and_presets() -> None:
     client = WiiMClient("192.168.3.52", transport=httpx.MockTransport(handler))
     await client.player_action("volume", 42)
     await client.player_action("seek", 73)
+    await client.player_action("loop", 5)
     await client.player_action("next")
     assert await client.presets() == [{"index": 1, "name": "Radio", "source": "", "artwork": ""}]
     await client.play_preset(1)
-    assert commands == ["setPlayerCmd:vol:42", "setPlayerCmd:seek:73", "setPlayerCmd:next", "getPresetInfo", "MCUKeyShortClick:1"]
+    assert commands == ["setPlayerCmd:vol:42", "setPlayerCmd:seek:73", "setPlayerCmd:loopmode:5", "setPlayerCmd:next", "getPresetInfo", "MCUKeyShortClick:1"]
     with pytest.raises(ValueError):
         await client.player_action("volume", 101)
 
@@ -185,3 +186,11 @@ def test_wiim_presets_are_rendered_as_eface_favorites() -> None:
     script = __import__("app.main", fromlist=["STATIC"]).STATIC.joinpath("assets", "app.js").read_text(encoding="utf-8")
     assert "wiim_preset" in script
     assert "speaker-wireless" in script
+
+
+def test_wiim_controls_are_integrated_in_main_player() -> None:
+    script = __import__("app.main", fromlist=["STATIC"]).STATIC.joinpath("assets", "app.js").read_text(encoding="utf-8")
+    assert "data-wiim-timeline" in script
+    assert "data-wiim-seek" in script
+    assert 'data-wiim-action="${action}"' in script
+    assert "shuffle-variant" in script and "Ripetizione WiiM" in script

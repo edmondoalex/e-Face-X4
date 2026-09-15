@@ -112,3 +112,7 @@ Prossime verifiche, in ordine:
 5. Non memorizzare token dell'app WiiM, URL firmati privati o credenziali dei provider e non dedurre il numero traccia dal solo titolo, perché shuffle e duplicati renderebbero il richiamo inaffidabile.
 
 Criterio di completamento: la prova nella stessa sessione è riuscita. Per chiudere il task resta da dimostrare che e-Face gestisce correttamente link valido e link scaduto, senza esporre URI firmati, e che dopo il richiamo aggiorna Control4, titolo, copertina e posizione iniziale.
+
+## Avanzamento 2.21.79
+
+Il player principale Ascolta riconosce la sorgente WiiM attiva nella stanza Control4 e integra la timeline nativa: polling ogni due secondi di posizione/durata, tempo trascorso e residuo, e seek tramite `setPlayerCmd:seek:<secondi>`. Shuffle e repeat agiscono direttamente sul WiiM e preservano le modalità combinate LinkPlay 0–5; precedente, play/pausa, successivo, volume e zone restano sul percorso Control4 già operativo per la stanza. Il pulsante coda non viene mostrato finché non dispone di un pannello utente completo e realmente comandabile.
