@@ -1,5 +1,9 @@
 # Changelog
 
+## 2.21.33 — 2026-09-15
+
+- Aggiunge in Amministrazione l'eliminazione definitiva degli utenti, con protezione di admin e controllo delle risorse Intercom associate.
+
 ## 2.21.32 — 2026-09-15
 
 - Stabilizza i colori dell'icona master Energia durante refresh e variazioni rapide dei feed.

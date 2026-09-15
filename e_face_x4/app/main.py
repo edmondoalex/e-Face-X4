@@ -56,7 +56,7 @@ from .connectors.control4_media import cached_control4_icon, cached_control4_ico
 from .connectors.supervisor import discover_addon_url, discover_host_url
 from .demo import dashboard as demo_dashboard
 
-VERSION = os.environ.get("EFACE_VERSION", "2.21.32")
+VERSION = os.environ.get("EFACE_VERSION", "2.21.33")
 STATIC = Path(__file__).parent / "static"
 logging.basicConfig(level=logging.WARNING, format="%(asctime)s %(levelname)s [e-face-x4] %(message)s")
 _reconnect_warning_at: dict[str, float] = {}
@@ -390,6 +390,24 @@ def create_app() -> FastAPI:
         except ValueError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
         return {"user": user}
+
+    @app.delete("/api/admin/users/{username}")
+    async def admin_delete_user(username: str, request: Request) -> dict:
+        require_admin(request)
+        if username == "admin":
+            raise HTTPException(status_code=400, detail="Non puoi eliminare l'account admin")
+        owned_devices = [item for item in personal_devices.load().values() if item.get("owner") == username]
+        if owned_devices:
+            raise HTTPException(status_code=409, detail="Elimina prima i dispositivi personali associati all'utente")
+        sip_record = sip_accounts.load().get(username)
+        if sip_record and sip_record.get("provisioned"):
+            raise HTTPException(status_code=409, detail="Rimuovi prima l'interno SIP provisionato dall'impianto")
+        try:
+            user_auth.delete_account(username)
+            sip_accounts.remove(username)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        return {"removed": True}
 
     @app.get("/api/admin/intercom")
     async def admin_intercom(request: Request) -> dict:
@@ -1473,6 +1491,7 @@ def create_app() -> FastAPI:
         page = page.replace('content="#263f48"', 'content="#181c1f"')
         page = page.replace("manifest.webmanifest?v=2.20.38", "manifest.webmanifest?v=2.21.28")
         page = page.replace("ui-theme-contract.css?v=2.21.27", "ui-theme-contract.css?v=2.21.29")
+        page = page.replace("tools-dashboard.js?v=2.21.27", "tools-dashboard.js?v=2.21.33")
         page = page.replace("app.js?v=2.21.11", "app.js?v=2.21.29")
         page = page.replace("energy.css?v=2.20.20", "energy.css?v=2.21.30")
         page = page.replace("app.js?v=2.21.29", "app.js?v=2.21.30")

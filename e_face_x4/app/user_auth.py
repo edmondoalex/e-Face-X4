@@ -125,6 +125,17 @@ def update_account(username: str, *, name: str | None = None, password: str | No
     return account(username) or {}
 
 
+def delete_account(username: str) -> None:
+    with _LOCK:
+        users = _users()
+        if username == "admin":
+            raise ValueError("Non puoi eliminare l'account admin")
+        if username not in users:
+            raise ValueError("Utente non trovato")
+        users.pop(username)
+        _save_users(users)
+
+
 def create_admin(password: str) -> None:
     if enabled():
         raise ValueError("Account già inizializzato")

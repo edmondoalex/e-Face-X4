@@ -56,7 +56,7 @@ def test_health() -> None:
     response = TestClient(create_app()).get("/health")
     assert response.status_code == 200
     assert response.json()["ok"] is True
-    assert response.json()["version"] == "2.21.32"
+    assert response.json()["version"] == "2.21.33"
 
 
 def test_installed_app_starts_at_dashboard() -> None:
@@ -168,6 +168,24 @@ def test_admin_accounts_are_isolated_and_sessions_can_be_revoked(monkeypatch, tm
     assert admin.patch("/api/admin/users/admin", json={"active": False}).status_code == 400
 
 
+def test_admin_can_delete_clean_user_and_recreate_from_zero(monkeypatch, tmp_path) -> None:
+    monkeypatch.setenv("EFACE_AUTH_DIR", str(tmp_path / "auth"))
+    monkeypatch.setenv("EFACE_SIP_ACCOUNTS", str(tmp_path / "sip.json"))
+    monkeypatch.setenv("EFACE_PERSONAL_DEVICES", str(tmp_path / "devices.json"))
+    from app.user_auth import create_admin
+    from app import sip_accounts
+    create_admin("password-admin-lunga")
+    client = TestClient(create_app())
+    client.post("/api/auth/login", json={"username": "admin", "password": "password-admin-lunga"})
+    payload = {"username": "mario", "name": "Mario", "password": "password-mario-lunga"}
+    assert client.post("/api/admin/users", json=payload).status_code == 200
+    assert sip_accounts.allocate("mario")["extension"] == "8302"
+    assert client.delete("/api/admin/users/admin").status_code == 400
+    assert client.delete("/api/admin/users/mario").json() == {"removed": True}
+    assert "mario" not in sip_accounts.load()
+    assert client.post("/api/admin/users", json=payload).status_code == 200
+
+
 def test_admin_ami_probe_does_not_store_or_expose_secret(monkeypatch, tmp_path) -> None:
     monkeypatch.setenv("EFACE_AUTH_DIR", str(tmp_path / "auth"))
     from app.user_auth import create_admin
@@ -231,7 +249,7 @@ def test_intercom_dashboard_stores_only_local_settings(monkeypatch, tmp_path) ->
     assert 'id="tools-admin-nav"' in page
     assert 'id="intercom-tool"' in page
     assert 'id="users-tool"' in page
-    assert "tools-dashboard.js?v=2.21.27" in page
+    assert "tools-dashboard.js?v=2.21.33" in page
 
 
 def test_external_stations_api_requires_login_and_hides_secrets(monkeypatch, tmp_path) -> None:

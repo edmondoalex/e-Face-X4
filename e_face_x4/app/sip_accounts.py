@@ -64,6 +64,15 @@ def mark_provisioned(username: str, enabled: bool) -> dict:
         return accounts[username]
 
 
+def remove(username: str) -> dict | None:
+    with _LOCK:
+        accounts = load()
+        record = accounts.pop(username, None)
+        if record is not None:
+            _save(accounts)
+        return record
+
+
 def asterisk_stanza(extension: str, password: str, display_name: str) -> str:
     if not extension.isdigit() or not 8302 <= int(extension) <= 8399:
         raise ValueError("Interno SIP non valido")

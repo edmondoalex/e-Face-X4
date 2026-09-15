@@ -101,6 +101,19 @@ async function users() {
         } catch(error) { message(error.message) }
       })
       actions.append(toggle)
+      const remove = document.createElement('button')
+      remove.type = 'button'
+      remove.className = 'danger'
+      remove.textContent = 'Elimina'
+      remove.addEventListener('click', async () => {
+        if (!confirm(`Eliminare definitivamente ${user.name}? L'account dovrà essere ricreato da zero.`)) return
+        try {
+          await request(`api/admin/users/${encodeURIComponent(user.username)}`, {method:'DELETE'})
+          await users()
+          message('Utente eliminato')
+        } catch(error) { message(error.message) }
+      })
+      actions.append(remove)
     }
     row.append(identity, actions)
     list.append(row)
