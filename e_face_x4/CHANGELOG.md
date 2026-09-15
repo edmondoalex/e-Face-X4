@@ -1,5 +1,9 @@
 # Changelog
 
+## 2.21.48 — 2026-09-15
+
+- Aggiorna forzatamente lo script Home che riceve dall'Intercom nascosto l'evento di chiamata, evitando che tablet con cache precedente squillino senza aprire la schermata di risposta.
+
 ## 2.21.47 — 2026-09-15
 
 - Le notifiche di chiamata usano un accesso monouso di breve durata associato al dispositivo: Android può aprire direttamente Intercom anche quando non condivide il cookie della PWA.
