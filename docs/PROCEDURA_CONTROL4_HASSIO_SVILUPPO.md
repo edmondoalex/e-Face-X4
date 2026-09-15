@@ -117,6 +117,8 @@ L'agente non deve aspettare un promemoria dell'utente: nello stesso turno in cui
 
 # Video Intercom e-Face (15/09/2026)
 
+- Prova reale: la chiamata Poco `8303` verso PC `8302` ha squillato, risposto ed è entrata nel bridge, ma non è comparso alcun elemento video nonostante entrambi i dispositivi risultassero abilitati. In e-Face `2.21.62` il pannello viene aperto prima della richiesta camera, mostra permesso o errore effettivo, usa un fallback camera senza vincoli avanzati e non deduce più la possibilità di ricevere video dalla camera del destinatario. La presenza delle immagini resta da confermare con una chiamata reale.
+
 - Gli endpoint WebRTC personali e i telefoni con profilo `voip_video` negoziano H.264/VP8 mantenendo sempre i codec audio. Se la destinazione rifiuta il video con errore di compatibilità, il client riprova una volta solo audio.
 - La capacità camera viene rilevata dal dispositivo e salvata con le preferenze `video_enabled` e `camera_facing`; la camera viene richiesta soltanto all'avvio/risposta di una chiamata video, non al semplice caricamento della pagina.
 - Il video remoto e locale usa elementi distinti; durante la conversazione l'utente può sospendere la propria traccia o sostituirla con la camera frontale/posteriore senza ricreare la sessione SIP.

@@ -56,7 +56,7 @@ def test_health() -> None:
     response = TestClient(create_app()).get("/health")
     assert response.status_code == 200
     assert response.json()["ok"] is True
-    assert response.json()["version"] == "2.21.61"
+    assert response.json()["version"] == "2.21.62"
 
 
 def test_installed_app_starts_at_dashboard() -> None:
@@ -283,7 +283,7 @@ def test_intercom_dashboard_stores_only_local_settings(monkeypatch, tmp_path) ->
     assert 'id="users-tool"' in page
     assert 'id="logout"' in page
     assert page.index('id="logout"') < page.index('id="tools-user-section"')
-    assert "tools-dashboard.js?v=2.21.61" in page
+    assert "tools-dashboard.js?v=2.21.62" in page
     home = client.get("/").text
     assert "backgrounds.css?v=2.21.43" in home
     assert "app.js?v=2.21.60" in home

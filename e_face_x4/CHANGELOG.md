@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.21.62 — 2026-09-15
+
+- Apre subito il pannello video nelle chiamate e-Face e mostra l'esito reale dell'accesso alla camera.
+- Considera tutti gli interni personali compatibili con la ricezione video, indipendentemente dalla camera del destinatario.
+- Aggiunge fallback camera e rilevamento più robusto dell'offerta video in ingresso.
+
 ## 2.21.61 — 2026-09-15
 
 - Video SIP/WebRTC H.264 e VP8 per dispositivi e-Face e telefoni VoIP compatibili, con negoziazione automatica e fallback audio.

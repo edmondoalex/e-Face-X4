@@ -254,7 +254,7 @@
             deviceDnd=next; renderDnd()
           }); controls.append(dnd); row.append(icon,copy,controls); $('.doorbird-row').after(row)
         } else {
-          const dial = document.createElement('button'); dial.type='button'; dial.textContent='CHIAMA'; dial.dataset.dialExtension=device.extension; dial.dataset.stationReady='true'; dial.dataset.videoCapable=String(device.video_capable && device.video_enabled); dial.disabled=!phone?.isRegistered()||!!call
+          const dial = document.createElement('button'); dial.type='button'; dial.textContent='CHIAMA'; dial.dataset.dialExtension=device.extension; dial.dataset.stationReady='true'; dial.dataset.videoCapable='true'; dial.disabled=!phone?.isRegistered()||!!call
           row.append(icon,copy,dial); anchor.after(row); anchor=row
         }
       }
@@ -644,25 +644,36 @@
       micOutput = destination.stream
     }
     if (includeVideo && videoCapable && videoEnabled) {
+      $('#intercom-video-panel').hidden = false
+      $('#video-status').textContent = 'Richiesta accesso alla camera…'
       try {
-        localVideoStream = await navigator.mediaDevices.getUserMedia({audio:false,video:{facingMode:{ideal:cameraFacing},width:{ideal:1280},height:{ideal:720}}})
+        try {
+          localVideoStream = await navigator.mediaDevices.getUserMedia({audio:false,video:{facingMode:{ideal:cameraFacing},width:{ideal:1280},height:{ideal:720}}})
+        } catch (firstError) {
+          if (firstError?.name === 'NotAllowedError' || firstError?.name === 'SecurityError') throw firstError
+          localVideoStream = await navigator.mediaDevices.getUserMedia({audio:false,video:true})
+        }
         const track = localVideoStream.getVideoTracks()[0]
-        if (track) micOutput.addTrack(track)
+        if (!track) throw new Error('Nessuna camera disponibile')
+        micOutput.addTrack(track)
         $('#local-video').srcObject = localVideoStream
         $('.local-video-wrap').hidden = false
         $('#intercom-video-panel').classList.add('has-local')
         $('.local-video-wrap').classList.toggle('environment', cameraFacing === 'environment')
         $('#intercom-video-panel').hidden = false
         $('#video-status').textContent = 'Video locale pronto'
-      } catch (_) {
-        $('#video-status').textContent = 'Camera non disponibile · chiamata solo audio'
+      } catch (exception) {
+        const denied = exception?.name === 'NotAllowedError' || exception?.name === 'SecurityError'
+        $('#video-status').textContent = denied ? 'Permesso camera negato · abilitalo nelle impostazioni del dispositivo' : `Camera non disponibile · ${exception?.message || 'chiamata solo audio'}`
       }
     }
     return micOutput
   }
 
   function sessionOffersVideo(session) {
-    return /(?:^|\r?\n)m=video\s/i.test(session.request?.body || session._request?.body || '')
+    const bodies = [session?.request?.body, session?._request?.body, session?._remote_sdp]
+    if (bodies.some((body) => /(?:^|\r?\n)m=video\s/i.test(body || ''))) return true
+    return !!session?.connection?.getTransceivers?.().some((item) => item.receiver?.track?.kind === 'video')
   }
 
   function track(session) {
