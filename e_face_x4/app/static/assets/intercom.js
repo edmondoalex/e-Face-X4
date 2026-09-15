@@ -2,7 +2,7 @@
   const $ = (selector) => document.querySelector(selector)
   const adminMode = document.documentElement.classList.contains('admin-intercom')
   const root = new URL('./', location.href)
-  const currentVersion = '2.21.51'
+  const currentVersion = '2.21.53'
   function newDeviceId() {
     if (typeof crypto.randomUUID === 'function') return crypto.randomUUID()
     const bytes = new Uint8Array(16)
@@ -33,8 +33,11 @@
   let call = null
   let audioContext = null
   let ringtoneTimer = null
+  let ringtoneUrl = null
+  let ringtoneKind = ''
   let ringtoneActive = false
-  let ringPreferences = {ringtone:'classic', ring_volume:80, vibration:true, silent:false}
+  let ringPreferences = {ringtone:'doorbell', ring_volume:80, vibration:true, silent:false}
+  let rejectIncomingUntil = 0
   let audioStatsTimer = null
   let micInput = null
   let micOutput = null
@@ -416,18 +419,62 @@
     }
   }
 
+  function makeRingtoneWav(kind) {
+    const sampleRate = 16000, count = Math.floor(sampleRate * 2.2)
+    const buffer = new ArrayBuffer(44 + count * 2), view = new DataView(buffer)
+    const text = (offset, value) => [...value].forEach((char, index) => view.setUint8(offset + index, char.charCodeAt(0)))
+    text(0, 'RIFF'); view.setUint32(4, 36 + count * 2, true); text(8, 'WAVE'); text(12, 'fmt ')
+    view.setUint32(16, 16, true); view.setUint16(20, 1, true); view.setUint16(22, 1, true)
+    view.setUint32(24, sampleRate, true); view.setUint32(28, sampleRate * 2, true); view.setUint16(32, 2, true); view.setUint16(34, 16, true)
+    text(36, 'data'); view.setUint32(40, count * 2, true)
+    const notes = {
+      doorbell:[[0,.58,784],[.66,.62,523],[1.38,.38,784]], dingdong:[[0,.72,659],[.78,.82,440]],
+      double:[[0,.42,740],[.52,.42,740],[1.12,.48,932]], bell:[[0,1.45,587],[1.5,.55,784]],
+      soft:[[0,.65,523],[.72,.75,659]], classic:[[0,.42,880],[.5,.48,660]]
+    }[kind] || [[0,.58,784],[.66,.62,523],[1.38,.38,784]]
+    for (let index = 0; index < count; index += 1) {
+      const time = index / sampleRate
+      let sample = 0
+      for (const [start, length, frequency] of notes) {
+        const age = time - start
+        if (age < 0 || age >= length) continue
+        const envelope = Math.min(1, age / .012) * Math.exp(-3.2 * age / length)
+        sample += envelope * (Math.sin(2*Math.PI*frequency*age) + .48*Math.sin(2*Math.PI*frequency*2.01*age) + .2*Math.sin(2*Math.PI*frequency*3.98*age))
+      }
+      view.setInt16(44 + index * 2, Math.max(-1, Math.min(1, sample * .5)) * 32767, true)
+    }
+    return URL.createObjectURL(new Blob([buffer], {type:'audio/wav'}))
+  }
+
+  function prepareRingtoneAudio() {
+    const player = $('#ringtone-audio')
+    if (!ringtoneUrl || ringtoneKind !== ringPreferences.ringtone) {
+      if (ringtoneUrl) URL.revokeObjectURL(ringtoneUrl)
+      ringtoneKind = ringPreferences.ringtone
+      ringtoneUrl = makeRingtoneWav(ringtoneKind)
+      player.src = ringtoneUrl
+    }
+    player.volume = Number(ringPreferences.ring_volume) / 100
+    player.currentTime = 0
+    return player
+  }
+
   async function startRingtone() {
     if (ringtoneActive) return
     ringtoneActive = true
     if (ringPreferences.vibration) navigator.vibrate?.([500, 250, 500, 900, 500, 250, 500])
     if (ringPreferences.silent) return
     try {
-      await prepareSpeaker()
-      ringBurst()
-      ringtoneTimer = setInterval(ringBurst, 2200)
+      await prepareRingtoneAudio().play()
     } catch (_) {
-      $('#audio-retry').textContent = 'ATTIVA SUONERIA'
-      $('#audio-retry').hidden = false
+      try {
+        await prepareSpeaker()
+        ringBurst()
+        ringtoneTimer = setInterval(ringBurst, 2200)
+      } catch (_) {
+        $('#audio-retry').textContent = 'ATTIVA SUONERIA'
+        $('#audio-retry').hidden = false
+      }
     }
   }
 
@@ -435,6 +482,8 @@
     ringtoneActive = false
     clearInterval(ringtoneTimer)
     ringtoneTimer = null
+    $('#ringtone-audio').pause()
+    $('#ringtone-audio').currentTime = 0
     navigator.vibrate?.(0)
     $('#audio-retry').textContent = 'ATTIVA AUDIO'
   }
@@ -629,7 +678,7 @@
       }
       const data = await response.json().catch(() => ({}))
       if (!response.ok) throw new Error(data.detail || 'Credenziale SIP non disponibile in e-Face')
-      ringPreferences = {ringtone:data.ringtone || 'classic', ring_volume:Number.isInteger(data.ring_volume) ? data.ring_volume : 80, vibration:data.vibration !== false, silent:data.silent === true}
+      ringPreferences = {ringtone:data.ringtone || 'doorbell', ring_volume:Number.isInteger(data.ring_volume) ? data.ring_volume : 80, vibration:data.vibration !== false, silent:data.silent === true}
       const extension = data.username
       if (!/^[0-9]{4}$/.test(extension)) throw new Error('Interno SIP non valido')
       if (!password) password = data.password
@@ -652,6 +701,10 @@
       })
       phone.on('disconnected', () => connection(false, 'Connessione interrotta'))
       phone.on('newRTCSession', ({session}) => {
+        if (session.direction === 'incoming' && Date.now() < rejectIncomingUntil) {
+          session.terminate({status_code:486, reason_phrase:'Declined'})
+          return
+        }
         if (call) { session.terminate(); return }
         track(session)
       })
@@ -720,9 +773,12 @@
 
   $('#call-hangup').addEventListener('click', () => {
     if (!call) return
+    const incoming = call.direction === 'incoming'
     $('#call-status').textContent = 'Chiusura chiamata…'
     $('#call-hangup').disabled = true
-    call.terminate()
+    stopRingtone()
+    if (incoming) rejectIncomingUntil = Date.now() + 60000
+    call.terminate(incoming ? {status_code:486, reason_phrase:'Declined'} : undefined)
   })
   if (!adminMode) $('#sip-connect').click()
   window.addEventListener('pagehide', () => { if (phone) phone.stop() })

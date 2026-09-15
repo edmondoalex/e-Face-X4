@@ -14,11 +14,11 @@ _EXTENSION = re.compile(r"83(?:0[2-9]|[1-4][0-9])\Z")
 _PASSWORD = re.compile(r"[A-Za-z0-9_-]{20,128}\Z")
 _OWNER = re.compile(r"[a-z][a-z0-9_-]{2,31}\Z")
 _DEVICE_TYPES = {"phone", "tablet", "desktop"}
-_RINGTONES = {"classic", "double", "soft"}
+_RINGTONES = {"doorbell", "dingdong", "double", "bell", "soft", "classic"}
 
 
 def preferences(record: dict) -> dict[str, Any]:
-    ringtone = record.get("ringtone", "classic")
+    ringtone = record.get("ringtone", "doorbell")
     volume = record.get("ring_volume", 80)
     vibration = record.get("vibration", True)
     silent = record.get("silent", False)
@@ -120,7 +120,7 @@ def new_record(device_id: str, owner: str, name: str, records: dict, reserved: s
     if extension is None:
         raise ValueError("Nessun interno personale disponibile")
     record = {"owner": owner, "name": name, "extension": extension, "password": secrets.token_urlsafe(36),
-              "device_type": device_type(kind, name), "ringtone": "classic", "ring_volume": 80, "vibration": True, "silent": False}
+              "device_type": device_type(kind, name), "ringtone": "doorbell", "ring_volume": 80, "vibration": True, "silent": False}
     validate({**records, device_id: record})
     return record
 

@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.21.53 — 2026-09-15
+
+- Il Tablet 4 riproduce la chiamata con un elemento audio reale in autoplay; WebAudio resta disponibile come riserva.
+- Aggiunte cinque suonerie selezionabili per dispositivo con timbro da campanello.
+- TERMINA rifiuta definitivamente la chiamata entrante e blocca le riconsegne SIP della stessa chiamata.
+
 ## 2.21.52 — 2026-09-15
 
 - Anche la pagina Strumenti mantiene un client Intercom registrato in background e apre automaticamente la schermata di risposta senza perdere la chiamata.
