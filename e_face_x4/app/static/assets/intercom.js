@@ -2,7 +2,7 @@
   const $ = (selector) => document.querySelector(selector)
   const adminMode = document.documentElement.classList.contains('admin-intercom')
   const root = new URL('./', location.href)
-  const currentVersion = '2.21.44'
+  const currentVersion = '2.21.45'
   function newDeviceId() {
     if (typeof crypto.randomUUID === 'function') return crypto.randomUUID()
     const bytes = new Uint8Array(16)
@@ -49,6 +49,8 @@
   let doorbirdRetryTimer = null
   let intercomVisible = !document.documentElement.classList.contains('embedded')
   let stationsSignature = ''
+  const pushedCaller = new URLSearchParams(location.search).get('from')
+  if (pushedCaller) $('#call-status').textContent = `Chiamata da ${pushedCaller} · collegamento in corso…`
   async function refreshExternalStations() {
     try {
       const response = await fetch(new URL('api/intercom/external-stations', root), {cache:'no-store', credentials:'same-origin'})

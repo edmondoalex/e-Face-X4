@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.21.45 — 2026-09-15
+
+- Il tap sulla notifica apre sempre la pagina Intercom autonoma, evitando il passaggio Home/iframe che su alcuni Android non avviava la registrazione SIP.
+- Durante il risveglio viene mostrato immediatamente il nome del chiamante e lo stato di collegamento.
+
 ## 2.21.44 — 2026-09-15
 
 - Compatibilità con i tablet/WebView privi di `crypto.randomUUID()`: il dispositivo personale viene ora creato e riceve il proprio interno.
