@@ -3,6 +3,7 @@ const glyph = { light: '✦', climate: '❄', shield: '⬡', energy: 'ϟ', cover
 let refreshRunning = false
 let currentDevices = []
 let appVersion = '0'
+let loggedUser = ''
 let activeDetailIds = null
 let realtimeSocket = null
 let realtimeRetry = null
@@ -183,7 +184,7 @@ function render(data) {
     renderActiveDeviceList()
   }
   $('#home-name').textContent = home.name || 'Casa'
-  $('#mode').textContent = data.mode === 'demo' ? 'ANTEPRIMA DEMO' : 'LIVE'
+  $('#mode').textContent = `${data.mode === 'demo' ? 'ANTEPRIMA DEMO' : 'LIVE'}${loggedUser ? ` · ${loggedUser}` : ''}`
   renderHomeComfort()
   renderHomeSecurity()
   document.querySelectorAll('.nav-icon').forEach((node) => {
@@ -2342,7 +2343,13 @@ setInterval(() => {
   if (!realtimeSocket || realtimeSocket.readyState !== WebSocket.OPEN) refresh()
 }, 30000)
 setInterval(refresh, 60000)
-refresh().then(() => {
+Promise.all([
+  fetch(apiUrl('api/auth/status'), {cache:'no-store', credentials:'same-origin'}).then(response => response.ok ? response.json() : {}).catch(() => ({})),
+  refresh(),
+]).then(([identity]) => {
+  loggedUser = identity.name || identity.user || ''
+  const mode = $('#mode')
+  if (mode && loggedUser && !mode.textContent.includes(loggedUser)) mode.textContent += ` · ${loggedUser}`
   const launch = new URLSearchParams(location.search)
   if (launch.get('view') === 'intercom' || launch.get('push') === '1') {
     openIntercom()

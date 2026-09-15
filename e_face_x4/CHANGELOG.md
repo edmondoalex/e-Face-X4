@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.21.44 — 2026-09-15
+
+- Compatibilità con i tablet/WebView privi di `crypto.randomUUID()`: il dispositivo personale viene ora creato e riceve il proprio interno.
+- La testata mostra il nome utente dell'account attualmente autenticato.
+
 ## 2.21.43 — 2026-09-15
 
 - Il tap sulla notifica apre direttamente la sezione Videocitofono anche quando la PWA era già aperta sulla Home.

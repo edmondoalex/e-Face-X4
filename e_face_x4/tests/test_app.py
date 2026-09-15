@@ -56,7 +56,7 @@ def test_health() -> None:
     response = TestClient(create_app()).get("/health")
     assert response.status_code == 200
     assert response.json()["ok"] is True
-    assert response.json()["version"] == "2.21.43"
+    assert response.json()["version"] == "2.21.44"
 
 
 def test_installed_app_starts_at_dashboard() -> None:
@@ -117,13 +117,13 @@ def test_admin_migration_guards_pages_apis_and_websocket(monkeypatch, tmp_path) 
     options.write_text(json.dumps({"installer_password": "vecchia-password"}), encoding="utf-8")
     monkeypatch.setenv("EFACE_OPTIONS", str(options))
     client = TestClient(create_app())
-    assert client.get("/api/auth/status").json() == {"enabled": False, "user": None, "role": None}
+    assert client.get("/api/auth/status").json() == {"enabled": False, "user": None, "name": None, "role": None}
     assert client.get("/").status_code == 200
     assert client.post("/api/auth/setup", json={"password": "nuova-password-lunga"}).status_code == 401
     assert client.post("/api/installer/login", json={"password": "vecchia-password"}).status_code == 200
     assert client.post("/api/auth/setup", json={"password": "breve"}).status_code == 400
     assert client.post("/api/auth/setup", json={"password": "nuova-password-lunga"}).status_code == 200
-    assert client.get("/api/auth/status").json() == {"enabled": True, "user": "admin", "role": "admin"}
+    assert client.get("/api/auth/status").json() == {"enabled": True, "user": "admin", "name": "Admin", "role": "admin"}
     assert client.get("/api/user/appearance").status_code == 200
     assert client.post("/api/auth/setup", json={"password": "altra-password-lunga"}).status_code == 409
     client.post("/api/auth/logout")
@@ -275,7 +275,7 @@ def test_intercom_dashboard_stores_only_local_settings(monkeypatch, tmp_path) ->
     assert "tools-dashboard.js?v=2.21.42" in page
     home = client.get("/").text
     assert "backgrounds.css?v=2.21.43" in home
-    assert "app.js?v=2.21.43" in home
+    assert "app.js?v=2.21.44" in home
 
 
 def test_external_stations_api_requires_login_and_hides_secrets(monkeypatch, tmp_path) -> None:
@@ -657,7 +657,7 @@ def test_tools_page_starts_with_selected_background_and_card_theme(monkeypatch, 
     login = client.get("/login").text
     assert '<body class="app-theme" data-background="midnight" data-card-theme="slate">' in home
     assert 'ui-theme-contract.css?v=2.21.29' in home
-    assert 'app.js?v=2.21.43' in home
+    assert 'app.js?v=2.21.44' in home
     assert 'energy.css?v=2.21.30' in home
     assert 'home-comfort.css?v=2.21.31' in home
     assert '<body class="login-theme" data-background="midnight" data-card-theme="slate">' in login

@@ -57,7 +57,7 @@ from .connectors.control4_media import cached_control4_icon, cached_control4_ico
 from .connectors.supervisor import discover_addon_url, discover_host_url
 from .demo import dashboard as demo_dashboard
 
-VERSION = os.environ.get("EFACE_VERSION", "2.21.43")
+VERSION = os.environ.get("EFACE_VERSION", "2.21.44")
 STATIC = Path(__file__).parent / "static"
 logging.basicConfig(level=logging.WARNING, format="%(asctime)s %(levelname)s [e-face-x4] %(message)s")
 _reconnect_warning_at: dict[str, float] = {}
@@ -126,7 +126,8 @@ def create_app() -> FastAPI:
     @app.get("/api/auth/status")
     async def auth_status(request: Request) -> dict:
         username = user_auth.session_user(request.cookies.get(user_auth.COOKIE)) if user_auth.enabled() else None
-        return {"enabled": user_auth.enabled(), "user": username, "role": user_auth.account(username)["role"] if username else None}
+        account = user_auth.account(username) if username else None
+        return {"enabled": user_auth.enabled(), "user": username, "name": account["name"] if account else None, "role": account["role"] if account else None}
 
     def require_admin(request: Request) -> str:
         username = user_auth.session_user(request.cookies.get(user_auth.COOKIE))
@@ -1590,7 +1591,7 @@ def create_app() -> FastAPI:
         page = page.replace("app.js?v=2.21.29", "app.js?v=2.21.30")
         page = page.replace("app.js?v=2.21.30", "app.js?v=2.21.31")
         page = page.replace("app.js?v=2.21.31", "app.js?v=2.21.32")
-        page = page.replace("app.js?v=2.21.32", "app.js?v=2.21.43")
+        page = page.replace("app.js?v=2.21.32", "app.js?v=2.21.44")
         page = page.replace("home-comfort.css?v=2.20.20", "home-comfort.css?v=2.21.31")
         if "--initial-background:" not in page:
             page = page.replace('<html lang="it">', f'<html lang="it" style="background:var(--initial-background,#181c1f);--initial-background:{replacements["__INITIAL_BACKGROUND__"]}">', 1)

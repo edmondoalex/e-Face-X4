@@ -2,7 +2,17 @@
   const $ = (selector) => document.querySelector(selector)
   const adminMode = document.documentElement.classList.contains('admin-intercom')
   const root = new URL('./', location.href)
-  const currentVersion = '2.21.43'
+  const currentVersion = '2.21.44'
+  function newDeviceId() {
+    if (typeof crypto.randomUUID === 'function') return crypto.randomUUID()
+    const bytes = new Uint8Array(16)
+    if (typeof crypto.getRandomValues === 'function') crypto.getRandomValues(bytes)
+    else for (let index = 0; index < bytes.length; index += 1) bytes[index] = Math.floor(Math.random() * 256)
+    bytes[6] = (bytes[6] & 15) | 64
+    bytes[8] = (bytes[8] & 63) | 128
+    const hex = [...bytes].map(value => value.toString(16).padStart(2, '0')).join('')
+    return `${hex.slice(0,8)}-${hex.slice(8,12)}-${hex.slice(12,16)}-${hex.slice(16,20)}-${hex.slice(20)}`
+  }
   let updateAvailable = false
   async function checkForUpdate() {
     if (document.hidden || !intercomVisible) return
@@ -594,7 +604,7 @@
         const key = `eface-personal-device-id-${status.user}`
         let deviceId = localStorage.getItem(key)
         if (!deviceId) {
-          deviceId = crypto.randomUUID()
+          deviceId = newDeviceId()
           localStorage.setItem(key, deviceId)
         }
         const kind = /iPad|Tablet/i.test(navigator.userAgent) || (/Android/i.test(navigator.userAgent) && !/Mobile/i.test(navigator.userAgent)) ? 'tablet' : /iPhone|Android|Mobile/i.test(navigator.userAgent) ? 'phone' : 'desktop'
