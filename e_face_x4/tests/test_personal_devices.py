@@ -83,8 +83,8 @@ def test_personal_device_push_subscription_and_call(monkeypatch, tmp_path):
         return {"extension": payload["extension"], "provisioned": True}
     monkeypatch.setattr(provisioner_client, "request", fake_provision)
     create_admin("password-admin-lunga")
-    create_account("mario", "Mario", "password-mario-lunga")
-    person = TestClient(create_app())
+    create_account("mario", "Mario", "password-mario-lunga", trusted_access=True)
+    person = TestClient(create_app(), base_url="https://testserver")
     person.post("/api/auth/login", json={"username": "mario", "password": "password-mario-lunga"})
     device_id = str(uuid.uuid4())
     created = person.post("/api/intercom/sip/personal-device", json={"device_id": device_id, "name": "Poco Mario", "device_type": "phone"})
@@ -92,8 +92,20 @@ def test_personal_device_push_subscription_and_call(monkeypatch, tmp_path):
     subscription = {"endpoint": "https://push.example.test/id", "expirationTime": None, "keys": {"p256dh": "a" * 40, "auth": "b" * 20}}
     assert person.put(f"/api/intercom/push/subscription/{device_id}", json=subscription).json() == {"enabled": True}
     from app import push_notifications
-    monkeypatch.setattr(push_notifications, "send", lambda stored, payload: stored == subscription and payload["extension"] == extension)
+    pushed = {}
+    def fake_send(stored, payload):
+        pushed.update(payload)
+        return stored == subscription and payload["extension"] == extension
+    monkeypatch.setattr(push_notifications, "send", fake_send)
     assert person.post(f"/api/intercom/push/call/{extension}").json() == {"sent": 1}
+    assert pushed["target"].startswith("intercom/wake/")
+    person.post("/api/auth/logout")
+    wake = person.get(f"/{pushed['target']}", follow_redirects=False, headers={"X-Forwarded-Proto": "https"})
+    assert wake.status_code == 303
+    assert wake.headers["location"].startswith("/intercom?push=1&from=Mario")
+    assert "Max-Age=157680000" in wake.headers["set-cookie"]
+    assert person.get("/intercom").status_code == 200
+    assert person.get(f"/{pushed['target']}", follow_redirects=False).headers["location"] == "/login"
     assert person.delete(f"/api/intercom/push/subscription/{device_id}").json() == {"enabled": False}
     assert person.get("/service-worker.js").status_code == 200
 

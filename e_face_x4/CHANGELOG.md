@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.21.47 — 2026-09-15
+
+- Le notifiche di chiamata usano un accesso monouso di breve durata associato al dispositivo: Android può aprire direttamente Intercom anche quando non condivide il cookie della PWA.
+- L'accesso monouso viene consumato al primo utilizzo e rinnova la sessione persistente solo se consentito per quell'utente.
+
 ## 2.21.46 — 2026-09-15
 
 - Con e-Face già aperta, una chiamata in ingresso porta automaticamente il tablet alla sezione Intercom.

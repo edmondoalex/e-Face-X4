@@ -13,7 +13,7 @@ import uuid
 from html import escape
 from pathlib import Path
 from dataclasses import replace
-from urllib.parse import urlsplit
+from urllib.parse import quote, urlsplit
 
 import httpx
 import uvicorn
@@ -57,7 +57,7 @@ from .connectors.control4_media import cached_control4_icon, cached_control4_ico
 from .connectors.supervisor import discover_addon_url, discover_host_url
 from .demo import dashboard as demo_dashboard
 
-VERSION = os.environ.get("EFACE_VERSION", "2.21.46")
+VERSION = os.environ.get("EFACE_VERSION", "2.21.47")
 STATIC = Path(__file__).parent / "static"
 logging.basicConfig(level=logging.WARNING, format="%(asctime)s %(levelname)s [e-face-x4] %(message)s")
 _reconnect_warning_at: dict[str, float] = {}
@@ -102,6 +102,7 @@ def create_app() -> FastAPI:
     reveal_failures: dict[str, list[float]] = {}
     voip_lock = asyncio.Lock()
     personal_lock = asyncio.Lock()
+    push_wake_tokens: dict[str, dict] = {}
     control4_support_tokens: dict[str, float] = {}
     doorbird_video_slots = asyncio.Semaphore(2)
 
@@ -114,7 +115,7 @@ def create_app() -> FastAPI:
         origin = request.headers.get("origin")
         if request.method not in {"GET", "HEAD", "OPTIONS"} and origin and urlsplit(origin).netloc != request.headers.get("host"):
             return JSONResponse({"detail": "Origine non consentita"}, status_code=403)
-        if not user_auth.enabled() or path in {"/health", "/login", "/service-worker.js"} or path.startswith("/api/auth/") or path.startswith("/assets/") or path.startswith("/api/support/control4/artwork/"):
+        if not user_auth.enabled() or path in {"/health", "/login", "/service-worker.js"} or path.startswith("/intercom/wake/") or path.startswith("/api/auth/") or path.startswith("/assets/") or path.startswith("/api/support/control4/artwork/"):
             return await call_next(request)
         username = user_auth.session_user(request.cookies.get(user_auth.COOKIE))
         if not username:
@@ -1206,15 +1207,37 @@ def create_app() -> FastAPI:
         if not caller or not re.fullmatch(r"83(?:0[2-9]|[1-4][0-9])", extension):
             raise HTTPException(status_code=403, detail="Chiamata push non autorizzata")
         targets = [(device_id, item) for device_id, item in push_notifications.load().items() if item.get("extension") == extension]
+        for key, value in list(push_wake_tokens.items()):
+            if value["expires"] < time.monotonic():
+                push_wake_tokens.pop(key, None)
         sent = 0
         for device_id, item in targets:
+            token = secrets.token_urlsafe(32)
+            push_wake_tokens[token] = {"owner": item["owner"], "caller": user_auth.account(caller)["name"], "expires": time.monotonic() + 120}
             ok = await asyncio.to_thread(push_notifications.send, item["subscription"], {
                 "title": "Chiamata Intercom", "body": f"Chiamata da {user_auth.account(caller)['name']}",
-                "caller": user_auth.account(caller)["name"], "extension": extension,
+                "caller": user_auth.account(caller)["name"], "extension": extension, "target": f"intercom/wake/{token}",
             })
             if ok:
                 sent += 1
+            else:
+                push_wake_tokens.pop(token, None)
         return JSONResponse({"sent": sent}, headers={"Cache-Control": "no-store, private"})
+
+    @app.get("/intercom/wake/{token}", include_in_schema=False)
+    async def intercom_push_wake(token: str, request: Request) -> Response:
+        wake = push_wake_tokens.pop(token, None)
+        if not wake or wake["expires"] < time.monotonic():
+            return RedirectResponse("/login", status_code=303)
+        account = user_auth.account(wake["owner"])
+        if not account or account.get("active") is False:
+            return RedirectResponse("/login", status_code=303)
+        lifetime = user_auth.TRUSTED_DEVICE_SECONDS if account.get("trusted_access") else user_auth.SESSION_SECONDS
+        caller = str(wake.get("caller") or "")
+        response = RedirectResponse(f"/intercom?push=1&from={quote(caller, safe='')}", status_code=303)
+        response.set_cookie(user_auth.COOKIE, user_auth.create_session(wake["owner"], lifetime), max_age=lifetime,
+                            httponly=True, samesite="strict", secure=secure_cookie(request), path="/")
+        return response
 
     @app.get("/api/admin/intercom/personal-devices")
     async def admin_personal_devices(request: Request) -> Response:
