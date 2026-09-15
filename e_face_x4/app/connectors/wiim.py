@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 import asyncio
+import html
 import ipaddress
 import re
+import xml.etree.ElementTree as ET
 from typing import Any
 from urllib.parse import urlsplit
 
@@ -110,6 +112,64 @@ class WiiMClient:
         if parts.scheme != "https" or not parts.hostname or parts.username or parts.password or len(value) > 4096:
             raise ValueError("URL audio non valido")
         return str(await self.command(f"setPlayerCmd:play:{value}", json_response=False))
+
+    async def _playqueue(self, action: str, arguments: dict[str, Any]) -> str:
+        if action not in {"BrowseQueue", "BrowseQueueEx", "PlayQueueWithIndex"}:
+            raise ValueError("Azione coda WiiM non valida")
+        service = "urn:schemas-wiimu-com:service:PlayQueue:1"
+        values = "".join(f"<{key}>{html.escape(str(value))}</{key}>" for key, value in arguments.items())
+        envelope = (
+            '<?xml version="1.0" encoding="utf-8"?>'
+            '<s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/" '
+            's:encodingStyle="http://schemas.xmlsoap.org/soap/encoding/"><s:Body>'
+            f'<u:{action} xmlns:u="{service}">{values}</u:{action}>'
+            '</s:Body></s:Envelope>'
+        )
+        async with httpx.AsyncClient(timeout=self.timeout, transport=self._transport) as client:
+            response = await client.post(
+                f"http://{self.host}:49152/upnp/control/PlayQueue1",
+                content=envelope.encode("utf-8"),
+                headers={"Content-Type": 'text/xml; charset="utf-8"', "SOAPAction": f'"{service}#{action}"'},
+            )
+            response.raise_for_status()
+        if action == "PlayQueueWithIndex":
+            return ""
+        try:
+            root = ET.fromstring(response.text)
+        except ET.ParseError as exc:
+            raise RuntimeError("Risposta coda WiiM non valida") from exc
+        node = next((item for item in root.iter() if item.tag.rsplit("}", 1)[-1] == "QueueContext"), None)
+        return html.unescape(node.text or "") if node is not None else ""
+
+    @staticmethod
+    def _queue_value(block: str, name: str) -> str:
+        match = re.search(fr"<{re.escape(name)}(?:\s[^>]*)?>(.*?)</{re.escape(name)}>", block, re.I | re.S)
+        return html.unescape(match.group(1)).strip() if match else ""
+
+    async def queue(self, *, start: int = 0, limit: int = 250) -> dict[str, Any]:
+        start = max(0, int(start))
+        limit = max(1, min(int(limit), 250))
+        context = await self._playqueue("BrowseQueueEx", {"QueueName": "0", "TrackIndex": start, "TrackNums": limit})
+        list_name = self._queue_value(context, "ListName").split("_#~", 1)[0].strip()
+        tracks = []
+        for match in re.finditer(r"<Track(\d+)>(.*?)</Track\1>", context, re.I | re.S):
+            block = match.group(2)
+            metadata = self._queue_value(block, "Metadata")
+            tracks.append({
+                "index": int(match.group(1)),
+                "track_id": self._queue_value(block, "Id"),
+                "title": self._queue_value(metadata, "dc:title"),
+                "artist": self._queue_value(metadata, "upnp:artist"),
+                "album": self._queue_value(metadata, "upnp:album"),
+                "artwork": public_artwork(self._queue_value(metadata, "upnp:albumArtURI")),
+                "source": self._queue_value(block, "Source"),
+            })
+        return {"name": list_name, "total": int(self._queue_value(context, "TotalNumber") or len(tracks)), "tracks": tracks}
+
+    async def play_queue_index(self, index: int) -> None:
+        if not 0 <= int(index) <= 10_000:
+            raise ValueError("Indice coda WiiM non valido")
+        await self._playqueue("PlayQueueWithIndex", {"QueueName": "0", "Index": int(index)})
 
     async def multiroom(self) -> dict[str, Any]:
         status, topology = await asyncio.gather(self.command("getStatusEx"), self.command("multiroom:getSlaveList"))

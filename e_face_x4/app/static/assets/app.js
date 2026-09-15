@@ -605,7 +605,8 @@ function mediaFavoritesHtml(items, roomId) {
   if (!items.length) return '<span class="empty-state">Aggiungi una stazione da Stations o usa ★ negli ascolti recenti.</span>'
   return items.map((item) => {
     const wiimPreset = item.kind === 'wiim_preset'
-    const art = wiimPreset ? item.artwork : item.kind === 'station' && item.station_id ? apiUrl(`api/control4/stations/catalog-image/${item.station_id}`) : item.kind === 'msp' && item.image ? item.image : item.kind === 'recent' ? apiUrl(`api/control4/favorites/artwork?identity=${encodeURIComponent(item.id)}`) : ''
+    const wiimTrack = item.kind === 'wiim_track'
+    const art = wiimPreset || wiimTrack ? item.artwork : item.kind === 'station' && item.station_id ? apiUrl(`api/control4/stations/catalog-image/${item.station_id}`) : item.kind === 'msp' && item.image ? item.image : item.kind === 'recent' ? apiUrl(`api/control4/favorites/artwork?identity=${encodeURIComponent(item.id)}`) : ''
     const recent = [...recentCache.values()].flatMap((scope) => [...scope.items, ...scope.hiddenItems]).find((entry) => entry.key === item.key)
     const spotify = item.service === 'spotify' || Number(item.driver_id) === 1569 || Number(recent?.driver_id) === 1569 || (item.kind === 'recent' && !item.driver_id && !recent && ['Playlist', 'Album', 'Artist', 'Track', 'Show'].includes(item.item_type))
     const spotifySource = currentDevices.flatMap((device) => device.source_options || []).find((source) => String(source.label || '').toLocaleLowerCase('it') === 'spotify connect')
@@ -613,16 +614,23 @@ function mediaFavoritesHtml(items, roomId) {
     const spotifyLogo = 'assets/control4-icons/spotify-connect.png'
     const displayArt = art || (spotify ? spotifyLogo : '')
     const wiimService = String(item.service || '').toLowerCase()
-    const fallbackIcon = wiimPreset ? (wiimService.includes('soundcloud') ? 'mdi:soundcloud' : wiimService.includes('spotify') ? 'mdi:spotify' : wiimService.includes('youtube') ? 'mdi:youtube' : 'mdi:music-circle') : spotify ? 'mdi:spotify' : item.kind === 'station' || item.item_type === 'Station' ? 'mdi:radio' : 'mdi:music-circle'
+    const fallbackIcon = wiimPreset || wiimTrack ? (wiimService.includes('soundcloud') ? 'mdi:soundcloud' : wiimService.includes('spotify') ? 'mdi:spotify' : wiimService.includes('youtube') ? 'mdi:youtube' : 'mdi:music-circle') : spotify ? 'mdi:spotify' : item.kind === 'station' || item.item_type === 'Station' ? 'mdi:radio' : 'mdi:music-circle'
     const fallback = `<span class="media-recent-art mdi-mask" style="${mdiStyle(fallbackIcon, 'music-circle')}${displayArt ? ';display:none' : ''}"></span>`
     const imageError = spotify && art ? `if(!this.dataset.fallback){this.dataset.fallback='1';this.src='${spotifyLogo}';return}` : ''
-    const serviceLogo = wiimPreset ? `<span class="mdi-mask" style="${mdiStyle(fallbackIcon, 'music-circle')}"></span><span class="mdi-mask media-favorite-wiim" style="${mdiStyle('mdi:speaker-wireless', 'speaker')}"></span>` : Number.isSafeInteger(serviceId) && serviceId > 0 ? `<img class="media-favorite-service-icon" src="${apiUrl(`api/control4/source-icon/${serviceId}`)}" alt="" loading="lazy" onerror="this.style.display='none';this.nextElementSibling.style.display='block'"><span class="mdi-mask" style="${mdiStyle(fallbackIcon, 'music-circle')};display:none"></span>` : `<span class="mdi-mask" style="${mdiStyle(fallbackIcon, 'music-circle')}"></span>`
-    return `<span class="media-recent-card"><button class="media-recent-item" data-favorite-select="${esc(item.id)}" data-favorite-room="${roomId}" title="${esc(item.title)}">${displayArt ? `<img src="${esc(displayArt)}" alt="" loading="lazy" draggable="false" onerror="${imageError}this.style.display='none';this.nextElementSibling.style.display='block'">` : ''}${fallback}<b>${esc(item.title)}</b><small>${esc(item.subtitle || '')}</small><em>${serviceLogo}${esc(wiimPreset ? item.service || 'WiiM' : item.kind === 'station' ? 'Stations' : spotify ? 'Spotify' : item.item_type || 'Audio')}</em></button>${wiimPreset ? '' : `<button type="button" class="media-recent-hide" data-favorite-remove="${esc(item.id)}" aria-label="Rimuovi ${esc(item.title)} dai Preferiti" title="Rimuovi dai Preferiti">×</button>`}</span>`
+    const serviceLogo = wiimPreset || wiimTrack ? `<span class="mdi-mask" style="${mdiStyle(fallbackIcon, 'music-circle')}"></span><span class="mdi-mask media-favorite-wiim" style="${mdiStyle('mdi:speaker-wireless', 'speaker')}"></span>` : Number.isSafeInteger(serviceId) && serviceId > 0 ? `<img class="media-favorite-service-icon" src="${apiUrl(`api/control4/source-icon/${serviceId}`)}" alt="" loading="lazy" onerror="this.style.display='none';this.nextElementSibling.style.display='block'"><span class="mdi-mask" style="${mdiStyle(fallbackIcon, 'music-circle')};display:none"></span>` : `<span class="mdi-mask" style="${mdiStyle(fallbackIcon, 'music-circle')}"></span>`
+    return `<span class="media-recent-card"><button class="media-recent-item" data-favorite-select="${esc(item.id)}" data-favorite-room="${roomId}" title="${esc(item.title)}">${displayArt ? `<img src="${esc(displayArt)}" alt="" loading="lazy" draggable="false" onerror="${imageError}this.style.display='none';this.nextElementSibling.style.display='block'">` : ''}${fallback}<b>${esc(item.title)}</b><small>${esc(item.subtitle || '')}</small><em>${serviceLogo}${esc(wiimPreset || wiimTrack ? item.service || 'WiiM' : item.kind === 'station' ? 'Stations' : spotify ? 'Spotify' : item.item_type || 'Audio')}</em></button>${wiimPreset ? '' : `<button type="button" class="media-recent-hide" data-favorite-remove="${esc(item.id)}" aria-label="Rimuovi ${esc(item.title)} dai Preferiti" title="Rimuovi dai Preferiti">×</button>`}</span>`
   }).join('')
 }
 
 function nowPlayingFavorite(selected) {
   if (selected?.provider !== 'control4' || selected.active_experience !== 'listen') return { recent: null, favorite: null }
+  const wiimSource = (selected.source_options || []).find((source) => source.experience === 'listen' && /wiim/i.test(String(source.label || '')))
+  if (wiimSource && Number(selected.active_source_id) === Number(wiimSource.source_id)) {
+    const title = String(selected.title || '').trim().toLocaleLowerCase('it')
+    const artist = String(selected.artist || '').trim().toLocaleLowerCase('it')
+    const favorite = favoritesCache?.find((item) => item.kind === 'wiim_track' && String(item.title || '').trim().toLocaleLowerCase('it') === title && String(item.subtitle || '').trim().toLocaleLowerCase('it') === artist) || null
+    return { recent: null, favorite, wiim: true }
+  }
   const stationsSource = (selected.source_options || []).find((source) => source.experience === 'listen' && String(source.label || '').toLocaleLowerCase('it') === 'stations')
   if (Number(selected.station_id) > 0 && stationsSource && String(selected.source || '').toLocaleLowerCase('it') === 'stations') {
     return { recent: null, favorite: favoritesCache?.find((item) => item.id === `station:${stationsSource.source_id}:${selected.station_id}`) || null, stationProxyId: stationsSource.source_id }
@@ -653,7 +661,7 @@ function updateNowPlayingStar(selected) {
   const { favorite } = context
   button.classList.toggle('active', Boolean(favorite))
   button.setAttribute('aria-pressed', String(Boolean(favorite)))
-  const label = context.spotifyProxyId ? `${favorite ? 'Rimuovi' : 'Salva'} playlist Spotify${context.recent?.title ? ` “${context.recent.title}”` : ''}${favorite ? ' dai' : ' nei'} Preferiti e-Face` : favorite ? 'Rimuovi dai Preferiti e-Face' : 'Aggiungi ai Preferiti e-Face'
+  const label = context.wiim ? `${favorite ? 'Rimuovi' : 'Salva'} questo brano WiiM${favorite ? ' dai' : ' nei'} Preferiti e-Face` : context.spotifyProxyId ? `${favorite ? 'Rimuovi' : 'Salva'} playlist Spotify${context.recent?.title ? ` “${context.recent.title}”` : ''}${favorite ? ' dai' : ' nei'} Preferiti e-Face` : favorite ? 'Rimuovi dai Preferiti e-Face' : 'Aggiungi ai Preferiti e-Face'
   button.setAttribute('aria-label', label)
   button.title = label
 }
@@ -1969,6 +1977,15 @@ $('#device-list').addEventListener('click', (event) => {
     nowFavoriteButton.disabled = true
     ;(async () => {
       const station = nowPlayingFavorite(selected)
+      if (station.wiim) {
+        const response = await fetch(apiUrl('api/control4/favorites/current-wiim-track'), { method: 'POST' })
+        if (!response.ok) throw new Error((await response.json().catch(() => ({}))).detail || 'Brano WiiM non disponibile')
+        favoritesCache = (await response.json()).items || []
+        const panel = $('[data-media-favorites]')
+        if (panel) panel.querySelector('.media-recent-strip').innerHTML = mediaFavoritesHtml(favoritesCache, Number(panel.dataset.favoriteRoom))
+        updateNowPlayingStar(selected)
+        return
+      }
       if (station.stationProxyId) {
         const roomId = Number(String(selected.registry_id || '').replace('c4room:', ''))
         const response = await fetch(apiUrl('api/control4/favorites/current-station'), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ room_id: roomId, proxy_id: station.stationProxyId }) })

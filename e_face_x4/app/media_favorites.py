@@ -49,7 +49,7 @@ def list_favorites() -> list[dict[str, Any]]:
         raw = json.loads(_path().read_text(encoding="utf-8"))
     except (OSError, ValueError):
         return []
-    return [item for item in raw if isinstance(item, dict) and item.get("kind") in {"station", "recent", "msp"} and isinstance(item.get("id"), str)] if isinstance(raw, list) else []
+    return [item for item in raw if isinstance(item, dict) and item.get("kind") in {"station", "recent", "msp", "wiim_track"} and isinstance(item.get("id"), str)] if isinstance(raw, list) else []
 
 
 def enrich_recent_favorites(history: list[dict[str, Any]]) -> bool:
@@ -87,7 +87,7 @@ def _save(items: list[dict[str, Any]]) -> None:
 def add_favorite(item: dict[str, Any]) -> list[dict[str, Any]]:
     kind = item.get("kind")
     identity = item.get("id")
-    if kind not in {"station", "recent", "msp"} or not isinstance(identity, str) or not 1 <= len(identity) <= 300:
+    if kind not in {"station", "recent", "msp", "wiim_track"} or not isinstance(identity, str) or not 1 <= len(identity) <= 300:
         raise ValueError("Preferito non valido")
     if not isinstance(item.get("title"), str) or not 1 <= len(item["title"]) <= 200:
         raise ValueError("Titolo preferito non valido")

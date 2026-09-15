@@ -65,7 +65,7 @@ from .connectors.control4_media import cached_control4_icon, cached_control4_ico
 from .connectors.supervisor import discover_addon_url, discover_host_url
 from .demo import dashboard as demo_dashboard
 
-VERSION = os.environ.get("EFACE_VERSION", "2.21.79")
+VERSION = os.environ.get("EFACE_VERSION", "2.21.80")
 STATIC = Path(__file__).parent / "static"
 logging.basicConfig(level=logging.WARNING, format="%(asctime)s %(levelname)s [e-face-x4] %(message)s")
 _reconnect_warning_at: dict[str, float] = {}
@@ -1110,6 +1110,45 @@ def create_app() -> FastAPI:
             logging.warning("Preferito playlist Spotify corrente non disponibile (%s)", type(exc).__name__)
             raise HTTPException(status_code=502, detail="Preferito playlist Spotify non disponibile") from exc
 
+    @app.post("/api/control4/favorites/current-wiim-track")
+    async def control4_toggle_current_wiim_track_favorite() -> dict:
+        try:
+            client = configured_wiim()
+            snapshot, queue, presets = await asyncio.gather(client.snapshot(), client.queue(limit=250), client.presets())
+            track_id = str(snapshot.get("track_id") or "").strip()
+            track = next((item for item in queue["tracks"] if item["track_id"] == track_id), None)
+            if not track:
+                raise ValueError("Il brano corrente non è identificabile nella coda WiiM")
+            queue_name = str(queue.get("name") or "").strip().casefold()
+            preset = next((item for item in presets if str(item.get("name") or "").strip().casefold() == queue_name), None)
+            if not preset:
+                raise ValueError("La coda corrente non è associata a un preset WiiM")
+            identity = f"wiim:track:{preset['index']}:{track_id}"
+            if any(item["id"] == identity for item in list_favorites()):
+                remove_favorite(identity)
+                added = False
+            else:
+                add_favorite({
+                    "id": identity,
+                    "kind": "wiim_track",
+                    "title": str(track.get("title") or snapshot.get("title") or "Brano WiiM")[:200],
+                    "subtitle": str(track.get("artist") or snapshot.get("artist") or "")[:200],
+                    "item_type": "Brano preset",
+                    "service": str(track.get("source") or snapshot.get("source") or "WiiM")[:80],
+                    "artwork": str(track.get("artwork") or snapshot.get("artwork") or "")[:2048],
+                    "preset_index": int(preset["index"]),
+                    "preset_name": str(preset["name"])[:200],
+                    "track_id": track_id[:300],
+                    "queue_index": int(track["index"]),
+                })
+                added = True
+            result = await control4_list_favorites()
+            return {"items": result["items"], "added": added, "title": track.get("title")}
+        except (ValueError, TypeError, KeyError) as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        except (httpx.HTTPError, RuntimeError) as exc:
+            raise HTTPException(status_code=502, detail="Coda WiiM non disponibile") from exc
+
     @app.get("/api/control4/favorites/artwork")
     async def control4_favorite_artwork(identity: str = Query(..., min_length=1, max_length=300)) -> Response:
         try:
@@ -1188,6 +1227,28 @@ def create_app() -> FastAPI:
                     ) from exc
                 return {"ok": True, "target": "wiim", "preset_index": preset_index, "room_id": room_id, "control4_source_id": source_id}
             item = favorite_by_id(identity)
+            if item["kind"] == "wiim_track":
+                client = configured_wiim()
+                preset_index = int(item.get("preset_index") or 0)
+                source_id = int(wiim_settings.load().get("control4_source_id") or 0)
+                if not 1 <= preset_index <= 12 or source_id <= 0:
+                    raise ValueError("Preferito WiiM non valido")
+                await client.play_preset(preset_index)
+                await Control4MediaConnector(load_control4_config()).command(
+                    f"c4room:{room_id}", "select_source", f"listen:{source_id}"
+                )
+                wanted = str(item.get("track_id") or "")
+                found = None
+                for _ in range(12):
+                    await asyncio.sleep(0.5)
+                    queue = await client.queue(limit=250)
+                    found = next((track for track in queue["tracks"] if track["track_id"] == wanted), None)
+                    if found:
+                        break
+                if not found:
+                    raise ValueError("Il brano salvato non è più presente nel preset WiiM")
+                await client.play_queue_index(int(found["index"]))
+                return {"ok": True, "target": "wiim_track", "preset_index": preset_index, "queue_index": int(found["index"]), "room_id": room_id}
             if item["kind"] == "recent":
                 return await Control4MediaConnector(load_control4_config()).select_recent(room_id, str(item["key"]))
             proxy_id = int(item["proxy_id"])
@@ -1876,8 +1937,8 @@ def create_app() -> FastAPI:
         page = page.replace("tools-dashboard.js?v=2.21.36", "tools-dashboard.js?v=2.21.38")
         page = page.replace("tools-dashboard.js?v=2.21.38", "tools-dashboard.js?v=2.21.41")
         page = page.replace("tools-dashboard.js?v=2.21.41", "tools-dashboard.js?v=2.21.42")
-        page = page.replace("tools-dashboard.js?v=2.21.42", "tools-dashboard.js?v=2.21.79")
-        page = page.replace("tools-dashboard.css?v=2.20.36", "tools-dashboard.css?v=2.21.79")
+        page = page.replace("tools-dashboard.js?v=2.21.42", "tools-dashboard.js?v=2.21.80")
+        page = page.replace("tools-dashboard.css?v=2.20.36", "tools-dashboard.css?v=2.21.80")
         page = page.replace("backgrounds.css?v=2.20.20", "backgrounds.css?v=2.21.43")
         page = page.replace("intercom.css?v=2.21.14", "intercom.css?v=2.21.46")
         page = page.replace("app.js?v=2.21.11", "app.js?v=2.21.29")

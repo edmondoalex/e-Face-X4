@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.21.80 — 2026-09-15
+
+- La stella del player salva il brano WiiM corrente insieme al preset di origine e al suo ID stabile, senza conservare l'URL audio temporaneo.
+- Il richiamo riapre il preset, cerca nuovamente il brano nella coda e lo avvia con `PlayQueueWithIndex`, mantenendo la riproduzione dei brani successivi.
+- Aggiunge lettura paginata della coda WiiM tramite il namespace proprietario verificato `schemas-wiimu-com` e segnala chiaramente i brani non più presenti.
+
 ## 2.21.79 — 2026-09-15
 
 - Aggiunge al player Ascolta, quando la sorgente attiva è WiiM, lo slider operativo di avanzamento con tempo trascorso e residuo.

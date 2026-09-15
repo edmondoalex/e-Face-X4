@@ -76,6 +76,30 @@ async def test_native_wiim_multiroom_foundation() -> None:
     assert data["protocol_version"] == "4.3"
 
 
+@pytest.mark.asyncio
+async def test_native_wiim_queue_browse_and_exact_play() -> None:
+    actions = []
+    context = """<?xml version="1.0"?><PlayList><ListName>Cover e remix_#~2026-09-15</ListName><ListInfo><TotalNumber>2</TotalNumber></ListInfo><Tracks><Track1><Id>tracks/abc</Id><Metadata>&lt;DIDL-Lite xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:upnp="urn:schemas-upnp-org:metadata-1-0/upnp/"&gt;&lt;dc:title&gt;Titolo&lt;/dc:title&gt;&lt;upnp:artist&gt;Artista&lt;/upnp:artist&gt;&lt;upnp:album&gt;Album&lt;/upnp:album&gt;&lt;upnp:albumArtURI&gt;https://example.com/cover.jpg&lt;/upnp:albumArtURI&gt;&lt;/DIDL-Lite&gt;</Metadata><Source>YouTubeMusic</Source></Track1></Tracks></PlayList>"""
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        action = request.headers["soapaction"].split("#")[-1].strip('"')
+        actions.append((action, request.content.decode()))
+        if action == "BrowseQueueEx":
+            escaped = context.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+            return httpx.Response(200, text=f'<s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/"><s:Body><u:BrowseQueueExResponse xmlns:u="urn:schemas-wiimu-com:service:PlayQueue:1"><QueueContext>{escaped}</QueueContext></u:BrowseQueueExResponse></s:Body></s:Envelope>')
+        return httpx.Response(200, text='<s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/"><s:Body/></s:Envelope>')
+
+    client = WiiMClient("192.168.3.52", transport=httpx.MockTransport(handler))
+    queue = await client.queue(limit=10)
+    assert queue["name"] == "Cover e remix"
+    assert queue["total"] == 2
+    assert queue["tracks"][0] == {"index": 1, "track_id": "tracks/abc", "title": "Titolo", "artist": "Artista", "album": "Album", "artwork": "https://example.com/cover.jpg", "source": "YouTubeMusic"}
+    await client.play_queue_index(1)
+    assert [action for action, _ in actions] == ["BrowseQueueEx", "PlayQueueWithIndex"]
+    assert "<Index>1</Index>" in actions[-1][1]
+    assert all("schemas-wiimu-com:service:PlayQueue:1" in body for _, body in actions)
+
+
 def test_admin_wiim_configuration_is_protected_and_verified(monkeypatch, tmp_path) -> None:
     monkeypatch.setenv("EFACE_AUTH_DIR", str(tmp_path / "auth"))
     monkeypatch.setenv("EFACE_WIIM_CONFIG", str(tmp_path / "wiim.json"))
@@ -194,3 +218,4 @@ def test_wiim_controls_are_integrated_in_main_player() -> None:
     assert "data-wiim-seek" in script
     assert 'data-wiim-action="${action}"' in script
     assert "shuffle-variant" in script and "Ripetizione WiiM" in script
+    assert "current-wiim-track" in script
