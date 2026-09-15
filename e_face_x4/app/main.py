@@ -65,7 +65,7 @@ from .connectors.control4_media import cached_control4_icon, cached_control4_ico
 from .connectors.supervisor import discover_addon_url, discover_host_url
 from .demo import dashboard as demo_dashboard
 
-VERSION = os.environ.get("EFACE_VERSION", "2.21.77")
+VERSION = os.environ.get("EFACE_VERSION", "2.21.78")
 STATIC = Path(__file__).parent / "static"
 logging.basicConfig(level=logging.WARNING, format="%(asctime)s %(levelname)s [e-face-x4] %(message)s")
 _reconnect_warning_at: dict[str, float] = {}
@@ -1166,13 +1166,27 @@ def create_app() -> FastAPI:
     async def control4_select_favorite(payload: dict) -> dict:
         try:
             identity = str(payload.get("id") or "")
-            match = re.fullmatch(r"wiim:preset:(\d{1,2})", identity)
-            if match:
-                await configured_wiim().play_preset(int(match.group(1)))
-                return {"ok": True, "target": "wiim"}
             room_id = int(payload.get("room_id") or 0)
             if room_id <= 0:
                 raise ValueError("Stanza non valida")
+            match = re.fullmatch(r"wiim:preset:(\d{1,2})", identity)
+            if match:
+                preset_index = int(match.group(1))
+                source_id = int(wiim_settings.load().get("control4_source_id") or 0)
+                if source_id <= 0:
+                    raise ValueError("Sorgente WiiM Control4 non configurata")
+                await configured_wiim().play_preset(preset_index)
+                try:
+                    await Control4MediaConnector(load_control4_config()).command(
+                        f"c4room:{room_id}", "select_source", f"listen:{source_id}"
+                    )
+                except Exception as exc:
+                    logging.warning("Preset WiiM avviato ma routing Control4 non disponibile (%s)", type(exc).__name__)
+                    raise HTTPException(
+                        status_code=502,
+                        detail="Preset avviato sul WiiM, ma selezione della sorgente Control4 non riuscita",
+                    ) from exc
+                return {"ok": True, "target": "wiim", "preset_index": preset_index, "room_id": room_id, "control4_source_id": source_id}
             item = favorite_by_id(identity)
             if item["kind"] == "recent":
                 return await Control4MediaConnector(load_control4_config()).select_recent(room_id, str(item["key"]))
@@ -1862,8 +1876,8 @@ def create_app() -> FastAPI:
         page = page.replace("tools-dashboard.js?v=2.21.36", "tools-dashboard.js?v=2.21.38")
         page = page.replace("tools-dashboard.js?v=2.21.38", "tools-dashboard.js?v=2.21.41")
         page = page.replace("tools-dashboard.js?v=2.21.41", "tools-dashboard.js?v=2.21.42")
-        page = page.replace("tools-dashboard.js?v=2.21.42", "tools-dashboard.js?v=2.21.77")
-        page = page.replace("tools-dashboard.css?v=2.20.36", "tools-dashboard.css?v=2.21.77")
+        page = page.replace("tools-dashboard.js?v=2.21.42", "tools-dashboard.js?v=2.21.78")
+        page = page.replace("tools-dashboard.css?v=2.20.36", "tools-dashboard.css?v=2.21.78")
         page = page.replace("backgrounds.css?v=2.20.20", "backgrounds.css?v=2.21.43")
         page = page.replace("intercom.css?v=2.21.14", "intercom.css?v=2.21.46")
         page = page.replace("app.js?v=2.21.11", "app.js?v=2.21.29")

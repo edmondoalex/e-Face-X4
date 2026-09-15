@@ -56,7 +56,7 @@ def test_health() -> None:
     response = TestClient(create_app()).get("/health")
     assert response.status_code == 200
     assert response.json()["ok"] is True
-    assert response.json()["version"] == "2.21.77"
+    assert response.json()["version"] == "2.21.78"
 
 
 def test_installed_app_starts_at_dashboard() -> None:
@@ -95,7 +95,7 @@ def test_intercom_is_in_sidebar_with_embedded_view() -> None:
     client_script = (static / "assets" / "intercom.js").read_text(encoding="utf-8")
     intercom_page = (static / "intercom.html").read_text(encoding="utf-8")
     assert "Tablet Control4 · interno 8291" in intercom_page
-    assert "const currentVersion = '2.21.77'" in client_script
+    assert "const currentVersion = '2.21.78'" in client_script
     assert 'id="call-ufficio" data-dial-extension="8291" data-video-capable="true"' in intercom_page
     assert "Postazione esterna · interno 8201" in intercom_page
     assert "Postazione esterna · interno ${station.sip_extension}" in client_script
@@ -302,10 +302,10 @@ def test_intercom_dashboard_stores_only_local_settings(monkeypatch, tmp_path) ->
     assert 'id="users-tool"' in page
     assert 'id="logout"' in page
     assert page.index('id="logout"') < page.index('id="tools-user-section"')
-    assert "tools-dashboard.js?v=2.21.77" in page
+    assert "tools-dashboard.js?v=2.21.78" in page
     home = client.get("/").text
     assert "backgrounds.css?v=2.21.43" in home
-    assert "app.js?v=2.21.77" in home
+    assert "app.js?v=2.21.78" in home
 
 
 def test_external_stations_api_requires_login_and_hides_secrets(monkeypatch, tmp_path) -> None:
@@ -688,7 +688,7 @@ def test_tools_page_starts_with_selected_background_and_card_theme(monkeypatch, 
     login = client.get("/login").text
     assert '<body class="app-theme" data-background="midnight" data-card-theme="slate">' in home
     assert 'ui-theme-contract.css?v=2.21.29' in home
-    assert 'app.js?v=2.21.77' in home
+    assert 'app.js?v=2.21.78' in home
     assert 'energy.css?v=2.21.30' in home
     assert 'home-comfort.css?v=2.21.31' in home
     assert '<body class="login-theme" data-background="midnight" data-card-theme="slate">' in login
@@ -1446,6 +1446,51 @@ def test_control4_command_does_not_require_evoice_enabled(monkeypatch, tmp_path)
     response = TestClient(main_module.create_app()).post("/api/devices/c4media:51/command", json={"action": "turn_off"})
     assert response.status_code == 200
     assert response.json() == {"status": "success", "registry_id": "c4room:51", "operation": "turn_off"}
+
+
+def test_wiim_preset_selects_control4_source_in_current_room(monkeypatch) -> None:
+    import app.main as main_module
+
+    calls = []
+    monkeypatch.setattr(main_module.wiim_settings, "load", lambda: {"enabled": True, "host": "192.168.3.52", "control4_source_id": 1667})
+
+    async def play_preset(self, index):
+        calls.append(("wiim", index))
+
+    async def command(self, registry_id, operation, value=None):
+        calls.append(("control4", registry_id, operation, value))
+        return {"status": "success"}
+
+    monkeypatch.setattr(main_module.WiiMClient, "play_preset", play_preset)
+    monkeypatch.setattr(main_module.Control4MediaConnector, "command", command)
+    response = TestClient(main_module.create_app()).post(
+        "/api/control4/favorites/select", json={"id": "wiim:preset:3", "room_id": 51}
+    )
+
+    assert response.status_code == 200
+    assert response.json() == {"ok": True, "target": "wiim", "preset_index": 3, "room_id": 51, "control4_source_id": 1667}
+    assert calls == [("wiim", 3), ("control4", "c4room:51", "select_source", "listen:1667")]
+
+
+def test_wiim_preset_reports_partial_control4_failure(monkeypatch) -> None:
+    import app.main as main_module
+
+    monkeypatch.setattr(main_module.wiim_settings, "load", lambda: {"enabled": True, "host": "192.168.3.52", "control4_source_id": 1667})
+
+    async def play_preset(self, index):
+        return None
+
+    async def command(self, registry_id, operation, value=None):
+        raise RuntimeError("director offline")
+
+    monkeypatch.setattr(main_module.WiiMClient, "play_preset", play_preset)
+    monkeypatch.setattr(main_module.Control4MediaConnector, "command", command)
+    response = TestClient(main_module.create_app()).post(
+        "/api/control4/favorites/select", json={"id": "wiim:preset:2", "room_id": 51}
+    )
+
+    assert response.status_code == 502
+    assert "Preset avviato sul WiiM" in response.json()["detail"]
 
 
 def test_control4_rejects_evoice_only_commands(monkeypatch, tmp_path) -> None:

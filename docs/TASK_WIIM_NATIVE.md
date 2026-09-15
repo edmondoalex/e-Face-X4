@@ -68,3 +68,7 @@ Prima dell'inserimento nella pagina utente Ascolta è disponibile in Amministraz
 Scelta corretta dopo verifica dei costi: non usare l'API SoundCloud a pagamento nel percorso utente. I preset nativi del WiiM vengono aggiunti dinamicamente ai Preferiti e-Face, con cache di 10 secondi, cover, icona del servizio e icona WiiM. Non sono copiati nell'archivio preferiti e non mostrano il comando Rimuovi: la fonte della verità resta l'app WiiM.
 
 Sonda read-only del 15/09/2026 sul WiiM di prova: quattro preset disponibili, uno Spotify, uno YouTube Music e due SoundCloud. Il descrittore `http://<wiim>:49152/description.xml` espone AVTransport, RenderingControl, ConnectionManager, PlayQueue e QPlay. Gli ID e i nomi dei preset devono sempre essere letti dal dispositivo, non fissati nel codice. Il tocco su un preset e-Face richiama `MCUKeyShortClick:<indice>`; la prova audio fisica resta distinta dai test automatici.
+
+## Avanzamento 2.21.78
+
+Il richiamo di un preset è ora coordinato con Control4: e-Face valida la stanza corrente e il `control4_source_id`, avvia il preset direttamente sul WiiM e seleziona poi `listen:<control4_source_id>` nella stanza tramite il comando nativo Control4 `set_audio_source`. In questo modo una sessione precedente, per esempio Spotify Connect, non resta selezionata nella stanza. La UI continua a eseguire il refresh immediato e differito di stato e copertina. Se il preset è partito ma Control4 non accetta il cambio sorgente, l'endpoint restituisce un errore esplicito di successo parziale.

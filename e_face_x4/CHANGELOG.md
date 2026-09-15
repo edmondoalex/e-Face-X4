@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.21.78 — 2026-09-15
+
+- Quando si richiama un preset WiiM dai Preferiti, e-Face avvia il preset e seleziona subito la sorgente WiiM nella stanza Control4 corrente.
+- Valida stanza e sorgente configurata e segnala esplicitamente l'eventuale successo parziale, senza dichiarare completato un routing Control4 fallito.
+
 ## 2.21.77 — 2026-09-15
 
 - Integra automaticamente i preset nativi WiiM nella barra Preferiti di e-Face senza copiarli o richiedere credenziali dei provider.
