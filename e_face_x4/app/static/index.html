@@ -15,7 +15,6 @@
     <nav class="rail" aria-label="Navigazione principale">
       <button class="active" data-view="watch" title="Guarda"><b class="nav-icon" data-icon="watch"></b><span>Guarda</span></button>
       <button data-view="listen" title="Ascolta"><b class="nav-icon" data-icon="listen"></b><span>Ascolta</span></button>
-      <button data-view="wiim" title="WiiM"><b class="nav-wiim-icon" aria-hidden="true">W</b><span>WiiM</span></button>
       <button data-view="intercom" title="Intercom"><b class="nav-intercom-icon" aria-hidden="true"></b><span>Intercom</span></button>
       <button data-view="lights" title="Luci"><b class="nav-icon" data-icon="lights"></b><span>Luci</span></button>
       <button data-view="extra" title="Extra"><b class="nav-icon" data-icon="extra"></b><span>Extra</span></button>
@@ -41,7 +40,6 @@
       </section>
       <section id="energy-view" class="energy-view" hidden><header class="detail-header"><button id="energy-back" aria-label="Indietro">‹</button><div><h2 id="energy-title">Dashboard energia</h2></div><button id="energy-reload" class="energy-reload" aria-label="Aggiorna dashboard" title="Aggiorna dashboard" hidden><span class="mdi-mask" style="--icon:url('api/icons/mdi/refresh.svg')"></span></button></header><div id="energy-picker" class="energy-picker"><div id="energy-dashboard-grid" class="energy-dashboard-grid"><span class="empty-state">Caricamento dashboard…</span></div></div><div id="energy-frame-shell" class="energy-frame-shell" hidden><iframe id="energy-frame" class="energy-frame" title="Dashboard Energia e-SunMind" loading="lazy" scrolling="no"></iframe></div></section>
       <section id="intercom-view" class="intercom-view" hidden><header class="detail-header"><button id="intercom-back" aria-label="Torna alla home">‹</button><div><h2>Intercom</h2></div></header><iframe id="intercom-frame" title="Videocitofono e chiamate Intercom" allow="microphone; autoplay"></iframe></section>
-      <section id="wiim-view" class="wiim-view" hidden><iframe id="wiim-frame" title="Player WiiM"></iframe></section>
     </main>
   </div><div id="notice" class="notice" hidden></div>
   <dialog id="rgb-dialog" class="rgb-dialog"><header><div><h2 id="rgb-title">Luce RGB</h2></div><button id="rgb-close" aria-label="Chiudi">×</button></header><div class="rgb-popup-body"><label class="rgb-master"><output id="rgb-master-value">0%</output><input id="rgb-master" type="range" min="1" max="255"></label><div id="rgb-preview" class="rgb-preview"></div><div id="rgb-wheel" class="rgb-wheel" role="slider" aria-label="Selettore colore"><i></i></div><div id="rgb-palette" class="rgb-palette"></div><div id="rgb-channel-controls" class="rgb-channel-controls"></div><div class="rgb-popup-actions"><button data-popup-rgb-action="off">OFF</button><button data-popup-rgb-action="on">ON</button></div></div></dialog>

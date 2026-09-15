@@ -44,3 +44,11 @@ Aggiunta la pagina WiiM nella navigazione principale con polling diretto ogni du
 ## Avanzamento 2.21.72
 
 Predisposta la funzione multiroom con endpoint nativo read-only basato su `getStatusEx` e `multiroom:getSlaveList`. Sul WiiM Pro di prova il protocollo WMRM 4.3 risponde correttamente e il player risulta autonomo. La UI mostra già ruolo, gruppo e membri; le operazioni distruttive di join/kickout non vengono esposte finché non saranno verificate con almeno due WiiM reali.
+
+## Decisione interfaccia e cataloghi — 15/09/2026
+
+La console player introdotta nelle versioni 2.21.71–72 viene spostata dalla navigazione utente all'area Amministrazione e conservata come strumento di debug. La futura esperienza utente musicale sarà una pagina distinta, orientata a ricerca, libreria e scelta della zona, non una copia della console tecnica.
+
+La guida ufficiale WiiM descrive ricerca universale e navigazione per brani, artisti, album, playlist, stazioni e show nell'app WiiM Home. L'API HTTP locale ufficialmente documentata non espone però un catalogo universale equivalente. Architettura scelta: adattatori e-Face separati per ciascun servizio e relativa autorizzazione ufficiale; WiiM resta la destinazione locale di riproduzione. Primo provider da preparare: Spotify. Non verranno acquisiti token privati dell'app WiiM né usate API cloud non documentate.
+
+Servizi richiesti per l'inventario: Amazon Music, BBC Radio, Calm Radio, Deezer, Hotmix, iHeartRadio, SoundCloud, YouTube Music, Spotify, TIDAL, Qobuz, radio/podcast, libreria locale e gli ulteriori servizi che emergeranno dal dispositivo/app. `Apri flusso di rete` è prioritario perché può usare direttamente URL audio o playlist supportati dal WiiM. YouTube Music non dispone di un catalogo pubblico ufficiale adatto a questa integrazione: verranno valutati soltanto Cast, apertura dell'app o futuri percorsi ufficiali, non scraping o token privati.

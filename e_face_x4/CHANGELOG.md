@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.21.73 — 2026-09-15
+
+- Sposta la console tecnica WiiM dalla navigazione principale alla sezione Admin, dove resta disponibile per debug e verifiche future.
+- Introduce il registro degli adattatori musicali profondi, con Spotify come primo provider da configurare e stato esplicito per TIDAL, Qobuz, Amazon Music, radio/podcast e librerie UPnP/DLNA.
+- Protegge la pagina della console WiiM con ruolo amministratore e documenta il confine tra API locali del player e cataloghi ufficiali dei servizi.
+
 ## 2.21.72 — 2026-09-15
 
 - Prepara il multiroom WiiM nativo con lettura diretta di ruolo, nome gruppo, membri e versione del protocollo WMRM.

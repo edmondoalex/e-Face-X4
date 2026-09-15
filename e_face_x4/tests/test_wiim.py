@@ -110,9 +110,15 @@ def test_wiim_admin_ui_is_present() -> None:
     assert "Collegamento diretto e-Face → WiiM" in page
     assert "Home Assistant non è nel percorso funzionale" in page
     home = TestClient(create_app()).get("/").text
-    assert 'data-view="wiim"' in home
-    assert 'id="wiim-frame"' in home
-    player = TestClient(create_app()).get("/wiim").text
-    assert 'id="artwork"' in player
-    assert 'id="volume"' in player
-    assert 'id="preset-list"' in player
+    assert 'data-view="wiim"' not in home
+    assert 'id="wiim-frame"' not in home
+    assert 'href="wiim">APRI CONSOLE DEBUG' in page
+
+
+def test_wiim_service_registry_starts_with_spotify() -> None:
+    from app.wiim_services import catalog
+
+    services = catalog()
+    assert services[0]["id"] == "spotify"
+    assert services[0]["status"] == "configuration_required"
+    assert "search" in services[0]["features"]

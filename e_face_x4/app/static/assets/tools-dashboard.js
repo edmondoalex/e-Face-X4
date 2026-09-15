@@ -971,11 +971,13 @@ function showWiim(data) {
     : 'WiiM configurato; premi Test diretto.'
 }
 async function loadWiim() {
-  const {settings} = await request('api/admin/wiim')
+  const [{settings}, services] = await Promise.all([request('api/admin/wiim'), request('api/admin/wiim/services')])
   $('#wiim-enabled').checked = settings.enabled !== false
   $('#wiim-host').value = settings.host || '192.168.3.52'
   $('#wiim-control4-source').value = settings.control4_source_id || 1667
   $('#wiim-control4-protocol').value = settings.control4_protocol_id || 1666
+  const labels = {configuration_required:'DA CONFIGURARE',planned:'PIANIFICATO',research_required:'DA VERIFICARE',next:'PROSSIMO',unsupported_catalog:'SOLO PERCORSO SUPPORTATO',inventory:'INVENTARIO APERTO'}
+  $('#wiim-services').innerHTML = services.items.map((item) => `<article><div><b>${item.name}</b><small>${item.features.join(' · ')}</small></div><span>${labels[item.status] || item.status}</span></article>`).join('')
 }
 $('#wiim-tool').addEventListener('click', async () => { try { await loadWiim(); openPanel('wiim-config') } catch (error) { message(error.message) } })
 $('#wiim-back').addEventListener('click', () => closePanel('wiim-config'))

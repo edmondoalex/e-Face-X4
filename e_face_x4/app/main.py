@@ -51,6 +51,7 @@ from . import sip_accounts
 from . import asterisk_ami
 from . import doorbird_api
 from . import wiim_settings
+from . import wiim_services
 from .media_preferences import apply_preferences, load_preferences, save_preferences
 from .source_icons import delete_source_icon, hidden_source_ids, load_builtin_source_icon, load_source_icon, save_source_icon, set_source_hidden
 from .backgrounds import CARD_THEMES, PRESETS, load_background, load_background_image, load_backgrounds, load_card_theme, load_card_glow, load_room_order, load_security_order, save_background_image, save_card_theme, save_card_glow, save_room_order, save_security_order, save_inherit, save_preset
@@ -61,7 +62,7 @@ from .connectors.control4_media import cached_control4_icon, cached_control4_ico
 from .connectors.supervisor import discover_addon_url, discover_host_url
 from .demo import dashboard as demo_dashboard
 
-VERSION = os.environ.get("EFACE_VERSION", "2.21.72")
+VERSION = os.environ.get("EFACE_VERSION", "2.21.73")
 STATIC = Path(__file__).parent / "static"
 logging.basicConfig(level=logging.WARNING, format="%(asctime)s %(levelname)s [e-face-x4] %(message)s")
 _reconnect_warning_at: dict[str, float] = {}
@@ -175,6 +176,11 @@ def create_app() -> FastAPI:
         except (httpx.HTTPError, RuntimeError) as exc:
             raise HTTPException(status_code=502, detail="WiiM non raggiungibile") from exc
         return {"ok": True, "device": device}
+
+    @app.get("/api/admin/wiim/services")
+    async def admin_wiim_services(request: Request) -> dict:
+        require_admin(request)
+        return {"items": wiim_services.catalog(), "first_provider": "spotify"}
 
     def configured_wiim() -> WiiMClient:
         settings = wiim_settings.load()
@@ -1752,7 +1758,7 @@ def create_app() -> FastAPI:
             page = page.replace(placeholder, value)
         page = page.replace('content="#263f48"', 'content="#181c1f"')
         page = page.replace("manifest.webmanifest?v=2.20.38", "manifest.webmanifest?v=2.21.59")
-        page = page.replace("app.css?v=2.20.20", "app.css?v=2.21.72")
+        page = page.replace("app.css?v=2.20.20", "app.css?v=2.21.73")
         page = page.replace("ui-theme-contract.css?v=2.21.27", "ui-theme-contract.css?v=2.21.29")
         page = page.replace("tools-dashboard.js?v=2.21.27", "tools-dashboard.js?v=2.21.33")
         page = page.replace("tools-dashboard.js?v=2.21.33", "tools-dashboard.js?v=2.21.34")
@@ -1760,8 +1766,8 @@ def create_app() -> FastAPI:
         page = page.replace("tools-dashboard.js?v=2.21.36", "tools-dashboard.js?v=2.21.38")
         page = page.replace("tools-dashboard.js?v=2.21.38", "tools-dashboard.js?v=2.21.41")
         page = page.replace("tools-dashboard.js?v=2.21.41", "tools-dashboard.js?v=2.21.42")
-        page = page.replace("tools-dashboard.js?v=2.21.42", "tools-dashboard.js?v=2.21.70")
-        page = page.replace("tools-dashboard.css?v=2.20.36", "tools-dashboard.css?v=2.21.70")
+        page = page.replace("tools-dashboard.js?v=2.21.42", "tools-dashboard.js?v=2.21.73")
+        page = page.replace("tools-dashboard.css?v=2.20.36", "tools-dashboard.css?v=2.21.73")
         page = page.replace("backgrounds.css?v=2.20.20", "backgrounds.css?v=2.21.43")
         page = page.replace("intercom.css?v=2.21.14", "intercom.css?v=2.21.46")
         page = page.replace("app.js?v=2.21.11", "app.js?v=2.21.29")
@@ -1770,7 +1776,7 @@ def create_app() -> FastAPI:
         page = page.replace("app.js?v=2.21.30", "app.js?v=2.21.31")
         page = page.replace("app.js?v=2.21.31", "app.js?v=2.21.32")
         page = page.replace("app.js?v=2.21.32", "app.js?v=2.21.60")
-        page = page.replace("app.js?v=2.21.60", "app.js?v=2.21.72")
+        page = page.replace("app.js?v=2.21.60", "app.js?v=2.21.73")
         page = page.replace("home-comfort.css?v=2.20.20", "home-comfort.css?v=2.21.31")
         if "--initial-background:" not in page:
             page = page.replace('<html lang="it">', f'<html lang="it" style="background:var(--initial-background,#181c1f);--initial-background:{replacements["__INITIAL_BACKGROUND__"]}">', 1)
@@ -1802,7 +1808,8 @@ def create_app() -> FastAPI:
         return HTMLResponse(themed_page("intercom.html"), headers={"Cache-Control": "no-store"})
 
     @app.get("/wiim", include_in_schema=False)
-    async def wiim_page() -> HTMLResponse:
+    async def wiim_page(request: Request) -> HTMLResponse:
+        require_admin(request)
         return HTMLResponse(themed_page("wiim.html", "wiim-theme"), headers={"Cache-Control": "no-store"})
 
     async def resolved_provider(config, slug: str, port: int, timeout: float):
