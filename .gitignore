@@ -8,3 +8,6 @@ dist/
 *.log
 .DS_Store
 deploy/.turn-secret.local
+# Driver Control4 derivato dal pacchetto presente sull'impianto: conservarlo
+# localmente per la prova, senza redistribuire il codice proprietario.
+Driver Control4/*.c4z
