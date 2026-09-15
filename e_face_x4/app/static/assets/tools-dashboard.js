@@ -222,7 +222,7 @@ internalAdmin.addEventListener('submit', async (event) => {
 
 const voipAdmin = document.createElement('section')
 voipAdmin.className = 'admin-form'
-voipAdmin.innerHTML = '<div class="admin-info"><b>Telefoni VoIP</b><p>Account SIP standard per telefoni di qualsiasi marca: il dispositivo si registra ad Asterisk. Il profilo video abilita H.264/VP8 tra dispositivi SIP compatibili; il client e-Face attuale effettua chiamate audio, quindi non mostra ancora il video del telefono. Verifica sempre il modello reale. Non usare questa sezione per tablet Control4.</p></div><div id="voip-phone-list" class="admin-users-list"></div><form id="voip-phone-form" class="admin-form"><div class="admin-form-grid"><label>Nome telefono<input name="name" maxlength="64" required></label><label>Tipo<select name="profile"><option value="voip_audio">Solo audio</option><option value="voip_video">Audio e video</option></select></label></div><div class="admin-form-actions"><button type="submit">AGGIUNGI TELEFONO</button><button type="button" id="voip-phone-new" class="secondary">NUOVO</button></div></form><div id="voip-phone-credential" class="admin-info" hidden><b>Credenziali SIP del telefono</b><p>Inserisci nel telefono il server Asterisk mostrato nelle impostazioni Intercom, porta SIP 5060, trasporto UDP. Conserva la password in un posto sicuro.</p><label>Interno / utente<input id="voip-phone-user" readonly></label><label>Password SIP<input id="voip-phone-password" type="password" readonly></label><button type="button" id="voip-phone-password-toggle" class="secondary">MOSTRA PASSWORD</button></div>'
+voipAdmin.innerHTML = '<div class="admin-info"><b>Telefoni VoIP</b><p>Account SIP standard per telefoni di qualsiasi marca: il dispositivo si registra ad Asterisk. Il profilo video abilita H.264/VP8 e il client e-Face mostra il video quando il telefono lo negozia; in caso contrario la chiamata resta audio. Verifica sempre il modello reale. Non usare questa sezione per tablet Control4.</p></div><div id="voip-phone-list" class="admin-users-list"></div><form id="voip-phone-form" class="admin-form"><div class="admin-form-grid"><label>Nome telefono<input name="name" maxlength="64" required></label><label>Tipo<select name="profile"><option value="voip_audio">Solo audio</option><option value="voip_video">Audio e video</option></select></label></div><div class="admin-form-actions"><button type="submit">AGGIUNGI TELEFONO</button><button type="button" id="voip-phone-new" class="secondary">NUOVO</button></div></form><div id="voip-phone-credential" class="admin-info" hidden><b>Credenziali SIP del telefono</b><p>Inserisci nel telefono il server Asterisk mostrato nelle impostazioni Intercom, porta SIP 5060, trasporto UDP. Conserva la password in un posto sicuro.</p><label>Interno / utente<input id="voip-phone-user" readonly></label><label>Password SIP<input id="voip-phone-password" type="password" readonly></label><button type="button" id="voip-phone-password-toggle" class="secondary">MOSTRA PASSWORD</button></div>'
 $('#intercom-config').append(voipAdmin)
 const voipForm = voipAdmin.querySelector('#voip-phone-form')
 let voipEditExtension = ''
@@ -522,7 +522,7 @@ function renderGroups(){
   const legend=document.createElement('legend');legend.textContent=group.extension==='8290'?'Tutti · 8290':`Gruppo · ${group.extension}`;card.append(legend)
   const name=document.createElement('input');name.value=group.name;name.maxLength=48;name.disabled=group.extension==='8290';name.dataset.groupName='';card.append(name)
   const choices=document.createElement('div');choices.className='intercom-group-members'
-  for(const member of groupMembers){const label=document.createElement('label'),box=document.createElement('input');box.type='checkbox';box.value=member.extension;box.checked=group.members.includes(member.extension);box.disabled=group.extension==='8290';label.append(box,document.createTextNode(` ${member.name} · ${member.extension}${member.dnd?' · DND':''}`));choices.append(label)}
+  for(const member of groupMembers){const label=document.createElement('label'),box=document.createElement('input');box.type='checkbox';box.value=member.extension;box.checked=group.members.includes(member.extension);box.disabled=group.extension==='8290';label.append(box,document.createTextNode(` ${member.name} · ${member.extension} · ${member.video_capable?'video':'audio'}${member.dnd?' · DND':''}`));choices.append(label)}
   card.append(choices)
   if(group.extension!=='8290')composerAction(card,'ELIMINA',()=>{groupModel=groupModel.filter(x=>x!==group);renderGroups()})
   list.append(card)
@@ -545,7 +545,7 @@ async function personalDevices() {
     const row = document.createElement('div')
     row.className = 'admin-info'
     const title = document.createElement('b')
-    title.textContent = `${device.name} · ${device.owner} · interno ${device.extension}`
+    title.textContent = `${device.name} · ${device.owner} · interno ${device.extension} · ${device.video_capable ? (device.video_enabled ? 'video attivo' : 'video disattivato') : 'solo audio'}`
     row.append(title)
     composerAction(row, 'RINOMINA', async () => {
       const name = window.prompt('Nuovo nome del dispositivo', device.name)
@@ -844,6 +844,7 @@ document.body.append(deviceSoundPanel)
 const deviceSoundForm = deviceSoundPanel.querySelector('form')
 deviceSoundForm.elements.ringtone.innerHTML = '<option value="doorbell">Videocitofono</option><option value="dingdong">Din-don</option><option value="double">Campanello doppio</option><option value="bell">Campana</option><option value="classic">Classica</option><option value="soft">Delicata</option>'
 deviceSoundForm.elements.silent.closest('label').insertAdjacentHTML('afterend','<label><span><input name="dnd" type="checkbox"> DND · Non disturbare</span><small>Esclude questo dispositivo dalle chiamate di gruppo.</small></label>')
+deviceSoundForm.elements.dnd.closest('label').insertAdjacentHTML('afterend','<label><span><input name="video_enabled" type="checkbox"> Video Intercom</span><small data-video-hint>Usa la camera nelle chiamate verso dispositivi compatibili.</small></label><label>Camera preferita<select name="camera_facing"><option value="user">Frontale</option><option value="environment">Posteriore</option></select></label>')
 let currentPersonalDeviceId = ''
 function previewDeviceSound() {
   if (deviceSoundForm.elements.silent.checked) return message('Modalità silenziosa attiva')
@@ -867,6 +868,11 @@ async function openDeviceSound(status) {
   deviceSoundForm.elements.vibration.checked = data.vibration
   deviceSoundForm.elements.silent.checked = data.silent
   deviceSoundForm.elements.dnd.checked = data.dnd
+  deviceSoundForm.elements.video_enabled.checked = data.video_enabled
+  deviceSoundForm.elements.video_enabled.disabled = !data.video_capable
+  deviceSoundForm.elements.camera_facing.value = data.camera_facing
+  deviceSoundForm.elements.camera_facing.disabled = !data.video_capable
+  deviceSoundForm.querySelector('[data-video-hint]').textContent = data.video_capable ? 'Usa la camera nelle chiamate verso dispositivi compatibili.' : 'Questo browser non ha rilevato una camera.'
   if ('serviceWorker' in navigator && 'PushManager' in window) {
     const registration = await navigator.serviceWorker.register(api('service-worker.js'), {scope:new URL('./', api('service-worker.js')).pathname})
     deviceSoundForm.elements.push_enabled.checked = Boolean(await registration.pushManager.getSubscription())
@@ -905,7 +911,7 @@ async function savePushPreference(enabled) {
 deviceSoundForm.addEventListener('submit', async event => {
   event.preventDefault()
   try {
-    await request(`api/intercom/personal-device/${encodeURIComponent(currentPersonalDeviceId)}/preferences`, {method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify({name:deviceSoundForm.elements.name.value.trim(), ringtone:deviceSoundForm.elements.ringtone.value, ring_volume:Number(deviceSoundForm.elements.ring_volume.value), vibration:deviceSoundForm.elements.vibration.checked, silent:deviceSoundForm.elements.silent.checked, dnd:deviceSoundForm.elements.dnd.checked})})
+    await request(`api/intercom/personal-device/${encodeURIComponent(currentPersonalDeviceId)}/preferences`, {method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify({name:deviceSoundForm.elements.name.value.trim(), ringtone:deviceSoundForm.elements.ringtone.value, ring_volume:Number(deviceSoundForm.elements.ring_volume.value), vibration:deviceSoundForm.elements.vibration.checked, silent:deviceSoundForm.elements.silent.checked, dnd:deviceSoundForm.elements.dnd.checked, video_enabled:deviceSoundForm.elements.video_enabled.checked, camera_facing:deviceSoundForm.elements.camera_facing.value})})
     await savePushPreference(deviceSoundForm.elements.push_enabled.checked)
     message('Impostazioni del dispositivo salvate')
     closePanel(deviceSoundPanel.id)

@@ -28,6 +28,7 @@ def test_device_inventory_persists_and_reserves_one_extension_per_browser(monkey
 
     config.upsert(personal_devices.asterisk_username(first_id), first["extension"], first["password"], first["name"], reload, active.__contains__)
     assert "webrtc=yes" in config.pjsip.read_text(encoding="utf-8")
+    assert "allow=!all,opus,alaw,ulaw,h264,vp8" in config.pjsip.read_text(encoding="utf-8")
 
 
 def test_personal_device_api_provisions_and_revokes_individually(monkeypatch, tmp_path):
@@ -55,10 +56,12 @@ def test_personal_device_api_provisions_and_revokes_individually(monkeypatch, tm
     assert admin.post("/api/auth/login", json={"username": "admin", "password": "password-admin-lunga"}).status_code == 200
     assert person.post("/api/auth/login", json={"username": "mario", "password": "password-mario-lunga"}).status_code == 200
     device_id = str(uuid.uuid4())
-    payload = {"device_id": device_id, "name": "Cellulare mario", "device_type": "phone"}
+    payload = {"device_id": device_id, "name": "Cellulare mario", "device_type": "phone", "video_capable": True}
     created = person.post("/api/intercom/sip/personal-device", json=payload)
     assert created.status_code == 200, created.text
     assert created.json()["username"] == "8302"
+    assert created.json()["video_capable"] is True
+    assert created.json()["video_enabled"] is True
     assert person.post("/api/intercom/sip/personal-device", json=payload).json() == created.json()
     assert len(remote) == 1
     listed = admin.get("/api/admin/intercom/personal-devices")
@@ -68,6 +71,8 @@ def test_personal_device_api_provisions_and_revokes_individually(monkeypatch, tm
     preferences = person.put(f"/api/intercom/personal-device/{device_id}/preferences", json={"name": "Poco Mario", "ringtone": "soft", "ring_volume": 55, "vibration": False, "silent": False})
     assert preferences.status_code == 200, preferences.text
     assert preferences.json()["ring_volume"] == 55
+    video = person.put(f"/api/intercom/personal-device/{device_id}/preferences", json={"name":"Poco Mario","ringtone":"soft","ring_volume":55,"vibration":False,"silent":False,"video_enabled":True,"camera_facing":"environment"})
+    assert video.json()["camera_facing"] == "environment"
     dnd = person.put(f"/api/intercom/personal-device/{device_id}/preferences", json={"name":"Poco Mario","ringtone":"soft","ring_volume":55,"vibration":False,"silent":False,"dnd":True})
     assert dnd.json()["dnd"] is True
     assert "8302" not in next(group for group in remote_groups["groups"] if group["extension"] == "8290")["members"]

@@ -81,7 +81,7 @@ def render(records: dict[str, dict]) -> str:
         )
         if profile == "browser":
             output.append(common + "context=eface-test\nwebrtc=yes\nfrom_domain=asterisk\nrtp_symmetric=yes\nforce_rport=yes\n"
-                          "rewrite_contact=yes\ndirect_media=no\nallow=!all,opus,alaw,ulaw\n")
+                          "rewrite_contact=yes\ndirect_media=no\nallow=!all,opus,alaw,ulaw,h264,vp8\n")
         else:
             codecs = "alaw,ulaw,h264,vp8" if profile == "voip_video" else "alaw,ulaw"
             output.append(common + "context=eface-test\nwebrtc=no\nrtp_symmetric=yes\nforce_rport=yes\n"

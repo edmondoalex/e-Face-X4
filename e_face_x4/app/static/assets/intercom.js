@@ -2,7 +2,7 @@
   const $ = (selector) => document.querySelector(selector)
   const adminMode = document.documentElement.classList.contains('admin-intercom')
   const root = new URL('./', location.href)
-  const currentVersion = '2.21.60'
+  const currentVersion = '2.21.61'
   function newDeviceId() {
     if (typeof crypto.randomUUID === 'function') return crypto.randomUUID()
     const bytes = new Uint8Array(16)
@@ -38,6 +38,11 @@
   let ringtoneActive = false
   let ringPreferences = {ringtone:'doorbell', ring_volume:80, vibration:true, silent:false}
   let deviceDnd = false
+  let videoCapable = false
+  let videoEnabled = false
+  let cameraFacing = 'user'
+  let localVideoStream = null
+  let activeVideoSender = null
   let currentDeviceId = ''
   let rejectIncomingUntil = 0
   let audioStatsTimer = null
@@ -54,6 +59,7 @@
   let doorbirdRetryTimer = null
   let intercomVisible = !document.documentElement.classList.contains('embedded')
   let stationsSignature = ''
+  const externalVideoByExtension = new Map()
   const pushedCaller = new URLSearchParams(location.search).get('from')
   $('.intercom-station-list').prepend($('.doorbird-row'))
   function publishIntercomState(state) {
@@ -68,6 +74,8 @@
       const signature = JSON.stringify(stations)
       if (signature === stationsSignature) return
       stationsSignature = signature
+      externalVideoByExtension.clear()
+      stations.forEach(station => externalVideoByExtension.set(station.sip_extension, station.id))
       const primary = stations.find((station) => station.id === 'ingresso')
       if (primary) {
         $('.doorbird-row .station-copy strong').textContent = primary.name
@@ -99,6 +107,7 @@
         dial.textContent = 'CHIAMA'
         dial.dataset.dialExtension = station.sip_extension
         dial.dataset.externalStation = station.id
+        dial.dataset.videoCapable = 'false'
         dial.dataset.stationReady = String(station.ready)
         dial.disabled = !station.ready || !phone?.isRegistered() || !!call
         if (!station.ready) dial.title = 'Configura e verifica la rotta SIP in Asterisk'
@@ -157,6 +166,7 @@
         dial.textContent = 'CHIAMA'
         dial.dataset.dialExtension = tablet.extension
         dial.dataset.stationReady = String(tablet.ready)
+        dial.dataset.videoCapable = 'false'
         dial.disabled = !tablet.ready || !phone?.isRegistered() || !!call
         copy.append(title, subtitle)
         row.append(icon, copy, dial)
@@ -192,6 +202,7 @@
         dial.textContent = 'CHIAMA'
         dial.dataset.dialExtension = device.extension
         dial.dataset.stationReady = String(device.endpoint_present)
+        dial.dataset.videoCapable = String(device.profile === 'voip_video')
         dial.disabled = !device.endpoint_present || !phone?.isRegistered() || !!call
         copy.append(title, subtitle)
         row.append(icon, copy, dial)
@@ -227,7 +238,7 @@
         const title = document.createElement('strong')
         title.textContent = device.name
         const subtitle = document.createElement('small')
-        subtitle.textContent = `${device.owner} · interno ${device.extension}${device.extension === ownExtension ? ' · questo dispositivo' : ''}`
+        subtitle.textContent = `${device.owner} · interno ${device.extension} · ${device.video_capable && device.video_enabled ? 'video' : 'audio'}${device.extension === ownExtension ? ' · questo dispositivo' : ''}`
         copy.append(title, subtitle)
         if (device.extension === ownExtension) {
           row.classList.add('current-device-row')
@@ -243,7 +254,7 @@
             deviceDnd=next; renderDnd()
           }); controls.append(dnd); row.append(icon,copy,controls); $('.doorbird-row').after(row)
         } else {
-          const dial = document.createElement('button'); dial.type='button'; dial.textContent='CHIAMA'; dial.dataset.dialExtension=device.extension; dial.dataset.stationReady='true'; dial.disabled=!phone?.isRegistered()||!!call
+          const dial = document.createElement('button'); dial.type='button'; dial.textContent='CHIAMA'; dial.dataset.dialExtension=device.extension; dial.dataset.stationReady='true'; dial.dataset.videoCapable=String(device.video_capable && device.video_enabled); dial.disabled=!phone?.isRegistered()||!!call
           row.append(icon,copy,dial); anchor.after(row); anchor=row
         }
       }
@@ -264,7 +275,7 @@
         const row=document.createElement('div');row.className='intercom-station-row custom-group-row'
         row.innerHTML='<svg class="station-icon" viewBox="0 0 24 24"><path d="M4 8h4l4-3v14l-4-3H4zM16 9c2 2 2 4 0 6M19 6c4 4 4 8 0 12"/></svg><div class="station-copy"><strong></strong><small></small></div><button>CHIAMA</button>'
         row.querySelector('strong').textContent=group.name;row.querySelector('small').textContent=`Gruppo ${group.extension} · ${group.members.length} interni`
-        const button=row.querySelector('button');button.dataset.dialExtension=group.extension;button.disabled=!phone?.isRegistered()||!!call
+        const button=row.querySelector('button');button.dataset.dialExtension=group.extension;button.dataset.videoCapable='true';button.disabled=!phone?.isRegistered()||!!call
         anchor.after(row);anchor=row
       }
     }catch(_){}
@@ -577,6 +588,16 @@
     $('#intercom-call-panel').hidden = true
     releaseMicrophone()
     $('#remote-audio').srcObject = null
+    $('#remote-video').srcObject = null
+    $('#call-doorbird-preview').removeAttribute('src')
+    $('#call-doorbird-preview').hidden = true
+    $('#local-video').srcObject = null
+    $('.local-video-wrap').hidden = true
+    $('#intercom-video-panel').classList.remove('has-local')
+    $('#intercom-video-panel').hidden = true
+    $('#remote-video-placeholder').hidden = false
+    $('#video-status').textContent = 'Video: in attesa'
+    activeVideoSender = null
     $('#audio-retry').hidden = true
     $('#audio-status').textContent = 'Audio in ingresso: in attesa'
     $('#call-status').textContent = text
@@ -605,20 +626,43 @@
     if (micGain) micGain.disconnect()
     if (micOutput) micOutput.getTracks().forEach((track) => track.stop())
     if (micInput) micInput.getTracks().forEach((track) => track.stop())
+    if (localVideoStream) localVideoStream.getTracks().forEach((track) => track.stop())
     micInput = micOutput = micSource = micGain = null
+    localVideoStream = null
   }
 
-  async function preparedMicrophone() {
+  async function preparedMicrophone(includeVideo = false) {
     micInput = await microphone()
-    if (!audioContext) return micInput
-    micSource = audioContext.createMediaStreamSource(micInput)
-    micGain = audioContext.createGain()
-    micGain.gain.value = Number($('#microphone-gain').value) / 100
-    const destination = audioContext.createMediaStreamDestination()
-    micSource.connect(micGain)
-    micGain.connect(destination)
-    micOutput = destination.stream
+    if (!audioContext) micOutput = micInput
+    else {
+      micSource = audioContext.createMediaStreamSource(micInput)
+      micGain = audioContext.createGain()
+      micGain.gain.value = Number($('#microphone-gain').value) / 100
+      const destination = audioContext.createMediaStreamDestination()
+      micSource.connect(micGain)
+      micGain.connect(destination)
+      micOutput = destination.stream
+    }
+    if (includeVideo && videoCapable && videoEnabled) {
+      try {
+        localVideoStream = await navigator.mediaDevices.getUserMedia({audio:false,video:{facingMode:{ideal:cameraFacing},width:{ideal:1280},height:{ideal:720}}})
+        const track = localVideoStream.getVideoTracks()[0]
+        if (track) micOutput.addTrack(track)
+        $('#local-video').srcObject = localVideoStream
+        $('.local-video-wrap').hidden = false
+        $('#intercom-video-panel').classList.add('has-local')
+        $('.local-video-wrap').classList.toggle('environment', cameraFacing === 'environment')
+        $('#intercom-video-panel').hidden = false
+        $('#video-status').textContent = 'Video locale pronto'
+      } catch (_) {
+        $('#video-status').textContent = 'Camera non disponibile · chiamata solo audio'
+      }
+    }
     return micOutput
+  }
+
+  function sessionOffersVideo(session) {
+    return /(?:^|\r?\n)m=video\s/i.test(session.request?.body || session._request?.body || '')
   }
 
   function track(session) {
@@ -631,6 +675,15 @@
     call = session
     $('#intercom-call-panel').hidden = false
     $('#audio-status').textContent = 'Connessione audio in preparazione…'
+    const remoteOffersVideo = session.direction === 'incoming' && sessionOffersVideo(session)
+    const remoteExtension = String(session.remote_identity?.uri?.user || '')
+    const remoteName = String(session.remote_identity?.display_name || '').toLowerCase()
+    const externalStation = externalVideoByExtension.get(remoteExtension) || ((remoteExtension === '8000' || remoteName.includes('doorbird')) ? externalVideoByExtension.values().next().value : '')
+    if (session.direction === 'incoming' && externalStation) {
+      const preview=$('#call-doorbird-preview');preview.src=new URL(`api/intercom/external-stations/${encodeURIComponent(externalStation)}/video`,root).toString();preview.hidden=false
+      $('#remote-video-placeholder').hidden=true;$('#intercom-video-panel').hidden=false;$('#video-status').textContent='Anteprima postazione esterna attiva'
+    }
+    if (remoteOffersVideo) $('#intercom-video-panel').hidden = false
     let iceReadyTimer = null
     let iceReadySent = false
     let boundConnection = null
@@ -652,6 +705,15 @@
       $('#remote-audio').srcObject = new MediaStream([receiver.track])
       playRemoteAudio()
     }
+    function syncRemoteVideo(peerconnection) {
+      const receiver = peerconnection.getReceivers?.().find((item) => item.track?.kind === 'video' && item.track.readyState === 'live')
+      if (!receiver || $('#remote-video').srcObject?.getVideoTracks?.()[0] === receiver.track) return
+      $('#remote-video').srcObject = new MediaStream([receiver.track])
+      $('#remote-video-placeholder').hidden = true
+      $('#intercom-video-panel').hidden = false
+      $('#video-status').textContent = 'Video remoto attivo'
+      $('#remote-video').play().catch(() => {})
+    }
     function bindConnection(peerconnection) {
       if (!peerconnection || boundConnection === peerconnection) return
       boundConnection = peerconnection
@@ -662,6 +724,7 @@
       audioStatsTimer = setInterval(async () => {
         try {
           syncRemoteAudio(peerconnection)
+          syncRemoteVideo(peerconnection)
           const stats = await peerconnection.getStats()
           let packets = 0
           stats.forEach((item) => { if (item.type === 'inbound-rtp' && (item.kind === 'audio' || item.mediaType === 'audio')) packets += item.packetsReceived || 0 })
@@ -672,11 +735,13 @@
         } catch (_) { if (call === session) $('#audio-status').textContent = 'Statistiche audio non disponibili nel browser' }
       }, 2000)
       peerconnection.addEventListener('track', (event) => {
-        if (event.track.kind !== 'audio') return
-        $('#remote-audio').srcObject = event.streams[0] || new MediaStream([event.track])
-        playRemoteAudio()
+        if (event.track.kind === 'audio') {
+          $('#remote-audio').srcObject = event.streams[0] || new MediaStream([event.track])
+          playRemoteAudio()
+        } else if (event.track.kind === 'video') syncRemoteVideo(peerconnection)
       })
       syncRemoteAudio(peerconnection)
+      syncRemoteVideo(peerconnection)
     }
     session.on('peerconnection', ({peerconnection}) => bindConnection(peerconnection))
     bindConnection(session.connection)
@@ -697,9 +762,15 @@
     session.on('sdp', ({originator}) => { if (originator === 'local') clearTimeout(iceReadyTimer) })
     session.on('sending', () => { $('#call-status').textContent = 'INVITE inviato ad Asterisk…' })
     session.on('progress', () => { $('#call-status').textContent = 'I tablet stanno squillando…' })
-    session.on('confirmed', () => { stopRingtone(); publishIntercomState('active'); $('#call-status').textContent = 'In conversazione'; bindConnection(session.connection); if (boundConnection) syncRemoteAudio(boundConnection); playRemoteAudio() })
+    session.on('confirmed', () => { stopRingtone(); publishIntercomState('active'); $('#call-status').textContent = 'In conversazione'; bindConnection(session.connection); if (boundConnection) { syncRemoteAudio(boundConnection); syncRemoteVideo(boundConnection); activeVideoSender=boundConnection.getSenders?.().find(sender=>sender.track?.kind==='video') || null } playRemoteAudio() })
     session.on('ended', () => { clearTimeout(iceReadyTimer); clearInterval(connectionPollTimer); clearCall('Chiamata terminata.') })
-    session.on('failed', ({cause}) => { clearTimeout(iceReadyTimer); clearInterval(connectionPollTimer); clearCall(`Chiamata non riuscita: ${cause || 'errore sconosciuto'}`) })
+    session.on('failed', ({cause}) => {
+      clearTimeout(iceReadyTimer);clearInterval(connectionPollTimer)
+      const retryAudio=session.direction==='outgoing'&&session._efaceHadVideo&&!session._efaceRetried&&/488|not acceptable|unsupported|media/i.test(String(cause||''))
+      const target=session._efaceTarget
+      clearCall(retryAudio?'Video non compatibile · riprovo solo audio…':`Chiamata non riuscita: ${cause || 'errore sconosciuto'}`)
+      if(retryAudio&&target&&phone?.isRegistered())setTimeout(async()=>{try{const stream=await preparedMicrophone(false);const retry=phone.call(`sip:${target}@asterisk`,{mediaStream:stream,mediaConstraints:{audio:true,video:false},pcConfig:peerConfig()});retry._efaceTarget=target;retry._efaceRetried=true}catch(exception){releaseMicrophone();error(exception.message)}},180)
+    })
     session.on('getusermediafailed', ({name, message}) => error(`Microfono: ${name || 'errore'} ${message || ''}`))
   }
 
@@ -738,15 +809,20 @@
         currentDeviceId = deviceId
         const kind = /iPad|Tablet/i.test(navigator.userAgent) || (/Android/i.test(navigator.userAgent) && !/Mobile/i.test(navigator.userAgent)) ? 'tablet' : /iPhone|Android|Mobile/i.test(navigator.userAgent) ? 'phone' : 'desktop'
         const deviceType = {phone:'Cellulare', tablet:'Tablet', desktop:'PC'}[kind]
+        let detectedVideo = Boolean(navigator.mediaDevices?.getUserMedia && kind !== 'desktop')
+        try { detectedVideo = detectedVideo || (await navigator.mediaDevices?.enumerateDevices?.() || []).some(device => device.kind === 'videoinput') } catch (_) {}
         response = await fetch(new URL('api/intercom/sip/personal-device', root), {
           method:'POST', cache:'no-store', credentials:'same-origin', headers:{'Content-Type':'application/json'},
-          body:JSON.stringify({device_id:deviceId, name:`${deviceType} ${status.user}`, device_type:kind}),
+          body:JSON.stringify({device_id:deviceId, name:`${deviceType} ${status.user}`, device_type:kind, video_capable:detectedVideo}),
         })
       }
       const data = await response.json().catch(() => ({}))
       if (!response.ok) throw new Error(data.detail || 'Credenziale SIP non disponibile in e-Face')
       ringPreferences = {ringtone:data.ringtone || 'doorbell', ring_volume:Number.isInteger(data.ring_volume) ? data.ring_volume : 80, vibration:data.vibration !== false, silent:data.silent === true}
       deviceDnd = data.dnd === true
+      videoCapable = data.video_capable === true
+      videoEnabled = data.video_enabled === true
+      cameraFacing = data.camera_facing === 'environment' ? 'environment' : 'user'
       const extension = data.username
       if (!/^[0-9]{4}$/.test(extension)) throw new Error('Interno SIP non valido')
       if (!password) password = data.password
@@ -801,7 +877,8 @@
     $('#call-status').textContent = 'Richiesta accesso al microfono…'
     try {
       await prepareSpeaker()
-      const stream = await preparedMicrophone()
+      const includeVideo = button.dataset.videoCapable === 'true' && videoEnabled
+      const stream = await preparedMicrophone(includeVideo)
       if (button.dataset.externalStation) {
         $('#call-status').textContent = 'Preparo la postazione esterna…'
         const response = await fetch(new URL(`api/intercom/external-stations/${encodeURIComponent(button.dataset.externalStation)}/prepare-call`, root),
@@ -815,7 +892,8 @@
         const pushResult = await pushResponse.json().catch(() => ({}))
         if (pushResponse.ok && pushResult.sent > 0) $('#call-status').textContent = 'Notifica inviata, chiamo il dispositivo…'
       } catch (_) {}
-      phone.call(`sip:${button.dataset.dialExtension}@asterisk`, {mediaStream:stream, mediaConstraints:{audio:true, video:false}, pcConfig:peerConfig()})
+      const session=phone.call(`sip:${button.dataset.dialExtension}@asterisk`, {mediaStream:stream, mediaConstraints:{audio:true, video:stream.getVideoTracks().length > 0}, pcConfig:peerConfig()})
+      session._efaceTarget=button.dataset.dialExtension;session._efaceHadVideo=stream.getVideoTracks().length>0
     } catch (exception) {
       releaseMicrophone()
       $('#call-status').textContent = 'Chiamata non avviata.'
@@ -831,9 +909,9 @@
     stopRingtone()
     try {
       await prepareSpeaker()
-      const stream = await preparedMicrophone()
+      const stream = await preparedMicrophone(sessionOffersVideo(incoming) && videoEnabled)
       if (call !== incoming) { releaseMicrophone(); return }
-      incoming.answer({mediaStream:stream, mediaConstraints:{audio:true, video:false}, pcConfig:peerConfig()})
+      incoming.answer({mediaStream:stream, mediaConstraints:{audio:true, video:stream.getVideoTracks().length > 0}, pcConfig:peerConfig()})
       $('#call-answer').disabled = true
     }
     catch (exception) { releaseMicrophone(); error(exception.message) }
@@ -847,6 +925,28 @@
     stopRingtone()
     if (incoming) rejectIncomingUntil = Date.now() + 60000
     call.terminate(incoming ? {status_code:486, reason_phrase:'Declined'} : undefined)
+  })
+  $('#video-toggle').addEventListener('click', () => {
+    const track=localVideoStream?.getVideoTracks?.()[0]
+    if(!track)return
+    track.enabled=!track.enabled
+    $('#video-toggle').textContent=track.enabled?'DISATTIVA VIDEO':'ATTIVA VIDEO'
+    $('#video-toggle').classList.toggle('off',!track.enabled)
+    $('#video-status').textContent=track.enabled?'Video locale attivo':'Video locale disattivato'
+  })
+  $('#camera-switch').addEventListener('click', async()=>{
+    if(!call?.isEstablished?.() || !videoCapable)return
+    const next=cameraFacing==='user'?'environment':'user'
+    try{
+      const replacement=await navigator.mediaDevices.getUserMedia({audio:false,video:{facingMode:{ideal:next},width:{ideal:1280},height:{ideal:720}}})
+      const nextTrack=replacement.getVideoTracks()[0]
+      const sender=call.connection?.getSenders?.().find(item=>item.track?.kind==='video') || activeVideoSender
+      if(!sender||!nextTrack)throw new Error('Cambio camera non supportato durante questa chiamata')
+      await sender.replaceTrack(nextTrack)
+      localVideoStream?.getTracks().forEach(track=>track.stop());localVideoStream=replacement;activeVideoSender=sender;cameraFacing=next
+      $('#local-video').srcObject=replacement;$('.local-video-wrap').classList.toggle('environment',cameraFacing==='environment')
+      $('#video-status').textContent=cameraFacing==='environment'?'Camera posteriore attiva':'Camera frontale attiva'
+    }catch(exception){error(exception.message||'Cambio camera non disponibile')}
   })
   if (!adminMode) $('#sip-connect').click()
   window.addEventListener('pagehide', () => { if (phone) phone.stop() })

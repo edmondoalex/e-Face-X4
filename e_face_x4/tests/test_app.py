@@ -56,7 +56,7 @@ def test_health() -> None:
     response = TestClient(create_app()).get("/health")
     assert response.status_code == 200
     assert response.json()["ok"] is True
-    assert response.json()["version"] == "2.21.60"
+    assert response.json()["version"] == "2.21.61"
 
 
 def test_installed_app_starts_at_dashboard() -> None:
@@ -108,6 +108,12 @@ def test_intercom_is_in_sidebar_with_embedded_view() -> None:
     assert "Chiusura chiamata…" in client_script
     assert 'id="audio-status"' in intercom
     assert 'id="audio-retry"' in intercom
+    assert 'id="remote-video"' in intercom
+    assert 'id="local-video"' in intercom
+    assert 'id="camera-switch"' in intercom
+    assert "sessionOffersVideo" in client_script
+    assert "replaceTrack" in client_script
+    assert "video:stream.getVideoTracks().length > 0" in client_script
     assert "peerconnection.getStats()" in client_script
     assert "createMediaElementSource" not in client_script
     assert "bindConnection(session.connection)" in client_script
@@ -277,7 +283,7 @@ def test_intercom_dashboard_stores_only_local_settings(monkeypatch, tmp_path) ->
     assert 'id="users-tool"' in page
     assert 'id="logout"' in page
     assert page.index('id="logout"') < page.index('id="tools-user-section"')
-    assert "tools-dashboard.js?v=2.21.60" in page
+    assert "tools-dashboard.js?v=2.21.61" in page
     home = client.get("/").text
     assert "backgrounds.css?v=2.21.43" in home
     assert "app.js?v=2.21.60" in home

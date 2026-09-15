@@ -15,6 +15,7 @@ _PASSWORD = re.compile(r"[A-Za-z0-9_-]{20,128}\Z")
 _OWNER = re.compile(r"[a-z][a-z0-9_-]{2,31}\Z")
 _DEVICE_TYPES = {"phone", "tablet", "desktop"}
 _RINGTONES = {"doorbell", "dingdong", "double", "bell", "soft", "classic"}
+_CAMERA_FACING = {"user", "environment"}
 
 
 def preferences(record: dict) -> dict[str, Any]:
@@ -23,11 +24,15 @@ def preferences(record: dict) -> dict[str, Any]:
     vibration = record.get("vibration", True)
     silent = record.get("silent", False)
     dnd = record.get("dnd", False)
+    video_capable = record.get("video_capable", False)
+    video_enabled = record.get("video_enabled", video_capable)
+    camera_facing = record.get("camera_facing", "user")
     if ringtone not in _RINGTONES or not isinstance(volume, int) or isinstance(volume, bool) or not 0 <= volume <= 100:
         raise ValueError("Impostazioni suoneria non valide")
-    if not isinstance(vibration, bool) or not isinstance(silent, bool) or not isinstance(dnd, bool):
+    if not all(isinstance(value, bool) for value in (vibration, silent, dnd, video_capable, video_enabled)) or camera_facing not in _CAMERA_FACING:
         raise ValueError("Impostazioni suoneria non valide")
-    return {"ringtone": ringtone, "ring_volume": volume, "vibration": vibration, "silent": silent, "dnd": dnd}
+    return {"ringtone": ringtone, "ring_volume": volume, "vibration": vibration, "silent": silent, "dnd": dnd,
+            "video_capable": video_capable, "video_enabled": video_enabled, "camera_facing": camera_facing}
 
 
 def device_type(value: object, name: str = "") -> str:
@@ -70,7 +75,7 @@ def validate(records: object) -> dict[str, dict[str, Any]]:
     for device_id, record in records.items():
         validate_id(device_id)
         required = {"owner", "name", "extension", "password"}
-        optional = {"device_type", "ringtone", "ring_volume", "vibration", "silent", "dnd"}
+        optional = {"device_type", "ringtone", "ring_volume", "vibration", "silent", "dnd", "video_capable", "video_enabled", "camera_facing"}
         if not isinstance(record, dict) or not required.issubset(record) or set(record) - required - optional:
             raise ValueError("Dati dispositivo personale incompleti")
         owner, name, extension, password = (record[key] for key in ("owner", "name", "extension", "password"))
@@ -121,7 +126,8 @@ def new_record(device_id: str, owner: str, name: str, records: dict, reserved: s
     if extension is None:
         raise ValueError("Nessun interno personale disponibile")
     record = {"owner": owner, "name": name, "extension": extension, "password": secrets.token_urlsafe(36),
-              "device_type": device_type(kind, name), "ringtone": "doorbell", "ring_volume": 80, "vibration": True, "silent": False, "dnd": False}
+              "device_type": device_type(kind, name), "ringtone": "doorbell", "ring_volume": 80, "vibration": True, "silent": False, "dnd": False,
+              "video_capable": False, "video_enabled": False, "camera_facing": "user"}
     validate({**records, device_id: record})
     return record
 

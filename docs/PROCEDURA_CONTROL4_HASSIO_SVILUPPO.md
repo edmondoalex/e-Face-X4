@@ -114,3 +114,11 @@ L'agente non deve aspettare un promemoria dell'utente: nello stesso turno in cui
 - I gruppi personalizzati si configurano in Amministrazione > Videocitofono selezionando gli interni; nessuna credenziale SIP viene salvata nell'inventario dei gruppi.
 - Verifica minima dopo una distribuzione: salute dei due add-on, `dialplan show 8290@eface-test`, `dialplan show 8290@eface-groups`, contenuto non sensibile dell'inventario gruppi e una chiamata reale per convalidare squillo/audio.
 - Distribuzione beta verificata il 15/09/2026: Asterisk `6.2.0-eface.9` e e-Face `2.21.60` avviati; health e-Face positivo; backup della rotta legacy presente; `8290@eface-groups` caricato con i Control4 `8291/8292` e gli interni personali correnti `8302–8307`. Gli asset pubblicati espongono ordinamento postazioni esterne, controlli dispositivo/DND e icone dinamiche. Squillo e audio restano una verifica fisica, non deducibile dal solo dialplan.
+
+# Video Intercom e-Face (15/09/2026)
+
+- Gli endpoint WebRTC personali e i telefoni con profilo `voip_video` negoziano H.264/VP8 mantenendo sempre i codec audio. Se la destinazione rifiuta il video con errore di compatibilità, il client riprova una volta solo audio.
+- La capacità camera viene rilevata dal dispositivo e salvata con le preferenze `video_enabled` e `camera_facing`; la camera viene richiesta soltanto all'avvio/risposta di una chiamata video, non al semplice caricamento della pagina.
+- Il video remoto e locale usa elementi distinti; durante la conversazione l'utente può sospendere la propria traccia o sostituirla con la camera frontale/posteriore senza ricreare la sessione SIP.
+- Sull'impianto beta, `core show codecs` conferma H.264 e VP8. I proxy SIP Control4 correnti e `doorbird-p2p-test` espongono soltanto alaw/ulaw: restano audio nei gruppi misti. DoorBird fornisce l'anteprima del chiamante attraverso il proxy video HTTP già autenticato, senza esporre credenziali al browser.
+- Test di sorgente e dialplan non provano il video fisico: dopo la distribuzione verificare una chiamata e-Face↔e-Face con camera, una e-Face↔VoIP video e l'anteprima di una chiamata DoorBird; Control4 richiederà una futura configurazione video del proprio proxy Composer/Asterisk prima di poter negoziare immagini SIP.

@@ -59,7 +59,7 @@ from .connectors.control4_media import cached_control4_icon, cached_control4_ico
 from .connectors.supervisor import discover_addon_url, discover_host_url
 from .demo import dashboard as demo_dashboard
 
-VERSION = os.environ.get("EFACE_VERSION", "2.21.60")
+VERSION = os.environ.get("EFACE_VERSION", "2.21.61")
 STATIC = Path(__file__).parent / "static"
 logging.basicConfig(level=logging.WARNING, format="%(asctime)s %(levelname)s [e-face-x4] %(message)s")
 _reconnect_warning_at: dict[str, float] = {}
@@ -1100,7 +1100,7 @@ def create_app() -> FastAPI:
         owner = user_auth.session_user(request.cookies.get(user_auth.COOKIE))
         if not owner or owner == "admin" or not user_auth.account(owner)["active"]:
             raise HTTPException(status_code=403, detail="Utente personale attivo richiesto")
-        if not {"device_id", "name"}.issubset(payload) or set(payload) - {"device_id", "name", "device_type"} or payload.get("device_type", "desktop") not in {"phone", "tablet", "desktop"}:
+        if not {"device_id", "name"}.issubset(payload) or set(payload) - {"device_id", "name", "device_type", "video_capable"} or payload.get("device_type", "desktop") not in {"phone", "tablet", "desktop"} or not isinstance(payload.get("video_capable", False), bool):
             raise HTTPException(status_code=400, detail="Dati dispositivo non validi")
         device_id, name = payload["device_id"], payload["name"]
         try:
@@ -1115,7 +1115,9 @@ def create_app() -> FastAPI:
             if existing and existing["owner"] != owner:
                 raise HTTPException(status_code=403, detail="Dispositivo assegnato a un altro utente")
             if existing:
-                record = existing
+                record = {**existing, "video_capable": existing.get("video_capable", False) or payload.get("video_capable", False)}
+                if record["video_capable"] and not existing.get("video_capable", False):
+                    record["video_enabled"] = True
             else:
                 reserved = {str(item.get("extension")) for item in sip_accounts.load().values() if isinstance(item, dict)}
             username = personal_devices.asterisk_username(device_id)
@@ -1123,6 +1125,8 @@ def create_app() -> FastAPI:
                 if not existing:
                     try:
                         record = personal_devices.new_record(device_id, owner, name, records, reserved, payload.get("device_type", "desktop"))
+                        record["video_capable"] = payload.get("video_capable", False)
+                        record["video_enabled"] = record["video_capable"]
                     except (ValueError, TypeError) as exc:
                         raise HTTPException(status_code=409, detail=str(exc)) from exc
                 try:
@@ -1145,7 +1149,9 @@ def create_app() -> FastAPI:
                     await provisioner_client.request("DELETE", f"/v1/phones/{username}")
                     raise
             else:
-                await sync_default_intercom_group(records)
+                updated_records = {**records, device_id: record}
+                personal_devices.save(updated_records)
+                await sync_default_intercom_group(updated_records)
         return JSONResponse({"username": record["extension"], "password": record["password"], "name": record["name"], **personal_devices.preferences(record)},
                             headers={"Cache-Control": "no-store, private", "Pragma": "no-cache", "Vary": "Cookie", "X-Content-Type-Options": "nosniff"})
 
@@ -1161,7 +1167,8 @@ def create_app() -> FastAPI:
     async def update_personal_device_preferences(device_id: str, request: Request, payload: dict) -> Response:
         owner = user_auth.session_user(request.cookies.get(user_auth.COOKIE))
         required_preferences = {"name", "ringtone", "ring_volume", "vibration", "silent"}
-        if not required_preferences.issubset(payload) or set(payload) - required_preferences - {"dnd"}:
+        optional_preferences = {"dnd", "video_enabled", "camera_facing"}
+        if not required_preferences.issubset(payload) or set(payload) - required_preferences - optional_preferences:
             raise HTTPException(status_code=400, detail="Impostazioni dispositivo non valide")
         async with personal_lock:
             records = personal_devices.load()
@@ -1672,8 +1679,8 @@ def create_app() -> FastAPI:
         page = page.replace("tools-dashboard.js?v=2.21.36", "tools-dashboard.js?v=2.21.38")
         page = page.replace("tools-dashboard.js?v=2.21.38", "tools-dashboard.js?v=2.21.41")
         page = page.replace("tools-dashboard.js?v=2.21.41", "tools-dashboard.js?v=2.21.42")
-        page = page.replace("tools-dashboard.js?v=2.21.42", "tools-dashboard.js?v=2.21.60")
-        page = page.replace("tools-dashboard.css?v=2.20.36", "tools-dashboard.css?v=2.21.60")
+        page = page.replace("tools-dashboard.js?v=2.21.42", "tools-dashboard.js?v=2.21.61")
+        page = page.replace("tools-dashboard.css?v=2.20.36", "tools-dashboard.css?v=2.21.61")
         page = page.replace("backgrounds.css?v=2.20.20", "backgrounds.css?v=2.21.43")
         page = page.replace("intercom.css?v=2.21.14", "intercom.css?v=2.21.46")
         page = page.replace("app.js?v=2.21.11", "app.js?v=2.21.29")

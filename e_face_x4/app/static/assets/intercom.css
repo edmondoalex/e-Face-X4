@@ -41,7 +41,11 @@ body{background:#20272b}.embedded,.embedded body{background:transparent}
 svg.station-icon{fill:none;stroke:currentColor;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
 .intercom-call-panel[hidden]{display:none}
 .intercom-call-label #audio-status{display:block;margin-top:6px;color:#9fb5b8;font-size:11px}
+.intercom-call-label #video-status{display:block;margin-top:3px;color:#9fb5b8;font-size:11px}
 .intercom-call-panel #audio-retry{background:#75ddbb;color:#102b25}
+.intercom-video-panel{position:relative;display:grid;grid-template-columns:minmax(0,1fr);gap:10px;margin:0 0 12px;padding:10px;border:1px solid #ffffff22;border-radius:10px;background:#191d20;overflow:hidden}.intercom-video-panel.has-local{grid-template-columns:minmax(0,1fr) 170px}.remote-video-wrap{position:relative;display:grid;place-items:center;min-height:260px;background:#080a0b;border-radius:8px;overflow:hidden}.remote-video-wrap video,.remote-video-wrap img{width:100%;height:100%;max-height:58vh;object-fit:contain}.remote-video-wrap span{position:absolute;color:#899398;font-size:12px}.local-video-wrap{position:relative;align-self:start;aspect-ratio:3/4;border-radius:8px;background:#080a0b;overflow:hidden}.local-video-wrap video{width:100%;height:100%;object-fit:cover;transform:scaleX(-1)}.local-video-wrap.environment video{transform:none}.local-video-wrap span{position:absolute;left:7px;bottom:7px;padding:3px 6px;border-radius:4px;background:#0009;font-size:10px}.video-actions{grid-column:1/-1;display:flex;justify-content:flex-end;gap:8px}.video-actions button{min-height:34px;border:1px solid #ffffff36;background:#3b484d;color:#fff}.video-actions button.off{color:#ffcf4d}
+.intercom-video-panel:not(.has-local) .video-actions{display:none}
+@media(max-width:620px){.intercom-video-panel.has-local{grid-template-columns:minmax(0,1fr) 92px}.remote-video-wrap{min-height:190px}.video-actions{justify-content:stretch}.video-actions button{flex:1;padding:0 8px;font-size:10px}}
 .embedded:not(.admin-intercom) .sip-station-row,.embedded:not(.admin-intercom) .intercom-settings{display:none}
 html:not(.admin-intercom) .sip-station-row,html:not(.admin-intercom) .intercom-settings{display:none}
 .admin-intercom .intercom-station-row:not(.sip-station-row){display:none}

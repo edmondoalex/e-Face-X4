@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.21.61 — 2026-09-15
+
+- Video SIP/WebRTC H.264 e VP8 per dispositivi e-Face e telefoni VoIP compatibili, con negoziazione automatica e fallback audio.
+- Anteprima DoorBird durante lo squillo, video remoto e locale, disattivazione video e cambio camera frontale/posteriore durante la conversazione.
+- Capacità e preferenze video persistenti per ogni dispositivo nella sezione Utente; i Control4 audio-only restano compatibili nei gruppi misti.
+
 ## 2.21.60 — 2026-09-15
 
 - Postazioni esterne in cima e dispositivo corrente subito sotto, senza pulsante CHIAMA e con livelli audio e DND persistente.
