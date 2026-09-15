@@ -193,7 +193,11 @@ def create_app() -> FastAPI:
     async def admin_soundcloud_save(request: Request) -> dict:
         require_admin(request)
         try:
-            return {"settings": soundcloud_settings.save(await request.json())}
+            previous = soundcloud_settings.load()
+            saved = soundcloud_settings.save(await request.json())
+            SoundCloudClient.clear_token(previous.get("client_id", ""))
+            SoundCloudClient.clear_token(saved.get("client_id", ""))
+            return {"settings": soundcloud_settings.public()}
         except ValueError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
 
@@ -204,7 +208,7 @@ def create_app() -> FastAPI:
             return {"items": await SoundCloudClient(settings["client_id"], settings["client_secret"]).search_tracks(q)}
         except ValueError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
-        except httpx.HTTPError as exc:
+        except (httpx.HTTPError, RuntimeError) as exc:
             raise HTTPException(status_code=502, detail="SoundCloud non raggiungibile o credenziali rifiutate") from exc
 
     def configured_wiim() -> WiiMClient:

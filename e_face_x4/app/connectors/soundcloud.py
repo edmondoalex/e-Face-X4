@@ -16,6 +16,10 @@ class SoundCloudClient:
         self.client_id, self.client_secret, self.transport = client_id, client_secret, transport
         self._token = ""; self._expires = 0.0
 
+    @classmethod
+    def clear_token(cls, client_id: str) -> None:
+        cls._tokens.pop(str(client_id), None)
+
     async def token(self) -> str:
         cached = self._tokens.get(self.client_id)
         if cached and cached[1] > time.monotonic() + 60:
