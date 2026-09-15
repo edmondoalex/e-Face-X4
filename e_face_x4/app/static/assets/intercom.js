@@ -47,6 +47,7 @@
       const primary = stations.find((station) => station.id === 'ingresso')
       if (primary) {
         $('.doorbird-row .station-copy strong').textContent = primary.name
+        $('#doorbird-extension').textContent = `Postazione esterna · interno ${primary.sip_extension}`
         $('#call-doorbird').disabled = !primary.ready || !phone?.isRegistered() || !!call
         $('#call-doorbird').dataset.dialExtension = primary.sip_extension
         $('#call-doorbird').dataset.stationReady = String(primary.ready)
@@ -63,6 +64,8 @@
         copy.className = 'station-copy'
         const name = document.createElement('strong')
         name.textContent = station.name
+        const subtitle = document.createElement('small')
+        subtitle.textContent = `Postazione esterna · interno ${station.sip_extension}`
         const open = document.createElement('button')
         open.className = 'station-text-button'
         open.type = 'button'
@@ -75,7 +78,7 @@
         dial.dataset.stationReady = String(station.ready)
         dial.disabled = !station.ready || !phone?.isRegistered() || !!call
         if (!station.ready) dial.title = 'Configura e verifica la rotta SIP in Asterisk'
-        copy.append(name, open, dial)
+        copy.append(name, subtitle, open, dial)
         const frame = document.createElement('div')
         frame.className = 'doorbird-frame'
         const image = document.createElement('img')
@@ -124,7 +127,7 @@
         const title = document.createElement('strong')
         title.textContent = tablet.name
         const subtitle = document.createElement('small')
-        subtitle.textContent = tablet.ready ? 'Tablet Control4 · chiamata da provare' : 'Tablet Control4 · rotta non confermata'
+        subtitle.textContent = `Tablet Control4 · interno ${tablet.extension} · ${tablet.ready ? 'chiamata da provare' : 'rotta non confermata'}`
         const dial = document.createElement('button')
         dial.type = 'button'
         dial.textContent = 'CHIAMA'

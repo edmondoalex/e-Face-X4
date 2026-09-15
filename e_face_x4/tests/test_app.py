@@ -56,7 +56,7 @@ def test_health() -> None:
     response = TestClient(create_app()).get("/health")
     assert response.status_code == 200
     assert response.json()["ok"] is True
-    assert response.json()["version"] == "2.21.37"
+    assert response.json()["version"] == "2.21.38"
 
 
 def test_installed_app_starts_at_dashboard() -> None:
@@ -91,6 +91,10 @@ def test_intercom_is_in_sidebar_with_embedded_view() -> None:
     assert 'Chiama Ufficio e Tavolo Control4' not in intercom
     assert 'class="admin-intercom"' not in intercom
     client_script = (static / "assets" / "intercom.js").read_text(encoding="utf-8")
+    intercom_page = (static / "intercom.html").read_text(encoding="utf-8")
+    assert "Tablet Control4 · interno 8291" in intercom_page
+    assert "Postazione esterna · interno 8201" in intercom_page
+    assert "Postazione esterna · interno ${station.sip_extension}" in client_script
     assert "if (!adminMode) $('#sip-connect').click()" in client_script
     assert "candidate?.type === 'relay'" in client_script
     assert "iceTransportPolicy: 'relay'" in client_script
@@ -267,7 +271,7 @@ def test_intercom_dashboard_stores_only_local_settings(monkeypatch, tmp_path) ->
     assert 'id="users-tool"' in page
     assert 'id="logout"' in page
     assert page.index('id="logout"') < page.index('id="tools-user-section"')
-    assert "tools-dashboard.js?v=2.21.36" in page
+    assert "tools-dashboard.js?v=2.21.38" in page
 
 
 def test_external_stations_api_requires_login_and_hides_secrets(monkeypatch, tmp_path) -> None:

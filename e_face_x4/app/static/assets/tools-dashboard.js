@@ -167,7 +167,6 @@ async function intercom() {
   $('#intercom-turn-username').value = turn.turn_username
   $('#intercom-turn-password').value = ''
   $('#intercom-turn-password').placeholder = turn.password_configured ? 'Password gia configurata' : 'Password TURN'
-  await sipAccounts()
   await personalDevices()
   await provisionerStatus()
   await externalStations()
@@ -372,58 +371,6 @@ $('#external-save').addEventListener('click', async () => {
   finally { button.disabled = false }
 })
 
-async function sipAccounts() {
-  const legacyHeading = $('#sip-accounts-list').closest('.admin-form').querySelector('.admin-info')
-  legacyHeading.querySelector('b').textContent = 'Account SIP legacy'
-  legacyHeading.querySelector('p').textContent = 'Vecchia assegnazione manuale per utente. I nuovi cellulari, tablet e PC e-Face si configurano automaticamente nella sezione Dispositivi personali qui sopra. Non eliminare gli account legacy finché non hai verificato la migrazione.'
-  const {users} = await request('api/admin/intercom/sip/accounts')
-  const list = $('#sip-accounts-list')
-  list.replaceChildren()
-  for (const user of users) {
-    const row = document.createElement('div')
-    row.className = 'admin-info'
-    const title = document.createElement('b')
-    title.textContent = `${user.name} (${user.username}) — ${user.extension || 'nessun interno'}${user.provisioned ? ' · attivo' : ' · in attesa'}`
-    const button = document.createElement('button')
-    button.type = 'button'
-    button.className = 'secondary'
-    button.textContent = user.extension ? 'MOSTRA CONFIGURAZIONE' : 'ASSEGNA INTERNO'
-    button.disabled = !user.active
-    button.addEventListener('click', async () => {
-      try {
-        const adminPassword = window.prompt('Inserisci la password admin e-Face per mostrare la configurazione SIP')
-        if (adminPassword === null) return
-        const data = await request(`api/admin/intercom/sip/accounts/${encodeURIComponent(user.username)}`, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({admin_password:adminPassword})})
-        $('#sip-asterisk-config').textContent = data.asterisk_config
-        $('#sip-asterisk-config').hidden = false
-        $('#sip-copy-config').hidden = false
-        await sipAccounts()
-      } catch(error) { message(error.message) }
-    })
-    row.append(title, document.createElement('br'), button)
-    if (user.extension) {
-      const confirm = document.createElement('button')
-      confirm.type = 'button'
-      confirm.className = 'secondary'
-      confirm.textContent = user.provisioned ? 'DISATTIVA IN E-FACE' : 'CONFERMA SU ASTERISK'
-      confirm.addEventListener('click', async () => {
-        if (!user.provisioned && !window.confirm(`Confermi che l'interno ${user.extension} è già configurato e registrabile su Asterisk?`)) return
-        try {
-          await request(`api/admin/intercom/sip/accounts/${encodeURIComponent(user.username)}/provisioned`, {method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify({provisioned:!user.provisioned})})
-          await sipAccounts()
-        } catch(error) { message(error.message) }
-      })
-      row.append(' ', confirm)
-    }
-    list.append(row)
-  }
-}
-
-$('#sip-copy-config').addEventListener('click', async () => {
-  try { await navigator.clipboard.writeText($('#sip-asterisk-config').textContent); message('Configurazione copiata: contiene la password SIP, conservala con cura') }
-  catch(error) { message('Copia non riuscita: seleziona il testo manualmente') }
-})
-
 const intercomClientPanel = document.createElement('div')
 intercomClientPanel.className = 'admin-form intercom-client-admin'
 intercomClientPanel.innerHTML = '<h3>Postazione SIP e impostazioni Intercom</h3><p>Collega manualmente questa pagina per fare una prova. Nell’Intercom normale la postazione si collega automaticamente quando apri la schermata.</p><iframe title="Postazione SIP e impostazioni Intercom" loading="lazy"></iframe>'
@@ -538,8 +485,10 @@ function composerValue(label, value) {
 
 const personalAdmin = document.createElement('section')
 personalAdmin.className = 'admin-form'
-personalAdmin.innerHTML = '<div class="admin-info"><b>Dispositivi personali e-Face</b><p>Ogni cellulare, tablet o PC ottiene un interno proprio al primo accesso Intercom dell’utente. Qui puoi cambiare il nome visibile e revocare l’account SIP del dispositivo. Se è perso o rubato, cambia anche la password dell’utente e-Face o disattivalo: la revoca SIP da sola non annulla la sua sessione e-Face. Gli account legacy non vengono cancellati automaticamente.</p></div><div id="personal-device-list" class="admin-users-list"></div>'
-$('#sip-accounts-list').closest('.admin-form').before(personalAdmin)
+personalAdmin.innerHTML = '<div class="admin-info"><b>Dispositivi personali e-Face</b><p>Ogni cellulare, tablet o PC ottiene automaticamente un interno proprio al primo accesso Intercom. Qui puoi cambiare il nome visibile o revocare il dispositivo. Se è perso o rubato, cambia anche la password dell’utente e-Face oppure disattiva l’account.</p></div><div id="personal-device-list" class="admin-users-list"></div>'
+const legacySipSection = $('#sip-accounts-list')?.closest('.admin-form')
+legacySipSection?.before(personalAdmin)
+legacySipSection?.remove()
 
 async function personalDevices() {
   const {devices} = await request('api/admin/intercom/personal-devices')
@@ -575,6 +524,7 @@ async function personalDevices() {
     })
     list.append(row)
   }
+  return new Set(devices.map((device) => device.owner))
 }
 
 function composerParagraph(parent, value) {

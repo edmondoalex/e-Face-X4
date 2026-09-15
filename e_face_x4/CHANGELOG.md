@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.21.38 — 2026-09-15
+
+- Rimuove dalla schermata Videocitofono la vecchia gestione SIP manuale per utente: cellulari, tablet e PC usano soltanto i dispositivi personali automatici.
+- Mostra il numero interno nella rubrica Intercom anche per tablet Control4 e postazioni esterne DoorBird.
+
 ## 2.21.37 — 2026-09-15
 
 - Rende il comando Esci da e-Face visibile a tutti gli utenti nell'area comune di Strumenti.
