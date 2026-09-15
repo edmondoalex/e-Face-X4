@@ -2,7 +2,7 @@
   const $ = (selector) => document.querySelector(selector)
   const adminMode = document.documentElement.classList.contains('admin-intercom')
   const root = new URL('./', location.href)
-  const currentVersion = '2.21.61'
+  const currentVersion = '2.21.67'
   function newDeviceId() {
     if (typeof crypto.randomUUID === 'function') return crypto.randomUUID()
     const bytes = new Uint8Array(16)
@@ -605,6 +605,7 @@
     $('.local-video-wrap').hidden = true
     $('#intercom-video-panel').classList.remove('has-local')
     $('#intercom-video-panel').hidden = true
+    document.body.classList.remove('video-call-active')
     $('#remote-video-placeholder').hidden = false
     $('#video-status').textContent = 'Video: in attesa'
     activeVideoSender = null
@@ -710,6 +711,7 @@
     const remoteExtension = String(session.remote_identity?.uri?.user || '')
     const remoteName = String(session.remote_identity?.display_name || '').toLowerCase()
     const targetName = String(session.data?.efaceTargetName || session.remote_identity?.display_name || session.remote_identity?.uri?.user || 'interno')
+    $('#call-title').textContent = session.direction === 'incoming' ? `Chiamata da ${targetName}` : `Chiamata a ${targetName}`
     const externalStation = externalVideoByExtension.get(remoteExtension) || ((remoteExtension === '8000' || remoteName.includes('doorbird')) ? externalVideoByExtension.values().next().value : '')
     if (session.direction === 'incoming' && externalStation) {
       const preview=$('#call-doorbird-preview');preview.src=new URL(`api/intercom/external-stations/${encodeURIComponent(externalStation)}/video`,root).toString();preview.hidden=false
@@ -717,6 +719,7 @@
     }
     const personalIncoming = session.direction === 'incoming' && /^83[0-9]{2}$/.test(remoteExtension)
     if (remoteOffersVideo || personalIncoming) {
+      document.body.classList.add('video-call-active')
       $('#intercom-video-panel').hidden = false
       $('#video-status').textContent = 'Preparo il video prima della risposta…'
       requestAnimationFrame(() => $('#intercom-video-panel').scrollIntoView({behavior:'smooth', block:'start'}))
@@ -784,7 +787,7 @@
     session.on('peerconnection', ({peerconnection}) => bindConnection(peerconnection))
     bindConnection(session.connection)
     if (!boundConnection) connectionPollTimer = setInterval(() => bindConnection(session.connection), 250)
-    session.on('connecting', () => { $('#call-status').textContent = 'Preparazione rete audio…' })
+    session.on('connecting', () => { $('#call-title').textContent = session.direction === 'incoming' ? `Chiamata da ${targetName}` : `Chiamata a ${targetName}` })
     session.on('icecandidate', ({candidate, ready}) => {
       const fastLocal = $('#fast-ice').checked || !iceServers.length
       const usable = fastLocal
@@ -798,7 +801,7 @@
       }, fastLocal ? 1500 : 250)
     })
     session.on('sdp', ({originator}) => { if (originator === 'local') clearTimeout(iceReadyTimer) })
-    session.on('sending', () => { $('#call-status').textContent = 'INVITE inviato ad Asterisk…' })
+    session.on('sending', () => { $('#call-title').textContent = `Chiamata a ${targetName}` })
     session.on('progress', () => { $('#call-status').textContent = `Chiamata a ${targetName} · squilla…` })
     session.on('confirmed', () => { stopRingtone(); publishIntercomState('active'); $('#call-status').textContent = `In conversazione con ${targetName}`; bindConnection(session.connection); if (boundConnection) { syncRemoteAudio(boundConnection); syncRemoteVideo(boundConnection); activeVideoSender=boundConnection.getSenders?.().find(sender=>sender.track?.kind==='video') || null } playRemoteAudio() })
     session.on('ended', () => { clearTimeout(iceReadyTimer); clearInterval(connectionPollTimer); clearCall('Chiamata terminata.') })
@@ -917,6 +920,8 @@
       const videoDestination = button.dataset.videoCapable === 'true'
       const targetName = button.closest('.intercom-station-row')?.querySelector('.station-copy strong')?.textContent?.trim() || button.dataset.dialExtension
       if (videoDestination) {
+        document.body.classList.add('video-call-active')
+        $('#call-title').textContent = `Chiamata a ${targetName}`
         $('#intercom-call-panel').hidden = false
         $('#intercom-video-panel').hidden = false
         $('#video-status').textContent = videoEnabled ? 'Preparazione video…' : 'Camera locale disattivata · attendo il video remoto'

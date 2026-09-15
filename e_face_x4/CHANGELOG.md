@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.21.67 — 2026-09-15
+
+- La testata grande mostra sempre `Chiamata a <interno>` o `Chiamata da <interno>`; la riga tecnica SIP sottostante è nascosta.
+- Durante il video la scheda chiamata non resta sticky sopra l'immagine e non ne copre la parte superiore.
+- Corregge il controllo aggiornamenti Intercom rimasto alla 2.21.61, che provocava un falso reload e la scomparsa dell'elenco ogni 30 secondi.
+
 ## 2.21.66 — 2026-09-15
 
 - Apre sempre il pannello video nelle chiamate verso interni e-Face, anche quando la camera locale è disattivata.
