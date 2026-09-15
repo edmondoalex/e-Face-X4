@@ -101,6 +101,8 @@ La riproduzione del solo `CurrentTrackURI` termina dopo quel brano perché `SetA
 
 `BackUpQueue` applicato a una copia rinominata del contesto cloud ha restituito HTTP 500; la coda temporanea di test è stata rimossa. Non considerare quindi ancora verificata la persistenza di una coda cloud nominata nel WiiM. La prossima sonda deve analizzare `CreateQueue`/`ReplaceQueue` e soprattutto `GetQueueOnline`/`SearchQueueOnline`, che potrebbero rigenerare gli URL scaduti da `SearchUrl` e ID senza conservare token nel file preferiti.
 
+Sonda successiva: il contesto della coda “Cover e remix” dichiara `ContentType=station`, 200 elementi e un `SearchUrl` verso `youtubemediaconnect.googleapis.com/v1/playlists/<id>:loadItems`. La chiamata diretta al SearchUrl restituisce 401 perché l'autorizzazione resta nel modulo WiiM/YouTube Music; non va copiata dall'app. `GetQueueOnline` ha restituito HTTP 500 sia con QueueName `0` sia con il nome lista e con le varianti di ID playlist ricavate dal DIDL/SearchUrl. Il contratto SCPD non dichiara valori ammessi o default per QueueType/QueueAutoInsert. Occorre quindi catturare la richiesta SOAP originale generata da WiiM Home durante il caricamento/rinnovo della coda, oppure ricostruire la firma dei parametri dal modulo locale, prima di implementare il rinnovo automatico.
+
 Prossime verifiche, in ordine:
 
 1. Salvare fixture redatte di `getPlayerStatus`, `getMetaInfo` e `getPresetInfo` per ciascun provider e confrontare i campi durante avvio preset, cambio traccia e riapertura dell'app WiiM.
