@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.21.70 — 2026-09-15
+
+- Aggiunge in Amministrazione la configurazione WiiM nativa e-Face → WiiM, con verifica diretta del player sulla LAN e riepilogo di modello, firmware, stato, volume e brano.
+- Introduce il client HTTPS WiiM per stato, metadati, cover e qualità audio, senza usare Home Assistant come backend.
+- Mantiene separata l'associazione Control4 opzionale, usata soltanto per sorgente e distribuzione nelle stanze, e impedisce il salvataggio se il test diretto fallisce.
+
 ## 2.21.69 — 2026-09-15
 
 - Riduce da 60 secondi a 1,5 secondi il blocco anti-duplicato dopo il rifiuto o la chiusura di una chiamata: una nuova chiamata non riceve più erroneamente `486 Busy`.

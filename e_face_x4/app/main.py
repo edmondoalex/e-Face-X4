@@ -50,16 +50,18 @@ from . import credential_inventory
 from . import sip_accounts
 from . import asterisk_ami
 from . import doorbird_api
+from . import wiim_settings
 from .media_preferences import apply_preferences, load_preferences, save_preferences
 from .source_icons import delete_source_icon, hidden_source_ids, load_builtin_source_icon, load_source_icon, save_source_icon, set_source_hidden
 from .backgrounds import CARD_THEMES, PRESETS, load_background, load_background_image, load_backgrounds, load_card_theme, load_card_glow, load_room_order, load_security_order, save_background_image, save_card_theme, save_card_glow, save_room_order, save_security_order, save_inherit, save_preset
 from .connectors import BusproConnector, Control4MediaConnector, EThermConnector, EkonexMediaConnector, EvoiceLocalMediaConnector, KseniaConnector
 from .connectors.ksenia import normalize_ksenia
+from .connectors.wiim import WiiMClient
 from .connectors.control4_media import cached_control4_icon, cached_control4_icon_path, cached_control4_source_label, control4_icon_path
 from .connectors.supervisor import discover_addon_url, discover_host_url
 from .demo import dashboard as demo_dashboard
 
-VERSION = os.environ.get("EFACE_VERSION", "2.21.69")
+VERSION = os.environ.get("EFACE_VERSION", "2.21.70")
 STATIC = Path(__file__).parent / "static"
 logging.basicConfig(level=logging.WARNING, format="%(asctime)s %(levelname)s [e-face-x4] %(message)s")
 _reconnect_warning_at: dict[str, float] = {}
@@ -143,6 +145,36 @@ def create_app() -> FastAPI:
         if username != "admin":
             raise HTTPException(status_code=403, detail="Accesso amministratore richiesto")
         return username
+
+    @app.get("/api/admin/wiim")
+    async def admin_wiim(request: Request) -> dict:
+        require_admin(request)
+        return {"settings": wiim_settings.load()}
+
+    @app.put("/api/admin/wiim")
+    async def admin_wiim_save(request: Request) -> dict:
+        require_admin(request)
+        try:
+            candidate = wiim_settings.validate(await request.json())
+            device = await WiiMClient(candidate["host"]).snapshot()
+            settings = wiim_settings.save(candidate)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        except (httpx.HTTPError, RuntimeError) as exc:
+            raise HTTPException(status_code=502, detail="WiiM non raggiungibile") from exc
+        return {"settings": settings, "device": device}
+
+    @app.post("/api/admin/wiim/test")
+    async def admin_wiim_test(request: Request) -> dict:
+        require_admin(request)
+        try:
+            payload = await request.json()
+            device = await WiiMClient(str(payload.get("host") or "")).snapshot()
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        except (httpx.HTTPError, RuntimeError) as exc:
+            raise HTTPException(status_code=502, detail="WiiM non raggiungibile") from exc
+        return {"ok": True, "device": device}
 
     @app.get("/api/admin/installation/preflight")
     async def admin_installation_preflight(request: Request) -> dict:
@@ -1679,8 +1711,8 @@ def create_app() -> FastAPI:
         page = page.replace("tools-dashboard.js?v=2.21.36", "tools-dashboard.js?v=2.21.38")
         page = page.replace("tools-dashboard.js?v=2.21.38", "tools-dashboard.js?v=2.21.41")
         page = page.replace("tools-dashboard.js?v=2.21.41", "tools-dashboard.js?v=2.21.42")
-        page = page.replace("tools-dashboard.js?v=2.21.42", "tools-dashboard.js?v=2.21.69")
-        page = page.replace("tools-dashboard.css?v=2.20.36", "tools-dashboard.css?v=2.21.69")
+        page = page.replace("tools-dashboard.js?v=2.21.42", "tools-dashboard.js?v=2.21.70")
+        page = page.replace("tools-dashboard.css?v=2.20.36", "tools-dashboard.css?v=2.21.70")
         page = page.replace("backgrounds.css?v=2.20.20", "backgrounds.css?v=2.21.43")
         page = page.replace("intercom.css?v=2.21.14", "intercom.css?v=2.21.46")
         page = page.replace("app.js?v=2.21.11", "app.js?v=2.21.29")

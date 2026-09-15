@@ -964,4 +964,28 @@ async function initialize() {
   if (location.hash === '#admin' && !$('#tools-admin-nav').hidden) view('admin')
   try { const health = await request('health'); $('#tools-version').textContent = health.version } catch { /* Versione opzionale */ }
 }
+function showWiim(data) {
+  const device = data.device || {}
+  $('#wiim-result').textContent = device.name
+    ? `${device.name} · ${device.model || 'WiiM'} · firmware ${device.firmware || '—'} · ${device.state || 'online'} · volume ${device.volume ?? '—'}% · ${device.title || 'nessun brano'}${device.artist ? ` · ${device.artist}` : ''}`
+    : 'WiiM configurato; premi Test diretto.'
+}
+async function loadWiim() {
+  const {settings} = await request('api/admin/wiim')
+  $('#wiim-enabled').checked = settings.enabled !== false
+  $('#wiim-host').value = settings.host || '192.168.3.52'
+  $('#wiim-control4-source').value = settings.control4_source_id || 1667
+  $('#wiim-control4-protocol').value = settings.control4_protocol_id || 1666
+}
+$('#wiim-tool').addEventListener('click', async () => { try { await loadWiim(); openPanel('wiim-config') } catch (error) { message(error.message) } })
+$('#wiim-back').addEventListener('click', () => closePanel('wiim-config'))
+$('#wiim-test').addEventListener('click', async () => { try { showWiim(await request('api/admin/wiim/test', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({host:$('#wiim-host').value.trim()})})) } catch (error) { $('#wiim-result').textContent = error.message } })
+$('#wiim-form').addEventListener('submit', async (event) => {
+  event.preventDefault()
+  try {
+    showWiim(await request('api/admin/wiim', {method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify({enabled:$('#wiim-enabled').checked, host:$('#wiim-host').value.trim(), control4_source_id:Number($('#wiim-control4-source').value), control4_protocol_id:Number($('#wiim-control4-protocol').value)})}))
+    message('Integrazione WiiM salvata e verificata')
+  } catch (error) { $('#wiim-result').textContent = error.message }
+})
+
 initialize().catch((error) => message(error.message))
