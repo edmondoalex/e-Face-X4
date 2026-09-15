@@ -58,7 +58,7 @@ from .connectors.control4_media import cached_control4_icon, cached_control4_ico
 from .connectors.supervisor import discover_addon_url, discover_host_url
 from .demo import dashboard as demo_dashboard
 
-VERSION = os.environ.get("EFACE_VERSION", "2.21.57")
+VERSION = os.environ.get("EFACE_VERSION", "2.21.58")
 STATIC = Path(__file__).parent / "static"
 logging.basicConfig(level=logging.WARNING, format="%(asctime)s %(levelname)s [e-face-x4] %(message)s")
 _reconnect_warning_at: dict[str, float] = {}
@@ -1606,7 +1606,7 @@ def create_app() -> FastAPI:
         for placeholder, value in replacements.items():
             page = page.replace(placeholder, value)
         page = page.replace('content="#263f48"', 'content="#181c1f"')
-        page = page.replace("manifest.webmanifest?v=2.20.38", "manifest.webmanifest?v=2.21.28")
+        page = page.replace("manifest.webmanifest?v=2.20.38", "manifest.webmanifest?v=2.21.58")
         page = page.replace("ui-theme-contract.css?v=2.21.27", "ui-theme-contract.css?v=2.21.29")
         page = page.replace("tools-dashboard.js?v=2.21.27", "tools-dashboard.js?v=2.21.33")
         page = page.replace("tools-dashboard.js?v=2.21.33", "tools-dashboard.js?v=2.21.34")

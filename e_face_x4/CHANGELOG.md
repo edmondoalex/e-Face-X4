@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.21.58 — 2026-09-15
+
+- L'Intercom usa lo sfondo scelto in Personalizzazione e non il precedente gradiente verde-petrolio fisso.
+- Testata PWA e superfici della lista Intercom passano all'antracite neutro; nessuna splash aggiuntiva viene mostrata dal percorso notifica.
+
 ## 2.21.57 — 2026-09-15
 
 - Il tocco sulla notifica porta l'eventuale finestra e-Face già aperta direttamente al collegamento Intercom della chiamata; se non esiste, ne apre una nuova.

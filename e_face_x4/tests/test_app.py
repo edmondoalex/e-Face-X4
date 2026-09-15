@@ -56,7 +56,7 @@ def test_health() -> None:
     response = TestClient(create_app()).get("/health")
     assert response.status_code == 200
     assert response.json()["ok"] is True
-    assert response.json()["version"] == "2.21.57"
+    assert response.json()["version"] == "2.21.58"
 
 
 def test_installed_app_starts_at_dashboard() -> None:
@@ -638,7 +638,7 @@ def test_install_brand_and_theme_are_consistent() -> None:
     assert manifest["theme_color"] == "#181c1f"
     assert manifest["icons"][0]["src"] == "eface-x4-app-icon.png"
     assert "eface-x4-app-icon.png" in client.get("/").text
-    assert "manifest.webmanifest?v=2.21.28" in client.get("/").text
+    assert "manifest.webmanifest?v=2.21.58" in client.get("/").text
     assert client.get("/assets/eface-x4-app-icon.png").content == icon.read_bytes()
     assert 'rel="manifest"' in client.get("/login").text
 

@@ -11,12 +11,12 @@ label{display:grid;gap:8px;color:#c6d7d9;font-size:13px}input{width:100%;padding
 @media(max-width:560px){header img{width:95px}header small{font-size:8px}h1{font-size:16px}.intercom-card{padding:18px}}
 
 /* Control4-style station list; e-Face retains its own controls and credentials. */
-body,.embedded body{background:linear-gradient(165deg,#201e30 0,#162f49 48%,#0c4056 100%) fixed;color:#e9edf2}
+body,.embedded body{background:var(--initial-background,#181c1f) fixed;color:#e9edf2}
 .intercom-shell{width:min(960px,100%);padding:16px 14px 42px}
 .embedded .intercom-shell{padding:0 0 28px}
 .intercom-page-heading{display:flex;align-items:center;justify-content:space-between;min-height:45px;padding:0 16px;background:#211e31;border-bottom:1px solid #ffffff20;font-size:13px;font-weight:700;letter-spacing:.08em}
 .intercom-page-heading small{font-size:12px;font-weight:400;letter-spacing:0;color:#aeb8c3}
-.intercom-station-list{background:linear-gradient(145deg,#2b2938,#173249 80%,#124057);border:1px solid #ffffff18;border-top:0}
+.intercom-station-list{background:linear-gradient(145deg,#29282f,#202126 80%,#191a1e);border:1px solid #ffffff18;border-top:0}
 .intercom-station-row{display:grid;grid-template-columns:42px minmax(0,1fr) auto;align-items:center;gap:14px;min-height:88px;padding:12px 17px;border-bottom:1px solid #ffffff24}
 .intercom-station-row:last-child{border-bottom:0}.station-icon{width:34px;height:34px;display:grid;place-items:center;color:#d1d8e0;font-size:26px;font-weight:300}
 .station-copy{min-width:0;display:grid;gap:4px}.station-copy strong{font-size:17px;font-weight:500}.station-copy>small{font-size:12px;color:#aeb8c3}.station-actions{display:flex;gap:7px;flex-wrap:wrap;justify-content:flex-end}
