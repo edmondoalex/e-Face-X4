@@ -56,7 +56,7 @@ def test_health() -> None:
     response = TestClient(create_app()).get("/health")
     assert response.status_code == 200
     assert response.json()["ok"] is True
-    assert response.json()["version"] == "2.21.28"
+    assert response.json()["version"] == "2.21.29"
 
 
 def test_installed_app_starts_at_dashboard() -> None:
@@ -612,7 +612,8 @@ def test_tools_page_starts_with_selected_background_and_card_theme(monkeypatch, 
     home = client.get("/").text
     login = client.get("/login").text
     assert '<body class="app-theme" data-background="midnight" data-card-theme="slate">' in home
-    assert 'ui-theme-contract.css?v=2.21.28' in home
+    assert 'ui-theme-contract.css?v=2.21.29' in home
+    assert 'app.js?v=2.21.29' in home
     assert '<body class="login-theme" data-background="midnight" data-card-theme="slate">' in login
     assert "__INITIAL_BACKGROUND__" not in home + login
 

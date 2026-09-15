@@ -1,5 +1,9 @@
 # Changelog
 
+## 2.21.29 — 2026-09-15
+
+- Uniforma gli slider volume delle schede media: verde per audio e celeste per video.
+
 ## 2.21.28 — 2026-09-15
 
 - Rimuove il verde fisso dalla barra di stato Android, dalla barra di navigazione mobile e dal primo frame di caricamento.

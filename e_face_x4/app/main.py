@@ -56,7 +56,7 @@ from .connectors.control4_media import cached_control4_icon, cached_control4_ico
 from .connectors.supervisor import discover_addon_url, discover_host_url
 from .demo import dashboard as demo_dashboard
 
-VERSION = os.environ.get("EFACE_VERSION", "2.21.28")
+VERSION = os.environ.get("EFACE_VERSION", "2.21.29")
 STATIC = Path(__file__).parent / "static"
 logging.basicConfig(level=logging.WARNING, format="%(asctime)s %(levelname)s [e-face-x4] %(message)s")
 _reconnect_warning_at: dict[str, float] = {}
@@ -1472,7 +1472,8 @@ def create_app() -> FastAPI:
             page = page.replace(placeholder, value)
         page = page.replace('content="#263f48"', 'content="#181c1f"')
         page = page.replace("manifest.webmanifest?v=2.20.38", "manifest.webmanifest?v=2.21.28")
-        page = page.replace("ui-theme-contract.css?v=2.21.27", "ui-theme-contract.css?v=2.21.28")
+        page = page.replace("ui-theme-contract.css?v=2.21.27", "ui-theme-contract.css?v=2.21.29")
+        page = page.replace("app.js?v=2.21.11", "app.js?v=2.21.29")
         if "--initial-background:" not in page:
             page = page.replace('<html lang="it">', f'<html lang="it" style="background:var(--initial-background,#181c1f);--initial-background:{replacements["__INITIAL_BACKGROUND__"]}">', 1)
         if body_class and "<body>" in page:
