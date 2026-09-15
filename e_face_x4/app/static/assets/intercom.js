@@ -2,7 +2,7 @@
   const $ = (selector) => document.querySelector(selector)
   const adminMode = document.documentElement.classList.contains('admin-intercom')
   const root = new URL('./', location.href)
-  const currentVersion = '2.21.46'
+  const currentVersion = '2.21.51'
   function newDeviceId() {
     if (typeof crypto.randomUUID === 'function') return crypto.randomUUID()
     const bytes = new Uint8Array(16)
@@ -310,7 +310,12 @@
   window.addEventListener('message', (event) => {
     if (event.origin !== location.origin || event.source !== window.parent || event.data?.type !== 'eface-intercom-visible') return
     intercomVisible = !!event.data.visible
-    if (intercomVisible) startDoorbirdVideo()
+    if (intercomVisible) {
+      startDoorbirdVideo()
+      if (call?.direction === 'incoming' && ringtoneActive) {
+        audioContext?.resume().then(ringBurst).catch(() => {})
+      }
+    }
     else {
       clearTimeout(doorbirdTimer)
       clearTimeout(doorbirdRetryTimer)
@@ -399,9 +404,10 @@
       const oscillator = audioContext.createOscillator()
       const gain = audioContext.createGain()
       oscillator.frequency.value = frequency
-      oscillator.type = 'sine'
+      oscillator.type = ringPreferences.ringtone === 'soft' ? 'sine' : 'square'
       gain.gain.setValueAtTime(0.0001, now + delay)
-      gain.gain.exponentialRampToValueAtTime(Math.max(.001, .72 * ringPreferences.ring_volume / 100), now + delay + .025)
+      const peak = ringPreferences.ringtone === 'soft' ? .75 : 1
+      gain.gain.exponentialRampToValueAtTime(Math.max(.001, peak * ringPreferences.ring_volume / 100), now + delay + .025)
       gain.gain.exponentialRampToValueAtTime(0.0001, now + delay + .2)
       oscillator.connect(gain)
       gain.connect(audioContext.destination)
@@ -520,8 +526,10 @@
     $('#call-hangup').disabled = false
     setDialButtonsDisabled(true)
     if (session.direction === 'incoming') {
-      if (window.parent !== window) window.parent.postMessage({type:'eface-intercom-incoming'}, location.origin)
-      startRingtone()
+      if (window.parent !== window) {
+        window.parent.postMessage({type:'eface-intercom-incoming'}, location.origin)
+        setTimeout(startRingtone, 120)
+      } else startRingtone()
     }
     function syncRemoteAudio(peerconnection) {
       const receiver = peerconnection.getReceivers?.().find((item) => item.track?.kind === 'audio' && item.track.readyState === 'live')

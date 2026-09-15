@@ -1,5 +1,15 @@
 # Changelog
 
+## 2.21.51 — 2026-09-15
+
+- Sul tablet la suoneria viene riattivata appena l'Intercom nascosto diventa visibile, evitando l'attesa dell'AudioContext sospeso nell'iframe.
+- A volume 100 la suoneria Classica/Doppio tono usa ora il livello WebAudio pieno e un timbro più udibile sugli altoparlanti di cellulari e tablet.
+
+## 2.21.50 — 2026-09-15
+
+- Rimossi i colori verde petrolio dal caricamento e dal modulo Login: superfici antracite, campi neri e accento grigio coerenti con la UI.
+- Il Login mostra il logo e-Face e non precompila più impropriamente l'utente `admin`.
+
 ## 2.21.49 — 2026-09-15
 
 - La sessione persistente usa `SameSite=Lax`: Android può presentarla quando e-Face viene aperta da PWA o notifica, mantenendo HttpOnly, Secure su HTTPS e la protezione Origin delle API mutative.
