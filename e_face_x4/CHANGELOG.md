@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.21.42 — 2026-09-15
+
+- Aggiunge Web Push/PWA per avvisare un dispositivo personale anche quando e-Face è chiusa.
+- La notifica persistente apre direttamente Intercom; le sottoscrizioni sono private, revocabili e associate al singolo dispositivo.
+- Le chiamate avviate dalla rubrica e-Face inviano il push prima del tentativo SIP.
+
 ## 2.21.41 — 2026-09-15
 
 - Aggiunge in Strumenti > Utente > Videocitofono nome, suoneria, volume, vibrazione, modalità silenziosa e prova audio per il dispositivo in uso.

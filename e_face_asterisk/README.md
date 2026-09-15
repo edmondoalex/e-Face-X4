@@ -8,6 +8,8 @@ La versione `6.2.0-eface.5` aggiunge account SIP registrabili `8350–8399` per 
 
 La versione `6.2.0-eface.6` aggiunge le rotte per interni personali e-Face `8302–8349` nello stesso include persistente. Il file aggiornato viene ricaricato anche se l'include era già installato, con ripristino del contenuto precedente su errore. Ogni browser e-Face riceve un endpoint PJSIP diverso; gli account SIP legacy per utente restano invariati.
 
+La versione `6.2.0-eface.7` mantiene in attesa per circa 20 secondi le chiamate agli interni personali non ancora registrati, così Android può aprire e-Face da una notifica Web Push prima del tentativo SIP successivo.
+
 Verifica isolata del 14/09/2026: immagine costruita sull'host HA come `eface-asterisk-lab:b3f07ae`; compilazione dei moduli nell'immagine riuscita; con rete isolata il controllo pre-avvio passa, con rete host rifiuta correttamente la porta 5060 già occupata dall'Asterisk corrente. **Nessun add-on della variante installato o avviato.** Dopo la prova, Asterisk 6.2.0 ed e-Face 2.21.7 risultano ancora `started`. Questa è una prova di build e del guardiano porte, non di registrazione SIP o audio.
 
 Il Dockerfile estende l'immagine upstream senza ricompilare Asterisk, copia il codice provisioner nell'immagine e aggiunge un hook dopo l'inizializzazione upstream, prima del servizio Asterisk. Stato, configurazione PJSIP, backup, certificato TLS e token rimangono solo nel volume persistente `/config/asterisk/eface`. Il servizio HTTPS parte soltanto se `eface_provisioner_enabled` è vero e `eface_provisioner_bind_ip` è impostato a un IPv4 privato esplicito; non è esposto via Ingress. Pairing e-Face, firewall e migrazione delle opzioni/configurazioni esistenti non sono ancora completati.

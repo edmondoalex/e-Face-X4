@@ -41,6 +41,7 @@ from . import internal_stations
 from . import control4_tablets
 from . import voip_phones
 from . import personal_devices
+from . import push_notifications
 from . import provisioner_client
 from . import installation
 from . import credential_inventory
@@ -56,7 +57,7 @@ from .connectors.control4_media import cached_control4_icon, cached_control4_ico
 from .connectors.supervisor import discover_addon_url, discover_host_url
 from .demo import dashboard as demo_dashboard
 
-VERSION = os.environ.get("EFACE_VERSION", "2.21.41")
+VERSION = os.environ.get("EFACE_VERSION", "2.21.42")
 STATIC = Path(__file__).parent / "static"
 logging.basicConfig(level=logging.WARNING, format="%(asctime)s %(levelname)s [e-face-x4] %(message)s")
 _reconnect_warning_at: dict[str, float] = {}
@@ -113,7 +114,7 @@ def create_app() -> FastAPI:
         origin = request.headers.get("origin")
         if request.method not in {"GET", "HEAD", "OPTIONS"} and origin and urlsplit(origin).netloc != request.headers.get("host"):
             return JSONResponse({"detail": "Origine non consentita"}, status_code=403)
-        if not user_auth.enabled() or path == "/health" or path == "/login" or path.startswith("/api/auth/") or path.startswith("/assets/") or path.startswith("/api/support/control4/artwork/"):
+        if not user_auth.enabled() or path in {"/health", "/login", "/service-worker.js"} or path.startswith("/api/auth/") or path.startswith("/assets/") or path.startswith("/api/support/control4/artwork/"):
             return await call_next(request)
         username = user_auth.session_user(request.cookies.get(user_auth.COOKIE))
         if not username:
@@ -1165,6 +1166,55 @@ def create_app() -> FastAPI:
             raise HTTPException(status_code=401, detail="Accesso richiesto")
         return JSONResponse({"devices": personal_devices.public(personal_devices.load())}, headers={"Cache-Control": "no-store, private"})
 
+    @app.get("/api/intercom/push/key")
+    async def intercom_push_key(request: Request) -> Response:
+        if not user_auth.session_user(request.cookies.get(user_auth.COOKIE)):
+            raise HTTPException(status_code=401, detail="Accesso richiesto")
+        _, public_key = await asyncio.to_thread(push_notifications.keys)
+        return JSONResponse({"public_key": public_key}, headers={"Cache-Control": "no-store, private"})
+
+    @app.put("/api/intercom/push/subscription/{device_id}")
+    async def intercom_push_subscribe(device_id: str, request: Request, payload: dict) -> Response:
+        owner = user_auth.session_user(request.cookies.get(user_auth.COOKIE))
+        device = personal_devices.load().get(device_id)
+        if not owner or not device or device["owner"] != owner:
+            raise HTTPException(status_code=404, detail="Dispositivo personale non trovato")
+        try:
+            subscription = push_notifications.validate(payload)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        values = push_notifications.load()
+        values[device_id] = {"owner": owner, "extension": device["extension"], "subscription": subscription}
+        push_notifications.save(values)
+        return JSONResponse({"enabled": True}, headers={"Cache-Control": "no-store, private"})
+
+    @app.delete("/api/intercom/push/subscription/{device_id}")
+    async def intercom_push_unsubscribe(device_id: str, request: Request) -> Response:
+        owner = user_auth.session_user(request.cookies.get(user_auth.COOKIE))
+        values = push_notifications.load()
+        current = values.get(device_id)
+        if not owner or not current or current.get("owner") != owner:
+            raise HTTPException(status_code=404, detail="Sottoscrizione non trovata")
+        values.pop(device_id)
+        push_notifications.save(values)
+        return JSONResponse({"enabled": False}, headers={"Cache-Control": "no-store, private"})
+
+    @app.post("/api/intercom/push/call/{extension}")
+    async def intercom_push_call(extension: str, request: Request) -> Response:
+        caller = user_auth.session_user(request.cookies.get(user_auth.COOKIE))
+        if not caller or not re.fullmatch(r"83(?:0[2-9]|[1-4][0-9])", extension):
+            raise HTTPException(status_code=403, detail="Chiamata push non autorizzata")
+        targets = [(device_id, item) for device_id, item in push_notifications.load().items() if item.get("extension") == extension]
+        sent = 0
+        for device_id, item in targets:
+            ok = await asyncio.to_thread(push_notifications.send, item["subscription"], {
+                "title": "Chiamata Intercom", "body": f"Chiamata da {user_auth.account(caller)['name']}",
+                "caller": user_auth.account(caller)["name"], "extension": extension,
+            })
+            if ok:
+                sent += 1
+        return JSONResponse({"sent": sent}, headers={"Cache-Control": "no-store, private"})
+
     @app.get("/api/admin/intercom/personal-devices")
     async def admin_personal_devices(request: Request) -> Response:
         require_admin(request)
@@ -1533,6 +1583,7 @@ def create_app() -> FastAPI:
         page = page.replace("tools-dashboard.js?v=2.21.34", "tools-dashboard.js?v=2.21.36")
         page = page.replace("tools-dashboard.js?v=2.21.36", "tools-dashboard.js?v=2.21.38")
         page = page.replace("tools-dashboard.js?v=2.21.38", "tools-dashboard.js?v=2.21.41")
+        page = page.replace("tools-dashboard.js?v=2.21.41", "tools-dashboard.js?v=2.21.42")
         page = page.replace("app.js?v=2.21.11", "app.js?v=2.21.29")
         page = page.replace("energy.css?v=2.20.20", "energy.css?v=2.21.30")
         page = page.replace("app.js?v=2.21.29", "app.js?v=2.21.30")
@@ -1554,6 +1605,11 @@ def create_app() -> FastAPI:
         page = page.replace("password:document.getElementById('password').value", "password:document.getElementById('password').value,remember:document.getElementById('remember').checked")
         page = page.replace('</style>', '.trusted-device{display:flex;align-items:center;gap:9px;margin-top:18px}.trusted-device input{width:19px;height:19px;accent-color:var(--ui-accent)}</style>', 1)
         return HTMLResponse(page.replace("</head>", f"{theme_links}</head>", 1), headers={"Cache-Control": "no-store"})
+
+    @app.get("/service-worker.js", include_in_schema=False)
+    async def service_worker() -> FileResponse:
+        return FileResponse(STATIC / "service-worker.js", media_type="application/javascript",
+                            headers={"Cache-Control": "no-cache", "Service-Worker-Allowed": "/"})
 
     @app.get("/intercom", include_in_schema=False)
     async def intercom_page(request: Request) -> HTMLResponse:

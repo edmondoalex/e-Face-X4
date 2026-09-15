@@ -74,6 +74,30 @@ def test_personal_device_api_provisions_and_revokes_individually(monkeypatch, tm
     assert person.post("/api/intercom/sip/personal-device", json=payload).status_code == 403
 
 
+def test_personal_device_push_subscription_and_call(monkeypatch, tmp_path):
+    monkeypatch.setenv("EFACE_AUTH_DIR", str(tmp_path / "auth"))
+    monkeypatch.setenv("EFACE_PERSONAL_DEVICES", str(tmp_path / "devices.json"))
+    monkeypatch.setenv("EFACE_SIP_ACCOUNTS", str(tmp_path / "legacy.json"))
+    monkeypatch.setenv("EFACE_PUSH_DIR", str(tmp_path / "push"))
+    async def fake_provision(method, path, payload=None):
+        return {"extension": payload["extension"], "provisioned": True}
+    monkeypatch.setattr(provisioner_client, "request", fake_provision)
+    create_admin("password-admin-lunga")
+    create_account("mario", "Mario", "password-mario-lunga")
+    person = TestClient(create_app())
+    person.post("/api/auth/login", json={"username": "mario", "password": "password-mario-lunga"})
+    device_id = str(uuid.uuid4())
+    created = person.post("/api/intercom/sip/personal-device", json={"device_id": device_id, "name": "Poco Mario", "device_type": "phone"})
+    extension = created.json()["username"]
+    subscription = {"endpoint": "https://push.example.test/id", "expirationTime": None, "keys": {"p256dh": "a" * 40, "auth": "b" * 20}}
+    assert person.put(f"/api/intercom/push/subscription/{device_id}", json=subscription).json() == {"enabled": True}
+    from app import push_notifications
+    monkeypatch.setattr(push_notifications, "send", lambda stored, payload: stored == subscription and payload["extension"] == extension)
+    assert person.post(f"/api/intercom/push/call/{extension}").json() == {"sent": 1}
+    assert person.delete(f"/api/intercom/push/subscription/{device_id}").json() == {"enabled": False}
+    assert person.get("/service-worker.js").status_code == 200
+
+
 def test_personal_device_rejects_invalid_id_and_admin(monkeypatch, tmp_path):
     monkeypatch.setenv("EFACE_AUTH_DIR", str(tmp_path / "auth"))
     monkeypatch.setenv("EFACE_PERSONAL_DEVICES", str(tmp_path / "devices.json"))

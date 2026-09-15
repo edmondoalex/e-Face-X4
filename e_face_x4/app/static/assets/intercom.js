@@ -2,7 +2,7 @@
   const $ = (selector) => document.querySelector(selector)
   const adminMode = document.documentElement.classList.contains('admin-intercom')
   const root = new URL('./', location.href)
-  const currentVersion = '2.21.41'
+  const currentVersion = '2.21.42'
   let updateAvailable = false
   async function checkForUpdate() {
     if (document.hidden || !intercomVisible) return
@@ -666,6 +666,14 @@
         if (!response.ok || result.extension !== button.dataset.dialExtension) throw new Error(result.detail || 'Postazione esterna non pronta')
       }
       if (!phone?.isRegistered() || call) { releaseMicrophone(); return }
+      try {
+        const pushResponse = await fetch(new URL(`api/intercom/push/call/${encodeURIComponent(button.dataset.dialExtension)}`, root), {method:'POST', cache:'no-store', credentials:'same-origin'})
+        const pushResult = await pushResponse.json().catch(() => ({}))
+        if (pushResponse.ok && pushResult.sent > 0) {
+        $('#call-status').textContent = 'Notifica inviata, attendo il dispositivo…'
+        await new Promise(resolve => setTimeout(resolve, 3500))
+        }
+      } catch (_) {}
       phone.call(`sip:${button.dataset.dialExtension}@asterisk`, {mediaStream:stream, mediaConstraints:{audio:true, video:false}, pcConfig:peerConfig()})
     } catch (exception) {
       releaseMicrophone()
