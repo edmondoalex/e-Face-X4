@@ -126,12 +126,13 @@ async def test_native_wiim_queue_browse_and_exact_play() -> None:
 async def test_native_wiim_create_queue_then_plays_first_track() -> None:
     actions = []
     def handler(request: httpx.Request) -> httpx.Response:
-        actions.append((request.headers["soapaction"].split("#")[-1].strip('"'), request.content.decode()))
+        action = request.headers.get("soapaction", "").split("#")[-1].strip('"') or str(request.url.params.get("command") or "")
+        actions.append((action, request.content.decode()))
         return httpx.Response(200, text='<s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/"><s:Body/></s:Envelope>')
     client = WiiMClient("192.168.3.52", transport=httpx.MockTransport(handler))
     context = '<?xml version="1.0"?><PlayList><ListName>e-Face SoundCloud - Test</ListName></PlayList>'
     await client.create_queue(context, "e-Face SoundCloud - Test")
-    assert [item[0] for item in actions] == ["CreateQueue", "PlayQueueWithIndex"]
+    assert [item[0] for item in actions] == ["CreateQueue", "PlayQueueWithIndex", "setPlayerCmd:play"]
     assert "&lt;PlayList&gt;" in actions[0][1]
     assert "<QueueName>e-Face SoundCloud - Test</QueueName>" in actions[1][1]
 

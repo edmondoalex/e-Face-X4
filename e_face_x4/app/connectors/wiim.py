@@ -230,6 +230,7 @@ class WiiMClient:
             raise ValueError("Coda WiiM non valida")
         await self._playqueue("CreateQueue", {"QueueContext": context})
         await self.play_queue_index(1, queue_name)
+        await self.player_action("play")
 
     async def delete_preset(self, index: int) -> None:
         index = int(index)

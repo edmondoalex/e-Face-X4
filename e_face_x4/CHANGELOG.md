@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.21.101 — 2026-09-16
+
+- Corretto il DIDL-Lite delle playlist SoundCloud inviate alla coda WiiM.
+- Dopo la creazione della coda viene inviato Play esplicito e viene verificato che WiiM abbia accettato numero e titoli dei brani.
+
 ## 2.21.100 — 2026-09-16
 
 - Gli errori dei comandi mostrano ora il nome dell'operazione che li ha generati.
