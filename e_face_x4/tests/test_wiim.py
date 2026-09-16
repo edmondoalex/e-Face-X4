@@ -308,6 +308,8 @@ def test_comfort_navigation_icon_follows_heat_and_cool_state() -> None:
 def test_wiim_controls_are_integrated_in_main_player() -> None:
     script = __import__("app.main", fromlist=["STATIC"]).STATIC.joinpath("assets", "app.js").read_text(encoding="utf-8")
     assert "data-wiim-timeline" in script
+    assert "c4wiimroute:" in script
+    assert "every room must retain its own volume control" in script
     assert "data-wiim-seek" in script
     assert 'data-wiim-action="${action}"' in script
     assert "shuffle-variant" in script and "Ripetizione WiiM" in script

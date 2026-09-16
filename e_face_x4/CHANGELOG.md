@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.21.131 — 2026-09-16
+
+- Gestione stanze riconosce anche le sessioni create dal percorso WiiM condiviso quando Control4 non pubblica ancora il gruppo.
+- Ogni stanza della sessione mantiene il proprio slider volume, separato dal volume generale del master.
+
 ## 2.21.130 — 2026-09-16
 
 - Nasce e-Face Composer con progetto Audio/Video persistente, versionato e indipendente dai produttori.

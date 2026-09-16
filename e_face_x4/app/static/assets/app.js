@@ -1,7 +1,7 @@
 const $ = (selector) => document.querySelector(selector)
 const deviceScope = (() => { const key='eface-device-scope-v1'; let value=localStorage.getItem(key); if(!/^[A-Za-z0-9_-]{16,64}$/.test(value||'')){value=(crypto.randomUUID?.()||`${Date.now()}-${Math.random()}`).replaceAll('-','');localStorage.setItem(key,value)} return value })()
 const deviceFetchOptions = (options={}) => ({...options,headers:{...(options.headers||{}),'X-Eface-Device':deviceScope}})
-document.head.insertAdjacentHTML('beforeend', '<link rel="stylesheet" href="assets/media-x4.css?v=2.21.130">')
+document.head.insertAdjacentHTML('beforeend', '<link rel="stylesheet" href="assets/media-x4.css?v=2.21.131">')
 const glyph = { light: '✦', climate: '❄', shield: '⬡', energy: 'ϟ', cover: '▤', sensor: '◌' }
 let refreshRunning = false
 let refreshQueued = false
@@ -1345,7 +1345,16 @@ function openMediaZones(device) {
 
 function mediaGroupFor(device) {
   const groupId = device?.group?.group_id
-  return currentMediaGroups.find((group) => group.group_id === groupId && group.member_registry_ids?.includes(device?.registry_id)) || device?.group || null
+  const published = currentMediaGroups.find((group) => group.group_id === groupId && group.member_registry_ids?.includes(device?.registry_id)) || device?.group || null
+  if (published) return published
+  // Control4 may route a native WiiM source to added rooms before (or without)
+  // publishing QUEUE_STATUS_V2. The shared physical route is still a real
+  // session and every room must retain its own volume control.
+  const routeId = Number(device?.active_source_id || 0)
+  if (device?.provider !== 'control4' || device?.transport_provider !== 'wiim' || routeId <= 0) return null
+  const members = currentDevices.filter((item) => item.kind === 'media_player' && item.provider === device.provider && item.transport_provider === 'wiim' && Number(item.active_source_id) === routeId && !['off','unavailable','unknown'].includes(String(item.state).toLowerCase()))
+  if (members.length < 2) return null
+  return {group_id:`c4wiimroute:${routeId}`, name:'Sessione WiiM', owner_registry_id:device.registry_id, member_registry_ids:members.map((item) => item.registry_id), completeness:'complete', resource_revision:device.resource_revision, inferred_from_route:true}
 }
 
 function renderMediaZones() {
