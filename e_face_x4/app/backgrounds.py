@@ -131,6 +131,20 @@ def save_home_camera_entity(entity_id: str, owner: str | None = None) -> None:
     else: raw["home_camera_entity"] = entity_id
     _write(raw)
 
+def load_home_weather_location(owner: str | None = None) -> str:
+    raw = _config(); users = raw.get("user_appearance") if isinstance(raw.get("user_appearance"), dict) else {}; scoped = users.get(owner) if owner and isinstance(users.get(owner), dict) else {}
+    account_owner = owner.split(":device:", 1)[0] if owner and ":device:" in owner else None
+    account = users.get(account_owner) if account_owner and isinstance(users.get(account_owner), dict) else {}
+    return str((scoped.get("home_weather_location") if owner else raw.get("home_weather_location")) or account.get("home_weather_location") or raw.get("home_weather_location") or "").strip()
+
+def save_home_weather_location(location: str, owner: str | None = None) -> None:
+    if not isinstance(location, str) or not 2 <= len(location.strip()) <= 100: raise ValueError("Località meteo non valida")
+    value = location.strip(); raw = _config()
+    if owner:
+        users = raw.get("user_appearance") if isinstance(raw.get("user_appearance"), dict) else {}; scoped = users.get(owner) if isinstance(users.get(owner), dict) else {}; scoped["home_weather_location"] = value; users[owner] = scoped; raw["user_appearance"] = users
+    else: raw["home_weather_location"] = value
+    _write(raw)
+
 def load_card_glow() -> bool:
     return _config().get("card_glow", True) is not False
 

@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.21.119 — 2026-09-16
+
+- Il meteo non dipende più da Home Assistant: la località si configura in Strumenti → Home dinamica ed è distinta per dispositivo.
+- Nuovo widget meteo panoramico con ora locale, condizione, temperatura percepita, umidità, vento e previsione a cinque giorni.
+- Grafica atmosferica adattiva e layout specifici per le dimensioni Compatto, Medio e Largo.
+
 ## 2.21.118 — 2026-09-16
 
 - L'ultima chiamata DoorBird usa ora l'evento locale `ring`, richiesto dal firmware installato.

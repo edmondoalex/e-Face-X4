@@ -58,7 +58,7 @@ from . import startup_settings
 from .connectors.soundcloud import SoundCloudClient
 from .media_preferences import apply_preferences, load_preferences, save_preferences
 from .source_icons import delete_source_icon, hidden_source_ids, load_builtin_source_icon, load_builtin_source_icon_by_id, load_source_icon, save_source_icon, set_source_hidden
-from .backgrounds import CARD_THEMES, PRESETS, load_background, load_background_image, load_backgrounds, load_card_theme, load_card_glow, load_room_order, load_security_order, load_shortcuts, load_home_widgets, load_home_camera_entity, save_background_image, save_card_theme, save_card_glow, save_room_order, save_security_order, save_shortcuts, save_home_widgets, save_home_camera_entity, save_inherit, save_preset
+from .backgrounds import CARD_THEMES, PRESETS, load_background, load_background_image, load_backgrounds, load_card_theme, load_card_glow, load_room_order, load_security_order, load_shortcuts, load_home_widgets, load_home_camera_entity, load_home_weather_location, save_background_image, save_card_theme, save_card_glow, save_room_order, save_security_order, save_shortcuts, save_home_widgets, save_home_camera_entity, save_home_weather_location, save_inherit, save_preset
 from .connectors import BusproConnector, Control4MediaConnector, EThermConnector, EkonexMediaConnector, EvoiceLocalMediaConnector, KseniaConnector
 from .connectors.ksenia import normalize_ksenia
 from .connectors.wiim import WiiMClient
@@ -66,7 +66,7 @@ from .connectors.control4_media import cached_control4_icon, cached_control4_ico
 from .connectors.supervisor import discover_addon_url, discover_host_url
 from .demo import dashboard as demo_dashboard
 
-VERSION = os.environ.get("EFACE_VERSION", "2.21.118")
+VERSION = os.environ.get("EFACE_VERSION", "2.21.119")
 STATIC = Path(__file__).parent / "static"
 logging.basicConfig(level=logging.WARNING, format="%(asctime)s %(levelname)s [e-face-x4] %(message)s")
 _reconnect_warning_at: dict[str, float] = {}
@@ -1981,14 +1981,19 @@ def create_app() -> FastAPI:
         return response
 
     @app.get("/api/home/weather")
-    async def home_weather() -> Response:
-        response = await home_assistant_get("states")
-        states = response.json()
-        weather = next((item for item in states if str(item.get("entity_id", "")).startswith("weather.")), None)
-        if not weather: raise HTTPException(status_code=404, detail="Entità meteo non trovata")
-        attributes = weather.get("attributes") or {}
-        return JSONResponse({"entity_id": weather["entity_id"], "state": weather.get("state"), "name": attributes.get("friendly_name") or "Meteo", "temperature": attributes.get("temperature"), "temperature_unit": attributes.get("temperature_unit") or "°C", "humidity": attributes.get("humidity"), "wind_speed": attributes.get("wind_speed"), "wind_speed_unit": attributes.get("wind_speed_unit")}, headers={"Cache-Control":"no-store, private"})
-
+    async def home_weather(request: Request) -> Response:
+        location = load_home_weather_location(appearance_owner(request))
+        if not location: raise HTTPException(status_code=409, detail="Configura la località meteo in Strumenti")
+        try:
+            async with httpx.AsyncClient(timeout=8, follow_redirects=False, trust_env=False) as client:
+                geo = await client.get("https://geocoding-api.open-meteo.com/v1/search", params={"name": location, "count": 1, "language": "it", "format": "json"})
+                geo.raise_for_status(); place = (geo.json().get("results") or [None])[0]
+                if not place: raise HTTPException(status_code=404, detail="Località meteo non trovata")
+                forecast = await client.get("https://api.open-meteo.com/v1/forecast", params={"latitude": place["latitude"], "longitude": place["longitude"], "current": "temperature_2m,relative_humidity_2m,apparent_temperature,weather_code,wind_speed_10m", "daily": "weather_code,temperature_2m_max,temperature_2m_min", "timezone": "auto", "forecast_days": 5})
+                forecast.raise_for_status(); data = forecast.json()
+        except HTTPException: raise
+        except (httpx.HTTPError, KeyError, TypeError, ValueError) as exc: raise HTTPException(status_code=502, detail="Servizio meteo non disponibile") from exc
+        return JSONResponse({"name": place.get("name") or location, "area": place.get("admin1") or place.get("country") or "", "timezone": data.get("timezone"), "current": data.get("current") or {}, "daily": data.get("daily") or {}}, headers={"Cache-Control":"no-store, private"})
     @app.get("/api/home/camera-event")
     async def home_camera_event(request: Request) -> Response:
         response = await home_assistant_get(f"camera_proxy/{load_home_camera_entity(appearance_owner(request))}")
@@ -2250,9 +2255,9 @@ def create_app() -> FastAPI:
         page = page.replace('content="#263f48"', 'content="#181c1f"')
         page = page.replace("manifest.webmanifest?v=2.20.38", "manifest.webmanifest?v=2.21.59")
         page = page.replace("app.css?v=2.20.20", "app.css?v=2.21.73")
-        page = page.replace("app.css?v=2.21.84", "app.css?v=2.21.118")
-        page = page.replace("home-status.css?v=2.20.20", "home-status.css?v=2.21.118")
-        page = page.replace("tools.js?v=2.21.1", "tools.js?v=2.21.118")
+        page = page.replace("app.css?v=2.21.84", "app.css?v=2.21.119")
+        page = page.replace("home-status.css?v=2.20.20", "home-status.css?v=2.21.119")
+        page = page.replace("tools.js?v=2.21.1", "tools.js?v=2.21.119")
         page = page.replace("ui-theme-contract.css?v=2.21.27", "ui-theme-contract.css?v=2.21.29")
         page = page.replace("tools-dashboard.js?v=2.21.27", "tools-dashboard.js?v=2.21.33")
         page = page.replace("tools-dashboard.js?v=2.21.33", "tools-dashboard.js?v=2.21.34")
@@ -2260,8 +2265,8 @@ def create_app() -> FastAPI:
         page = page.replace("tools-dashboard.js?v=2.21.36", "tools-dashboard.js?v=2.21.38")
         page = page.replace("tools-dashboard.js?v=2.21.38", "tools-dashboard.js?v=2.21.41")
         page = page.replace("tools-dashboard.js?v=2.21.41", "tools-dashboard.js?v=2.21.42")
-        page = page.replace("tools-dashboard.js?v=2.21.42", "tools-dashboard.js?v=2.21.118")
-        page = page.replace("tools-dashboard.css?v=2.20.36", "tools-dashboard.css?v=2.21.118")
+        page = page.replace("tools-dashboard.js?v=2.21.42", "tools-dashboard.js?v=2.21.119")
+        page = page.replace("tools-dashboard.css?v=2.20.36", "tools-dashboard.css?v=2.21.119")
         page = page.replace("backgrounds.css?v=2.20.20", "backgrounds.css?v=2.21.43")
         page = page.replace("intercom.css?v=2.21.14", "intercom.css?v=2.21.46")
         page = page.replace("app.js?v=2.21.11", "app.js?v=2.21.29")
@@ -2464,7 +2469,7 @@ def create_app() -> FastAPI:
         return {
             "version": VERSION,
             "backgrounds": load_backgrounds(),
-            "appearance": {"card_theme": load_card_theme(), "card_glow": load_card_glow(), "room_order": load_room_order(), "security_order": load_security_order(), "shortcuts": load_shortcuts(), "home_widgets": load_home_widgets(owner), "home_camera_entity": load_home_camera_entity(owner)},
+            "appearance": {"card_theme": load_card_theme(), "card_glow": load_card_glow(), "room_order": load_room_order(), "security_order": load_security_order(), "shortcuts": load_shortcuts(), "home_widgets": load_home_widgets(owner), "home_camera_entity": load_home_camera_entity(owner), "home_weather_location": load_home_weather_location(owner)},
             "nav_icons": settings.nav_icons,
             "mode": "demo" if settings.demo_mode else "live",
             "dashboard": dashboard,
@@ -2519,7 +2524,7 @@ def create_app() -> FastAPI:
     @app.get("/api/user/appearance")
     async def user_appearance(request: Request) -> dict:
         owner = appearance_owner(request)
-        return {"card_glow": load_card_glow(), "room_order": load_room_order(), "security_order": load_security_order(), "shortcuts": load_shortcuts(), "home_widgets": load_home_widgets(owner), "home_camera_entity": load_home_camera_entity(owner)}
+        return {"card_glow": load_card_glow(), "room_order": load_room_order(), "security_order": load_security_order(), "shortcuts": load_shortcuts(), "home_widgets": load_home_widgets(owner), "home_camera_entity": load_home_camera_entity(owner), "home_weather_location": load_home_weather_location(owner)}
 
     @app.put("/api/user/appearance")
     async def user_save_appearance(request: Request, payload: dict) -> dict:
@@ -2531,8 +2536,9 @@ def create_app() -> FastAPI:
             if "shortcuts" in payload: save_shortcuts(payload["shortcuts"])
             if "home_widgets" in payload: save_home_widgets(payload["home_widgets"], owner)
             if "home_camera_entity" in payload: save_home_camera_entity(payload["home_camera_entity"], owner)
+            if "home_weather_location" in payload: save_home_weather_location(payload["home_weather_location"], owner)
         except ValueError as exc: raise HTTPException(status_code=400, detail=str(exc))
-        return {"card_glow": load_card_glow(), "room_order": load_room_order(), "security_order": load_security_order(), "shortcuts": load_shortcuts(), "home_widgets": load_home_widgets(owner), "home_camera_entity": load_home_camera_entity(owner)}
+        return {"card_glow": load_card_glow(), "room_order": load_room_order(), "security_order": load_security_order(), "shortcuts": load_shortcuts(), "home_widgets": load_home_widgets(owner), "home_camera_entity": load_home_camera_entity(owner), "home_weather_location": load_home_weather_location(owner)}
 
     @app.put("/api/user/card-theme")
     async def user_save_card_theme(payload: dict) -> dict:
