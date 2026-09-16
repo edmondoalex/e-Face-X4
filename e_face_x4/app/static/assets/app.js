@@ -301,7 +301,7 @@ function updateNavigationStates() {
   const setState = (view, className, active) => {
     const button = document.querySelector(`.rail [data-view="${view}"]`)
     if (!button) return
-    button.classList.remove('status-yellow','status-red','status-cyan','status-green')
+    button.classList.remove('status-yellow','status-red','status-cyan','status-green','status-amber','status-comfort-mixed')
     if (active) button.classList.add(className)
   }
   setState('lights', 'status-yellow', currentDevices.some((device) => device.kind === 'light' && lightIsOn(device)))
@@ -314,7 +314,10 @@ function updateNavigationStates() {
   setState('security', securityAlarm || securityInstant ? 'status-red' : securityDelayed ? 'status-yellow' : 'status-green', securityPartitions.length > 0)
   setState('watch', 'status-cyan', currentDevices.some((device) => ['media','media_player'].includes(device.kind) && device.active_experience === 'watch' && stateIsActive(device)))
   setState('listen', 'status-green', currentDevices.some((device) => ['media','media_player'].includes(device.kind) && device.active_experience === 'listen' && stateIsActive(device)))
-  setState('comfort', 'status-cyan', currentDevices.some((device) => device.kind === 'climate' && !device.read_only && ['HEATING','COOLING'].includes(String(device.state).toUpperCase())))
+  const comfortStates = currentDevices.filter((device) => device.kind === 'climate' && !device.read_only).map((device) => String(device.state).toUpperCase())
+  const comfortHeating = comfortStates.includes('HEATING')
+  const comfortCooling = comfortStates.includes('COOLING')
+  setState('comfort', comfortHeating && comfortCooling ? 'status-comfort-mixed' : comfortHeating ? 'status-amber' : 'status-cyan', comfortHeating || comfortCooling)
   setState('scenarios', 'status-yellow', currentScenarios.some((scenario) => scenario.running || ['ON','1','TRUE'].includes(String(scenario.state ?? '').toUpperCase())))
 }
 
@@ -2482,9 +2485,12 @@ Promise.all([
   }
 })
 connectRealtime()
-setTimeout(() => {
+{
   const splash = $('#startup-splash')
-  if (!splash) return
-  splash.classList.add('closing')
-  setTimeout(() => splash.remove(), 650)
-}, 5000)
+  const duration = Math.max(0, Number(splash?.dataset.durationMs) || 0)
+  if (!splash || !duration) splash?.remove()
+  else setTimeout(() => {
+    splash.classList.add('closing')
+    setTimeout(() => splash.remove(), 650)
+  }, duration)
+}

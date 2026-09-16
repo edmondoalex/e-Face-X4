@@ -56,7 +56,7 @@ def test_health() -> None:
     response = TestClient(create_app()).get("/health")
     assert response.status_code == 200
     assert response.json()["ok"] is True
-    assert response.json()["version"] == "2.21.83"
+    assert response.json()["version"] == "2.21.84"
 
 
 def test_installed_app_starts_at_dashboard() -> None:
@@ -95,7 +95,7 @@ def test_intercom_is_in_sidebar_with_embedded_view() -> None:
     client_script = (static / "assets" / "intercom.js").read_text(encoding="utf-8")
     intercom_page = (static / "intercom.html").read_text(encoding="utf-8")
     assert "Tablet Control4 · interno 8291" in intercom_page
-    assert "const currentVersion = '2.21.83'" in client_script
+    assert "const currentVersion = '2.21.84'" in client_script
     assert 'id="call-ufficio" data-dial-extension="8291" data-video-capable="true"' in intercom_page
     assert "Postazione esterna · interno 8201" in intercom_page
     assert "Postazione esterna · interno ${station.sip_extension}" in client_script
@@ -302,10 +302,10 @@ def test_intercom_dashboard_stores_only_local_settings(monkeypatch, tmp_path) ->
     assert 'id="users-tool"' in page
     assert 'id="logout"' in page
     assert page.index('id="logout"') < page.index('id="tools-user-section"')
-    assert "tools-dashboard.js?v=2.21.83" in page
+    assert "tools-dashboard.js?v=2.21.84" in page
     home = client.get("/").text
     assert "backgrounds.css?v=2.21.43" in home
-    assert "app.js?v=2.21.83" in home
+    assert "app.js?v=2.21.84" in home
 
 
 def test_external_stations_api_requires_login_and_hides_secrets(monkeypatch, tmp_path) -> None:
@@ -688,7 +688,7 @@ def test_tools_page_starts_with_selected_background_and_card_theme(monkeypatch, 
     login = client.get("/login").text
     assert '<body class="app-theme" data-background="midnight" data-card-theme="slate">' in home
     assert 'ui-theme-contract.css?v=2.21.29' in home
-    assert 'app.js?v=2.21.83' in home
+    assert 'app.js?v=2.21.84' in home
     assert 'energy.css?v=2.21.30' in home
     assert 'home-comfort.css?v=2.21.31' in home
     assert '<body class="login-theme" data-background="midnight" data-card-theme="slate">' in login
@@ -832,6 +832,8 @@ def test_x4_shell_and_brand_assets_are_served() -> None:
         assert f'title="{label}"' in page.text
     assert 'src="assets/brand-horizontal.png?v=2.20.20"' in page.text
     assert 'id="startup-splash"' in page.text
+    assert 'data-duration-ms="0"' in page.text
+    assert 'style="display:none"' in page.text
     assert 'src="assets/startup-splash.png?v=2.20.20"' in page.text
     assert client.get("/assets/splash.css").status_code == 200
     assert "--splash-shift-x:1.6vw" in client.get("/assets/splash.css").text
@@ -848,6 +850,8 @@ def test_x4_shell_and_brand_assets_are_served() -> None:
     assert refresh_css.status_code == 200
     assert ".app.loading" in refresh_css.text
     assert "body:not([data-background])" in refresh_css.text
+
+
     assert client.get("/assets/evoice.css").status_code == 200
     assert "grid-column:1/-1" in client.get("/assets/evoice.css").text
     assert "repeat(auto-fit,minmax(210px,1fr))" in client.get("/assets/evoice.css").text
@@ -897,6 +901,36 @@ def test_x4_shell_and_brand_assets_are_served() -> None:
     assert ".scenario-list{display:grid" in css
     assert "@media(min-width:701px) and (max-width:1024px)" in css
     assert ".scenario-list{grid-template-columns:1fr}" in css
+
+
+def test_startup_splash_is_admin_configurable_and_persistent(monkeypatch, tmp_path) -> None:
+    from app import startup_settings
+    from app.user_auth import create_admin
+
+    monkeypatch.setenv("EFACE_STARTUP_CONFIG", str(tmp_path / "startup.json"))
+    monkeypatch.setenv("EFACE_AUTH_DIR", str(tmp_path / "auth"))
+    assert startup_settings.load() == {"enabled": False, "duration_ms": 5000}
+    create_admin("password-admin-lunga")
+    client = TestClient(create_app())
+    assert client.post("/api/auth/login", json={"username": "admin", "password": "password-admin-lunga"}).status_code == 200
+    response = client.put("/api/admin/startup", json={"enabled": True, "duration_ms": 3500})
+    assert response.status_code == 200
+    assert response.json() == {"enabled": True, "duration_ms": 3500}
+    page = client.get("/").text
+    assert 'data-duration-ms="3500"' in page
+    assert 'style=""' in page
+    assert startup_settings.load() == {"enabled": True, "duration_ms": 3500}
+    assert client.put("/api/admin/startup", json={"enabled": True, "duration_ms": 100}).status_code == 400
+
+
+def test_startup_admin_controls_are_present() -> None:
+    client = TestClient(create_app())
+    page = client.get("/tools").text
+    script = client.get("/assets/tools-dashboard.js").text
+    assert 'id="startup-tool"' in page
+    assert 'id="startup-enabled"' in page
+    assert 'id="startup-duration"' in page
+    assert "api/admin/startup" in script
 
 
 def test_media_preferences_are_saved_and_applied(monkeypatch, tmp_path) -> None:
@@ -2074,7 +2108,7 @@ def test_media_ui_has_room_selection_and_typed_controls() -> None:
     assert "device.experiences?.includes('listen') || device.tts_enabled" in script
     assert "data-tts-send" in script
     assert "data-tts-select-all" in script
-    assert "}, 5000)" in script
+    assert "}, duration)" in script
     assert "data-tts-volume" in script
     assert "await postDeviceCommand(deviceId, 'set_volume', volume)" in script
     assert "localStorage.setItem('eface-tts-volume'" in script

@@ -54,6 +54,7 @@ from . import wiim_settings
 from . import wiim_services
 from . import soundcloud_settings
 from . import soundcloud_library
+from . import startup_settings
 from .connectors.soundcloud import SoundCloudClient
 from .media_preferences import apply_preferences, load_preferences, save_preferences
 from .source_icons import delete_source_icon, hidden_source_ids, load_builtin_source_icon, load_builtin_source_icon_by_id, load_source_icon, save_source_icon, set_source_hidden
@@ -65,7 +66,7 @@ from .connectors.control4_media import cached_control4_icon, cached_control4_ico
 from .connectors.supervisor import discover_addon_url, discover_host_url
 from .demo import dashboard as demo_dashboard
 
-VERSION = os.environ.get("EFACE_VERSION", "2.21.83")
+VERSION = os.environ.get("EFACE_VERSION", "2.21.84")
 STATIC = Path(__file__).parent / "static"
 logging.basicConfig(level=logging.WARNING, format="%(asctime)s %(levelname)s [e-face-x4] %(message)s")
 _reconnect_warning_at: dict[str, float] = {}
@@ -150,6 +151,19 @@ def create_app() -> FastAPI:
         if username != "admin":
             raise HTTPException(status_code=403, detail="Accesso amministratore richiesto")
         return username
+
+    @app.get("/api/admin/startup")
+    async def admin_startup_get(request: Request) -> dict:
+        require_admin(request)
+        return startup_settings.load()
+
+    @app.put("/api/admin/startup")
+    async def admin_startup_put(request: Request, payload: dict) -> dict:
+        require_admin(request)
+        try:
+            return startup_settings.save(payload)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
 
     @app.get("/api/admin/wiim")
     async def admin_wiim(request: Request) -> dict:
@@ -1950,6 +1964,9 @@ def create_app() -> FastAPI:
             "__BACKGROUND_PRESET__": escape("custom" if selected["mode"] == "custom" else selected["preset"], quote=True),
             "__CARD_THEME__": escape(load_card_theme(), quote=True),
         }
+        startup = startup_settings.load()
+        replacements["__STARTUP_SPLASH_STYLE__"] = "" if startup["enabled"] else "display:none"
+        replacements["__STARTUP_SPLASH_MS__"] = str(startup["duration_ms"] if startup["enabled"] else 0)
         for placeholder, value in replacements.items():
             page = page.replace(placeholder, value)
         page = page.replace('content="#263f48"', 'content="#181c1f"')
@@ -1962,8 +1979,8 @@ def create_app() -> FastAPI:
         page = page.replace("tools-dashboard.js?v=2.21.36", "tools-dashboard.js?v=2.21.38")
         page = page.replace("tools-dashboard.js?v=2.21.38", "tools-dashboard.js?v=2.21.41")
         page = page.replace("tools-dashboard.js?v=2.21.41", "tools-dashboard.js?v=2.21.42")
-        page = page.replace("tools-dashboard.js?v=2.21.42", "tools-dashboard.js?v=2.21.83")
-        page = page.replace("tools-dashboard.css?v=2.20.36", "tools-dashboard.css?v=2.21.83")
+        page = page.replace("tools-dashboard.js?v=2.21.42", "tools-dashboard.js?v=2.21.84")
+        page = page.replace("tools-dashboard.css?v=2.20.36", "tools-dashboard.css?v=2.21.84")
         page = page.replace("backgrounds.css?v=2.20.20", "backgrounds.css?v=2.21.43")
         page = page.replace("intercom.css?v=2.21.14", "intercom.css?v=2.21.46")
         page = page.replace("app.js?v=2.21.11", "app.js?v=2.21.29")

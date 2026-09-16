@@ -156,6 +156,26 @@ async function users() {
 
 $('#users-tool').addEventListener('click', async () => { try { await users(); openPanel('users-config') } catch(error) { message(error.message) } })
 $('#users-back').addEventListener('click', () => closePanel('users-config'))
+$('#startup-tool').addEventListener('click', async () => {
+  try {
+    const data = await request('api/admin/startup')
+    $('#startup-enabled').checked = data.enabled === true
+    $('#startup-duration').value = String((Number(data.duration_ms) || 5000) / 1000)
+    $('#startup-duration').disabled = !$('#startup-enabled').checked
+    openPanel('startup-config')
+  } catch (error) { message(error.message) }
+})
+$('#startup-back').addEventListener('click', () => closePanel('startup-config'))
+$('#startup-enabled').addEventListener('change', (event) => { $('#startup-duration').disabled = !event.target.checked })
+$('#startup-form').addEventListener('submit', async (event) => {
+  event.preventDefault()
+  try {
+    const enabled = $('#startup-enabled').checked
+    const duration_ms = Math.round(Number($('#startup-duration').value) * 1000)
+    await request('api/admin/startup', {method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify({enabled, duration_ms})})
+    message(enabled ? `Logo iniziale attivo per ${(duration_ms / 1000).toLocaleString('it-IT')} secondi` : 'Logo iniziale disattivato')
+  } catch (error) { message(error.message) }
+})
 const userOriginLabel = document.createElement('label')
 userOriginLabel.textContent = 'Origine account'
 userOriginLabel.innerHTML += '<select id="user-origin"><option value="local">Locale · creato dall’amministratore</option><option value="cloud" disabled>Cloud/VPS · e-Voice o e-Manager (da definire)</option></select><small>Il servizio cloud non riceverà la password locale.</small>'

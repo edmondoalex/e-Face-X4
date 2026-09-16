@@ -5,4 +5,4 @@
 .media-recent-pin{position:absolute;top:0;left:0;width:25px;height:25px;padding:0;border:0;border-radius:8px 0 5px 0;background:var(--user-card-field);color:#dce8e9;font-size:17px;cursor:pointer}.media-recent-pin.active{color:#ffcc50}.media-favorites .media-recent-strip>.empty-state{padding:12px 4px;color:#aebbc0;font-size:13px}.media-favorites{margin-top:4px}
 .media-recent-item em .media-favorite-origin{flex:none;width:14px;height:14px;margin-left:2px}
 .media-recent-item em .media-favorite-wiim{color:#8fe4d0}
-.media-recent-item em .media-favorite-eface{display:block;padding:1px;border-radius:3px;object-fit:contain;background:#e7eef0}
+.media-recent-item em .media-favorite-eface{display:block;object-fit:contain;background:transparent}

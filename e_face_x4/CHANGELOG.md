@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.21.84 — 2026-09-16
+
+- Rimuove fondo, riquadro e spaziatura artificiale dal piccolo badge e-Face dei preferiti brano WiiM.
+- Colora l’icona Comfort della navigazione in ambra durante Heat, celeste durante Cool e metà ambra/metà celeste quando entrambe le richieste sono attive.
+- Disattiva per impostazione predefinita il logo iniziale duplicato e aggiunge in Admin il comando per riattivarlo scegliendo una durata tra 0,5 e 30 secondi.
+
 ## 2.21.83 — 2026-09-16
 
 - Impedisce al richiamo di un preferito brano WiiM di agganciare la coda transitoria da un solo elemento mentre il preset è ancora in caricamento.

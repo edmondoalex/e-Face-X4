@@ -229,8 +229,21 @@ def test_soundcloud_local_library_is_persistent(monkeypatch, tmp_path) -> None:
 
 def test_wiim_presets_are_rendered_as_eface_favorites() -> None:
     script = __import__("app.main", fromlist=["STATIC"]).STATIC.joinpath("assets", "app.js").read_text(encoding="utf-8")
+    styles = __import__("app.main", fromlist=["STATIC"]).STATIC.joinpath("assets", "recent-visibility.css").read_text(encoding="utf-8")
     assert "wiim_preset" in script
     assert "speaker-wireless" in script
+    assert "Preferito creato da e-Face" in script
+    assert ".media-favorite-eface{display:block;object-fit:contain;background:transparent}" in styles
+
+
+def test_comfort_navigation_icon_follows_heat_and_cool_state() -> None:
+    static = __import__("app.main", fromlist=["STATIC"]).STATIC
+    script = static.joinpath("assets", "app.js").read_text(encoding="utf-8")
+    styles = static.joinpath("assets", "app.css").read_text(encoding="utf-8")
+    assert "comfortHeating && comfortCooling ? 'status-comfort-mixed' : comfortHeating ? 'status-amber' : 'status-cyan'" in script
+    assert ".rail button.status-amber .nav-icon" in styles
+    assert ".rail button.status-comfort-mixed .nav-icon" in styles
+    assert "linear-gradient(90deg,#ffa643 0 50%,#61d8f2 50% 100%)" in styles
 
 
 def test_wiim_controls_are_integrated_in_main_player() -> None:
