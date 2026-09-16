@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.21.128 — 2026-09-16
+
+- Il video DoorBird durante la chiamata usa ora una cache JPEG backend condivisa, evitando uno stream MJPEG separato per ogni browser.
+- I destinatari aggiornano l'anteprima dalla cache senza saturare il limite di connessioni del DoorBird.
+- Se un aggiornamento temporaneo fallisce, il backend mantiene l'ultimo fotogramma valido invece di mostrare un'immagine rotta.
+
 ## 2.21.127 — 2026-09-16
 
 - L'interno admin 8301 è ora incluso nel gruppo DoorBird “Tutti”, quindi l'admin può realmente rispondere oltre a vedere l'anteprima.

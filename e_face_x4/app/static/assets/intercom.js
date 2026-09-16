@@ -2,7 +2,7 @@
   const $ = (selector) => document.querySelector(selector)
   const adminMode = document.documentElement.classList.contains('admin-intercom')
   const root = new URL('./', location.href)
-const currentVersion = '2.21.127'
+const currentVersion = '2.21.128'
   function newDeviceId() {
     if (typeof crypto.randomUUID === 'function') return crypto.randomUUID()
     const bytes = new Uint8Array(16)
@@ -59,6 +59,7 @@ const currentVersion = '2.21.127'
   let doorbirdRetryTimer = null
   let doorbirdAlertTimer = null
   let doorbirdAlertActive = false
+  let callDoorbirdTimer = null
   let intercomVisible = !document.documentElement.classList.contains('embedded')
   let stationsSignature = ''
   const externalVideoByExtension = new Map()
@@ -596,6 +597,7 @@ const currentVersion = '2.21.127'
     stopRingtone()
     clearTimeout(doorbirdAlertTimer)
     doorbirdAlertActive = false
+    clearInterval(callDoorbirdTimer)
     call = null
     if (updateAvailable) { location.reload(); return }
     clearInterval(audioStatsTimer)
@@ -626,6 +628,7 @@ const currentVersion = '2.21.127'
   function closeDoorbirdAlert() {
     clearTimeout(doorbirdAlertTimer)
     doorbirdAlertActive = false
+    clearInterval(callDoorbirdTimer)
     if (call) return
     stopRingtone()
     $('#intercom-call-panel').hidden = true
@@ -638,14 +641,24 @@ const currentVersion = '2.21.127'
     $('#call-hangup').disabled = true
   }
 
+  function showCallDoorbirdVideo(stationId = 'ingresso') {
+    clearInterval(callDoorbirdTimer)
+    const preview = $('#call-doorbird-preview')
+    const refresh = () => {
+      preview.src = new URL(`api/intercom/external-stations/${encodeURIComponent(stationId)}/image?t=${Date.now()}`, root).toString()
+      preview.hidden = false
+    }
+    refresh()
+    callDoorbirdTimer = setInterval(refresh, 1200)
+    $('#remote-video-placeholder').hidden = true
+    $('#intercom-video-panel').hidden = false
+    $('#video-status').textContent = 'Video live DoorBird attivo'
+  }
+
   function showDoorbirdIncoming(stationId = 'ingresso') {
     clearTimeout(doorbirdAlertTimer)
     doorbirdAlertActive = true
-    const preview = $('#call-doorbird-preview')
-    preview.src = new URL(`api/intercom/external-stations/${encodeURIComponent(stationId)}/video?t=${Date.now()}`, root).toString()
-    preview.hidden = false
-    $('#remote-video-placeholder').hidden = true
-    $('#intercom-video-panel').hidden = false
+    showCallDoorbirdVideo(stationId)
     $('#intercom-call-panel').hidden = false
     $('#call-title').textContent = 'Chiamata da DoorBird'
     $('#call-status').textContent = 'DoorBird sta chiamando · attendo la sessione audio SIPâ€¦'
@@ -762,8 +775,7 @@ const currentVersion = '2.21.127'
     const doorbirdCaller = ['8000','8201','8290'].includes(remoteExtension) || ['doorbird','ingresso','cancello'].some(name => remoteName.includes(name))
     const externalStation = externalVideoByExtension.get(remoteExtension) || (doorbirdCaller ? externalVideoByExtension.values().next().value : '')
     if (session.direction === 'incoming' && externalStation) {
-      const preview=$('#call-doorbird-preview');preview.src=new URL(`api/intercom/external-stations/${encodeURIComponent(externalStation)}/video`,root).toString();preview.hidden=false
-      $('#remote-video-placeholder').hidden=true;$('#intercom-video-panel').hidden=false;$('#video-status').textContent='Anteprima postazione esterna attiva'
+      showCallDoorbirdVideo(externalStation)
     }
     const personalIncoming = session.direction === 'incoming' && /^83[0-9]{2}$/.test(remoteExtension)
     if (remoteOffersVideo || personalIncoming) {

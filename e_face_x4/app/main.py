@@ -67,7 +67,7 @@ from .connectors.supervisor import discover_addon_url, discover_host_url
 from .media_realtime import SharedMediaRealtime
 from .demo import dashboard as demo_dashboard
 
-VERSION = os.environ.get("EFACE_VERSION", "2.21.127")
+VERSION = os.environ.get("EFACE_VERSION", "2.21.128")
 STATIC = Path(__file__).parent / "static"
 logging.basicConfig(level=logging.WARNING, format="%(asctime)s %(levelname)s [e-face-x4] %(message)s")
 _reconnect_warning_at: dict[str, float] = {}
@@ -169,6 +169,8 @@ def create_app() -> FastAPI:
     push_wake_tokens: dict[str, dict] = {}
     control4_support_tokens: dict[str, float] = {}
     doorbird_video_slots = asyncio.Semaphore(2)
+    doorbird_frame_cache: dict[str, tuple[float, bytes]] = {}
+    doorbird_frame_locks: dict[str, asyncio.Lock] = {}
     wiim_presets_cache: dict[str, object] = {"expires": 0.0, "items": []}
 
     async def broadcast_realtime(event: dict) -> None:
@@ -2112,14 +2114,22 @@ def create_app() -> FastAPI:
         if not user_auth.session_user(request.cookies.get(user_auth.COOKIE)):
             raise HTTPException(status_code=401, detail="Accesso richiesto")
         station, account = external_access(station_id)
-        try:
-            frame = await doorbird_api.live_image(
-                station["host"], station["http_port"], account["username"], account["password"]
-            )
-        except PermissionError as exc:
-            raise HTTPException(status_code=403, detail=str(exc)) from exc
-        except (ConnectionError, RuntimeError) as exc:
-            raise HTTPException(status_code=502, detail=str(exc)) from exc
+        lock = doorbird_frame_locks.setdefault(station_id, asyncio.Lock())
+        async with lock:
+            cached_at, frame = doorbird_frame_cache.get(station_id, (0.0, b""))
+            if time.monotonic() - cached_at >= 0.9 or not frame:
+                try:
+                    fresh = await doorbird_api.live_image(
+                        station["host"], station["http_port"], account["username"], account["password"]
+                    )
+                    if fresh:
+                        frame = fresh
+                        doorbird_frame_cache[station_id] = (time.monotonic(), frame)
+                except PermissionError as exc:
+                    raise HTTPException(status_code=403, detail=str(exc)) from exc
+                except (ConnectionError, RuntimeError) as exc:
+                    if not frame:
+                        raise HTTPException(status_code=502, detail=str(exc)) from exc
         headers = {"Cache-Control": "no-store, private", "Pragma": "no-cache", "X-Content-Type-Options": "nosniff"}
         if frame is None:
             return Response(status_code=204, headers=headers)
@@ -2336,9 +2346,9 @@ def create_app() -> FastAPI:
         page = page.replace('content="#263f48"', 'content="#181c1f"')
         page = page.replace("manifest.webmanifest?v=2.20.38", "manifest.webmanifest?v=2.21.59")
         page = page.replace("app.css?v=2.20.20", "app.css?v=2.21.73")
-        page = page.replace("app.css?v=2.21.84", "app.css?v=2.21.127")
-        page = page.replace("home-status.css?v=2.20.20", "home-status.css?v=2.21.127")
-        page = page.replace("tools.js?v=2.21.1", "tools.js?v=2.21.127")
+        page = page.replace("app.css?v=2.21.84", "app.css?v=2.21.128")
+        page = page.replace("home-status.css?v=2.20.20", "home-status.css?v=2.21.128")
+        page = page.replace("tools.js?v=2.21.1", "tools.js?v=2.21.128")
         page = page.replace("ui-theme-contract.css?v=2.21.27", "ui-theme-contract.css?v=2.21.29")
         page = page.replace("tools-dashboard.js?v=2.21.27", "tools-dashboard.js?v=2.21.33")
         page = page.replace("tools-dashboard.js?v=2.21.33", "tools-dashboard.js?v=2.21.34")
@@ -2346,8 +2356,8 @@ def create_app() -> FastAPI:
         page = page.replace("tools-dashboard.js?v=2.21.36", "tools-dashboard.js?v=2.21.38")
         page = page.replace("tools-dashboard.js?v=2.21.38", "tools-dashboard.js?v=2.21.41")
         page = page.replace("tools-dashboard.js?v=2.21.41", "tools-dashboard.js?v=2.21.42")
-        page = page.replace("tools-dashboard.js?v=2.21.42", "tools-dashboard.js?v=2.21.127")
-        page = page.replace("tools-dashboard.css?v=2.20.36", "tools-dashboard.css?v=2.21.127")
+        page = page.replace("tools-dashboard.js?v=2.21.42", "tools-dashboard.js?v=2.21.128")
+        page = page.replace("tools-dashboard.css?v=2.20.36", "tools-dashboard.css?v=2.21.128")
         page = page.replace("backgrounds.css?v=2.20.20", "backgrounds.css?v=2.21.43")
         page = page.replace("intercom.css?v=2.21.14", "intercom.css?v=2.21.46")
         page = page.replace("app.js?v=2.21.11", "app.js?v=2.21.29")
