@@ -1,5 +1,12 @@
 # Changelog
 
+## 2.21.127 — 2026-09-16
+
+- L'interno admin 8301 è ora incluso nel gruppo DoorBird “Tutti”, quindi l'admin può realmente rispondere oltre a vedere l'anteprima.
+- Le chiamate provenienti dal gruppo 8290, da 8201 e dai nomi DoorBird/Ingresso/Cancello attivano sempre il video anche sugli utenti personali.
+- Il test DoorBird invia anche le notifiche push ai cellulari configurati, oltre a chiamare gli interni SIP attivi.
+- Prima dell'arrivo SIP l'interfaccia indica chiaramente che sta attendendo l'audio e mantiene “Rispondi” disabilitato.
+
 ## 2.21.126 — 2026-09-16
 
 - La suoneria video DoorBird condivisa ora si arresta automaticamente dopo 45 secondi se il browser non riceve la sessione SIP.

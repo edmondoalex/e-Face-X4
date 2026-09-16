@@ -69,7 +69,7 @@ def test_tablets_api_confirms_route_before_persisting(monkeypatch, tmp_path):
     assert response.status_code == 200, response.text
     assert response.json()["tablets"] == [{**tablet, "status": "route_present"}]
     assert control4_tablets.load() == [tablet]
-    assert groups[0]["members"] == ["8291", "8292", "8293"]
+    assert groups[0]["members"] == ["8291", "8292", "8293", "8301"]
     assert client.get("/api/intercom/internal-stations").json()["tablets"] == [
         {"extension": "8293", "name": "Cucina", "ready": True}
     ]

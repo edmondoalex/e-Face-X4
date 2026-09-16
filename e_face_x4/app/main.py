@@ -67,7 +67,7 @@ from .connectors.supervisor import discover_addon_url, discover_host_url
 from .media_realtime import SharedMediaRealtime
 from .demo import dashboard as demo_dashboard
 
-VERSION = os.environ.get("EFACE_VERSION", "2.21.126")
+VERSION = os.environ.get("EFACE_VERSION", "2.21.127")
 STATIC = Path(__file__).parent / "static"
 logging.basicConfig(level=logging.WARNING, format="%(asctime)s %(levelname)s [e-face-x4] %(message)s")
 _reconnect_warning_at: dict[str, float] = {}
@@ -183,6 +183,33 @@ def create_app() -> FastAPI:
             except asyncio.QueueFull:
                 pass
 
+    async def push_intercom_group(extension: str, caller_name: str) -> int:
+        target_extensions = {extension}
+        if extension.startswith("828") or extension == "8290":
+            try:
+                remote = await provisioner_client.request("GET", "/v1/intercom-groups")
+                group = next((item for item in intercom_groups.with_default(remote.get("groups", [])) if item["extension"] == extension), None)
+                target_extensions = {member for member in (group or {}).get("members", []) if member.startswith("83")}
+            except RuntimeError:
+                target_extensions = set()
+        targets = [(device_id, item) for device_id, item in push_notifications.load().items() if item.get("extension") in target_extensions]
+        for key, value in list(push_wake_tokens.items()):
+            if value["expires"] < time.monotonic():
+                push_wake_tokens.pop(key, None)
+        sent = 0
+        for device_id, item in targets:
+            token = secrets.token_urlsafe(32)
+            push_wake_tokens[token] = {"owner": item["owner"], "caller": caller_name, "expires": time.monotonic() + 120}
+            ok = await asyncio.to_thread(push_notifications.send, item["subscription"], {
+                "title": "Chiamata DoorBird", "body": f"Chiamata da {caller_name}",
+                "caller": caller_name, "extension": item["extension"], "target": f"intercom/wake/{token}",
+            })
+            if ok:
+                sent += 1
+            else:
+                push_wake_tokens.pop(token, None)
+        return sent
+
     async def monitor_doorbird(station: dict, account: dict) -> None:
         delay = 2
         while True:
@@ -193,6 +220,7 @@ def create_app() -> FastAPI:
                     delay = 2
                     if event == "doorbell":
                         await broadcast_realtime({"type": "doorbird_incoming", "data": {"station_id": station["id"]}})
+                        await push_intercom_group(intercom_settings.load()["ring_extension"], station.get("name") or "DoorBird")
             except asyncio.CancelledError:
                 raise
             except Exception as exc:
@@ -207,6 +235,12 @@ def create_app() -> FastAPI:
                 account = credential_inventory.load().get("doorbird", {})
             if account.get("username") and account.get("password"):
                 app.state.doorbird_monitor_tasks.append(asyncio.create_task(monitor_doorbird(station, account)))
+
+    async def ensure_default_intercom_group() -> None:
+        try:
+            await sync_default_intercom_group()
+        except Exception as exc:
+            logging.warning("Intercom default group not synchronized: %s", exc)
 
     async def ensure_doorbird_ring_routes() -> None:
         """Keep each configured DoorBird button routed to the e-Face ring group."""
@@ -247,6 +281,7 @@ def create_app() -> FastAPI:
             app.state.doorbird_ring_routes_started = True
             asyncio.create_task(ensure_doorbird_ring_routes())
             asyncio.create_task(start_doorbird_monitors())
+            asyncio.create_task(ensure_default_intercom_group())
         path = request.url.path
         origin = request.headers.get("origin")
         if request.method not in {"GET", "HEAD", "OPTIONS"} and origin and urlsplit(origin).netloc != request.headers.get("host"):
@@ -1828,30 +1863,7 @@ def create_app() -> FastAPI:
         caller = user_auth.session_user(request.cookies.get(user_auth.COOKIE))
         if not caller or not re.fullmatch(r"(?:828[0-9]|8290|83(?:0[2-9]|[1-4][0-9]))", extension):
             raise HTTPException(status_code=403, detail="Chiamata push non autorizzata")
-        target_extensions = {extension}
-        if extension.startswith("828") or extension == "8290":
-            try:
-                remote = await provisioner_client.request("GET", "/v1/intercom-groups")
-                group = next((item for item in intercom_groups.with_default(remote.get("groups", [])) if item["extension"] == extension), None)
-                target_extensions = {member for member in (group or {}).get("members", []) if member.startswith("83")}
-            except RuntimeError:
-                target_extensions = set()
-        targets = [(device_id, item) for device_id, item in push_notifications.load().items() if item.get("extension") in target_extensions]
-        for key, value in list(push_wake_tokens.items()):
-            if value["expires"] < time.monotonic():
-                push_wake_tokens.pop(key, None)
-        sent = 0
-        for device_id, item in targets:
-            token = secrets.token_urlsafe(32)
-            push_wake_tokens[token] = {"owner": item["owner"], "caller": user_auth.account(caller)["name"], "expires": time.monotonic() + 120}
-            ok = await asyncio.to_thread(push_notifications.send, item["subscription"], {
-                "title": "Chiamata Intercom", "body": f"Chiamata da {user_auth.account(caller)['name']}",
-                "caller": user_auth.account(caller)["name"], "extension": item["extension"], "target": f"intercom/wake/{token}",
-            })
-            if ok:
-                sent += 1
-            else:
-                push_wake_tokens.pop(token, None)
+        sent = await push_intercom_group(extension, user_auth.account(caller)["name"])
         return JSONResponse({"sent": sent}, headers={"Cache-Control": "no-store, private"})
 
     @app.get("/intercom/wake/{token}", include_in_schema=False)
@@ -2026,6 +2038,8 @@ def create_app() -> FastAPI:
         station, account = external_access("ingresso")
         settings = intercom_settings.load()
         try:
+            await sync_default_intercom_group()
+            push_response = await intercom_push_call(settings["ring_extension"], request)
             await doorbird_api.make_call(
                 station["host"], station["http_port"], account["username"], account["password"],
                 f"sip:{settings['ring_extension']}@{settings['asterisk_host']}",
@@ -2033,7 +2047,8 @@ def create_app() -> FastAPI:
         except (ValueError, PermissionError, ConnectionError, RuntimeError, httpx.HTTPError) as exc:
             raise HTTPException(status_code=502, detail=str(exc)) from exc
         await broadcast_realtime({"type": "doorbird_incoming", "data": {"station_id": station["id"]}})
-        return {"ok": True, "video": True}
+        push_data = json.loads(push_response.body)
+        return {"ok": True, "video": True, "push_sent": push_data.get("sent", 0)}
 
     async def home_assistant_get(path: str) -> httpx.Response:
         token = str(os.environ.get("SUPERVISOR_TOKEN") or "").strip()
@@ -2321,9 +2336,9 @@ def create_app() -> FastAPI:
         page = page.replace('content="#263f48"', 'content="#181c1f"')
         page = page.replace("manifest.webmanifest?v=2.20.38", "manifest.webmanifest?v=2.21.59")
         page = page.replace("app.css?v=2.20.20", "app.css?v=2.21.73")
-        page = page.replace("app.css?v=2.21.84", "app.css?v=2.21.126")
-        page = page.replace("home-status.css?v=2.20.20", "home-status.css?v=2.21.126")
-        page = page.replace("tools.js?v=2.21.1", "tools.js?v=2.21.126")
+        page = page.replace("app.css?v=2.21.84", "app.css?v=2.21.127")
+        page = page.replace("home-status.css?v=2.20.20", "home-status.css?v=2.21.127")
+        page = page.replace("tools.js?v=2.21.1", "tools.js?v=2.21.127")
         page = page.replace("ui-theme-contract.css?v=2.21.27", "ui-theme-contract.css?v=2.21.29")
         page = page.replace("tools-dashboard.js?v=2.21.27", "tools-dashboard.js?v=2.21.33")
         page = page.replace("tools-dashboard.js?v=2.21.33", "tools-dashboard.js?v=2.21.34")
@@ -2331,8 +2346,8 @@ def create_app() -> FastAPI:
         page = page.replace("tools-dashboard.js?v=2.21.36", "tools-dashboard.js?v=2.21.38")
         page = page.replace("tools-dashboard.js?v=2.21.38", "tools-dashboard.js?v=2.21.41")
         page = page.replace("tools-dashboard.js?v=2.21.41", "tools-dashboard.js?v=2.21.42")
-        page = page.replace("tools-dashboard.js?v=2.21.42", "tools-dashboard.js?v=2.21.126")
-        page = page.replace("tools-dashboard.css?v=2.20.36", "tools-dashboard.css?v=2.21.126")
+        page = page.replace("tools-dashboard.js?v=2.21.42", "tools-dashboard.js?v=2.21.127")
+        page = page.replace("tools-dashboard.css?v=2.20.36", "tools-dashboard.css?v=2.21.127")
         page = page.replace("backgrounds.css?v=2.20.20", "backgrounds.css?v=2.21.43")
         page = page.replace("intercom.css?v=2.21.14", "intercom.css?v=2.21.46")
         page = page.replace("app.js?v=2.21.11", "app.js?v=2.21.29")

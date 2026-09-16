@@ -2,7 +2,7 @@
   const $ = (selector) => document.querySelector(selector)
   const adminMode = document.documentElement.classList.contains('admin-intercom')
   const root = new URL('./', location.href)
-const currentVersion = '2.21.126'
+const currentVersion = '2.21.127'
   function newDeviceId() {
     if (typeof crypto.randomUUID === 'function') return crypto.randomUUID()
     const bytes = new Uint8Array(16)
@@ -648,7 +648,7 @@ const currentVersion = '2.21.126'
     $('#intercom-video-panel').hidden = false
     $('#intercom-call-panel').hidden = false
     $('#call-title').textContent = 'Chiamata da DoorBird'
-    $('#call-status').textContent = 'DoorBird sta chiamandoâ€¦'
+    $('#call-status').textContent = 'DoorBird sta chiamando · attendo la sessione audio SIPâ€¦'
     $('#call-answer').disabled = true
     $('#call-hangup').disabled = false
     $('#video-status').textContent = 'Video live DoorBird attivo'
@@ -759,7 +759,8 @@ const currentVersion = '2.21.126'
     const remoteName = String(session.remote_identity?.display_name || '').toLowerCase()
     const targetName = String(session.data?.efaceTargetName || session.remote_identity?.display_name || session.remote_identity?.uri?.user || 'interno')
     $('#call-title').textContent = session.direction === 'incoming' ? `Chiamata da ${targetName}` : `Chiamata a ${targetName}`
-    const externalStation = externalVideoByExtension.get(remoteExtension) || ((remoteExtension === '8000' || remoteName.includes('doorbird')) ? externalVideoByExtension.values().next().value : '')
+    const doorbirdCaller = ['8000','8201','8290'].includes(remoteExtension) || ['doorbird','ingresso','cancello'].some(name => remoteName.includes(name))
+    const externalStation = externalVideoByExtension.get(remoteExtension) || (doorbirdCaller ? externalVideoByExtension.values().next().value : '')
     if (session.direction === 'incoming' && externalStation) {
       const preview=$('#call-doorbird-preview');preview.src=new URL(`api/intercom/external-stations/${encodeURIComponent(externalStation)}/video`,root).toString();preview.hidden=false
       $('#remote-video-placeholder').hidden=true;$('#intercom-video-panel').hidden=false;$('#video-status').textContent='Anteprima postazione esterna attiva'

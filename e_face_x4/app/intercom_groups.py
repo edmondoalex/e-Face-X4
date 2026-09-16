@@ -18,7 +18,8 @@ def validate(groups):
 
 def available_members(records=None):
     from . import control4_tablets, personal_devices, voip_phones
-    fixed=[{"extension":"8291","name":"Ufficio","kind":"control4","video_capable":False},{"extension":"8292","name":"Tavolo","kind":"control4","video_capable":False}]
+    fixed=[{"extension":"8301","name":"Admin e-Face","kind":"admin","dnd":False,"video_capable":True},
+           {"extension":"8291","name":"Ufficio","kind":"control4","video_capable":False},{"extension":"8292","name":"Tavolo","kind":"control4","video_capable":False}]
     fixed += [{"extension":x["extension"],"name":x["name"],"kind":"control4","video_capable":False} for x in control4_tablets.load()]
     fixed += [{"extension":x["extension"],"name":x["name"],"kind":"personal","dnd":x["dnd"],"video_capable":x["video_capable"],"video_enabled":x["video_enabled"]} for x in personal_devices.public(personal_devices.load() if records is None else records)]
     fixed += [{"extension":extension,"name":record["name"],"kind":"voip","video_capable":record["profile"]=="voip_video"} for extension,record in voip_phones.load().items()]

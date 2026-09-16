@@ -40,4 +40,4 @@ def test_default_group_excludes_personal_dnd_but_keeps_control4(monkeypatch, tmp
     records = personal_devices.save({first_id:first, second_id:second})
     control4_tablets.save([{"extension":"8293","name":"Cucina","sip_user":"cucina"}])
     group = intercom_groups.with_default([], records)[0]
-    assert group["members"] == ["8291", "8292", "8293", "8302"]
+    assert group["members"] == ["8291", "8292", "8293", "8301", "8302"]
