@@ -66,7 +66,7 @@ from .connectors.control4_media import cached_control4_icon, cached_control4_ico
 from .connectors.supervisor import discover_addon_url, discover_host_url
 from .demo import dashboard as demo_dashboard
 
-VERSION = os.environ.get("EFACE_VERSION", "2.21.99")
+VERSION = os.environ.get("EFACE_VERSION", "2.21.100")
 STATIC = Path(__file__).parent / "static"
 logging.basicConfig(level=logging.WARNING, format="%(asctime)s %(levelname)s [e-face-x4] %(message)s")
 _reconnect_warning_at: dict[str, float] = {}
@@ -357,28 +357,29 @@ def create_app() -> FastAPI:
             client = configured_soundcloud()
             try:
                 streams = await asyncio.gather(*(client.stream(str(track["urn"])) for track in tracks))
+                resolved = list(zip(tracks, streams))
             except httpx.HTTPError:
                 # Un account SoundCloud usato nell'app WiiM non espone necessariamente
                 # credenziali API. Finche la coda nativa contiene i brani, riutilizziamo
                 # gli URL gia risolti dal WiiM invece di perdere la playlist e-Face.
                 native_queue = await configured_wiim().queue(limit=250)
                 native_by_id = {str(item.get("track_id") or ""): item for item in native_queue.get("tracks", [])}
-                streams = []
+                resolved = []
                 for track in tracks:
                     native = native_by_id.get(str(track["urn"]))
                     url = str((native or {}).get("url") or "").strip()
-                    if not url:
-                        raise RuntimeError("URL SoundCloud non presente nella coda WiiM")
-                    streams.append({"url": url, "quality": "wiim_queue"})
+                    if url: resolved.append((track, {"url": url, "quality": "wiim_queue"}))
+                if not resolved: raise RuntimeError("Nessun brano della playlist è ancora disponibile nella coda WiiM")
+                soundcloud_library.retain_playlist_tracks(playlist_id, [str(track["urn"]) for track, _ in resolved])
             queue_name = f"e-Face SoundCloud - {playlist['name']}"
             blocks = []
-            for index, (track, stream) in enumerate(zip(tracks, streams), 1):
+            for index, (track, stream) in enumerate(resolved, 1):
                 title, artist, artwork = (escape(str(track.get(key) or "")) for key in ("title", "artist", "artwork"))
                 metadata = f'<DIDL-Lite xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:upnp="urn:schemas-upnp-org:metadata-1-0/upnp/" xmlns="urn:schemas-upnp-org:metadata-1-0/DIDL-Lite/"><upnp:class>object.item.audioItem.musicTrack</upnp:class><item id=""><dc:title>{title}</dc:title><upnp:artist>{artist}</upnp:artist><upnp:albumArtURI>{artwork}</upnp:albumArtURI></item></DIDL-Lite>'
                 blocks.append(f'<Track{index}><Id>{escape(str(track["urn"]))}</Id><URL>{escape(stream["url"])}</URL><Metadata>{metadata}</Metadata><Source>SoundCloud</Source></Track{index}>')
             context = f'<?xml version="1.0"?><PlayList><ListName>{escape(queue_name)}</ListName><ListInfo><QueueVersion>2.0</QueueVersion><SourceName>SoundCloud</SourceName><ContentType>songlist</ContentType><TotalNumber>{len(blocks)}</TotalNumber><TrackNumber>{len(blocks)}</TrackNumber><LastPlayIndex>1</LastPlayIndex><Loop>1</Loop><Shuffle>0</Shuffle></ListInfo><Tracks>{"".join(blocks)}</Tracks></PlayList>'
             await configured_wiim().create_queue(context, queue_name)
-            return {"ok": True, "playlist": playlist, "count": len(blocks)}
+            return {"ok": True, "playlist": playlist, "count": len(blocks), "total": len(tracks), "skipped": len(tracks) - len(blocks), "pruned": len(tracks) - len(blocks)}
         except ValueError as exc: raise HTTPException(status_code=400, detail=str(exc)) from exc
         except (httpx.HTTPError, RuntimeError) as exc: raise HTTPException(status_code=502, detail="Riproduzione lista SoundCloud sul WiiM non riuscita") from exc
 
@@ -1401,7 +1402,7 @@ def create_app() -> FastAPI:
                 source_id = int(wiim_settings.load().get("control4_source_id") or 0)
                 if source_id > 0:
                     await Control4MediaConnector(load_control4_config()).command(f"c4room:{room_id}", "select_source", f"listen:{source_id}")
-                return {"ok": True, "target": "soundcloud_playlist", "playlist_id": playlist_id, "count": result["count"], "room_id": room_id}
+                return {"ok": True, "target": "soundcloud_playlist", "playlist_id": playlist_id, "count": result["count"], "total": result.get("total", result["count"]), "skipped": result.get("skipped", 0), "pruned": result.get("pruned", 0), "room_id": room_id}
             match = re.fullmatch(r"wiim:preset:(\d{1,2})", identity)
             if match:
                 preset_index = int(match.group(1))
@@ -2150,8 +2151,8 @@ def create_app() -> FastAPI:
         page = page.replace("tools-dashboard.js?v=2.21.36", "tools-dashboard.js?v=2.21.38")
         page = page.replace("tools-dashboard.js?v=2.21.38", "tools-dashboard.js?v=2.21.41")
         page = page.replace("tools-dashboard.js?v=2.21.41", "tools-dashboard.js?v=2.21.42")
-        page = page.replace("tools-dashboard.js?v=2.21.42", "tools-dashboard.js?v=2.21.99")
-        page = page.replace("tools-dashboard.css?v=2.20.36", "tools-dashboard.css?v=2.21.99")
+        page = page.replace("tools-dashboard.js?v=2.21.42", "tools-dashboard.js?v=2.21.100")
+        page = page.replace("tools-dashboard.css?v=2.20.36", "tools-dashboard.css?v=2.21.100")
         page = page.replace("backgrounds.css?v=2.20.20", "backgrounds.css?v=2.21.43")
         page = page.replace("intercom.css?v=2.21.14", "intercom.css?v=2.21.46")
         page = page.replace("app.js?v=2.21.11", "app.js?v=2.21.29")

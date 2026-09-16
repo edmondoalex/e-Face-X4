@@ -1,8 +1,9 @@
 const $ = (selector) => document.querySelector(selector)
-document.head.insertAdjacentHTML('beforeend', '<link rel="stylesheet" href="assets/media-x4.css?v=2.21.99">')
+document.head.insertAdjacentHTML('beforeend', '<link rel="stylesheet" href="assets/media-x4.css?v=2.21.100">')
 const glyph = { light: '✦', climate: '❄', shield: '⬡', energy: 'ϟ', cover: '▤', sensor: '◌' }
 let refreshRunning = false
 let refreshQueued = false
+let lastInteraction = { label: '', at: 0 }
 let currentDevices = []
 let appVersion = '0'
 let loggedUser = ''
@@ -1865,8 +1866,13 @@ function applyBackground(room = activeBackgroundRoom) {
 function fail(error) {
   $('#app').classList.remove('loading')
   const notice = $('#notice')
-  notice.textContent = `Dati non disponibili (${error.message})`
+  const recentAction = Date.now() - lastInteraction.at < 12000 ? lastInteraction.label : ''
+  const detail = String(error?.message || 'operazione non riuscita')
+  notice.textContent = `${recentAction || 'Operazione'}: ${detail}`
   notice.hidden = false
+  clearTimeout(fail.timer)
+  fail.timer = setTimeout(() => { notice.hidden = true }, 9000)
+  console.warn('[e-Face X4]', recentAction || 'background', error)
 }
 
 async function refresh() {
@@ -1879,7 +1885,12 @@ async function refresh() {
     if (hiddenResponse.ok) hiddenSourceIds = new Set((await hiddenResponse.json()).ids || [])
     render(await response.json())
   } catch (error) {
-    fail(error)
+    if (!currentDevices.length) fail(new Error(`Caricamento iniziale non riuscito: ${error.message}`))
+    else {
+      console.warn('[e-Face X4] aggiornamento automatico rinviato', error)
+      clearTimeout(snapshotRefreshTimer)
+      snapshotRefreshTimer = setTimeout(refresh, 2000)
+    }
   } finally {
     refreshRunning = false
     if (refreshQueued) { refreshQueued = false; queueMicrotask(refresh) }
@@ -2231,7 +2242,7 @@ $('#device-list').addEventListener('click', (event) => {
     } else if (removeFavorite) { path = 'remove'; payload = {id:removeFavorite.dataset.favoriteRemove} }
     else { path = 'select'; payload = {id:selectFavorite.dataset.favoriteSelect, room_id:roomId} }
     fetch(apiUrl(`api/control4/favorites/${path}`), {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload)})
-      .then(async (response) => { if (!response.ok) { const result = await response.json().catch(() => ({})); throw new Error(result.detail || `Preferito non disponibile (HTTP ${response.status})`) } if (path === 'select') { refresh(); setTimeout(refresh,2500) } else { favoritesCache = null; await loadMediaFavorites() } })
+      .then(async (response) => { const result = await response.json().catch(() => ({})); if (!response.ok) throw new Error(result.detail || `Preferito non disponibile (HTTP ${response.status})`); if (path === 'select') { if (result.pruned) { notify(`Playlist ripulita: eliminati ${result.pruned} brani non disponibili`); favoritesCache = null; await loadMediaFavorites(true) } refresh(); setTimeout(refresh,2500) } else { favoritesCache = null; await loadMediaFavorites() } })
       .catch(fail).finally(() => { control.disabled = false })
     return
   }
@@ -2652,6 +2663,12 @@ document.addEventListener('visibilitychange', () => { if (!document.hidden) { re
 navigator.serviceWorker?.addEventListener('message', (event) => {
   if (event.data?.type === 'eface-open-intercom') openIntercom()
 })
+document.addEventListener('click', (event) => {
+  const control = event.target.closest('button,[role="button"],input[type="submit"]')
+  if (!control) return
+  const label = control.getAttribute('aria-label') || control.getAttribute('title') || control.textContent?.trim()
+  if (label) lastInteraction = { label: label.replace(/\s+/g, ' ').slice(0, 80), at: Date.now() }
+}, true)
 window.addEventListener('message', (event) => {
   if (event.origin === location.origin && event.source === $('#intercom-frame').contentWindow && event.data?.type === 'eface-intercom-incoming') openIntercom()
 })

@@ -62,3 +62,12 @@ def playlist(playlist_id: str) -> dict:
     item = next((x for x in load()["playlists"] if x.get("id") == playlist_id), None)
     if not item: raise ValueError("Lista SoundCloud non trovata")
     return item
+
+def retain_playlist_tracks(playlist_id: str, urns: list[str]) -> dict:
+    data = load(); playlist = next((x for x in data["playlists"] if x.get("id") == playlist_id), None)
+    if not playlist: raise ValueError("Lista SoundCloud non trovata")
+    allowed = set(urns)
+    playlist["tracks"] = [track for track in playlist.get("tracks", []) if str(track.get("urn") or "") in allowed]
+    playlist["updated_at"] = time.time()
+    _save(data)
+    return playlist

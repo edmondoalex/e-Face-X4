@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.21.100 — 2026-09-16
+
+- Gli errori dei comandi mostrano ora il nome dell'operazione che li ha generati.
+- I fallimenti temporanei dei refresh automatici non producono più avvisi rossi casuali: conservano i dati correnti e riprovano in background.
+- Le playlist SoundCloud eliminano automaticamente i brani non più risolvibili dal WiiM, aggiornano il Preferito e avviano quelli validi.
+
 ## 2.21.99 — 2026-09-16
 
 - Player WiiM: pannello Equalizzatore con sorgenti separate, on/off, 10 bande grafiche e tutti i preset del dispositivo.
