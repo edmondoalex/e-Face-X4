@@ -1,6 +1,7 @@
 const $ = (selector) => document.querySelector(selector)
 const glyph = { light: '✦', climate: '❄', shield: '⬡', energy: 'ϟ', cover: '▤', sensor: '◌' }
 let refreshRunning = false
+let refreshQueued = false
 let currentDevices = []
 let appVersion = '0'
 let loggedUser = ''
@@ -250,6 +251,18 @@ function render(data) {
   `).join('') || '<span class="empty-state">Nessun ambiente disponibile</span>'
   $('#app').classList.remove('loading')
   if (!failedProvider) $('#notice').hidden = true
+  renderOpenStatePanels()
+}
+
+function renderOpenStatePanels() {
+  if ($('#media-sessions-dialog')?.open) openMediaSessions()
+  if ($('#media-zones-dialog')?.open) {
+    activeMediaPlayer = currentDevices.find((item) => String(item.id) === String(activeMediaPlayer?.id)) || activeMediaPlayer
+    renderMediaZones()
+  }
+  if ($('#video-remote-dialog')?.open && activeVideoRemote?.device) {
+    activeVideoRemote.device = currentDevices.find((item) => String(item.id) === String(activeVideoRemote.device.id)) || activeVideoRemote.device
+  }
 }
 
 function renderHomeStatusCounters() {
@@ -1161,6 +1174,12 @@ async function postDeviceCommand(deviceId, action, value, resourceRevision = nul
     method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload)
   })
   if (!response.ok) throw new Error((await response.json().catch(() => ({}))).detail || `HTTP ${response.status}`)
+  scheduleStateConfirmation()
+}
+
+function scheduleStateConfirmation() {
+  // Confirm against real provider state: never rely only on optimistic UI or one websocket event.
+  for (const delay of [150, 600, 1500, 3000]) window.setTimeout(refresh, delay)
 }
 
 let pendingSecurityCommand = null
@@ -1805,7 +1824,8 @@ function fail(error) {
 }
 
 async function refresh() {
-  if (refreshRunning || document.hidden) return
+  if (document.hidden) return
+  if (refreshRunning) { refreshQueued = true; return }
   refreshRunning = true
   try {
     const [response, hiddenResponse] = await Promise.all([fetch(apiUrl('api/bootstrap'), { cache: 'no-store' }), fetch(apiUrl('api/control4/hidden-sources'), { cache: 'no-store' })])
@@ -1816,6 +1836,7 @@ async function refresh() {
     fail(error)
   } finally {
     refreshRunning = false
+    if (refreshQueued) { refreshQueued = false; queueMicrotask(refresh) }
   }
 }
 
@@ -1875,6 +1896,7 @@ function applyRealtimeEvent(event) {
     renderHomeMediaSessions()
     updateNavigationStates()
     if (activeDetailIds && !$('#detail-view').hidden) requestAnimationFrame(renderActiveDeviceList)
+    renderOpenStatePanels()
     return
   }
   if (event.type === 'light_scenario_state' || event.type === 'light_scenario_running') {
@@ -2530,6 +2552,9 @@ setInterval(() => {
   if (!realtimeSocket || realtimeSocket.readyState !== WebSocket.OPEN) refresh()
 }, 30000)
 setInterval(refresh, 60000)
+setInterval(() => {
+  if (!document.hidden && (activeMediaSessions().length || $('#media-sessions-dialog')?.open || $('#media-zones-dialog')?.open)) refresh()
+}, 5000)
 Promise.all([
   fetch(apiUrl('api/auth/status'), {cache:'no-store', credentials:'same-origin'}).then(response => response.ok ? response.json() : {}).catch(() => ({})),
   refresh(),

@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.21.91 — 2026-09-16
+
+- Ogni comando programma più letture di conferma dello stato reale; le richieste arrivate durante un refresh non vengono più perse.
+- Home, pagina stanza, Sessioni e Gestione stanze vengono ridisegnate dallo stesso snapshot confermato.
+- Durante sessioni multimediali attive è presente una sincronizzazione di sicurezza ogni cinque secondi, oltre agli eventi realtime.
+
 ## 2.21.90 — 2026-09-16
 
 - Le stanze Control4 instradate sullo stesso WiiM vengono consolidate immediatamente in un'unica sessione, anche durante il ritardo transitorio dei metadati gruppo.
