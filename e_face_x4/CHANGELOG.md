@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.21.95 — 2026-09-16
+
+- Corretto il riconoscimento SoundCloud quando il WiiM è sovrapposto alla stanza Control4: servizio, ID traccia e metadati nativi restano separati dal nome della sorgente Control4.
+- La stella apre ora la gestione playlist SoundCloud invece del vecchio salvataggio legato ai preset WiiM.
+
 ## 2.21.94 — 2026-09-16
 
 - WiiM: mostra il servizio reale accanto all’artista nel player.

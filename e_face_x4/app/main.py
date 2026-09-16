@@ -66,7 +66,7 @@ from .connectors.control4_media import cached_control4_icon, cached_control4_ico
 from .connectors.supervisor import discover_addon_url, discover_host_url
 from .demo import dashboard as demo_dashboard
 
-VERSION = os.environ.get("EFACE_VERSION", "2.21.94")
+VERSION = os.environ.get("EFACE_VERSION", "2.21.95")
 STATIC = Path(__file__).parent / "static"
 logging.basicConfig(level=logging.WARNING, format="%(asctime)s %(levelname)s [e-face-x4] %(message)s")
 _reconnect_warning_at: dict[str, float] = {}
@@ -110,7 +110,8 @@ def native_wiim_media_item(snapshot: dict) -> dict:
         "provider": "wiim", "transport_provider": "wiim", "kind": "media_player", "icon": "mdi:speaker-wireless",
         "name": name, "room": name, "state": snapshot.get("state") or "unknown", "availability": "available",
         "connection_status": "online", "volume": snapshot.get("volume"), "muted": bool(snapshot.get("muted")),
-        "source": str(snapshot.get("source") or "WiiM"), "title": snapshot.get("title"), "artist": snapshot.get("artist"),
+        "source": str(snapshot.get("source") or "WiiM"), "wiim_source": str(snapshot.get("source") or "WiiM"), "title": snapshot.get("title"), "artist": snapshot.get("artist"),
+        "track_id": snapshot.get("track_id"), "duration": snapshot.get("duration"), "position": snapshot.get("position"), "native_artwork": snapshot.get("artwork"),
         "album": snapshot.get("album"), "content_fingerprint": wiim_media_fingerprint(snapshot), "wiim_artwork": bool(snapshot.get("artwork")),
         "active_experience": "listen", "experiences": ["listen"], "source_options": [], "source_list": [],
         "capabilities": {"play": True, "pause": True, "stop": True, "previous": True, "next": True,
@@ -131,6 +132,8 @@ def overlay_wiim_on_control4(providers: list[dict], snapshot: dict, source_id: i
             item.update({
                 "transport_provider": "wiim", "state": snapshot.get("state") or item.get("state"),
                 "title": snapshot.get("title"), "artist": snapshot.get("artist"), "album": snapshot.get("album"),
+                "wiim_source": str(snapshot.get("source") or "WiiM"), "track_id": snapshot.get("track_id"),
+                "duration": snapshot.get("duration"), "position": snapshot.get("position"), "native_artwork": snapshot.get("artwork"),
                 "content_fingerprint": wiim_media_fingerprint(snapshot), "wiim_artwork": bool(snapshot.get("artwork")),
             })
             item.setdefault("capabilities", {}).update({"play": True, "pause": True, "stop": True, "previous": True,
@@ -2102,8 +2105,8 @@ def create_app() -> FastAPI:
         page = page.replace("tools-dashboard.js?v=2.21.36", "tools-dashboard.js?v=2.21.38")
         page = page.replace("tools-dashboard.js?v=2.21.38", "tools-dashboard.js?v=2.21.41")
         page = page.replace("tools-dashboard.js?v=2.21.41", "tools-dashboard.js?v=2.21.42")
-        page = page.replace("tools-dashboard.js?v=2.21.42", "tools-dashboard.js?v=2.21.94")
-        page = page.replace("tools-dashboard.css?v=2.20.36", "tools-dashboard.css?v=2.21.94")
+        page = page.replace("tools-dashboard.js?v=2.21.42", "tools-dashboard.js?v=2.21.95")
+        page = page.replace("tools-dashboard.css?v=2.20.36", "tools-dashboard.css?v=2.21.95")
         page = page.replace("backgrounds.css?v=2.20.20", "backgrounds.css?v=2.21.43")
         page = page.replace("intercom.css?v=2.21.14", "intercom.css?v=2.21.46")
         page = page.replace("app.js?v=2.21.11", "app.js?v=2.21.29")

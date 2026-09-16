@@ -560,7 +560,7 @@ function renderMediaExperience(devices) {
   const wiimActive = selected.active_experience === 'listen' && (selected.transport_provider === 'wiim' || /wiim/i.test(`${selected.source || ''} ${activeOption?.label || ''}`))
   const timeline = wiimActive ? '<label class="media-timeline" data-wiim-timeline><input type="range" min="0" max="1" step="1" value="0" style="--position:0%" data-wiim-seek aria-label="Avanzamento brano"><span><output data-wiim-elapsed>0:00</output><output data-wiim-remaining>-0:00</output></span></label>' : ''
   const roomName = selected.room && !/^unknown$/i.test(selected.room) ? selected.room : selected.name
-  const artistLine = `${esc(selected.artist || selected.source || roomName)}${wiimActive && selected.source ? `<span class="media-wiim-service">${esc(selected.source)}</span>` : ''}`
+  const artistLine = `${esc(selected.artist || selected.source || roomName)}${wiimActive && (selected.wiim_source || selected.source) ? `<span class="media-wiim-service">${esc(selected.wiim_source || selected.source)}</span>` : ''}`
   $('#device-list').innerHTML = `<article class="media-session ${wiimActive ? 'has-wiim-timeline' : ''} ${experienceClass} ${deviceVisualClass(selected)}" data-device-id="${esc(selected.id)}">${navigatorArtwork}${navigatorIcon}<div class="media-session-info"><strong>${esc(selected.title || selected.source || selected.name)}</strong><small>${artistLine}</small><span class="media-track media-room-name">${esc(roomName)}</span></div>${power}${timeline}${deviceActions(selected, { hidePower: true, wiim: wiimActive })}</article>${voicePanel}${recent}${favorites}<div class="media-library media-room-library"><button class="media-library-toggle" data-media-section-toggle="rooms" aria-expanded="${mediaSections.rooms}"><strong>Stanze</strong><span class="mdi-mask" style="${mdiStyle(mediaSections.rooms ? 'mdi:chevron-up' : 'mdi:chevron-down', 'chevron-down')}"></span></button><div class="media-service-grid" ${mediaSections.rooms ? '' : 'hidden'}>${players}</div></div><div class="media-library media-source-library"><h3>Sorgenti e servizi</h3><div class="media-service-grid">${sources || '<span class="empty-state">Nessuna sorgente disponibile</span>'}</div></div>`
   if (showRecent) {
     const controls = $('#device-list .media-session .media-controls')
@@ -2084,11 +2084,11 @@ $('#device-list').addEventListener('click', (event) => {
     nowFavoriteButton.disabled = true
     ;(async () => {
       const station = nowPlayingFavorite(selected)
-      if (station.wiim && /soundcloud/i.test(selected.source || '')) {
+      if (station.wiim && /soundcloud/i.test(selected.wiim_source || selected.source || '')) {
         const response = await fetch(apiUrl('api/wiim/services/soundcloud/library'), { cache: 'no-store' })
         if (!response.ok) throw new Error((await response.json().catch(() => ({}))).detail || 'Liste SoundCloud non disponibili')
         const library = await response.json()
-        pendingSoundCloudTrack = { urn: selected.track_id, title: selected.title, artist: selected.artist, artwork: selected.artwork, duration: selected.duration, type: 'track', playable: true }
+        pendingSoundCloudTrack = { urn: selected.track_id, title: selected.title, artist: selected.artist, artwork: selected.native_artwork || selected.artwork, duration: selected.duration, type: 'track', playable: true }
         $('#soundcloud-playlist-select').innerHTML = '<option value="">Crea nuova lista</option>' + (library.playlists || []).map((item) => `<option value="${esc(item.id)}">${esc(item.name)} (${item.tracks?.length || 0})</option>`).join('')
         $('#soundcloud-playlist-name').value = ''
         $('#soundcloud-playlist-name-row').hidden = false
