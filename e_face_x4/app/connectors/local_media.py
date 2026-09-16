@@ -178,18 +178,11 @@ class LocalMediaConnector(Connector):
         return {"status": "success" if all(item["status"] == "success" for item in results) else "partial_failure", "operation": "set_group_volume", "group_id": group_id, "members": results}
 
     async def events(self) -> AsyncIterator[dict[str, Any]]:
-        ws = await self._connect_websocket()
-        try:
-            await ws.send(json.dumps({"id": 1, "type": "subscribe_events", "event_type": "state_changed"}))
-            async for message in ws:
-                event = json.loads(message)
-                data = ((event.get("event") or {}).get("data") or {}) if event.get("type") == "event" else {}
-                if str(data.get("entity_id", "")).startswith("media_player."):
-                    state = data.get("new_state") if isinstance(data.get("new_state"), dict) else {}
-                    attrs = state.get("attributes") if isinstance(state.get("attributes"), dict) else {}
-                    yield {"type": "local.player_updated", "data": {"entity_id": data.get("entity_id"), "state": state.get("state"), "title": attrs.get("media_title"), "artist": attrs.get("media_artist"), "album": attrs.get("media_album_name"), "volume": round(float(attrs["volume_level"]) * 100) if isinstance(attrs.get("volume_level"), (int, float)) and not isinstance(attrs.get("volume_level"), bool) else None, "muted": attrs.get("is_volume_muted"), "source": attrs.get("source")}}
-        finally:
-            await ws.close()
+        # e-Voice already exposes its filtered SSE stream. Consuming it here
+        # avoids a second broad Home Assistant state subscription and lets the
+        # shared e-Face broker own the single upstream connection.
+        async for event in super().events():
+            yield event
 
 
 def normalize_local_snapshot(raw: dict[str, Any]) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:

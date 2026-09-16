@@ -64,9 +64,10 @@ from .connectors.ksenia import normalize_ksenia
 from .connectors.wiim import WiiMClient
 from .connectors.control4_media import cached_control4_icon, cached_control4_icon_path, cached_control4_source_label, control4_icon_path
 from .connectors.supervisor import discover_addon_url, discover_host_url
+from .media_realtime import SharedMediaRealtime
 from .demo import dashboard as demo_dashboard
 
-VERSION = os.environ.get("EFACE_VERSION", "2.21.119")
+VERSION = os.environ.get("EFACE_VERSION", "2.21.120")
 STATIC = Path(__file__).parent / "static"
 logging.basicConfig(level=logging.WARNING, format="%(asctime)s %(levelname)s [e-face-x4] %(message)s")
 _reconnect_warning_at: dict[str, float] = {}
@@ -151,6 +152,11 @@ class AppAssets(StaticFiles):
 
 def create_app() -> FastAPI:
     app = FastAPI(title="e-Face X4", version=VERSION, docs_url=None, redoc_url=None)
+    app.state.evoice_realtime = SharedMediaRealtime(lambda: evoice_connector(load_settings()))
+
+    @app.on_event("shutdown")
+    async def close_shared_media_realtime() -> None:
+        await app.state.evoice_realtime.close()
     app.mount("/assets", AppAssets(directory=STATIC / "assets"), name="assets")
     login_failures: dict[tuple[str, str], list[float]] = {}
     reveal_failures: dict[str, list[float]] = {}
@@ -2255,9 +2261,9 @@ def create_app() -> FastAPI:
         page = page.replace('content="#263f48"', 'content="#181c1f"')
         page = page.replace("manifest.webmanifest?v=2.20.38", "manifest.webmanifest?v=2.21.59")
         page = page.replace("app.css?v=2.20.20", "app.css?v=2.21.73")
-        page = page.replace("app.css?v=2.21.84", "app.css?v=2.21.119")
-        page = page.replace("home-status.css?v=2.20.20", "home-status.css?v=2.21.119")
-        page = page.replace("tools.js?v=2.21.1", "tools.js?v=2.21.119")
+        page = page.replace("app.css?v=2.21.84", "app.css?v=2.21.120")
+        page = page.replace("home-status.css?v=2.20.20", "home-status.css?v=2.21.120")
+        page = page.replace("tools.js?v=2.21.1", "tools.js?v=2.21.120")
         page = page.replace("ui-theme-contract.css?v=2.21.27", "ui-theme-contract.css?v=2.21.29")
         page = page.replace("tools-dashboard.js?v=2.21.27", "tools-dashboard.js?v=2.21.33")
         page = page.replace("tools-dashboard.js?v=2.21.33", "tools-dashboard.js?v=2.21.34")
@@ -2265,8 +2271,8 @@ def create_app() -> FastAPI:
         page = page.replace("tools-dashboard.js?v=2.21.36", "tools-dashboard.js?v=2.21.38")
         page = page.replace("tools-dashboard.js?v=2.21.38", "tools-dashboard.js?v=2.21.41")
         page = page.replace("tools-dashboard.js?v=2.21.41", "tools-dashboard.js?v=2.21.42")
-        page = page.replace("tools-dashboard.js?v=2.21.42", "tools-dashboard.js?v=2.21.119")
-        page = page.replace("tools-dashboard.css?v=2.20.36", "tools-dashboard.css?v=2.21.119")
+        page = page.replace("tools-dashboard.js?v=2.21.42", "tools-dashboard.js?v=2.21.120")
+        page = page.replace("tools-dashboard.css?v=2.20.36", "tools-dashboard.css?v=2.21.120")
         page = page.replace("backgrounds.css?v=2.20.20", "backgrounds.css?v=2.21.43")
         page = page.replace("intercom.css?v=2.21.14", "intercom.css?v=2.21.46")
         page = page.replace("app.js?v=2.21.11", "app.js?v=2.21.29")
@@ -2402,11 +2408,13 @@ def create_app() -> FastAPI:
             BusproConnector(buspro_config, settings.request_timeout_s),
             EThermConnector(etherm_config, settings.request_timeout_s),
             KseniaConnector(ksenia_config, settings.request_timeout_s),
-            *media_connectors(settings),
+            *(connector for connector in media_connectors(settings) if connector.id != "evoice"),
         ]
         wiim_config = wiim_settings.load()
         wiim_task = asyncio.create_task(WiiMClient(wiim_config["host"]).snapshot()) if wiim_config.get("enabled") and wiim_config.get("host") else None
         providers = list(await asyncio.gather(*(connector.snapshot() for connector in connectors)))
+        if settings.evoice.enabled:
+            providers.append(await app.state.evoice_realtime.get_snapshot())
         providers = [apply_preferences(provider) if provider.get("id") in {"evoice", "control4"} else provider for provider in providers]
         if wiim_task:
             try:
@@ -3067,6 +3075,12 @@ def create_app() -> FastAPI:
                     await asyncio.sleep(retry_delay)
                     retry_delay = min(retry_delay * 2, 30)
 
+        evoice_queue = app.state.evoice_realtime.subscribe() if settings.evoice.enabled else None
+
+        async def shared_evoice_events() -> None:
+            while True:
+                await queue.put(await evoice_queue.get())
+
         tasks = []
         if buspro.enabled and buspro.base_url:
             tasks.append(asyncio.create_task(buspro_events()))
@@ -3075,8 +3089,10 @@ def create_app() -> FastAPI:
         if ksenia.enabled and ksenia.base_url:
             tasks.append(asyncio.create_task(ksenia_events()))
         for connector in media_connectors(settings):
-            if connector.id == "control4" or settings.evoice.enabled:
+            if connector.id == "control4":
                 tasks.append(asyncio.create_task(media_events(connector)))
+        if evoice_queue is not None:
+            tasks.append(asyncio.create_task(shared_evoice_events()))
         if not tasks:
             await websocket.close(code=1013, reason="Nessun connettore realtime disponibile")
             return
@@ -3098,6 +3114,8 @@ def create_app() -> FastAPI:
         finally:
             for task in tasks:
                 task.cancel()
+            if evoice_queue is not None:
+                app.state.evoice_realtime.unsubscribe(evoice_queue)
 
     async def buspro_config():
         settings = load_settings()

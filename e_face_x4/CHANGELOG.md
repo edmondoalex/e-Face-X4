@@ -1,5 +1,12 @@
 # Changelog
 
+## 2.21.120 — 2026-09-16
+
+- Un solo stream SSE e‑Voice viene ora condiviso dal backend e‑Face tra tutti i browser collegati.
+- Gli eventi `player.updated` vengono aggregati per 350 ms, producono un solo snapshot in cache e vengono poi distribuiti a tutti i client.
+- I heartbeat non interrogano lo snapshot; la riconnessione usa backoff 2, 4, 8, 15 e massimo 30 secondi e chiude sempre lo stream precedente.
+- Il bootstrap dei browser legge la cache condivisa e non genera polling parallelo verso e‑Voice mentre il realtime è attivo.
+
 ## 2.21.119 — 2026-09-16
 
 - Il meteo non dipende più da Home Assistant: la località si configura in Strumenti → Home dinamica ed è distinta per dispositivo.
