@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.21.118 — 2026-09-16
+
+- L'ultima chiamata DoorBird usa ora l'evento locale `ring`, richiesto dal firmware installato.
+- Se la chiamata è conservata soltanto nel cloud DoorBird e la cronologia LAN risponde vuota, il widget mostra l'immagine diretta della postazione invece di “Immagine non disponibile”.
+
 ## 2.21.117 — 2026-09-16
 
 - Home dinamica ora viene salvata per singolo browser/dispositivo oltre che per account: pannelli diversi collegati come `admin` non si sovrascrivono più.
