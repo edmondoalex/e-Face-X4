@@ -933,7 +933,8 @@ function activeMediaSessions() {
     const group = mediaGroupFor(player)
     const members = group ? active.filter((item) => item.provider === player.provider && group.member_registry_ids.includes(item.registry_id)) : [player]
     members.forEach((item) => consumed.add(item.registry_id))
-    const owner = members.find((item) => item.registry_id === group?.owner_registry_id) || members.find((item) => String(item.state).toLowerCase() === 'playing') || player
+    // The Control4-declared owner is the canonical room even if its state is briefly stale.
+    const owner = currentDevices.find((item) => item.provider === player.provider && item.registry_id === group?.owner_registry_id) || members.find((item) => String(item.state).toLowerCase() === 'playing') || player
     sessions.push({ player: owner, group, members })
     if (playbackKey) consumedPlayback.add(playbackKey)
   }
@@ -954,9 +955,11 @@ function openMediaSessions() {
 
 function openMediaRoomControl(player) {
   if (!player) return
-  const room = player.room || player.name
-  const devices = currentDevices.filter((item) => item.kind === 'media_player' && item.provider === player.provider && item.room === player.room)
-  openDevices(room, devices.length ? devices : [player], { room, experience: player.active_experience || '' })
+  const group = mediaGroupFor(player)
+  const master = currentDevices.find((item) => item.provider === player.provider && item.registry_id === group?.owner_registry_id) || player
+  const room = master.room || master.name
+  const devices = currentDevices.filter((item) => item.kind === 'media_player' && item.provider === master.provider && item.room === master.room)
+  openDevices(room, devices.length ? devices : [master], { room, experience: master.active_experience || player.active_experience || '' })
 }
 
 function renderHomeMediaSessions() {

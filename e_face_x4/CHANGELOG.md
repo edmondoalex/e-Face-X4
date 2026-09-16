@@ -1,5 +1,9 @@
 # Changelog
 
+## 2.21.87 — 2026-09-16
+
+- Il click sulla cover della sessione in Home apre sempre la stanza master dichiarata da Control4, anche durante stati transitori del master.
+
 ## 2.21.86 — 2026-09-16
 
 - Ripristinati volume e mute individuali delle stanze Control4 quando la sorgente attiva è WiiM.
