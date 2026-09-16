@@ -56,7 +56,7 @@ def test_health() -> None:
     response = TestClient(create_app()).get("/health")
     assert response.status_code == 200
     assert response.json()["ok"] is True
-    assert response.json()["version"] == "2.21.116"
+    assert response.json()["version"] == "2.21.117"
 
 
 def test_installed_app_starts_at_dashboard() -> None:
@@ -95,7 +95,7 @@ def test_intercom_is_in_sidebar_with_embedded_view() -> None:
     client_script = (static / "assets" / "intercom.js").read_text(encoding="utf-8")
     intercom_page = (static / "intercom.html").read_text(encoding="utf-8")
     assert "Tablet Control4 · interno 8291" in intercom_page
-    assert "const currentVersion = '2.21.116'" in client_script
+    assert "const currentVersion = '2.21.117'" in client_script
     assert 'id="call-ufficio" data-dial-extension="8291" data-video-capable="true"' in intercom_page
     assert "Postazione esterna · interno 8201" in intercom_page
     assert "Postazione esterna · interno ${station.sip_extension}" in client_script
@@ -302,8 +302,8 @@ def test_intercom_dashboard_stores_only_local_settings(monkeypatch, tmp_path) ->
     assert 'id="users-tool"' in page
     assert 'id="logout"' in page
     assert page.index('id="logout"') < page.index('id="tools-user-section"')
-    assert "tools-dashboard.js?v=2.21.116" in page
-    assert "tools.js?v=2.21.116" in page
+    assert "tools-dashboard.js?v=2.21.117" in page
+    assert "tools.js?v=2.21.117" in page
     tools_js = client.get("/assets/tools.js").text
     assert "document.querySelector('.tools-shell').append(shortcutsPanel)" in tools_js
     assert "data-shortcut-drag=\"category\"" in tools_js
@@ -311,7 +311,7 @@ def test_intercom_dashboard_stores_only_local_settings(monkeypatch, tmp_path) ->
     assert "pointermove" in tools_js and "finishShortcutDrag" in tools_js
     home = client.get("/").text
     assert "backgrounds.css?v=2.21.43" in home
-    assert "app.js?v=2.21.116" in home
+    assert "app.js?v=2.21.117" in home
 
 
 def test_external_stations_api_requires_login_and_hides_secrets(monkeypatch, tmp_path) -> None:
@@ -694,7 +694,7 @@ def test_tools_page_starts_with_selected_background_and_card_theme(monkeypatch, 
     login = client.get("/login").text
     assert '<body class="app-theme" data-background="midnight" data-card-theme="slate">' in home
     assert 'ui-theme-contract.css?v=2.21.29' in home
-    assert 'app.js?v=2.21.116' in home
+    assert 'app.js?v=2.21.117' in home
     assert 'energy.css?v=2.21.30' in home
     assert 'home-comfort.css?v=2.21.31' in home
     assert '<body class="login-theme" data-background="midnight" data-card-theme="slate">' in login
@@ -737,6 +737,23 @@ def test_dynamic_home_settings_are_isolated_by_user(monkeypatch, tmp_path) -> No
     assert load_home_widgets("luca") == global_widgets
     assert load_home_camera_entity("admin") == "camera.nvr_32ch_ext_ultimo_evento"
     assert load_home_camera_entity("mario") == "camera.porta"
+
+
+def test_dynamic_home_settings_are_isolated_by_device(monkeypatch, tmp_path) -> None:
+    monkeypatch.setenv("EFACE_BACKGROUNDS", str(tmp_path / "backgrounds"))
+    account_widgets = [{"id": item, "visible": True, "size": "wide" if item == "overview" else "standard"} for item in HOME_WIDGETS]
+    device_widgets = [{"id": item, "visible": item != "weather", "size": "compact" if item == "states" else "standard"} for item in HOME_WIDGETS]
+    owner = "admin:device:0123456789abcdef"
+    save_home_widgets(account_widgets, "admin")
+    save_home_camera_entity("camera.account", "admin")
+    assert load_home_widgets(owner) == account_widgets
+    assert load_home_camera_entity(owner) == "camera.account"
+    save_home_widgets(device_widgets, owner)
+    save_home_camera_entity("camera.device", owner)
+    assert load_home_widgets(owner) == device_widgets
+    assert load_home_camera_entity(owner) == "camera.device"
+    assert load_home_widgets("admin") == account_widgets
+    assert load_home_camera_entity("admin") == "camera.account"
 
 
 def test_ksenia_normalizes_partitions_and_zones() -> None:

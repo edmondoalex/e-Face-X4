@@ -1,5 +1,7 @@
 const $ = (selector) => document.querySelector(selector)
-document.head.insertAdjacentHTML('beforeend', '<link rel="stylesheet" href="assets/media-x4.css?v=2.21.116">')
+const deviceScope = (() => { const key='eface-device-scope-v1'; let value=localStorage.getItem(key); if(!/^[A-Za-z0-9_-]{16,64}$/.test(value||'')){value=(crypto.randomUUID?.()||`${Date.now()}-${Math.random()}`).replaceAll('-','');localStorage.setItem(key,value)} return value })()
+const deviceFetchOptions = (options={}) => ({...options,headers:{...(options.headers||{}),'X-Eface-Device':deviceScope}})
+document.head.insertAdjacentHTML('beforeend', '<link rel="stylesheet" href="assets/media-x4.css?v=2.21.117">')
 const glyph = { light: '✦', climate: '❄', shield: '⬡', energy: 'ϟ', cover: '▤', sensor: '◌' }
 let refreshRunning = false
 let refreshQueued = false
@@ -307,8 +309,8 @@ let homeHighlightsLoadedAt=0
 async function refreshHomeHighlights(){
   if(Date.now()-homeHighlightsLoadedAt<60000)return;homeHighlightsLoadedAt=Date.now()
   fetch(apiUrl('api/home/weather'),{cache:'no-store'}).then(async(response)=>{if(!response.ok)throw new Error();const data=await response.json();const icons={sunny:'weather-sunny',clear:'weather-sunny','partlycloudy':'weather-partly-cloudy',cloudy:'weather-cloudy',rainy:'weather-rainy',pouring:'weather-pouring',snowy:'weather-snowy',fog:'weather-fog',windy:'weather-windy',lightning:'weather-lightning'};$('#home-weather-icon').style.cssText=mdiStyle(`mdi:${icons[data.state]||'weather-partly-cloudy'}`,'weather-partly-cloudy');$('#home-weather-state').textContent=String(data.state||'Meteo').replaceAll('_',' ');$('#home-weather-temperature').textContent=data.temperature==null?'--':`${data.temperature}${data.temperature_unit||'°C'}`;$('#home-weather-detail').textContent=[data.name,data.humidity==null?'':`UR ${data.humidity}%`,data.wind_speed==null?'':`Vento ${data.wind_speed} ${data.wind_speed_unit||''}`].filter(Boolean).join(' · ')}).catch(()=>{$('#home-weather-state').textContent='Meteo non disponibile';$('#home-weather-temperature').textContent='--'})
-  const images=[['#home-camera-event','api/home/camera-event'],['#home-doorbell-event','api/home/doorbird/doorbell'],['#home-motion-event','api/home/doorbird/motionsensor']]
-  images.forEach(([selector,path])=>{const card=$(selector),image=card.querySelector('img'),probe=new Image();probe.onload=()=>{image.src=probe.src;card.classList.remove('unavailable')};probe.onerror=()=>card.classList.add('unavailable');probe.src=`${apiUrl(path)}?v=${Date.now()}`})
+  const images=[['#home-camera-event',`api/home/camera-event?device=${encodeURIComponent(deviceScope)}`],['#home-doorbell-event','api/home/doorbird/doorbell'],['#home-motion-event','api/home/doorbird/motionsensor']]
+  images.forEach(([selector,path])=>{const card=$(selector),image=card.querySelector('img'),probe=new Image();probe.onload=()=>{image.src=probe.src;card.classList.remove('unavailable')};probe.onerror=()=>card.classList.add('unavailable');probe.src=`${apiUrl(path)}${path.includes('?')?'&':'?'}v=${Date.now()}`})
 }
 const collapsedShortcutCategories = new Set()
 function shortcutDevices(){const byId=new Map(currentDevices.map((device)=>[String(device.id),device]));return currentShortcuts.flatMap((group)=>(group.devices||[]).map((id)=>byId.get(String(id))).filter(Boolean))}
@@ -1919,7 +1921,7 @@ async function refresh() {
   if (refreshRunning) { refreshQueued = true; return }
   refreshRunning = true
   try {
-    const [response, hiddenResponse] = await Promise.all([fetch(apiUrl('api/bootstrap'), { cache: 'no-store' }), fetch(apiUrl('api/control4/hidden-sources'), { cache: 'no-store' })])
+    const [response, hiddenResponse] = await Promise.all([fetch(apiUrl('api/bootstrap'), deviceFetchOptions({ cache: 'no-store' })), fetch(apiUrl('api/control4/hidden-sources'), { cache: 'no-store' })])
     if (!response.ok) throw new Error(`HTTP ${response.status}`)
     if (hiddenResponse.ok) hiddenSourceIds = new Set((await hiddenResponse.json()).ids || [])
     render(await response.json())

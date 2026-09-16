@@ -146,7 +146,10 @@ async def history_image(host: str, port: int, username: str, password: str, even
     url = f"http://{host}:{port}/bha-api/history.cgi"
     try:
         async with httpx.AsyncClient(timeout=8, follow_redirects=False, trust_env=False) as client:
-            async with client.stream("GET", url, params={"event": event, "index": 1}, auth=httpx.DigestAuth(username, password)) as response:
+            # Omitting ``event`` is DoorBird's canonical request for the latest
+            # ring image and is compatible with older firmware/models.
+            params = {"index": 1} if event == "doorbell" else {"event": event, "index": 1}
+            async with client.stream("GET", url, params=params, auth=httpx.DigestAuth(username, password)) as response:
                 if response.status_code == 204: return None
                 if response.status_code == 401: raise PermissionError("Credenziale o permesso cronologia DoorBird rifiutato")
                 if response.status_code != 200 or response.headers.get("content-type", "").split(";", 1)[0].lower() != "image/jpeg": raise RuntimeError("Cronologia DoorBird non disponibile")

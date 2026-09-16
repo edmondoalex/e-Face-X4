@@ -86,7 +86,10 @@ def save_shortcuts(groups: list[dict[str, object]]) -> None:
 def load_home_widgets(owner: str | None = None) -> list[dict[str, object]]:
     raw = _config(); users = raw.get("user_appearance") if isinstance(raw.get("user_appearance"), dict) else {}
     scoped = users.get(owner) if owner and isinstance(users.get(owner), dict) else {}
+    account_owner = owner.split(":device:", 1)[0] if owner and ":device:" in owner else None
+    account = users.get(account_owner) if account_owner and isinstance(users.get(account_owner), dict) else {}
     value = scoped.get("home_widgets") if owner else raw.get("home_widgets")
+    if owner and not isinstance(value, list): value = account.get("home_widgets")
     if owner and not isinstance(value, list): value = raw.get("home_widgets")
     if not isinstance(value, list):
         return [{"id": item, "visible": True, "size": "wide" if item in {"overview", "rooms", "live"} else "standard"} for item in HOME_WIDGETS]
@@ -115,7 +118,9 @@ def save_home_widgets(items: list[dict[str, object]], owner: str | None = None) 
 
 def load_home_camera_entity(owner: str | None = None) -> str:
     raw = _config(); users = raw.get("user_appearance") if isinstance(raw.get("user_appearance"), dict) else {}; scoped = users.get(owner) if owner and isinstance(users.get(owner), dict) else {}
-    value = str((scoped.get("home_camera_entity") if owner else raw.get("home_camera_entity")) or raw.get("home_camera_entity") or "camera.nvr_32ch_ext_ultimo_evento")
+    account_owner = owner.split(":device:", 1)[0] if owner and ":device:" in owner else None
+    account = users.get(account_owner) if account_owner and isinstance(users.get(account_owner), dict) else {}
+    value = str((scoped.get("home_camera_entity") if owner else raw.get("home_camera_entity")) or account.get("home_camera_entity") or raw.get("home_camera_entity") or "camera.nvr_32ch_ext_ultimo_evento")
     return value if re.fullmatch(r"camera\.[a-z0-9_]+", value) else "camera.nvr_32ch_ext_ultimo_evento"
 
 def save_home_camera_entity(entity_id: str, owner: str | None = None) -> None:

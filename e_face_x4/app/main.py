@@ -66,7 +66,7 @@ from .connectors.control4_media import cached_control4_icon, cached_control4_ico
 from .connectors.supervisor import discover_addon_url, discover_host_url
 from .demo import dashboard as demo_dashboard
 
-VERSION = os.environ.get("EFACE_VERSION", "2.21.116")
+VERSION = os.environ.get("EFACE_VERSION", "2.21.117")
 STATIC = Path(__file__).parent / "static"
 logging.basicConfig(level=logging.WARNING, format="%(asctime)s %(levelname)s [e-face-x4] %(message)s")
 _reconnect_warning_at: dict[str, float] = {}
@@ -187,10 +187,12 @@ def create_app() -> FastAPI:
         return request.url.scheme == "https" or request.headers.get("x-forwarded-proto", "").lower() == "https"
 
     def appearance_owner(request: Request) -> str | None:
-        """Return the authenticated profile that owns personal Home settings."""
-        if not user_auth.enabled():
-            return None
-        return user_auth.session_user(request.cookies.get(user_auth.COOKIE))
+        """Return the account and browser/device that own personal Home settings."""
+        username = user_auth.session_user(request.cookies.get(user_auth.COOKIE)) if user_auth.enabled() else "local"
+        device = request.headers.get("x-eface-device") or request.query_params.get("device")
+        if username and device and re.fullmatch(r"[A-Za-z0-9_-]{16,64}", device):
+            return f"{username}:device:{device}"
+        return username if user_auth.enabled() else None
 
     @app.middleware("http")
     async def user_login_guard(request: Request, call_next):
@@ -2248,9 +2250,9 @@ def create_app() -> FastAPI:
         page = page.replace('content="#263f48"', 'content="#181c1f"')
         page = page.replace("manifest.webmanifest?v=2.20.38", "manifest.webmanifest?v=2.21.59")
         page = page.replace("app.css?v=2.20.20", "app.css?v=2.21.73")
-        page = page.replace("app.css?v=2.21.84", "app.css?v=2.21.116")
-        page = page.replace("home-status.css?v=2.20.20", "home-status.css?v=2.21.116")
-        page = page.replace("tools.js?v=2.21.1", "tools.js?v=2.21.116")
+        page = page.replace("app.css?v=2.21.84", "app.css?v=2.21.117")
+        page = page.replace("home-status.css?v=2.20.20", "home-status.css?v=2.21.117")
+        page = page.replace("tools.js?v=2.21.1", "tools.js?v=2.21.117")
         page = page.replace("ui-theme-contract.css?v=2.21.27", "ui-theme-contract.css?v=2.21.29")
         page = page.replace("tools-dashboard.js?v=2.21.27", "tools-dashboard.js?v=2.21.33")
         page = page.replace("tools-dashboard.js?v=2.21.33", "tools-dashboard.js?v=2.21.34")
@@ -2258,8 +2260,8 @@ def create_app() -> FastAPI:
         page = page.replace("tools-dashboard.js?v=2.21.36", "tools-dashboard.js?v=2.21.38")
         page = page.replace("tools-dashboard.js?v=2.21.38", "tools-dashboard.js?v=2.21.41")
         page = page.replace("tools-dashboard.js?v=2.21.41", "tools-dashboard.js?v=2.21.42")
-        page = page.replace("tools-dashboard.js?v=2.21.42", "tools-dashboard.js?v=2.21.116")
-        page = page.replace("tools-dashboard.css?v=2.20.36", "tools-dashboard.css?v=2.21.116")
+        page = page.replace("tools-dashboard.js?v=2.21.42", "tools-dashboard.js?v=2.21.117")
+        page = page.replace("tools-dashboard.css?v=2.20.36", "tools-dashboard.css?v=2.21.117")
         page = page.replace("backgrounds.css?v=2.20.20", "backgrounds.css?v=2.21.43")
         page = page.replace("intercom.css?v=2.21.14", "intercom.css?v=2.21.46")
         page = page.replace("app.js?v=2.21.11", "app.js?v=2.21.29")

@@ -1,5 +1,12 @@
 # Changelog
 
+## 2.21.117 — 2026-09-16
+
+- Home dinamica ora viene salvata per singolo browser/dispositivo oltre che per account: pannelli diversi collegati come `admin` non si sovrascrivono più.
+- La configurazione dell'account resta il modello iniziale finché il singolo dispositivo non salva la propria personalizzazione.
+- Corretto il recupero dell'ultima chiamata DoorBird usando anche la modalità compatibile con firmware che non accettano il filtro evento esplicito.
+- Stabilizzata la larghezza dei contatori rapidi nella griglia Home.
+
 ## 2.21.116 — 2026-09-16
 
 - Corretto il widget Largo: le vecchie regole interne di Riepilogo, Stati e Live non possono più restringerlo alle prime colonne della nuova griglia Home.
