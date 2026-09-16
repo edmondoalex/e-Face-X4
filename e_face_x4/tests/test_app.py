@@ -900,9 +900,11 @@ def test_x4_shell_and_brand_assets_are_served() -> None:
     assert "function renderShortcutDevices()" in app_js
     assert "stateLabel(device)" in app_js
     assert "shortcut-security-scenario" in app_js
-    assert "Tocca per eseguire con codice" in app_js
+    assert "Tocca per eseguire con codice" not in app_js
     assert "data-shortcut-group-toggle" in app_js
     assert "collapsedShortcutCategories" in app_js
+    assert "shortcut-alarm-system" in app_js
+    assert "Inserimento parziale" in app_js
     assert "classList.toggle('shortcut-pin-dialog', shortcutViewOpen)" in app_js
     assert ".security-pin-dialog.shortcut-pin-dialog" in client.get("/assets/security-panels.css").text
     assert "border-color:transparent!important" in client.get("/assets/borderless.css").text

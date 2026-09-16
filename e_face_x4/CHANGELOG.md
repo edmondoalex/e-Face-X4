@@ -5,6 +5,8 @@
 - Ingrandito il tastierino PIN esclusivamente quando viene aperto dagli scenari nella pagina Scorciatoie.
 - Le categorie della pagina Scorciatoie possono essere compresse ed espanse mantenendo lo stato durante gli aggiornamenti realtime.
 - Rimossi globalmente i bordi visibili dell'interfaccia, mantenendo colori, riempimenti e stati.
+- Lo stato del sistema di sicurezza nelle Scorciatoie è scritto per esteso su una riga separata.
+- Rimossi dalle schede scenario i testi esplicativi e lo stato `ATTIVO`: lo scenario richiamato è indicato soltanto dal colore.
 
 ## 2.21.110 — 2026-09-16
 
