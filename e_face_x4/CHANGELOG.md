@@ -1,5 +1,9 @@
 # Changelog
 
+## 2.21.109 — 2026-09-16
+
+- Corretto il contenitore del pannello Scorciatoie in Strumenti: il click ora apre la configurazione.
+
 ## 2.21.108 — 2026-09-16
 
 - I termostati e-Therm con `display_only` diventano automaticamente sonde in sola visualizzazione e rifiutano i comandi anche lato server.

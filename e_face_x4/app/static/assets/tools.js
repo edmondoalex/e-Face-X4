@@ -276,7 +276,7 @@ $('#tools-user-section .tools-grid').append(shortcutsCard)
 const shortcutsPanel = document.createElement('section')
 shortcutsPanel.id = 'shortcuts-config'; shortcutsPanel.className = 'media-config'; shortcutsPanel.hidden = true
 shortcutsPanel.innerHTML = '<header><button id="shortcuts-back">‹</button><div><h2>Scorciatoie</h2></div></header><p>Seleziona i dispositivi. Usa le frecce per ordinare prima le categorie e poi i dispositivi nella pagina Scorciatoie.</p><div id="shortcuts-order-list" class="shortcuts-order-list"></div><footer><button id="shortcuts-save" class="user-save">SALVA SCORCIATOIE</button></footer>'
-document.querySelector('.tools-main').append(shortcutsPanel)
+document.querySelector('.tools-shell').append(shortcutsPanel)
 document.head.insertAdjacentHTML('beforeend','<style>.shortcuts-order-list{display:grid;gap:10px}.shortcut-admin-group{padding:10px;border:1px solid #ffffff22;border-radius:12px;background:#ffffff08}.shortcut-admin-head,.shortcut-admin-device{display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;gap:9px}.shortcut-admin-head{margin-bottom:8px}.shortcut-admin-head strong{font-size:15px}.shortcut-admin-device{min-height:44px;padding:5px 7px;border-top:1px solid #ffffff12}.shortcut-admin-device small{display:block;color:#9aa9ad}.shortcut-admin-move{display:flex;gap:4px}.shortcut-admin-move button{width:36px;min-height:34px;padding:0}.shortcut-admin-device input{width:20px;height:20px;accent-color:#55e6ae}</style>')
 let shortcutGroups = []
 let shortcutDevices = []
