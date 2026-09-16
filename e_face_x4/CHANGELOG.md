@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.21.124 — 2026-09-16
+
+- La località meteo è ora unica per l'intero impianto: basta configurarla una volta e viene proposta automaticamente su tutti i dispositivi.
+- La località già salvata sul primo pannello viene recuperata automaticamente come configurazione condivisa.
+- Cambiando la località da qualsiasi pannello, il nuovo valore viene applicato a tutti.
+
 ## 2.21.123 — 2026-09-16
 
 - Cliccando su Ultimo evento, Ultima chiamata o Ultimo movimento si apre ora un visualizzatore fotografico grande.
