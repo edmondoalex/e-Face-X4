@@ -17,6 +17,7 @@ let lightFilterActive = false
 let lightFilterRoom = ''
 let sectionFilterDevices = []
 let sectionFilterMode = 'devices'
+let roomsExpanded = false
 let devicePointerGesture = null
 let recentDrag = null
 let recentDragSuppressUntil = 0
@@ -1961,7 +1962,7 @@ $('.horizontal-logo').addEventListener('keydown', (event) => { if (['Enter', ' '
 $('#rooms').addEventListener('click', (event) => {
   const button = event.target.closest('[data-room]')
   if (!button) return
-  openDevices(button.dataset.room, currentDevices.filter((device) => device.room.toLocaleLowerCase('it') === button.dataset.room.toLocaleLowerCase('it')), {room:button.dataset.room})
+  openDevices(button.dataset.room, currentDevices.filter((device) => device.room.toLocaleLowerCase('it') === button.dataset.room.toLocaleLowerCase('it')), {room:button.dataset.room, filters:true})
 })
 $('#home-live-media-list').addEventListener('click', (event) => {
   const button = event.target.closest('[data-home-session]')
@@ -2000,6 +2001,7 @@ $('#light-on-filter').addEventListener('click', (event) => {
   lightFilterActive = !lightFilterActive
   event.currentTarget.setAttribute('aria-pressed', String(lightFilterActive))
   event.currentTarget.classList.toggle('active', lightFilterActive)
+  $('#light-all-filter').classList.toggle('active', !lightFilterActive && !lightFilterRoom)
   sectionFilterMode === 'scenarios' ? renderScenarios() : renderActiveDeviceList()
 })
 $('#light-all-filter').addEventListener('click', () => {
@@ -2524,7 +2526,13 @@ $('#device-list').addEventListener('change', (event) => {
   if (event.target.matches('select[data-media-source]')) sendDeviceCommand(card.dataset.deviceId, 'select_source', event.target, event.target.value)
 })
 $('.home-title').addEventListener('click', showHome)
-$('#show-all-devices').addEventListener('click', () => openDevices('Tutti i dispositivi', currentDevices))
+$('#rooms-toggle').addEventListener('click', (event) => {
+  roomsExpanded = !roomsExpanded
+  $('#room-panel').classList.toggle('expanded', roomsExpanded)
+  event.currentTarget.setAttribute('aria-expanded', String(roomsExpanded))
+  event.currentTarget.querySelector('span').textContent = roomsExpanded ? '⌃' : '⌄'
+})
+$('#show-all-devices').addEventListener('click', () => openDevices('Tutti i dispositivi', currentDevices, {filters:true}))
 document.addEventListener('visibilitychange', () => { if (!document.hidden) { refresh(); connectRealtime() } })
 navigator.serviceWorker?.addEventListener('message', (event) => {
   if (event.data?.type === 'eface-open-intercom') openIntercom()

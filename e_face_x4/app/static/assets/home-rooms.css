@@ -1,8 +1,12 @@
 .room-grid{grid-template-columns:repeat(5,minmax(0,1fr));gap:3px 8px}
+.room-panel:not(.expanded) .room-card:nth-child(n+6){display:none}
+.room-panel .panel-title>button:first-child{display:flex;align-items:center;gap:7px;padding:0;border:0;color:inherit;background:transparent;font:inherit;cursor:pointer}
+.room-panel .panel-title>button:first-child span{font-size:15px;line-height:1}
+.light-filters .light-state-filter{display:flex;align-items:center;justify-content:center;gap:9px}.light-filters .light-state-filter b{font-size:inherit;font-weight:400}
 .room-card{min-width:0;min-height:39px;padding:5px 7px;border:0;border-bottom:1px solid rgba(255,255,255,.075);border-radius:2px;display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:8px;background:rgba(255,255,255,.018);transition:background .16s,color .16s}
 .room-card:hover{background:rgba(255,255,255,.055)}
 .room-card>span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#e6ecee;font-size:12px;font-weight:500}
 .room-card .room-features{display:flex;align-items:center;justify-content:flex-end;gap:5px;margin:0;color:#90a2a7}
 .room-feature{width:12px;height:12px;display:block;color:inherit!important;background:currentColor;opacity:.72;mask:var(--icon) center/contain no-repeat;-webkit-mask:var(--icon) center/contain no-repeat}
-@media(max-width:1024px){.room-grid{grid-template-columns:repeat(4,minmax(0,1fr))}}
-@media(max-width:700px){.room-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:2px 7px}.room-card{min-height:38px;padding:5px 6px}.room-card>span{font-size:12px}.room-feature{width:11px;height:11px}.room-card .room-features{gap:4px}}
+@media(max-width:1024px){.room-grid{grid-template-columns:repeat(4,minmax(0,1fr))}.room-panel:not(.expanded) .room-card:nth-child(n+5){display:none}}
+@media(max-width:700px){.room-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:2px 7px}.room-panel:not(.expanded) .room-card:nth-child(n+3){display:none}.room-card{min-height:38px;padding:5px 6px}.room-card>span{font-size:12px}.room-feature{width:11px;height:11px}.room-card .room-features{gap:4px}}

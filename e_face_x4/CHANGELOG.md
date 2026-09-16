@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.21.92 — 2026-09-16
+
+- Home: la sezione Ambienti mostra una sola riga e si espande o richiude dal titolo.
+- Dispositivi: rinominato “Vedi tutti” in “Tutti i dispositivi”.
+- Filtri: aggiunti Stanza, Accesi e Tutto sia alla vista completa sia a ogni singola stanza.
+
 ## 2.21.91 — 2026-09-16
 
 - Ogni comando programma più letture di conferma dello stato reale; le richieste arrivate durante un refresh non vengono più perse.
