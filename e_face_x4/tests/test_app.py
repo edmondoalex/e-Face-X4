@@ -56,7 +56,7 @@ def test_health() -> None:
     response = TestClient(create_app()).get("/health")
     assert response.status_code == 200
     assert response.json()["ok"] is True
-    assert response.json()["version"] == "2.21.92"
+    assert response.json()["version"] == "2.21.93"
 
 
 def test_installed_app_starts_at_dashboard() -> None:
@@ -95,7 +95,7 @@ def test_intercom_is_in_sidebar_with_embedded_view() -> None:
     client_script = (static / "assets" / "intercom.js").read_text(encoding="utf-8")
     intercom_page = (static / "intercom.html").read_text(encoding="utf-8")
     assert "Tablet Control4 · interno 8291" in intercom_page
-    assert "const currentVersion = '2.21.92'" in client_script
+    assert "const currentVersion = '2.21.93'" in client_script
     assert 'id="call-ufficio" data-dial-extension="8291" data-video-capable="true"' in intercom_page
     assert "Postazione esterna · interno 8201" in intercom_page
     assert "Postazione esterna · interno ${station.sip_extension}" in client_script
@@ -302,10 +302,10 @@ def test_intercom_dashboard_stores_only_local_settings(monkeypatch, tmp_path) ->
     assert 'id="users-tool"' in page
     assert 'id="logout"' in page
     assert page.index('id="logout"') < page.index('id="tools-user-section"')
-    assert "tools-dashboard.js?v=2.21.92" in page
+    assert "tools-dashboard.js?v=2.21.93" in page
     home = client.get("/").text
     assert "backgrounds.css?v=2.21.43" in home
-    assert "app.js?v=2.21.92" in home
+    assert "app.js?v=2.21.93" in home
 
 
 def test_external_stations_api_requires_login_and_hides_secrets(monkeypatch, tmp_path) -> None:
@@ -688,7 +688,7 @@ def test_tools_page_starts_with_selected_background_and_card_theme(monkeypatch, 
     login = client.get("/login").text
     assert '<body class="app-theme" data-background="midnight" data-card-theme="slate">' in home
     assert 'ui-theme-contract.css?v=2.21.29' in home
-    assert 'app.js?v=2.21.92' in home
+    assert 'app.js?v=2.21.93' in home
     assert 'energy.css?v=2.21.30' in home
     assert 'home-comfort.css?v=2.21.31' in home
     assert '<body class="login-theme" data-background="midnight" data-card-theme="slate">' in login
@@ -1564,8 +1564,8 @@ def test_wiim_track_favorite_restores_exact_queue_item(monkeypatch, tmp_path) ->
     async def play_preset(self, index):
         calls.append(("preset", index))
 
-    async def play_queue_index(self, index):
-        calls.append(("queue", index))
+    async def play_queue_index(self, index, queue_name="0"):
+        calls.append(("queue", index, queue_name))
 
     async def player_action(self, action, value=None):
         calls.append(("action", action))
@@ -1597,7 +1597,7 @@ def test_wiim_track_favorite_restores_exact_queue_item(monkeypatch, tmp_path) ->
     assert restored.status_code == 200
     assert restored.json()["queue_index"] == 7
     assert restored.json()["queue_total"] == 50
-    assert calls == [("preset", 6), ("action", "pause"), ("control4", "c4room:51", "select_source", "listen:1667"), ("queue", 7)]
+    assert calls == [("preset", 6), ("action", "pause"), ("control4", "c4room:51", "select_source", "listen:1667"), ("queue", 7, "Cover e remix")]
 
 
 def test_wiim_track_favorite_waits_for_complete_preset_queue(monkeypatch, tmp_path) -> None:
@@ -1622,8 +1622,8 @@ def test_wiim_track_favorite_waits_for_complete_preset_queue(monkeypatch, tmp_pa
         total = 1 if queue_reads == 1 else 200
         return {"name": "Cover e remix", "total": total, "tracks": [{"index": 1, "track_id": "tracks/abc"}]}
 
-    async def play_queue_index(self, index):
-        calls.append(("queue", index))
+    async def play_queue_index(self, index, queue_name="0"):
+        calls.append(("queue", index, queue_name))
 
     async def player_action(self, action, value=None):
         calls.append(("action", action))
@@ -1646,7 +1646,7 @@ def test_wiim_track_favorite_waits_for_complete_preset_queue(monkeypatch, tmp_pa
     assert response.status_code == 200
     assert response.json()["queue_total"] == 200
     assert queue_reads == 2
-    assert calls[-1] == ("queue", 1)
+    assert calls[-1] == ("queue", 1, "Cover e remix")
 
 
 def test_linked_control4_wiim_commands_use_native_wiim_api(monkeypatch) -> None:

@@ -150,7 +150,8 @@ class WiiMClient:
         start = max(0, int(start))
         limit = max(1, min(int(limit), 250))
         context = await self._playqueue("BrowseQueueEx", {"QueueName": "0", "TrackIndex": start, "TrackNums": limit})
-        list_name = self._queue_value(context, "ListName").split("_#~", 1)[0].strip()
+        queue_name = self._queue_value(context, "ListName").strip()
+        list_name = queue_name.split("_#~", 1)[0].strip()
         tracks = []
         for match in re.finditer(r"<Track(\d+)>(.*?)</Track\1>", context, re.I | re.S):
             block = match.group(2)
@@ -164,12 +165,15 @@ class WiiMClient:
                 "artwork": public_artwork(self._queue_value(metadata, "upnp:albumArtURI")),
                 "source": self._queue_value(block, "Source"),
             })
-        return {"name": list_name, "total": int(self._queue_value(context, "TotalNumber") or len(tracks)), "tracks": tracks}
+        return {"name": list_name, "queue_name": queue_name, "total": int(self._queue_value(context, "TotalNumber") or len(tracks)), "tracks": tracks}
 
-    async def play_queue_index(self, index: int) -> None:
+    async def play_queue_index(self, index: int, queue_name: str = "0") -> None:
         if not 0 <= int(index) <= 10_000:
             raise ValueError("Indice coda WiiM non valido")
-        await self._playqueue("PlayQueueWithIndex", {"QueueName": "0", "Index": int(index)})
+        queue_name = str(queue_name or "0").strip()
+        if len(queue_name) > 500:
+            raise ValueError("Nome coda WiiM non valido")
+        await self._playqueue("PlayQueueWithIndex", {"QueueName": queue_name, "Index": int(index)})
 
     async def delete_preset(self, index: int) -> None:
         index = int(index)

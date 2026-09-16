@@ -1,5 +1,9 @@
 # Changelog
 
+## 2.21.93 — 2026-09-16
+
+- Preferiti WiiM: il richiamo di un brano usa il nome interno completo della coda, così `PlayQueueWithIndex` seleziona la traccia memorizzata invece del brano generico del preset.
+
 ## 2.21.92 — 2026-09-16
 
 - Home: la sezione Ambienti mostra una sola riga e si espande o richiude dal titolo.
