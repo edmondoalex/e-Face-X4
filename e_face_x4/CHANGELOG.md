@@ -1,5 +1,9 @@
 # Changelog
 
+## 2.21.102 — 2026-09-16
+
+- Il richiamo playlist verifica lo stato `playing`; sulle liste da un brano usa l'URL diretto se il firmware lascia ferma la coda custom.
+
 ## 2.21.101 — 2026-09-16
 
 - Corretto il DIDL-Lite delle playlist SoundCloud inviate alla coda WiiM.
