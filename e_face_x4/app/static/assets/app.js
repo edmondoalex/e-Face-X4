@@ -25,6 +25,8 @@ let avRoom = ''
 let currentMediaGroups = []
 let currentMediaExperience = ''
 let activeMediaPlayer = null
+let mediaZonePickerOpen = false
+let pendingMediaZoneSelection = null
 let activeVideoRemote = null
 let selectedMediaId = ''
 let activeMediaRoom = ''
@@ -50,6 +52,7 @@ let wiimTimelineRequest = 0
 let wiimTimelineDragging = false
 let wiimLoopMode = 4
 let pendingSoundCloudTrack = null
+const wiimTimelineState = new Map()
 const recentPending = new Map()
 const ttsVolumeRestores = new Map()
 const mediaSessionMasterKey = 'eface-media-session-masters-v1'
@@ -558,7 +561,11 @@ function renderMediaExperience(devices) {
   const navigatorArtwork = navigatorIcon !== sourceGlyph ? mainArtwork.replace('class="media-artwork', `data-msp-open data-msp-service="${serviceName}" data-msp-room="${recentRoomId}" role="button" tabindex="0" class="media-artwork`) : mainArtwork
   const activeOption = (selected.source_options || []).find((source) => Number(source.source_id) === Number(selected.active_source_id))
   const wiimActive = selected.active_experience === 'listen' && (selected.transport_provider === 'wiim' || /wiim/i.test(`${selected.source || ''} ${activeOption?.label || ''}`))
-  const timeline = wiimActive ? '<label class="media-timeline" data-wiim-timeline><input type="range" min="0" max="1" step="1" value="0" style="--position:0%" data-wiim-seek aria-label="Avanzamento brano"><span><output data-wiim-elapsed>0:00</output><output data-wiim-remaining>-0:00</output></span></label>' : ''
+  const savedTimeline = wiimTimelineState.get(String(selected.id)) || { duration: 0, position: 0 }
+  const timelineDuration = Math.max(0, Number(savedTimeline.duration) || 0)
+  const timelinePosition = Math.max(0, Math.min(timelineDuration, Number(savedTimeline.position) || 0))
+  const timelinePercent = timelineDuration ? Math.min(100, timelinePosition / timelineDuration * 100) : 0
+  const timeline = wiimActive ? `<label class="media-timeline" data-wiim-timeline><input type="range" min="0" max="${Math.max(1, Math.round(timelineDuration))}" step="1" value="${Math.round(timelinePosition)}" style="--position:${timelinePercent}%" data-wiim-seek aria-label="Avanzamento brano"><span><output data-wiim-elapsed>${mediaTime(timelinePosition)}</output><output data-wiim-remaining>-${mediaTime(Math.max(0, timelineDuration - timelinePosition))}</output></span></label>` : ''
   const roomName = selected.room && !/^unknown$/i.test(selected.room) ? selected.room : selected.name
   const artistLine = `${esc(selected.artist || selected.source || roomName)}${wiimActive && (selected.wiim_source || selected.source) ? `<span class="media-wiim-service">${esc(selected.wiim_source || selected.source)}</span>` : ''}`
   $('#device-list').innerHTML = `<article class="media-session ${wiimActive ? 'has-wiim-timeline' : ''} ${experienceClass} ${deviceVisualClass(selected)}" data-device-id="${esc(selected.id)}">${navigatorArtwork}${navigatorIcon}<div class="media-session-info"><strong>${esc(selected.title || selected.source || selected.name)}</strong><small>${artistLine}</small><span class="media-track media-room-name">${esc(roomName)}</span></div>${power}${timeline}${deviceActions(selected, { hidePower: true, wiim: wiimActive })}</article>${voicePanel}${recent}${favorites}<div class="media-library media-room-library"><button class="media-library-toggle" data-media-section-toggle="rooms" aria-expanded="${mediaSections.rooms}"><strong>Stanze</strong><span class="mdi-mask" style="${mdiStyle(mediaSections.rooms ? 'mdi:chevron-up' : 'mdi:chevron-down', 'chevron-down')}"></span></button><div class="media-service-grid" ${mediaSections.rooms ? '' : 'hidden'}>${players}</div></div><div class="media-library media-source-library"><h3>Sorgenti e servizi</h3><div class="media-service-grid">${sources || '<span class="empty-state">Nessuna sorgente disponibile</span>'}</div></div>`
@@ -589,6 +596,7 @@ async function loadWiimTimeline(deviceId) {
     if (!host || requestId !== wiimTimelineRequest) return
     const duration = Math.max(0, Number(device.duration) || 0)
     const position = Math.max(0, Math.min(duration || 0, Number(device.position) || 0))
+    wiimTimelineState.set(String(deviceId), { duration, position })
     wiimLoopMode = Number.isFinite(Number(device.loop)) ? Number(device.loop) : 4
     const input = host.querySelector('[data-wiim-seek]')
     input.max = String(Math.max(1, Math.round(duration)))
@@ -738,7 +746,10 @@ async function loadMediaFavorites(force = false) {
         if (cached) recent.querySelector('.media-recent-strip').innerHTML = recentlyPlayedHtml(cached.items, Number(panel?.dataset.favoriteRoom || 0))
       }
       updateNowPlayingStar(currentDevices.find((item) => item.id === selectedMediaId) || currentDevices.find((item) => item.room === activeMediaRoom))
-    } catch (error) { if (force) fail(error) }
+    } catch (_) {
+      // Un refresh secondario dei Preferiti non deve trasformare in errore
+      // un salvataggio che il server ha gia confermato.
+    }
     finally { favoritesPending = null }
   })()
   return favoritesPending
@@ -1252,9 +1263,11 @@ async function submitSecurityPin(event) {
 }
 
 function openMediaZones(device) {
+  const isNewPanel = !$('#media-zones-dialog').open || String(activeMediaPlayer?.id) !== String(device?.id)
+  if (isNewPanel) { mediaZonePickerOpen = false; pendingMediaZoneSelection = null }
   activeMediaPlayer = device
   renderMediaZones()
-  $('#media-zones-dialog').showModal()
+  if (!$('#media-zones-dialog').open) $('#media-zones-dialog').showModal()
 }
 
 function mediaGroupFor(device) {
@@ -1267,6 +1280,7 @@ function renderMediaZones() {
   if (!selected) return
   const group = mediaGroupFor(selected)
   const members = new Set(group?.member_registry_ids || [selected.registry_id])
+  const selectedMembers = mediaZonePickerOpen && pendingMediaZoneSelection ? pendingMediaZoneSelection : members
   const allPlayers = currentDevices.filter((item) => item.kind === 'media_player' && item.provider === selected.provider)
   const sourceId = Number(selected.active_source_id)
   const experience = selected.active_experience
@@ -1290,12 +1304,12 @@ function renderMediaZones() {
     return `<div class="media-zone media-zone-playing"><div class="media-zone-name"><b>${esc(player.room)}</b><small>${esc(player.name)}</small></div>${power}<div class="media-zone-level"><button type="button" class="media-zone-mute" data-zone-mute="${esc(player.id)}" aria-label="${player.muted ? 'Riattiva' : 'Disattiva audio in'} ${esc(player.room)}" title="${player.muted ? 'Riattiva audio' : 'Disattiva audio'}" ${player.capabilities?.mute ? '' : 'disabled'}><span class="mdi-mask" style="${mdiStyle(player.muted ? 'mdi:volume-off' : 'mdi:volume-high', 'volume-high')}"></span></button><input type="range" min="0" max="100" value="${volume}" style="--volume:${volume}%" data-zone-volume data-base-volume="${volume}" data-device-id="${esc(player.id)}" ${!player.capabilities?.set_volume ? 'disabled' : ''}><output>${volume}%</output></div></div>`
   }).join('')
   const choices = players.map((player) => {
-    const checked = members.has(player.registry_id)
+    const checked = selectedMembers.has(player.registry_id)
     const unavailable = player.connection_status === 'offline' || player.availability !== 'available'
     const locked = player.registry_id === selected.registry_id || player.registry_id === group?.owner_registry_id || unavailable
     return `<label class="media-zone-choice ${checked ? 'active' : ''} ${unavailable ? 'unavailable' : ''}"><span><b>${esc(player.room)}</b><small>${checked ? 'In riproduzione' : 'Disponibile'}</small></span><input type="checkbox" value="${esc(player.registry_id)}" ${checked ? 'checked' : ''} ${locked ? 'disabled' : ''}><i></i></label>`
   }).join('')
-  $('#media-zones-list').innerHTML = `<button class="media-library-toggle media-zones-toggle" data-media-zones-toggle="playing" aria-expanded="${mediaSections.playing}"><strong>Stanze in riproduzione</strong><span class="mdi-mask" style="${mdiStyle(mediaSections.playing ? 'mdi:chevron-up' : 'mdi:chevron-down', 'chevron-down')}"></span></button><div class="media-playing-list" ${mediaSections.playing ? '' : 'hidden'}>${activeRows}</div><button class="media-zone-add" data-zone-picker-toggle aria-label="Aggiungi o rimuovi stanze" title="Aggiungi o rimuovi stanze"><span class="mdi-mask" style="${mdiStyle('mdi:plus-box-outline', 'plus-box-outline')}"></span></button><div class="media-zone-picker" hidden>${choices}</div>`
+  $('#media-zones-list').innerHTML = `<button class="media-library-toggle media-zones-toggle" data-media-zones-toggle="playing" aria-expanded="${mediaSections.playing}"><strong>Stanze in riproduzione</strong><span class="mdi-mask" style="${mdiStyle(mediaSections.playing ? 'mdi:chevron-up' : 'mdi:chevron-down', 'chevron-down')}"></span></button><div class="media-playing-list" ${mediaSections.playing ? '' : 'hidden'}>${activeRows}</div><button class="media-zone-add ${mediaZonePickerOpen ? 'active' : ''}" data-zone-picker-toggle aria-label="Aggiungi o rimuovi stanze" title="Aggiungi o rimuovi stanze"><span class="mdi-mask" style="${mdiStyle('mdi:plus-box-outline', 'plus-box-outline')}"></span></button><div class="media-zone-picker" ${mediaZonePickerOpen ? '' : 'hidden'}>${choices}</div>`
 }
 
 async function saveMediaZones(button) {
@@ -1303,7 +1317,7 @@ async function saveMediaZones(button) {
   button.disabled = true
   const group = mediaGroupFor(activeMediaPlayer)
   const current = new Set(group?.member_registry_ids || [activeMediaPlayer.registry_id])
-  const desired = new Set([...document.querySelectorAll('.media-zone-picker input:checked')].map((input) => input.value))
+  const desired = pendingMediaZoneSelection || new Set([...document.querySelectorAll('.media-zone-picker input:checked')].map((input) => input.value))
   const additions = [...desired].filter((id) => !current.has(id))
   const removals = [...current].filter((id) => !desired.has(id) && id !== activeMediaPlayer.registry_id)
   try {
@@ -1315,6 +1329,8 @@ async function saveMediaZones(button) {
       rememberMediaSessionMaster(group, activeMediaPlayer.registry_id)
       await postDeviceCommand(activeMediaPlayer.id, 'media_join', additions, activeMediaPlayer.resource_revision)
     }
+    mediaZonePickerOpen = false
+    pendingMediaZoneSelection = null
     if ($('#media-zones-dialog').open) $('#media-zones-dialog').close()
     if ($('#media-sessions-dialog').open) $('#media-sessions-dialog').close()
     await refresh()
@@ -2085,10 +2101,17 @@ $('#device-list').addEventListener('click', (event) => {
     ;(async () => {
       const station = nowPlayingFavorite(selected)
       if (station.wiim && /soundcloud/i.test(selected.wiim_source || selected.source || '')) {
-        const response = await fetch(apiUrl('api/wiim/services/soundcloud/library'), { cache: 'no-store' })
-        if (!response.ok) throw new Error((await response.json().catch(() => ({}))).detail || 'Liste SoundCloud non disponibili')
-        const library = await response.json()
-        pendingSoundCloudTrack = { urn: selected.track_id, title: selected.title, artist: selected.artist, artwork: selected.native_artwork || selected.artwork, duration: selected.duration, type: 'track', playable: true }
+        const [libraryResponse, snapshotResponse] = await Promise.all([
+          fetch(apiUrl('api/wiim/services/soundcloud/library'), { cache: 'no-store' }),
+          fetch(apiUrl('api/wiim/snapshot'), { cache: 'no-store' })
+        ])
+        if (!libraryResponse.ok) throw new Error((await libraryResponse.json().catch(() => ({}))).detail || 'Liste SoundCloud non disponibili')
+        if (!snapshotResponse.ok) throw new Error((await snapshotResponse.json().catch(() => ({}))).detail || 'WiiM non raggiungibile')
+        const library = await libraryResponse.json()
+        const native = (await snapshotResponse.json()).device || {}
+        const urn = String(native.track_id || '').trim()
+        if (!/^soundcloud:tracks:\d+$/.test(urn)) throw new Error('Il WiiM non ha fornito l\'ID del brano SoundCloud. Attendi un istante e riprova.')
+        pendingSoundCloudTrack = { urn, title: native.title || selected.title, artist: native.artist || selected.artist, artwork: native.artwork || selected.native_artwork || selected.artwork, duration: native.duration, type: 'track', playable: true }
         $('#soundcloud-playlist-select').innerHTML = '<option value="">Crea nuova lista</option>' + (library.playlists || []).map((item) => `<option value="${esc(item.id)}">${esc(item.name)} (${item.tracks?.length || 0})</option>`).join('')
         $('#soundcloud-playlist-name').value = ''
         $('#soundcloud-playlist-name-row').hidden = false
@@ -2395,7 +2418,8 @@ $('#security-area-dialog').addEventListener('click', (event) => {
   requestSecurityPin(device.id, button.dataset.areaAction, button)
 })
 $('#rgb-dialog').addEventListener('click', (event) => { if (event.target === $('#rgb-dialog')) $('#rgb-dialog').close() })
-$('#media-zones-close').addEventListener('click', () => $('#media-zones-dialog').close())
+$('#media-zones-close').addEventListener('click', () => { mediaZonePickerOpen = false; pendingMediaZoneSelection = null; $('#media-zones-dialog').close() })
+$('#media-zones-dialog').addEventListener('close', () => { mediaZonePickerOpen = false; pendingMediaZoneSelection = null })
 $('#global-media-session').addEventListener('click', openMediaSessions)
 $('#media-sessions-close').addEventListener('click', () => $('#media-sessions-dialog').close())
 $('#media-sessions-list').addEventListener('click', (event) => { const row = event.target.closest('[data-session-device]'); if (!row || event.target.closest('[data-session-volume]')) return; const player = currentDevices.find((item) => String(item.id) === row.dataset.sessionDevice); if (!player) return; const power = event.target.closest('[data-session-power]'); if (power) { const session = activeMediaSessions().find(({player:item}) => String(item.id) === power.dataset.sessionPower); return powerOffMediaSession(power, (session?.members || [player]).map((item) => item.id)) } if (event.target.closest('.media-artwork')) { $('#media-sessions-dialog').close(); return openMediaRoomControl(player) } if (event.target.closest('.media-session-row-rooms')) { $('#media-sessions-dialog').close(); return openMediaZones(player) } $('#media-sessions-dialog').close(); player.active_experience === 'watch' ? openVideoRemote(player) : openMediaZones(player) })
@@ -2429,7 +2453,7 @@ function stepSessionRangeClick(event) {
 $('#zones-master').addEventListener('pointerdown', stepSessionRangeClick, { capture: true })
 $('#media-zones-list').addEventListener('pointerdown', stepSessionRangeClick, { capture: true })
 $('#media-zones-save').addEventListener('click', (event) => saveMediaZones(event.currentTarget))
-$('#media-zones-list').addEventListener('click', (event) => { const button = event.target.closest('[data-zone-picker-toggle]'); if (button) { const picker = $('.media-zone-picker'); picker.hidden = !picker.hidden; button.classList.toggle('active', !picker.hidden) } })
+$('#media-zones-list').addEventListener('click', (event) => { const button = event.target.closest('[data-zone-picker-toggle]'); if (button) { mediaZonePickerOpen = !mediaZonePickerOpen; if (mediaZonePickerOpen && !pendingMediaZoneSelection) pendingMediaZoneSelection = new Set([...document.querySelectorAll('.media-zone-picker input:checked')].map((input) => input.value)); const picker = $('.media-zone-picker'); picker.hidden = !mediaZonePickerOpen; button.classList.toggle('active', mediaZonePickerOpen) } })
 $('#media-zones-list').addEventListener('click', (event) => {
   const button = event.target.closest('[data-media-zones-toggle]')
   if (!button) return
@@ -2462,7 +2486,7 @@ $('#video-remote-dialog').addEventListener('change', (event) => {
   event.target.nextElementSibling.textContent = value
   sendDeviceCommand(activeVideoRemote.device.id, 'set_volume', event.target, value)
 })
-$('#media-zones-list').addEventListener('change', (event) => { if (event.target.matches('.media-zone-picker input[type=checkbox]')) { event.target.closest('.media-zone-choice').classList.toggle('active', event.target.checked) } })
+$('#media-zones-list').addEventListener('change', (event) => { if (event.target.matches('.media-zone-picker input[type=checkbox]')) { event.target.closest('.media-zone-choice').classList.toggle('active', event.target.checked); pendingMediaZoneSelection ||= new Set(); event.target.checked ? pendingMediaZoneSelection.add(event.target.value) : pendingMediaZoneSelection.delete(event.target.value) } })
 $('#media-zones-list').addEventListener('input', (event) => { if (event.target.matches('[data-zone-volume]')) { event.target.style.setProperty('--volume', `${event.target.value}%`); event.target.closest('.media-zone-level').querySelector('output').textContent = `${event.target.value}%` } })
 $('#media-zones-list').addEventListener('change', (event) => { if (event.target.matches('[data-zone-volume]')) sendDeviceCommand(event.target.dataset.deviceId, 'set_volume', event.target, event.target.value) })
 $('#zones-master').addEventListener('input', (event) => {
@@ -2581,7 +2605,7 @@ $('#soundcloud-playlist-form').addEventListener('submit', async (event) => {
   try {
     const response = await fetch(apiUrl('api/wiim/services/soundcloud/playlists'), { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({playlist_id:playlistId,name,track:pendingSoundCloudTrack}) })
     if (!response.ok) throw new Error((await response.json().catch(() => ({}))).detail || 'Playlist SoundCloud non salvata')
-    $('#soundcloud-playlist-dialog').close(); pendingSoundCloudTrack = null; favoritesCache = null; await loadMediaFavorites(true); notify('Brano aggiunto alla playlist SoundCloud')
+    $('#soundcloud-playlist-dialog').close(); pendingSoundCloudTrack = null; favoritesCache = null; notify('Brano aggiunto alla playlist SoundCloud'); await loadMediaFavorites(true)
   } catch (error) { fail(error) }
 })
 $('#wiim-queue-close').addEventListener('click', () => $('#wiim-queue-dialog').close())

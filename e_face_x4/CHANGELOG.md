@@ -1,5 +1,12 @@
 # Changelog
 
+## 2.21.96 — 2026-09-16
+
+- Sessioni: il selettore delle stanze resta aperto durante gli aggiornamenti realtime e conserva le scelte non ancora applicate.
+- Player WiiM: lo slider non viene più ricreato a zero dai refresh generali; posizione e durata arrivano soltanto dal polling nativo WiiM.
+- Playlist SoundCloud: il salvataggio usa uno snapshot WiiM fresco e un eventuale errore nel refresh grafico non viene più mostrato come errore di salvataggio.
+- Player WiiM: l'ultima posizione valida resta visibile anche quando un aggiornamento realtime ricrea la scheda.
+
 ## 2.21.95 — 2026-09-16
 
 - Corretto il riconoscimento SoundCloud quando il WiiM è sovrapposto alla stanza Control4: servizio, ID traccia e metadati nativi restano separati dal nome della sorgente Control4.
