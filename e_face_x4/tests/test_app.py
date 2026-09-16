@@ -17,7 +17,7 @@ from app.connectors.supervisor import find_addon_url, find_host_url
 from app.media_preferences import apply_preferences, load_preferences, save_preferences
 from app.control4 import load_control4_config, public_control4_config, save_control4_config, summarize_ui_configuration
 from app.source_icons import delete_source_icon, load_builtin_source_icon, load_builtin_source_icon_by_id, load_source_icon, save_source_icon
-from app.backgrounds import load_background, load_background_image, load_backgrounds, save_background_image, save_card_theme, save_inherit, save_preset
+from app.backgrounds import HOME_WIDGETS, load_background, load_background_image, load_backgrounds, load_home_camera_entity, load_home_widgets, save_background_image, save_card_theme, save_home_camera_entity, save_home_widgets, save_inherit, save_preset
 
 
 def test_reconnect_warnings_are_rate_limited(monkeypatch) -> None:
@@ -56,7 +56,7 @@ def test_health() -> None:
     response = TestClient(create_app()).get("/health")
     assert response.status_code == 200
     assert response.json()["ok"] is True
-    assert response.json()["version"] == "2.21.113"
+    assert response.json()["version"] == "2.21.114"
 
 
 def test_installed_app_starts_at_dashboard() -> None:
@@ -95,7 +95,7 @@ def test_intercom_is_in_sidebar_with_embedded_view() -> None:
     client_script = (static / "assets" / "intercom.js").read_text(encoding="utf-8")
     intercom_page = (static / "intercom.html").read_text(encoding="utf-8")
     assert "Tablet Control4 · interno 8291" in intercom_page
-    assert "const currentVersion = '2.21.113'" in client_script
+    assert "const currentVersion = '2.21.114'" in client_script
     assert 'id="call-ufficio" data-dial-extension="8291" data-video-capable="true"' in intercom_page
     assert "Postazione esterna · interno 8201" in intercom_page
     assert "Postazione esterna · interno ${station.sip_extension}" in client_script
@@ -302,8 +302,8 @@ def test_intercom_dashboard_stores_only_local_settings(monkeypatch, tmp_path) ->
     assert 'id="users-tool"' in page
     assert 'id="logout"' in page
     assert page.index('id="logout"') < page.index('id="tools-user-section"')
-    assert "tools-dashboard.js?v=2.21.113" in page
-    assert "tools.js?v=2.21.113" in page
+    assert "tools-dashboard.js?v=2.21.114" in page
+    assert "tools.js?v=2.21.114" in page
     tools_js = client.get("/assets/tools.js").text
     assert "document.querySelector('.tools-shell').append(shortcutsPanel)" in tools_js
     assert "data-shortcut-drag=\"category\"" in tools_js
@@ -311,7 +311,7 @@ def test_intercom_dashboard_stores_only_local_settings(monkeypatch, tmp_path) ->
     assert "pointermove" in tools_js and "finishShortcutDrag" in tools_js
     home = client.get("/").text
     assert "backgrounds.css?v=2.21.43" in home
-    assert "app.js?v=2.21.113" in home
+    assert "app.js?v=2.21.114" in home
 
 
 def test_external_stations_api_requires_login_and_hides_secrets(monkeypatch, tmp_path) -> None:
@@ -694,7 +694,7 @@ def test_tools_page_starts_with_selected_background_and_card_theme(monkeypatch, 
     login = client.get("/login").text
     assert '<body class="app-theme" data-background="midnight" data-card-theme="slate">' in home
     assert 'ui-theme-contract.css?v=2.21.29' in home
-    assert 'app.js?v=2.21.113' in home
+    assert 'app.js?v=2.21.114' in home
     assert 'energy.css?v=2.21.30' in home
     assert 'home-comfort.css?v=2.21.31' in home
     assert '<body class="login-theme" data-background="midnight" data-card-theme="slate">' in login
@@ -720,6 +720,23 @@ def test_user_appearance_persists_room_order_and_glow(monkeypatch, tmp_path) -> 
     assert client.put("/api/user/appearance", json={"shortcuts": [{"category": "lights", "devices": ["same"]}, {"category": "switches", "devices": ["same"]}]}).status_code == 400
     assert client.put("/api/user/appearance", json={"home_widgets": home_widgets[:-1]}).status_code == 400
     assert client.put("/api/user/appearance", json={"home_camera_entity": "sensor.not_a_camera"}).status_code == 400
+
+
+def test_dynamic_home_settings_are_isolated_by_user(monkeypatch, tmp_path) -> None:
+    monkeypatch.setenv("EFACE_BACKGROUNDS", str(tmp_path / "backgrounds"))
+    global_widgets = [{"id": item, "visible": True, "size": "standard"} for item in HOME_WIDGETS]
+    alex_widgets = [{**item, "visible": item["id"] != "weather"} for item in reversed(global_widgets)]
+    mario_widgets = [{**item, "visible": item["id"] != "motion"} for item in global_widgets]
+    save_home_widgets(global_widgets)
+    save_home_widgets(alex_widgets, "admin")
+    save_home_widgets(mario_widgets, "mario")
+    save_home_camera_entity("camera.nvr_32ch_ext_ultimo_evento", "admin")
+    save_home_camera_entity("camera.porta", "mario")
+    assert load_home_widgets("admin") == alex_widgets
+    assert load_home_widgets("mario") == mario_widgets
+    assert load_home_widgets("luca") == global_widgets
+    assert load_home_camera_entity("admin") == "camera.nvr_32ch_ext_ultimo_evento"
+    assert load_home_camera_entity("mario") == "camera.porta"
 
 
 def test_ksenia_normalizes_partitions_and_zones() -> None:

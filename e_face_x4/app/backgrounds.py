@@ -83,8 +83,11 @@ def save_shortcuts(groups: list[dict[str, object]]) -> None:
         categories.add(group["category"]); clean.append({"category": group["category"], "devices": normalized})
     raw = _config(); raw["shortcuts"] = clean; _write(raw)
 
-def load_home_widgets() -> list[dict[str, object]]:
-    value = _config().get("home_widgets")
+def load_home_widgets(owner: str | None = None) -> list[dict[str, object]]:
+    raw = _config(); users = raw.get("user_appearance") if isinstance(raw.get("user_appearance"), dict) else {}
+    scoped = users.get(owner) if owner and isinstance(users.get(owner), dict) else {}
+    value = scoped.get("home_widgets") if owner else raw.get("home_widgets")
+    if owner and not isinstance(value, list): value = raw.get("home_widgets")
     if not isinstance(value, list):
         return [{"id": item, "visible": True, "size": "wide" if item in {"overview", "rooms", "live"} else "standard"} for item in HOME_WIDGETS]
     clean, seen = [], set()
@@ -96,7 +99,7 @@ def load_home_widgets() -> list[dict[str, object]]:
         if widget_id not in seen: clean.append({"id": widget_id, "visible": True, "size": "standard"})
     return clean
 
-def save_home_widgets(items: list[dict[str, object]]) -> None:
+def save_home_widgets(items: list[dict[str, object]], owner: str | None = None) -> None:
     if not isinstance(items, list) or len(items) != len(HOME_WIDGETS): raise ValueError("Configurazione Home non valida")
     ids = [item.get("id") for item in items if isinstance(item, dict)]
     if set(ids) != set(HOME_WIDGETS) or len(ids) != len(set(ids)): raise ValueError("Widget Home non validi")
@@ -104,15 +107,24 @@ def save_home_widgets(items: list[dict[str, object]]) -> None:
     for item in items:
         if not isinstance(item.get("visible"), bool) or item.get("size") not in {"compact", "standard", "wide"}: raise ValueError("Proprietà widget non valide")
         clean.append({"id": item["id"], "visible": item["visible"], "size": item["size"]})
-    raw = _config(); raw["home_widgets"] = clean; _write(raw)
+    raw = _config()
+    if owner:
+        users = raw.get("user_appearance") if isinstance(raw.get("user_appearance"), dict) else {}; scoped = users.get(owner) if isinstance(users.get(owner), dict) else {}; scoped["home_widgets"] = clean; users[owner] = scoped; raw["user_appearance"] = users
+    else: raw["home_widgets"] = clean
+    _write(raw)
 
-def load_home_camera_entity() -> str:
-    value = str(_config().get("home_camera_entity") or "camera.nvr_32ch_ext_ultimo_evento")
+def load_home_camera_entity(owner: str | None = None) -> str:
+    raw = _config(); users = raw.get("user_appearance") if isinstance(raw.get("user_appearance"), dict) else {}; scoped = users.get(owner) if owner and isinstance(users.get(owner), dict) else {}
+    value = str((scoped.get("home_camera_entity") if owner else raw.get("home_camera_entity")) or raw.get("home_camera_entity") or "camera.nvr_32ch_ext_ultimo_evento")
     return value if re.fullmatch(r"camera\.[a-z0-9_]+", value) else "camera.nvr_32ch_ext_ultimo_evento"
 
-def save_home_camera_entity(entity_id: str) -> None:
+def save_home_camera_entity(entity_id: str, owner: str | None = None) -> None:
     if not isinstance(entity_id, str) or not re.fullmatch(r"camera\.[a-z0-9_]+", entity_id): raise ValueError("Entità telecamera non valida")
-    raw = _config(); raw["home_camera_entity"] = entity_id; _write(raw)
+    raw = _config()
+    if owner:
+        users = raw.get("user_appearance") if isinstance(raw.get("user_appearance"), dict) else {}; scoped = users.get(owner) if isinstance(users.get(owner), dict) else {}; scoped["home_camera_entity"] = entity_id; users[owner] = scoped; raw["user_appearance"] = users
+    else: raw["home_camera_entity"] = entity_id
+    _write(raw)
 
 def load_card_glow() -> bool:
     return _config().get("card_glow", True) is not False

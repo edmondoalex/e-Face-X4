@@ -1,5 +1,5 @@
 const $ = (selector) => document.querySelector(selector)
-document.head.insertAdjacentHTML('beforeend', '<link rel="stylesheet" href="assets/media-x4.css?v=2.21.113">')
+document.head.insertAdjacentHTML('beforeend', '<link rel="stylesheet" href="assets/media-x4.css?v=2.21.114">')
 const glyph = { light: '✦', climate: '❄', shield: '⬡', energy: 'ϟ', cover: '▤', sensor: '◌' }
 let refreshRunning = false
 let refreshQueued = false
@@ -246,7 +246,9 @@ function render(data) {
   const failedProvider = providers.find((provider) => provider.status === 'offline' || provider.status === 'misconfigured')
   if (data.mode === 'live' && failedProvider) {
     const notice = $('#notice')
-    notice.textContent = `${failedProvider.label}: ${failedProvider.reason || 'connettore non disponibile'}. Controlla indirizzo, porta e autenticazione.`
+    notice.textContent = failedProvider.id === 'evoice'
+      ? `${failedProvider.label}: servizio Home Assistant temporaneamente non disponibile (${failedProvider.reason || 'connessione non riuscita'}). Nuovo tentativo automatico in corso.`
+      : `${failedProvider.label}: ${failedProvider.reason || 'connettore non disponibile'}. Controlla indirizzo, porta e autenticazione.`
     notice.hidden = false
   }
   renderHomeStatusCounters()

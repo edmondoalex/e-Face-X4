@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.21.114 — 2026-09-16
+
+- La configurazione della Home dinamica e la telecamera dell'ultimo evento sono ora separate per utente autenticato.
+- Ripristinati gli anelli di selezione vuoti nelle finestre di scelta stanza, senza reintrodurre bordi nelle schede e-Face.
+- Il guasto temporaneo del servizio Ekonex Voice locale viene descritto correttamente come indisponibilità Home Assistant con nuovo tentativo automatico, senza l'indicazione fuorviante sulle credenziali.
+
 ## 2.21.113 — 2026-09-16
 
 - Aggiunti alla Home dinamica i widget Meteo, ultimo evento videosorveglianza, ultima chiamata DoorBird e ultimo movimento DoorBird.

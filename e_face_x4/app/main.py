@@ -66,7 +66,7 @@ from .connectors.control4_media import cached_control4_icon, cached_control4_ico
 from .connectors.supervisor import discover_addon_url, discover_host_url
 from .demo import dashboard as demo_dashboard
 
-VERSION = os.environ.get("EFACE_VERSION", "2.21.113")
+VERSION = os.environ.get("EFACE_VERSION", "2.21.114")
 STATIC = Path(__file__).parent / "static"
 logging.basicConfig(level=logging.WARNING, format="%(asctime)s %(levelname)s [e-face-x4] %(message)s")
 _reconnect_warning_at: dict[str, float] = {}
@@ -169,6 +169,12 @@ def create_app() -> FastAPI:
 
     def secure_cookie(request: Request) -> bool:
         return request.url.scheme == "https" or request.headers.get("x-forwarded-proto", "").lower() == "https"
+
+    def appearance_owner(request: Request) -> str | None:
+        """Return the authenticated profile that owns personal Home settings."""
+        if not user_auth.enabled():
+            return None
+        return user_auth.session_user(request.cookies.get(user_auth.COOKIE))
 
     @app.middleware("http")
     async def user_login_guard(request: Request, call_next):
@@ -1962,8 +1968,8 @@ def create_app() -> FastAPI:
         return JSONResponse({"entity_id": weather["entity_id"], "state": weather.get("state"), "name": attributes.get("friendly_name") or "Meteo", "temperature": attributes.get("temperature"), "temperature_unit": attributes.get("temperature_unit") or "°C", "humidity": attributes.get("humidity"), "wind_speed": attributes.get("wind_speed"), "wind_speed_unit": attributes.get("wind_speed_unit")}, headers={"Cache-Control":"no-store, private"})
 
     @app.get("/api/home/camera-event")
-    async def home_camera_event() -> Response:
-        response = await home_assistant_get(f"camera_proxy/{load_home_camera_entity()}")
+    async def home_camera_event(request: Request) -> Response:
+        response = await home_assistant_get(f"camera_proxy/{load_home_camera_entity(appearance_owner(request))}")
         return Response(response.content, media_type=response.headers.get("content-type", "image/jpeg"), headers={"Cache-Control":"no-store, private"})
 
     @app.get("/api/home/doorbird/{event}")
@@ -2221,9 +2227,9 @@ def create_app() -> FastAPI:
         page = page.replace('content="#263f48"', 'content="#181c1f"')
         page = page.replace("manifest.webmanifest?v=2.20.38", "manifest.webmanifest?v=2.21.59")
         page = page.replace("app.css?v=2.20.20", "app.css?v=2.21.73")
-        page = page.replace("app.css?v=2.21.84", "app.css?v=2.21.113")
-        page = page.replace("home-status.css?v=2.20.20", "home-status.css?v=2.21.113")
-        page = page.replace("tools.js?v=2.21.1", "tools.js?v=2.21.113")
+        page = page.replace("app.css?v=2.21.84", "app.css?v=2.21.114")
+        page = page.replace("home-status.css?v=2.20.20", "home-status.css?v=2.21.114")
+        page = page.replace("tools.js?v=2.21.1", "tools.js?v=2.21.114")
         page = page.replace("ui-theme-contract.css?v=2.21.27", "ui-theme-contract.css?v=2.21.29")
         page = page.replace("tools-dashboard.js?v=2.21.27", "tools-dashboard.js?v=2.21.33")
         page = page.replace("tools-dashboard.js?v=2.21.33", "tools-dashboard.js?v=2.21.34")
@@ -2231,8 +2237,8 @@ def create_app() -> FastAPI:
         page = page.replace("tools-dashboard.js?v=2.21.36", "tools-dashboard.js?v=2.21.38")
         page = page.replace("tools-dashboard.js?v=2.21.38", "tools-dashboard.js?v=2.21.41")
         page = page.replace("tools-dashboard.js?v=2.21.41", "tools-dashboard.js?v=2.21.42")
-        page = page.replace("tools-dashboard.js?v=2.21.42", "tools-dashboard.js?v=2.21.113")
-        page = page.replace("tools-dashboard.css?v=2.20.36", "tools-dashboard.css?v=2.21.113")
+        page = page.replace("tools-dashboard.js?v=2.21.42", "tools-dashboard.js?v=2.21.114")
+        page = page.replace("tools-dashboard.css?v=2.20.36", "tools-dashboard.css?v=2.21.114")
         page = page.replace("backgrounds.css?v=2.20.20", "backgrounds.css?v=2.21.43")
         page = page.replace("intercom.css?v=2.21.14", "intercom.css?v=2.21.46")
         page = page.replace("app.js?v=2.21.11", "app.js?v=2.21.29")
@@ -2356,7 +2362,8 @@ def create_app() -> FastAPI:
         return Response(upstream.content, status_code=upstream.status_code, media_type=upstream.headers.get("content-type"), headers=headers)
 
     @app.get("/api/bootstrap")
-    async def bootstrap() -> dict:
+    async def bootstrap(request: Request) -> dict:
+        owner = appearance_owner(request)
         settings = load_settings()
         buspro_config, etherm_config, ksenia_config = await asyncio.gather(
             resolved_provider(settings.buspro, "e_hdl_buspro_mqtt", 8124, settings.request_timeout_s),
@@ -2434,7 +2441,7 @@ def create_app() -> FastAPI:
         return {
             "version": VERSION,
             "backgrounds": load_backgrounds(),
-            "appearance": {"card_theme": load_card_theme(), "card_glow": load_card_glow(), "room_order": load_room_order(), "security_order": load_security_order(), "shortcuts": load_shortcuts(), "home_widgets": load_home_widgets(), "home_camera_entity": load_home_camera_entity()},
+            "appearance": {"card_theme": load_card_theme(), "card_glow": load_card_glow(), "room_order": load_room_order(), "security_order": load_security_order(), "shortcuts": load_shortcuts(), "home_widgets": load_home_widgets(owner), "home_camera_entity": load_home_camera_entity(owner)},
             "nav_icons": settings.nav_icons,
             "mode": "demo" if settings.demo_mode else "live",
             "dashboard": dashboard,
@@ -2487,20 +2494,22 @@ def create_app() -> FastAPI:
         return {"theme": load_card_theme(), "themes": sorted(CARD_THEMES)}
 
     @app.get("/api/user/appearance")
-    async def user_appearance() -> dict:
-        return {"card_glow": load_card_glow(), "room_order": load_room_order(), "security_order": load_security_order(), "shortcuts": load_shortcuts(), "home_widgets": load_home_widgets(), "home_camera_entity": load_home_camera_entity()}
+    async def user_appearance(request: Request) -> dict:
+        owner = appearance_owner(request)
+        return {"card_glow": load_card_glow(), "room_order": load_room_order(), "security_order": load_security_order(), "shortcuts": load_shortcuts(), "home_widgets": load_home_widgets(owner), "home_camera_entity": load_home_camera_entity(owner)}
 
     @app.put("/api/user/appearance")
-    async def user_save_appearance(payload: dict) -> dict:
+    async def user_save_appearance(request: Request, payload: dict) -> dict:
+        owner = appearance_owner(request)
         try:
             if "card_glow" in payload: save_card_glow(payload["card_glow"])
             if "room_order" in payload: save_room_order(payload["room_order"])
             if "security_order" in payload: save_security_order(payload["security_order"])
             if "shortcuts" in payload: save_shortcuts(payload["shortcuts"])
-            if "home_widgets" in payload: save_home_widgets(payload["home_widgets"])
-            if "home_camera_entity" in payload: save_home_camera_entity(payload["home_camera_entity"])
+            if "home_widgets" in payload: save_home_widgets(payload["home_widgets"], owner)
+            if "home_camera_entity" in payload: save_home_camera_entity(payload["home_camera_entity"], owner)
         except ValueError as exc: raise HTTPException(status_code=400, detail=str(exc))
-        return {"card_glow": load_card_glow(), "room_order": load_room_order(), "security_order": load_security_order(), "shortcuts": load_shortcuts(), "home_widgets": load_home_widgets(), "home_camera_entity": load_home_camera_entity()}
+        return {"card_glow": load_card_glow(), "room_order": load_room_order(), "security_order": load_security_order(), "shortcuts": load_shortcuts(), "home_widgets": load_home_widgets(owner), "home_camera_entity": load_home_camera_entity(owner)}
 
     @app.put("/api/user/card-theme")
     async def user_save_card_theme(payload: dict) -> dict:
