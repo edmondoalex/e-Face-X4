@@ -49,6 +49,38 @@ let wiimTimelineDragging = false
 let wiimLoopMode = 4
 const recentPending = new Map()
 const ttsVolumeRestores = new Map()
+const mediaSessionMasterKey = 'eface-media-session-masters-v1'
+
+function loadMediaSessionMasters() {
+  try { return JSON.parse(localStorage.getItem(mediaSessionMasterKey) || '{}') }
+  catch { return {} }
+}
+
+function rememberMediaSessionMaster(group, registryId) {
+  if (!registryId) return
+  const saved = loadMediaSessionMasters()
+  if (group?.group_id) saved[group.group_id] = registryId
+  saved.pending = registryId
+  localStorage.setItem(mediaSessionMasterKey, JSON.stringify(saved))
+}
+
+function mediaSessionMaster(group, fallback) {
+  if (!group?.group_id) return fallback
+  const members = new Set(group.member_registry_ids || [])
+  const saved = loadMediaSessionMasters()
+  let registryId = members.has(saved[group.group_id]) ? saved[group.group_id] : ''
+  if (!registryId && members.has(saved.pending)) {
+    registryId = saved.pending
+    delete saved.pending
+  }
+  // On first observation, the room already active before slaves are added is the session starter.
+  if (!registryId && members.has(fallback?.registry_id)) registryId = fallback.registry_id
+  if (registryId && saved[group.group_id] !== registryId) {
+    saved[group.group_id] = registryId
+    localStorage.setItem(mediaSessionMasterKey, JSON.stringify(saved))
+  }
+  return currentDevices.find((item) => item.provider === fallback?.provider && item.registry_id === registryId) || fallback
+}
 
 function setMediaOverride(deviceId, values) {
   const key = String(deviceId)
@@ -933,8 +965,8 @@ function activeMediaSessions() {
     const group = mediaGroupFor(player)
     const members = group ? active.filter((item) => item.provider === player.provider && group.member_registry_ids.includes(item.registry_id)) : [player]
     members.forEach((item) => consumed.add(item.registry_id))
-    // The Control4-declared owner is the canonical room even if its state is briefly stale.
-    const owner = currentDevices.find((item) => item.provider === player.provider && item.registry_id === group?.owner_registry_id) || members.find((item) => String(item.state).toLowerCase() === 'playing') || player
+    const starter = members.find((item) => String(item.state).toLowerCase() === 'playing') || player
+    const owner = mediaSessionMaster(group, starter)
     sessions.push({ player: owner, group, members })
     if (playbackKey) consumedPlayback.add(playbackKey)
   }
@@ -956,7 +988,7 @@ function openMediaSessions() {
 function openMediaRoomControl(player) {
   if (!player) return
   const group = mediaGroupFor(player)
-  const master = currentDevices.find((item) => item.provider === player.provider && item.registry_id === group?.owner_registry_id) || player
+  const master = mediaSessionMaster(group, player)
   const room = master.room || master.name
   const devices = currentDevices.filter((item) => item.kind === 'media_player' && item.provider === master.provider && item.room === master.room)
   openDevices(room, devices.length ? devices : [master], { room, experience: master.active_experience || player.active_experience || '' })
@@ -1215,7 +1247,7 @@ function renderMediaZones() {
   const compatible = (item) => !sourceId || item.provider !== 'control4' || (item.source_options || []).some((source) => Number(source.source_id) === sourceId && (!experience || source.experience === experience))
   const players = allPlayers.filter((item) => members.has(item.registry_id) || compatible(item))
   const playing = players.filter((item) => members.has(item.registry_id) && !['off','unavailable','unknown'].includes(String(item.state).toLowerCase()))
-  const owner = players.find((item) => item.registry_id === group?.owner_registry_id) || selected
+  const owner = mediaSessionMaster(group, selected)
   const memberVolumes = playing.map((item) => item.volume).filter((level) => level !== null && level !== undefined && Number.isFinite(Number(level))).map(Number)
   const masterVolume = selected.provider === 'control4' ? (Number.isFinite(Number(owner.volume)) ? Number(owner.volume) : 0) : (memberVolumes.length ? Math.round(memberVolumes.reduce((sum, level) => sum + level, 0) / memberVolumes.length) : 0)
   const muteMembers = playing.filter((item) => item.capabilities?.mute)
@@ -1251,7 +1283,10 @@ async function saveMediaZones(button) {
       const player = currentDevices.find((item) => item.registry_id === registryId)
       if (player) await postDeviceCommand(player.id, 'media_unjoin', null, player.resource_revision)
     }
-    if (additions.length) await postDeviceCommand(activeMediaPlayer.id, 'media_join', additions, activeMediaPlayer.resource_revision)
+    if (additions.length) {
+      rememberMediaSessionMaster(group, activeMediaPlayer.registry_id)
+      await postDeviceCommand(activeMediaPlayer.id, 'media_join', additions, activeMediaPlayer.resource_revision)
+    }
     if ($('#media-zones-dialog').open) $('#media-zones-dialog').close()
     if ($('#media-sessions-dialog').open) $('#media-sessions-dialog').close()
     await refresh()

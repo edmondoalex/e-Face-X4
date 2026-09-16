@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.21.88 — 2026-09-16
+
+- e-Face memorizza la stanza che avvia una sessione come master e tratta le stanze aggiunte successivamente come slave.
+- Il master e-Face persistito prevale sull'owner tecnico Control4 per apertura cover e volume generale.
+
 ## 2.21.87 — 2026-09-16
 
 - Il click sulla cover della sessione in Home apre sempre la stanza master dichiarata da Control4, anche durante stati transitori del master.
