@@ -937,6 +937,17 @@ deviceSoundForm.addEventListener('submit', async event => {
     closePanel(deviceSoundPanel.id)
   } catch(error) { message(error.message) }
 })
+$('#doorbird-call-test').addEventListener('click', async () => {
+  const button = $('#doorbird-call-test')
+  toolsIntercomFrame.src = api('intercom?embedded=1&doorbird=ingresso')
+  toolsIntercom.hidden = false
+  document.body.style.overflow = 'hidden'
+  button.disabled = true
+  try {
+    await request('api/admin/intercom/doorbird/test-call', {method:'POST'})
+    $('#intercom-status').textContent = 'Chiamata DoorBird avviata: Intercom e video live aperti sui browser collegati.'
+  } catch(error) { toolsIntercom.hidden = true; document.body.style.overflow = ''; message(error.message) } finally { button.disabled = false }
+})
 
 async function initialize() {
   const status = await request('api/auth/status')

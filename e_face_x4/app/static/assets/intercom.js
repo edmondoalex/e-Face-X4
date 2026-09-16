@@ -2,7 +2,7 @@
   const $ = (selector) => document.querySelector(selector)
   const adminMode = document.documentElement.classList.contains('admin-intercom')
   const root = new URL('./', location.href)
-const currentVersion = '2.21.124'
+const currentVersion = '2.21.125'
   function newDeviceId() {
     if (typeof crypto.randomUUID === 'function') return crypto.randomUUID()
     const bytes = new Uint8Array(16)
@@ -61,6 +61,7 @@ const currentVersion = '2.21.124'
   let stationsSignature = ''
   const externalVideoByExtension = new Map()
   const pushedCaller = new URLSearchParams(location.search).get('from')
+  const pushedDoorbird = new URLSearchParams(location.search).get('doorbird')
   $('.intercom-station-list').prepend($('.doorbird-row'))
   function publishIntercomState(state) {
     if (window.parent !== window) window.parent.postMessage({type:'eface-intercom-state', state}, location.origin)
@@ -617,6 +618,26 @@ const currentVersion = '2.21.124'
     setDialButtonsDisabled(!phone || !phone.isRegistered())
     publishIntercomState(phone?.isRegistered() ? 'available' : 'idle')
   }
+
+  function showDoorbirdIncoming(stationId = 'ingresso') {
+    const preview = $('#call-doorbird-preview')
+    preview.src = new URL(`api/intercom/external-stations/${encodeURIComponent(stationId)}/video?t=${Date.now()}`, root).toString()
+    preview.hidden = false
+    $('#remote-video-placeholder').hidden = true
+    $('#intercom-video-panel').hidden = false
+    $('#intercom-call-panel').hidden = false
+    $('#call-title').textContent = 'Chiamata da DoorBird'
+    $('#call-status').textContent = 'DoorBird sta chiamandoâ€¦'
+    $('#video-status').textContent = 'Video live DoorBird attivo'
+    requestAnimationFrame(() => $('#intercom-video-panel').scrollIntoView({behavior:'smooth', block:'start'}))
+    if (!call) startRingtone()
+  }
+
+  window.addEventListener('message', event => {
+    if (event.origin !== location.origin || event.source !== window.parent || event.data?.type !== 'eface-doorbird-incoming') return
+    showDoorbirdIncoming(event.data.station_id)
+  })
+  if (pushedDoorbird) setTimeout(() => showDoorbirdIncoming(pushedDoorbird), 250)
 
   $('#speaker-gain').addEventListener('input', () => {
     const percent = Number($('#speaker-gain').value)

@@ -7,10 +7,39 @@ import re
 import json
 import os
 import secrets
+from collections.abc import AsyncIterator
 from pathlib import Path
 
 MAX_IMAGE_BYTES = 2 * 1024 * 1024
 VIDEO_CONTENT_TYPE = re.compile(r"multipart/x-mixed-replace\s*;\s*boundary=[A-Za-z0-9_-]{1,70}\Z", re.I)
+
+
+async def monitor_events(host: str, port: int, username: str, password: str) -> AsyncIterator[str]:
+    """Yield DoorBird LAN ring events from one long-lived monitor connection."""
+    if not username or not password:
+        raise ValueError("Credenziale DoorBird non configurata")
+    url = f"http://{host}:{port}/bha-api/monitor.cgi"
+    timeout = httpx.Timeout(10, read=None)
+    try:
+        async with httpx.AsyncClient(timeout=timeout, follow_redirects=False, trust_env=False) as client:
+            async with client.stream("GET", url, params={"ring": "doorbell"},
+                                     auth=httpx.DigestAuth(username, password)) as response:
+                if response.status_code == 401:
+                    raise PermissionError("Credenziale DoorBird rifiutata")
+                if response.status_code != 200:
+                    raise RuntimeError(f"Monitor DoorBird non disponibile (HTTP {response.status_code})")
+                pending = ""
+                async for chunk in response.aiter_text():
+                    pending = (pending + chunk)[-4096:]
+                    while True:
+                        match = re.search(r"doorbell:([HL])", pending, re.I)
+                        if not match:
+                            break
+                        pending = pending[match.end():]
+                        if match.group(1).upper() == "H":
+                            yield "doorbell"
+    except httpx.HTTPError as exc:
+        raise ConnectionError("DoorBird non raggiungibile") from exc
 
 
 async def sip_status(host: str, port: int, username: str, password: str) -> dict:
@@ -77,6 +106,20 @@ async def ensure_incoming_sip(station_id: str, host: str, port: int, username: s
 
 async def restore_incoming_sip(host: str, port: int, username: str, password: str, previous: dict) -> None:
     await _sip_settings(host, port, username, password, previous)
+
+
+async def make_call(host: str, port: int, username: str, password: str, sip_url: str) -> None:
+    """Ask DoorBird to place a SIP call to a validated local target."""
+    if not re.fullmatch(r"sip:[0-9]{2,6}@[A-Za-z0-9.-]{1,253}", sip_url):
+        raise ValueError("Destinazione SIP DoorBird non valida")
+    async with httpx.AsyncClient(timeout=8, follow_redirects=False, trust_env=False) as client:
+        response = await client.get(f"http://{host}:{port}/bha-api/sip.cgi",
+                                    params={"action": "makecall", "url": sip_url},
+                                    auth=httpx.DigestAuth(username, password))
+    if response.status_code == 401:
+        raise PermissionError("Credenziale DoorBird rifiutata")
+    if response.status_code != 200:
+        raise RuntimeError(f"Chiamata DoorBird rifiutata (HTTP {response.status_code})")
 
 
 async def live_video(host: str, port: int, username: str, password: str):

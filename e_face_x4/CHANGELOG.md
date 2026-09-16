@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.21.125 — 2026-09-16
+
+- Il backend mantiene un solo monitor eventi per ogni DoorBird e distribuisce la chiamata a tutti i browser e-Face collegati.
+- Alla pressione del campanello Intercom si apre automaticamente mostrando subito il video live DoorBird, indipendentemente dall'interno SIP che risponde.
+- In Strumenti > Videocitofono è disponibile il test completo "PROVA CHIAMATA + VIDEO", che verifica insieme chiamata SIP, notifica UI e anteprima video.
+
 ## 2.21.124 — 2026-09-16
 
 - La località meteo è ora unica per l'intero impianto: basta configurarla una volta e viene proposta automaticamente su tutti i dispositivi.

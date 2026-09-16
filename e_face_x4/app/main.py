@@ -67,7 +67,7 @@ from .connectors.supervisor import discover_addon_url, discover_host_url
 from .media_realtime import SharedMediaRealtime
 from .demo import dashboard as demo_dashboard
 
-VERSION = os.environ.get("EFACE_VERSION", "2.21.124")
+VERSION = os.environ.get("EFACE_VERSION", "2.21.125")
 STATIC = Path(__file__).parent / "static"
 logging.basicConfig(level=logging.WARNING, format="%(asctime)s %(levelname)s [e-face-x4] %(message)s")
 _reconnect_warning_at: dict[str, float] = {}
@@ -153,10 +153,14 @@ class AppAssets(StaticFiles):
 def create_app() -> FastAPI:
     app = FastAPI(title="e-Face X4", version=VERSION, docs_url=None, redoc_url=None)
     app.state.evoice_realtime = SharedMediaRealtime(lambda: evoice_connector(load_settings()))
+    app.state.realtime_clients = set()
+    app.state.doorbird_monitor_tasks = []
 
     @app.on_event("shutdown")
     async def close_shared_media_realtime() -> None:
         await app.state.evoice_realtime.close()
+        for task in app.state.doorbird_monitor_tasks:
+            task.cancel()
     app.mount("/assets", AppAssets(directory=STATIC / "assets"), name="assets")
     login_failures: dict[tuple[str, str], list[float]] = {}
     reveal_failures: dict[str, list[float]] = {}
@@ -166,6 +170,43 @@ def create_app() -> FastAPI:
     control4_support_tokens: dict[str, float] = {}
     doorbird_video_slots = asyncio.Semaphore(2)
     wiim_presets_cache: dict[str, object] = {"expires": 0.0, "items": []}
+
+    async def broadcast_realtime(event: dict) -> None:
+        for target in tuple(app.state.realtime_clients):
+            if target.full():
+                try:
+                    target.get_nowait()
+                except asyncio.QueueEmpty:
+                    pass
+            try:
+                target.put_nowait(event)
+            except asyncio.QueueFull:
+                pass
+
+    async def monitor_doorbird(station: dict, account: dict) -> None:
+        delay = 2
+        while True:
+            try:
+                async for event in doorbird_api.monitor_events(
+                    station["host"], station["http_port"], account["username"], account["password"]
+                ):
+                    delay = 2
+                    if event == "doorbell":
+                        await broadcast_realtime({"type": "doorbird_incoming", "data": {"station_id": station["id"]}})
+            except asyncio.CancelledError:
+                raise
+            except Exception as exc:
+                logging.warning("DoorBird %s monitor reconnect: %s", station.get("id"), exc)
+                await asyncio.sleep(delay)
+                delay = min(delay * 2, 30)
+
+    async def start_doorbird_monitors() -> None:
+        for station in external_stations.load():
+            account = {"username": station.get("username", ""), "password": station.get("password", "")}
+            if station.get("id") == "ingresso" and not all(account.values()):
+                account = credential_inventory.load().get("doorbird", {})
+            if account.get("username") and account.get("password"):
+                app.state.doorbird_monitor_tasks.append(asyncio.create_task(monitor_doorbird(station, account)))
 
     async def ensure_doorbird_ring_routes() -> None:
         """Keep each configured DoorBird button routed to the e-Face ring group."""
@@ -205,6 +246,7 @@ def create_app() -> FastAPI:
         if not getattr(app.state, "doorbird_ring_routes_started", False):
             app.state.doorbird_ring_routes_started = True
             asyncio.create_task(ensure_doorbird_ring_routes())
+            asyncio.create_task(start_doorbird_monitors())
         path = request.url.path
         origin = request.headers.get("origin")
         if request.method not in {"GET", "HEAD", "OPTIONS"} and origin and urlsplit(origin).netloc != request.headers.get("host"):
@@ -1978,6 +2020,21 @@ def create_app() -> FastAPI:
             raise HTTPException(status_code=409, detail="Credenziale postazione esterna non configurata")
         return station, account
 
+    @app.post("/api/admin/intercom/doorbird/test-call")
+    async def admin_doorbird_test_call(request: Request) -> dict:
+        require_admin(request)
+        station, account = external_access("ingresso")
+        settings = intercom_settings.load()
+        try:
+            await doorbird_api.make_call(
+                station["host"], station["http_port"], account["username"], account["password"],
+                f"sip:{settings['ring_extension']}@{settings['asterisk_host']}",
+            )
+        except (ValueError, PermissionError, ConnectionError, RuntimeError, httpx.HTTPError) as exc:
+            raise HTTPException(status_code=502, detail=str(exc)) from exc
+        await broadcast_realtime({"type": "doorbird_incoming", "data": {"station_id": station["id"]}})
+        return {"ok": True, "video": True}
+
     async def home_assistant_get(path: str) -> httpx.Response:
         token = str(os.environ.get("SUPERVISOR_TOKEN") or "").strip()
         if not token: raise HTTPException(status_code=503, detail="Home Assistant non disponibile")
@@ -2264,9 +2321,9 @@ def create_app() -> FastAPI:
         page = page.replace('content="#263f48"', 'content="#181c1f"')
         page = page.replace("manifest.webmanifest?v=2.20.38", "manifest.webmanifest?v=2.21.59")
         page = page.replace("app.css?v=2.20.20", "app.css?v=2.21.73")
-        page = page.replace("app.css?v=2.21.84", "app.css?v=2.21.124")
-        page = page.replace("home-status.css?v=2.20.20", "home-status.css?v=2.21.124")
-        page = page.replace("tools.js?v=2.21.1", "tools.js?v=2.21.124")
+        page = page.replace("app.css?v=2.21.84", "app.css?v=2.21.125")
+        page = page.replace("home-status.css?v=2.20.20", "home-status.css?v=2.21.125")
+        page = page.replace("tools.js?v=2.21.1", "tools.js?v=2.21.125")
         page = page.replace("ui-theme-contract.css?v=2.21.27", "ui-theme-contract.css?v=2.21.29")
         page = page.replace("tools-dashboard.js?v=2.21.27", "tools-dashboard.js?v=2.21.33")
         page = page.replace("tools-dashboard.js?v=2.21.33", "tools-dashboard.js?v=2.21.34")
@@ -2274,8 +2331,8 @@ def create_app() -> FastAPI:
         page = page.replace("tools-dashboard.js?v=2.21.36", "tools-dashboard.js?v=2.21.38")
         page = page.replace("tools-dashboard.js?v=2.21.38", "tools-dashboard.js?v=2.21.41")
         page = page.replace("tools-dashboard.js?v=2.21.41", "tools-dashboard.js?v=2.21.42")
-        page = page.replace("tools-dashboard.js?v=2.21.42", "tools-dashboard.js?v=2.21.124")
-        page = page.replace("tools-dashboard.css?v=2.20.36", "tools-dashboard.css?v=2.21.124")
+        page = page.replace("tools-dashboard.js?v=2.21.42", "tools-dashboard.js?v=2.21.125")
+        page = page.replace("tools-dashboard.css?v=2.20.36", "tools-dashboard.css?v=2.21.125")
         page = page.replace("backgrounds.css?v=2.20.20", "backgrounds.css?v=2.21.43")
         page = page.replace("intercom.css?v=2.21.14", "intercom.css?v=2.21.46")
         page = page.replace("app.js?v=2.21.11", "app.js?v=2.21.29")
@@ -3005,6 +3062,7 @@ def create_app() -> FastAPI:
             resolved_provider(settings.ksenia, "ksenia_lares_addon", 8080, settings.request_timeout_s),
         )
         queue: asyncio.Queue[dict] = asyncio.Queue(maxsize=100)
+        app.state.realtime_clients.add(queue)
 
         async def buspro_events() -> None:
             ws_url = re.sub(r"^http", "ws", buspro.base_url.rstrip("/"), count=1) + "/ws"
@@ -3096,9 +3154,6 @@ def create_app() -> FastAPI:
                 tasks.append(asyncio.create_task(media_events(connector)))
         if evoice_queue is not None:
             tasks.append(asyncio.create_task(shared_evoice_events()))
-        if not tasks:
-            await websocket.close(code=1013, reason="Nessun connettore realtime disponibile")
-            return
         try:
             while True:
                 try:
@@ -3115,6 +3170,7 @@ def create_app() -> FastAPI:
             except RuntimeError:
                 pass
         finally:
+            app.state.realtime_clients.discard(queue)
             for task in tasks:
                 task.cancel()
             if evoice_queue is not None:
