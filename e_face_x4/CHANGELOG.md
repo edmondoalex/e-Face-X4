@@ -1,5 +1,9 @@
 # Changelog
 
+## 2.21.103 — 2026-09-16
+
+- Consentiti gli URL SoundCloud firmati nel fallback di riproduzione diretta, mantenendo la validazione HTTPS.
+
 ## 2.21.102 — 2026-09-16
 
 - Il richiamo playlist verifica lo stato `playing`; sulle liste da un brano usa l'URL diretto se il firmware lascia ferma la coda custom.

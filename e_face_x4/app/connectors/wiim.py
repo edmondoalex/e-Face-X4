@@ -159,7 +159,16 @@ class WiiMClient:
         parts = urlsplit(value)
         if parts.scheme != "https" or not parts.hostname or parts.username or parts.password or len(value) > 4096:
             raise ValueError("URL audio non valido")
-        return str(await self.command(f"setPlayerCmd:play:{value}", json_response=False))
+        # Signed media URLs contain characters (~, _, signatures) intentionally
+        # excluded from the generic command grammar. The URL is validated above
+        # and passed as an encoded query parameter by httpx.
+        async with httpx.AsyncClient(verify=False, timeout=self.timeout, transport=self._transport) as client:
+            response = await client.get(
+                f"https://{self.host}/httpapi.asp",
+                params={"command": f"setPlayerCmd:play:{value}"},
+            )
+            response.raise_for_status()
+            return response.text.strip()
 
     async def _playqueue(self, action: str, arguments: dict[str, Any]) -> str:
         if action not in {"CreateQueue", "ReplaceQueue", "BrowseQueue", "BrowseQueueEx", "PlayQueueWithIndex", "GetKeyMapping", "SetKeyMapping"}:

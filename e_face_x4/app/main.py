@@ -66,7 +66,7 @@ from .connectors.control4_media import cached_control4_icon, cached_control4_ico
 from .connectors.supervisor import discover_addon_url, discover_host_url
 from .demo import dashboard as demo_dashboard
 
-VERSION = os.environ.get("EFACE_VERSION", "2.21.102")
+VERSION = os.environ.get("EFACE_VERSION", "2.21.103")
 STATIC = Path(__file__).parent / "static"
 logging.basicConfig(level=logging.WARNING, format="%(asctime)s %(levelname)s [e-face-x4] %(message)s")
 _reconnect_warning_at: dict[str, float] = {}
@@ -392,7 +392,12 @@ def create_app() -> FastAPI:
             await asyncio.sleep(0.35)
             playback = await configured_wiim().snapshot()
             if str(playback.get("state") or "").lower() != "playing":
-                raise RuntimeError("Il WiiM ha accettato la coda ma non ha avviato la riproduzione")
+                if len(resolved) == 1:
+                    await configured_wiim().play_url(str(resolved[0][1]["url"]))
+                    await asyncio.sleep(0.35)
+                    playback = await configured_wiim().snapshot()
+                if str(playback.get("state") or "").lower() != "playing":
+                    raise RuntimeError("Il WiiM ha accettato la coda ma non ha avviato la riproduzione")
             return {"ok": True, "playlist": playlist, "count": len(blocks), "total": len(tracks), "skipped": len(tracks) - len(blocks), "pruned": len(tracks) - len(blocks)}
         except ValueError as exc: raise HTTPException(status_code=400, detail=str(exc)) from exc
         except (httpx.HTTPError, RuntimeError) as exc: raise HTTPException(status_code=502, detail="Riproduzione lista SoundCloud sul WiiM non riuscita") from exc
@@ -2165,8 +2170,8 @@ def create_app() -> FastAPI:
         page = page.replace("tools-dashboard.js?v=2.21.36", "tools-dashboard.js?v=2.21.38")
         page = page.replace("tools-dashboard.js?v=2.21.38", "tools-dashboard.js?v=2.21.41")
         page = page.replace("tools-dashboard.js?v=2.21.41", "tools-dashboard.js?v=2.21.42")
-        page = page.replace("tools-dashboard.js?v=2.21.42", "tools-dashboard.js?v=2.21.102")
-        page = page.replace("tools-dashboard.css?v=2.20.36", "tools-dashboard.css?v=2.21.102")
+        page = page.replace("tools-dashboard.js?v=2.21.42", "tools-dashboard.js?v=2.21.103")
+        page = page.replace("tools-dashboard.css?v=2.20.36", "tools-dashboard.css?v=2.21.103")
         page = page.replace("backgrounds.css?v=2.20.20", "backgrounds.css?v=2.21.43")
         page = page.replace("intercom.css?v=2.21.14", "intercom.css?v=2.21.46")
         page = page.replace("app.js?v=2.21.11", "app.js?v=2.21.29")
