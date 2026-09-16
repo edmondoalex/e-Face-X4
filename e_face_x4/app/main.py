@@ -65,7 +65,7 @@ from .connectors.control4_media import cached_control4_icon, cached_control4_ico
 from .connectors.supervisor import discover_addon_url, discover_host_url
 from .demo import dashboard as demo_dashboard
 
-VERSION = os.environ.get("EFACE_VERSION", "2.21.82")
+VERSION = os.environ.get("EFACE_VERSION", "2.21.83")
 STATIC = Path(__file__).parent / "static"
 logging.basicConfig(level=logging.WARNING, format="%(asctime)s %(levelname)s [e-face-x4] %(message)s")
 _reconnect_warning_at: dict[str, float] = {}
@@ -1152,6 +1152,7 @@ def create_app() -> FastAPI:
                     "preset_name": str(preset["name"])[:200],
                     "track_id": track_id[:300],
                     "queue_index": int(track["index"]),
+                    "queue_total": int(queue.get("total") or len(queue["tracks"])),
                 })
                 added = True
             result = await control4_list_favorites()
@@ -1245,22 +1246,34 @@ def create_app() -> FastAPI:
                 source_id = int(wiim_settings.load().get("control4_source_id") or 0)
                 if not 1 <= preset_index <= 12 or source_id <= 0:
                     raise ValueError("Preferito WiiM non valido")
+                presets = await client.presets()
+                preset = next((entry for entry in presets if int(entry.get("index") or 0) == preset_index), None)
+                if not preset:
+                    raise ValueError("Il preset WiiM collegato a questo preferito non esiste più")
                 await client.play_preset(preset_index)
                 await Control4MediaConnector(load_control4_config()).command(
                     f"c4room:{room_id}", "select_source", f"listen:{source_id}"
                 )
                 wanted = str(item.get("track_id") or "")
+                expected_name = str(preset.get("name") or item.get("preset_name") or "").strip().casefold()
+                saved_total = max(0, int(item.get("queue_total") or 0))
+                minimum_total = 1 if saved_total == 1 else 2
                 found = None
-                for _ in range(12):
+                queue = None
+                for _ in range(30):
                     await asyncio.sleep(0.5)
                     queue = await client.queue(limit=250)
-                    found = next((track for track in queue["tracks"] if track["track_id"] == wanted), None)
-                    if found:
+                    queue_name = str(queue.get("name") or "").strip().casefold()
+                    candidate = next((track for track in queue["tracks"] if track["track_id"] == wanted), None)
+                    if queue_name == expected_name and int(queue.get("total") or 0) >= minimum_total and candidate:
+                        found = candidate
                         break
                 if not found:
+                    if queue and int(queue.get("total") or 0) < minimum_total:
+                        raise ValueError("La coda completa del preset WiiM non è stata caricata; riprova tra pochi secondi")
                     raise ValueError("Il brano salvato non è più presente nel preset WiiM")
                 await client.play_queue_index(int(found["index"]))
-                return {"ok": True, "target": "wiim_track", "preset_index": preset_index, "queue_index": int(found["index"]), "room_id": room_id}
+                return {"ok": True, "target": "wiim_track", "preset_index": preset_index, "queue_index": int(found["index"]), "queue_total": int(queue.get("total") or 0), "room_id": room_id}
             if item["kind"] == "recent":
                 return await Control4MediaConnector(load_control4_config()).select_recent(room_id, str(item["key"]))
             proxy_id = int(item["proxy_id"])
@@ -1949,8 +1962,8 @@ def create_app() -> FastAPI:
         page = page.replace("tools-dashboard.js?v=2.21.36", "tools-dashboard.js?v=2.21.38")
         page = page.replace("tools-dashboard.js?v=2.21.38", "tools-dashboard.js?v=2.21.41")
         page = page.replace("tools-dashboard.js?v=2.21.41", "tools-dashboard.js?v=2.21.42")
-        page = page.replace("tools-dashboard.js?v=2.21.42", "tools-dashboard.js?v=2.21.82")
-        page = page.replace("tools-dashboard.css?v=2.20.36", "tools-dashboard.css?v=2.21.82")
+        page = page.replace("tools-dashboard.js?v=2.21.42", "tools-dashboard.js?v=2.21.83")
+        page = page.replace("tools-dashboard.css?v=2.20.36", "tools-dashboard.css?v=2.21.83")
         page = page.replace("backgrounds.css?v=2.20.20", "backgrounds.css?v=2.21.43")
         page = page.replace("intercom.css?v=2.21.14", "intercom.css?v=2.21.46")
         page = page.replace("app.js?v=2.21.11", "app.js?v=2.21.29")

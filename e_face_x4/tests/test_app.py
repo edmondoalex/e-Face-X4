@@ -56,7 +56,7 @@ def test_health() -> None:
     response = TestClient(create_app()).get("/health")
     assert response.status_code == 200
     assert response.json()["ok"] is True
-    assert response.json()["version"] == "2.21.82"
+    assert response.json()["version"] == "2.21.83"
 
 
 def test_installed_app_starts_at_dashboard() -> None:
@@ -95,7 +95,7 @@ def test_intercom_is_in_sidebar_with_embedded_view() -> None:
     client_script = (static / "assets" / "intercom.js").read_text(encoding="utf-8")
     intercom_page = (static / "intercom.html").read_text(encoding="utf-8")
     assert "Tablet Control4 · interno 8291" in intercom_page
-    assert "const currentVersion = '2.21.82'" in client_script
+    assert "const currentVersion = '2.21.83'" in client_script
     assert 'id="call-ufficio" data-dial-extension="8291" data-video-capable="true"' in intercom_page
     assert "Postazione esterna · interno 8201" in intercom_page
     assert "Postazione esterna · interno ${station.sip_extension}" in client_script
@@ -302,10 +302,10 @@ def test_intercom_dashboard_stores_only_local_settings(monkeypatch, tmp_path) ->
     assert 'id="users-tool"' in page
     assert 'id="logout"' in page
     assert page.index('id="logout"') < page.index('id="tools-user-section"')
-    assert "tools-dashboard.js?v=2.21.82" in page
+    assert "tools-dashboard.js?v=2.21.83" in page
     home = client.get("/").text
     assert "backgrounds.css?v=2.21.43" in home
-    assert "app.js?v=2.21.82" in home
+    assert "app.js?v=2.21.83" in home
 
 
 def test_external_stations_api_requires_login_and_hides_secrets(monkeypatch, tmp_path) -> None:
@@ -688,7 +688,7 @@ def test_tools_page_starts_with_selected_background_and_card_theme(monkeypatch, 
     login = client.get("/login").text
     assert '<body class="app-theme" data-background="midnight" data-card-theme="slate">' in home
     assert 'ui-theme-contract.css?v=2.21.29' in home
-    assert 'app.js?v=2.21.82' in home
+    assert 'app.js?v=2.21.83' in home
     assert 'energy.css?v=2.21.30' in home
     assert 'home-comfort.css?v=2.21.31' in home
     assert '<body class="login-theme" data-background="midnight" data-card-theme="slate">' in login
@@ -1549,11 +1549,58 @@ def test_wiim_track_favorite_restores_exact_queue_item(monkeypatch, tmp_path) ->
     assert saved.status_code == 200
     favorite = next(item for item in saved.json()["items"] if item["kind"] == "wiim_track")
     assert favorite["preset_index"] == 6 and favorite["track_id"] == "tracks/abc"
+    assert favorite["queue_total"] == 50
 
     restored = client.post("/api/control4/favorites/select", json={"id": favorite["id"], "room_id": 51})
     assert restored.status_code == 200
     assert restored.json()["queue_index"] == 7
+    assert restored.json()["queue_total"] == 50
     assert calls == [("preset", 6), ("control4", "c4room:51", "select_source", "listen:1667"), ("queue", 7)]
+
+
+def test_wiim_track_favorite_waits_for_complete_preset_queue(monkeypatch, tmp_path) -> None:
+    import app.main as main_module
+    from app.media_favorites import add_favorite
+
+    calls = []
+    queue_reads = 0
+    monkeypatch.setenv("EFACE_MEDIA_FAVORITES", str(tmp_path / "favorites.json"))
+    monkeypatch.setattr(main_module.wiim_settings, "load", lambda: {"enabled": True, "host": "192.168.3.52", "control4_source_id": 1667})
+    add_favorite({"id": "wiim:track:6:tracks/abc", "kind": "wiim_track", "title": "Titolo", "track_id": "tracks/abc", "preset_index": 6, "preset_name": "Cover e remix", "queue_index": 1, "queue_total": 200})
+
+    async def presets(self):
+        return [{"index": 6, "name": "Cover e remix"}]
+
+    async def play_preset(self, index):
+        calls.append(("preset", index))
+
+    async def queue(self, **kwargs):
+        nonlocal queue_reads
+        queue_reads += 1
+        total = 1 if queue_reads == 1 else 200
+        return {"name": "Cover e remix", "total": total, "tracks": [{"index": 1, "track_id": "tracks/abc"}]}
+
+    async def play_queue_index(self, index):
+        calls.append(("queue", index))
+
+    async def command(self, registry_id, operation, value=None):
+        calls.append(("control4", registry_id, operation, value))
+
+    async def no_sleep(_):
+        return None
+
+    monkeypatch.setattr(main_module.WiiMClient, "presets", presets)
+    monkeypatch.setattr(main_module.WiiMClient, "play_preset", play_preset)
+    monkeypatch.setattr(main_module.WiiMClient, "queue", queue)
+    monkeypatch.setattr(main_module.WiiMClient, "play_queue_index", play_queue_index)
+    monkeypatch.setattr(main_module.Control4MediaConnector, "command", command)
+    monkeypatch.setattr(main_module.asyncio, "sleep", no_sleep)
+
+    response = TestClient(main_module.create_app()).post("/api/control4/favorites/select", json={"id": "wiim:track:6:tracks/abc", "room_id": 51})
+    assert response.status_code == 200
+    assert response.json()["queue_total"] == 200
+    assert queue_reads == 2
+    assert calls[-1] == ("queue", 1)
 
 
 def test_wiim_preset_delete_endpoint_clears_cache(monkeypatch) -> None:

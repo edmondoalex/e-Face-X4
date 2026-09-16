@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.21.83 — 2026-09-16
+
+- Impedisce al richiamo di un preferito brano WiiM di agganciare la coda transitoria da un solo elemento mentre il preset è ancora in caricamento.
+- Attende fino a 15 secondi nome corretto, brano stabile e almeno due elementi prima di usare `PlayQueueWithIndex`, conservando così la prosecuzione del preset.
+- Salva nei nuovi preferiti anche la dimensione originaria della coda e segnala esplicitamente preset eliminati o code non completate.
+
 ## 2.21.82 — 2026-09-15
 
 - Include nel pacchetto Git le 31 icone Control4/player caricate manualmente nell’add-on, mantenendo prioritarie le personalizzazioni future dell’utente.
