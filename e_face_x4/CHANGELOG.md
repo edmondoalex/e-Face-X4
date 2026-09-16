@@ -1,5 +1,12 @@
 # Changelog
 
+## 2.21.130 — 2026-09-16
+
+- Nasce e-Face Composer con progetto Audio/Video persistente, versionato e indipendente dai produttori.
+- La prima sincronizzazione importa automaticamente stanze e player Control4 e il WiiM configurato, generando capacità ed endpoint sicuri.
+- La nuova mappa futuristica in Strumenti mostra salute, diagnostica e topologia e consente di spostare i dispositivi tra gli ambienti.
+- Ogni salvataggio del progetto mantiene una copia locale di sicurezza.
+
 ## 2.21.129 — 2026-09-16
 
 - I singoli brani SoundCloud salvati con la stella e-Face compaiono ora nella sezione Preferiti insieme agli altri servizi.

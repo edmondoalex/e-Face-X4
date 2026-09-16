@@ -949,6 +949,48 @@ $('#doorbird-call-test').addEventListener('click', async () => {
   } catch(error) { toolsIntercom.hidden = true; document.body.style.overflow = ''; message(error.message) } finally { button.disabled = false }
 })
 
+const mediaComposerPanel = document.createElement('section')
+mediaComposerPanel.id = 'media-composer-config'
+mediaComposerPanel.className = 'media-config admin-dashboard-panel media-composer'
+mediaComposerPanel.hidden = true
+mediaComposerPanel.innerHTML = `<header><button id="media-composer-back" aria-label="Torna ad Amministrazione">‹</button><div><small>EFACE COMPOSER</small><h2>Progetto Audio / Video</h2></div><div class="composer-live"><i></i> TOPOLOGIA ATTIVA</div></header><div class="composer-hero"><div><span>SMART MEDIA FABRIC</span><h3>La casa diventa una rete multimediale intelligente.</h3><p>Dispositivi, ambienti, endpoint e percorsi in un unico progetto indipendente dai produttori.</p></div><div id="composer-score" class="composer-score"><b>—</b><small>PRONTO</small></div></div><div id="composer-metrics" class="composer-metrics"></div><div class="composer-toolbar"><button id="composer-discover" type="button">SCOPRI E SINCRONIZZA</button><button id="composer-save" type="button" class="secondary">SALVA PROGETTO</button><span id="composer-revision">Progetto non caricato</span></div><div id="composer-diagnostics" class="composer-diagnostics"></div><div class="composer-map-head"><div><small>TOPOLOGIA</small><h3>Ambienti e dispositivi</h3></div><p>Trascina un dispositivo in un altro ambiente. e‑Face ricalcola gli endpoint compatibili.</p></div><div id="composer-map" class="composer-map"></div></section>`
+document.body.append(mediaComposerPanel)
+
+let mediaProject = null
+const composerEscape = value => String(value ?? '').replace(/[&<>'"]/g, character => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[character]))
+const capabilityLabels = {audio:'Audio',video:'Video',transport:'Transport',volume:'Volume',mute:'Mute',queue:'Coda',presets:'Preset',eq:'EQ',multiroom:'Multiroom',sources:'Sorgenti',power:'Power'}
+function renderMediaComposer() {
+  if (!mediaProject) return
+  const online = mediaProject.devices.filter(device => device.online).length
+  const warnings = mediaProject.diagnostics.filter(item => item.severity !== 'info').length
+  const score = mediaProject.devices.length ? Math.max(0, Math.round((online / mediaProject.devices.length) * 100) - warnings * 8) : 0
+  $('#composer-score').innerHTML = `<b>${score}</b><small>HEALTH SCORE</small>`
+  $('#composer-revision').textContent = `Revisione ${mediaProject.revision} · schema ${mediaProject.schema_version}`
+  $('#composer-metrics').innerHTML = `<article><b>${mediaProject.zones.length}</b><span>AMBIENTI</span></article><article><b>${mediaProject.devices.length}</b><span>DISPOSITIVI</span></article><article><b>${online}</b><span>ONLINE</span></article><article><b>${mediaProject.connections.length}</b><span>PERCORSI</span></article>`
+  $('#composer-diagnostics').innerHTML = mediaProject.diagnostics.length ? mediaProject.diagnostics.map(item => `<article class="${composerEscape(item.severity)}"><b>${item.severity === 'warning' ? '△' : '✓'}</b><span>${composerEscape(item.message)}</span></article>`).join('') : '<article class="ok"><b>✓</b><span>Nessun conflitto rilevato nella struttura acquisita.</span></article>'
+  const endpointKinds = [['audio','Audio','audio'],['audio_volume','Volume audio','volume'],['video','Video','video'],['video_audio','Audio video','audio'],['video_volume','Volume video','volume'],['multiroom','Multiroom','multiroom']]
+  $('#composer-map').innerHTML = mediaProject.zones.sort((a,b) => a.order-b.order).map(zone => {
+    const devices = mediaProject.devices.filter(device => device.zone_id === zone.id)
+    const endpoints = mediaProject.endpoints[zone.id] || {}
+    return `<section class="composer-zone" data-composer-zone="${composerEscape(zone.id)}"><header><div><i></i><span>${composerEscape(zone.floor || 'AMBIENTE')}</span><h4>${composerEscape(zone.name)}</h4></div><b>${devices.length}</b></header><div class="composer-endpoints">${Object.entries(endpoints).map(([kind,id]) => `<span title="${composerEscape(id)}">${composerEscape(kind.replaceAll('_',' '))}</span>`).join('') || '<em>Endpoint da definire</em>'}</div><div class="composer-devices">${devices.map(device => `<article draggable="true" data-composer-device="${composerEscape(device.id)}" class="${device.online ? 'online' : 'offline'}"><div class="composer-device-icon">${device.provider === 'wiim' ? 'W' : device.provider === 'control4' ? 'C4' : 'AV'}</div><div><small>${composerEscape(device.provider)} · ${composerEscape(device.kind.replaceAll('_',' '))}</small><strong>${composerEscape(device.name)}</strong><p>${composerEscape(device.model || device.address || '')}</p></div><i title="${device.online ? 'Online' : 'Offline'}"></i><footer>${device.capabilities.map(capability => `<span>${composerEscape(capabilityLabels[capability] || capability)}</span>`).join('')}<select data-composer-move="${composerEscape(device.id)}" title="Sposta in un altro ambiente">${mediaProject.zones.map(target => `<option value="${composerEscape(target.id)}"${target.id === zone.id ? ' selected' : ''}>${composerEscape(target.name)}</option>`).join('')}</select></footer></article>`).join('') || '<div class="composer-empty">Trascina qui un dispositivo</div>'}</div><details class="composer-routing"><summary>Routing ed endpoint</summary>${endpointKinds.map(([kind,label,capability]) => `<label>${label}<select data-composer-endpoint="${kind}" data-composer-endpoint-zone="${composerEscape(zone.id)}"><option value="">Non assegnato</option>${devices.filter(device => device.capabilities.includes(capability)).map(device => `<option value="${composerEscape(device.id)}"${endpoints[kind] === device.id ? ' selected' : ''}>${composerEscape(device.name)}</option>`).join('')}</select></label>`).join('')}</details></section>`
+  }).join('') || '<div class="composer-first-run"><b>Il progetto è pronto per la prima scansione.</b><span>Premi “Scopri e sincronizza” per importare automaticamente Control4 e WiiM.</span></div>'
+  document.querySelectorAll('[data-composer-device]').forEach(card => card.addEventListener('dragstart', event => event.dataTransfer.setData('text/plain', card.dataset.composerDevice)))
+  document.querySelectorAll('[data-composer-zone]').forEach(zone => {
+    zone.addEventListener('dragover', event => { event.preventDefault(); zone.classList.add('drag-over') })
+    zone.addEventListener('dragleave', () => zone.classList.remove('drag-over'))
+    zone.addEventListener('drop', event => { event.preventDefault(); zone.classList.remove('drag-over'); const device = mediaProject.devices.find(item => item.id === event.dataTransfer.getData('text/plain')); if (device) { device.zone_id = zone.dataset.composerZone; for (const values of Object.values(mediaProject.endpoints)) for (const [kind,id] of Object.entries(values)) if (id === device.id) delete values[kind]; renderMediaComposer() } })
+  })
+  document.querySelectorAll('[data-composer-move]').forEach(select => select.addEventListener('change', () => { const device = mediaProject.devices.find(item => item.id === select.dataset.composerMove); if (device) { device.zone_id = select.value; for (const values of Object.values(mediaProject.endpoints)) for (const [kind,id] of Object.entries(values)) if (id === device.id) delete values[kind]; renderMediaComposer() } }))
+  document.querySelectorAll('[data-composer-endpoint]').forEach(select => select.addEventListener('change', () => { const zone = select.dataset.composerEndpointZone; mediaProject.endpoints[zone] ||= {}; if (select.value) mediaProject.endpoints[zone][select.dataset.composerEndpoint] = select.value; else delete mediaProject.endpoints[zone][select.dataset.composerEndpoint]; renderMediaComposer() }))
+}
+async function loadMediaComposer(discover=false) {
+  mediaProject = await request(discover ? 'api/admin/media-project/discover' : 'api/admin/media-project', discover ? {method:'POST'} : {})
+  renderMediaComposer()
+}
+$('#media-composer-back').addEventListener('click', () => closePanel('media-composer-config'))
+$('#composer-discover').addEventListener('click', async event => { event.currentTarget.disabled=true; try { await loadMediaComposer(true); message('Topologia sincronizzata con i dispositivi disponibili') } catch(error) { message(error.message) } finally { event.currentTarget.disabled=false } })
+$('#composer-save').addEventListener('click', async event => { event.currentTarget.disabled=true; try { mediaProject = await request('api/admin/media-project', {method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(mediaProject)}); renderMediaComposer(); message('Progetto multimediale salvato') } catch(error) { message(error.message) } finally { event.currentTarget.disabled=false } })
+
 async function initialize() {
   const status = await request('api/auth/status')
   if (status.enabled) {
@@ -961,6 +1003,13 @@ async function initialize() {
   }
   $('#tools-admin-nav').hidden = status.enabled && status.role !== 'admin'
   if (status.enabled && status.role === 'admin') {
+    const composer = document.createElement('button')
+    composer.type = 'button'
+    composer.id = 'media-composer-tool'
+    composer.className = 'tool-card composer-tool-card'
+    composer.innerHTML = '<span>⌘</span><div><b>e‑Face Composer</b><small>Progetto intelligente Audio / Video</small></div><i>›</i>'
+    composer.addEventListener('click', async () => { try { await loadMediaComposer(); openPanel('media-composer-config') } catch(error) { message(error.message) } })
+    $('#admin-tools .tools-grid').prepend(composer)
     const vault = document.createElement('button')
     vault.type = 'button'
     vault.id = 'credentials-tool'

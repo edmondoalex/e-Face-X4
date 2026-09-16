@@ -54,6 +54,7 @@ from . import wiim_settings
 from . import wiim_services
 from . import soundcloud_settings
 from . import soundcloud_library
+from . import media_project
 from . import startup_settings
 from .connectors.soundcloud import SoundCloudClient
 from .media_preferences import apply_preferences, load_preferences, save_preferences
@@ -67,7 +68,7 @@ from .connectors.supervisor import discover_addon_url, discover_host_url
 from .media_realtime import SharedMediaRealtime
 from .demo import dashboard as demo_dashboard
 
-VERSION = os.environ.get("EFACE_VERSION", "2.21.129")
+VERSION = os.environ.get("EFACE_VERSION", "2.21.130")
 STATIC = Path(__file__).parent / "static"
 logging.basicConfig(level=logging.WARNING, format="%(asctime)s %(levelname)s [e-face-x4] %(message)s")
 _reconnect_warning_at: dict[str, float] = {}
@@ -326,6 +327,32 @@ def create_app() -> FastAPI:
     async def admin_wiim(request: Request) -> dict:
         require_admin(request)
         return {"settings": wiim_settings.load()}
+
+    @app.get("/api/admin/media-project")
+    async def admin_media_project(request: Request) -> dict:
+        require_admin(request)
+        return media_project.load()
+
+    @app.put("/api/admin/media-project")
+    async def admin_media_project_save(request: Request) -> dict:
+        require_admin(request)
+        try:
+            return media_project.save(await request.json())
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    @app.post("/api/admin/media-project/discover")
+    async def admin_media_project_discover(request: Request) -> dict:
+        require_admin(request)
+        control4 = await Control4MediaConnector(load_control4_config()).snapshot()
+        wiim_config = wiim_settings.load()
+        wiim = None
+        if wiim_config.get("enabled") and wiim_config.get("host"):
+            try:
+                wiim = await WiiMClient(wiim_config["host"]).snapshot()
+            except (httpx.HTTPError, RuntimeError, ValueError):
+                pass
+        return media_project.discovered(control4, wiim, wiim_config)
 
     @app.put("/api/admin/wiim")
     async def admin_wiim_save(request: Request) -> dict:
@@ -2364,9 +2391,9 @@ def create_app() -> FastAPI:
         page = page.replace('content="#263f48"', 'content="#181c1f"')
         page = page.replace("manifest.webmanifest?v=2.20.38", "manifest.webmanifest?v=2.21.59")
         page = page.replace("app.css?v=2.20.20", "app.css?v=2.21.73")
-        page = page.replace("app.css?v=2.21.84", "app.css?v=2.21.129")
-        page = page.replace("home-status.css?v=2.20.20", "home-status.css?v=2.21.129")
-        page = page.replace("tools.js?v=2.21.1", "tools.js?v=2.21.129")
+        page = page.replace("app.css?v=2.21.84", "app.css?v=2.21.130")
+        page = page.replace("home-status.css?v=2.20.20", "home-status.css?v=2.21.130")
+        page = page.replace("tools.js?v=2.21.1", "tools.js?v=2.21.130")
         page = page.replace("ui-theme-contract.css?v=2.21.27", "ui-theme-contract.css?v=2.21.29")
         page = page.replace("tools-dashboard.js?v=2.21.27", "tools-dashboard.js?v=2.21.33")
         page = page.replace("tools-dashboard.js?v=2.21.33", "tools-dashboard.js?v=2.21.34")
@@ -2374,8 +2401,8 @@ def create_app() -> FastAPI:
         page = page.replace("tools-dashboard.js?v=2.21.36", "tools-dashboard.js?v=2.21.38")
         page = page.replace("tools-dashboard.js?v=2.21.38", "tools-dashboard.js?v=2.21.41")
         page = page.replace("tools-dashboard.js?v=2.21.41", "tools-dashboard.js?v=2.21.42")
-        page = page.replace("tools-dashboard.js?v=2.21.42", "tools-dashboard.js?v=2.21.129")
-        page = page.replace("tools-dashboard.css?v=2.20.36", "tools-dashboard.css?v=2.21.129")
+        page = page.replace("tools-dashboard.js?v=2.21.42", "tools-dashboard.js?v=2.21.130")
+        page = page.replace("tools-dashboard.css?v=2.20.36", "tools-dashboard.css?v=2.21.130")
         page = page.replace("backgrounds.css?v=2.20.20", "backgrounds.css?v=2.21.43")
         page = page.replace("intercom.css?v=2.21.14", "intercom.css?v=2.21.46")
         page = page.replace("app.js?v=2.21.11", "app.js?v=2.21.29")
