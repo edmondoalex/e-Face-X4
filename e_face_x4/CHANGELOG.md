@@ -1,5 +1,9 @@
 # Changelog
 
+## 2.21.104 — 2026-09-16
+
+- Dopo il fallback diretto, e-Face ripristina la coda SoundCloud senza interrompere il flusso e attende lo stato reale del player.
+
 ## 2.21.103 — 2026-09-16
 
 - Consentiti gli URL SoundCloud firmati nel fallback di riproduzione diretta, mantenendo la validazione HTTPS.

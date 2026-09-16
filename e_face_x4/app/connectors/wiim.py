@@ -235,11 +235,15 @@ class WiiMClient:
         await self._playqueue("PlayQueueWithIndex", {"QueueName": queue_name, "Index": int(index) - 1})
 
     async def create_queue(self, context: str, queue_name: str) -> None:
+        await self.load_queue(context)
+        await self.play_queue_index(1, queue_name)
+        await self.player_action("play")
+
+    async def load_queue(self, context: str) -> None:
+        """Load a queue without changing the current transport state."""
         if not context.startswith("<?xml") or len(context) > 1_000_000:
             raise ValueError("Coda WiiM non valida")
         await self._playqueue("CreateQueue", {"QueueContext": context})
-        await self.play_queue_index(1, queue_name)
-        await self.player_action("play")
 
     async def delete_preset(self, index: int) -> None:
         index = int(index)
