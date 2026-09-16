@@ -144,3 +144,7 @@ Le associazioni per nome coprono anche installazioni con ID Control4 differenti;
 ## Correzione coda transitoria 2.21.83
 
 La prova reale del 16/09/2026 ha mostrato che subito dopo `MCUKeyShortClick` il firmware può esporre temporaneamente una coda omonima con il solo brano precedente (`TotalNumber=1`). Il richiamo 2.21.80 riconosceva immediatamente l'ID salvato e inviava `PlayQueueWithIndex` su quella coda incompleta: il brano corretto partiva, ma al termine non esisteva un elemento successivo. Dalla 2.21.83 il richiamo valida prima l'esistenza del preset e attende fino a 15 secondi che nome, ID brano e numero minimo di elementi della coda siano coerenti; i nuovi preferiti conservano anche il totale osservato al salvataggio. Se il caricamento non si completa non viene trasformata silenziosamente la sessione in una riproduzione singola.
+
+## Provider player nativo 2.21.85
+
+Quando una stanza Control4 usa la sorgente WiiM configurata, dalla 2.21.85 e-Face conserva dalla stanza soltanto identità, routing e zone, ma sovrappone stato, volume, mute, titolo, artista, album e cover letti direttamente dalle API WiiM. Anche i comandi di trasporto e volume vengono inviati al WiiM; selezione sorgente, spegnimento stanza e distribuzione zone restano a Control4 perché riguardano l'impianto e non il player. Se nessuna stanza Control4 è collegata, il WiiM viene pubblicato come media player autonomo `provider=wiim`. La lettura nativa parte in parallelo agli altri connettori per evitare latenza aggiuntiva nel bootstrap.

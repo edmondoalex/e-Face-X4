@@ -66,7 +66,7 @@ from .connectors.control4_media import cached_control4_icon, cached_control4_ico
 from .connectors.supervisor import discover_addon_url, discover_host_url
 from .demo import dashboard as demo_dashboard
 
-VERSION = os.environ.get("EFACE_VERSION", "2.21.84")
+VERSION = os.environ.get("EFACE_VERSION", "2.21.85")
 STATIC = Path(__file__).parent / "static"
 logging.basicConfig(level=logging.WARNING, format="%(asctime)s %(levelname)s [e-face-x4] %(message)s")
 _reconnect_warning_at: dict[str, float] = {}
@@ -95,6 +95,49 @@ def artwork_media_type(declared: str, content: bytes) -> str:
     if content.startswith(b"RIFF") and content[8:12] == b"WEBP":
         return "image/webp"
     return ""
+
+
+def wiim_media_fingerprint(snapshot: dict) -> str:
+    identity = "|".join(str(snapshot.get(key) or "") for key in ("track_id", "title", "artist", "album", "artwork"))
+    return f"wiim-{hashlib.sha256(identity.encode()).hexdigest()[:24]}" if identity.strip("|") else ""
+
+
+def native_wiim_media_item(snapshot: dict) -> dict:
+    name = str(snapshot.get("name") or "WiiM")
+    identity = str(snapshot.get("id") or "player")
+    return {
+        "id": f"wiim:{identity}", "registry_id": f"wiim:{identity}", "entity_id": f"wiim.{identity}",
+        "provider": "wiim", "transport_provider": "wiim", "kind": "media_player", "icon": "mdi:speaker-wireless",
+        "name": name, "room": name, "state": snapshot.get("state") or "unknown", "availability": "available",
+        "connection_status": "online", "volume": snapshot.get("volume"), "muted": bool(snapshot.get("muted")),
+        "source": str(snapshot.get("source") or "WiiM"), "title": snapshot.get("title"), "artist": snapshot.get("artist"),
+        "album": snapshot.get("album"), "content_fingerprint": wiim_media_fingerprint(snapshot), "wiim_artwork": bool(snapshot.get("artwork")),
+        "active_experience": "listen", "experiences": ["listen"], "source_options": [], "source_list": [],
+        "capabilities": {"play": True, "pause": True, "stop": True, "previous": True, "next": True,
+                         "turn_off": False, "set_volume": True, "mute": True, "select_source": False,
+                         "grouping": False, "artwork": bool(snapshot.get("artwork"))},
+    }
+
+
+def overlay_wiim_on_control4(providers: list[dict], snapshot: dict, source_id: int) -> bool:
+    linked = False
+    for provider in providers:
+        if provider.get("id") != "control4":
+            continue
+        for item in provider.get("items", []):
+            if item.get("kind") != "media_player" or int(item.get("active_source_id") or 0) != source_id:
+                continue
+            linked = True
+            item.update({
+                "transport_provider": "wiim", "state": snapshot.get("state") or item.get("state"),
+                "volume": snapshot.get("volume"), "muted": bool(snapshot.get("muted")),
+                "title": snapshot.get("title"), "artist": snapshot.get("artist"), "album": snapshot.get("album"),
+                "content_fingerprint": wiim_media_fingerprint(snapshot), "wiim_artwork": bool(snapshot.get("artwork")),
+            })
+            item.setdefault("capabilities", {}).update({"play": True, "pause": True, "stop": True, "previous": True,
+                                                        "next": True, "set_volume": True, "mute": True,
+                                                        "artwork": bool(snapshot.get("artwork"))})
+    return linked
 
 
 class AppAssets(StaticFiles):
@@ -290,6 +333,23 @@ def create_app() -> FastAPI:
             return {"device": await configured_wiim().snapshot()}
         except (httpx.HTTPError, RuntimeError) as exc:
             raise HTTPException(status_code=502, detail="WiiM non raggiungibile") from exc
+
+    @app.get("/api/wiim/artwork")
+    async def wiim_artwork(fingerprint: str = Query(..., min_length=8, max_length=80)) -> Response:
+        try:
+            snapshot = await configured_wiim().snapshot()
+            if wiim_media_fingerprint(snapshot) != fingerprint or not snapshot.get("artwork"):
+                raise HTTPException(status_code=404, detail="Copertina WiiM non più disponibile")
+            async with httpx.AsyncClient(timeout=8, follow_redirects=True) as client:
+                upstream = await client.get(str(snapshot["artwork"]))
+            media_type = artwork_media_type(upstream.headers.get("content-type", ""), upstream.content)
+            if upstream.status_code != 200 or not media_type or len(upstream.content) > 700_000:
+                raise HTTPException(status_code=415, detail="Copertina WiiM non valida")
+            return Response(upstream.content, media_type=media_type, headers={"Cache-Control": "private, max-age=30", "X-Content-Type-Options": "nosniff"})
+        except HTTPException:
+            raise
+        except (httpx.HTTPError, RuntimeError) as exc:
+            raise HTTPException(status_code=502, detail="Copertina WiiM non raggiungibile") from exc
 
     @app.get("/api/wiim/presets")
     async def wiim_presets() -> dict:
@@ -1979,8 +2039,8 @@ def create_app() -> FastAPI:
         page = page.replace("tools-dashboard.js?v=2.21.36", "tools-dashboard.js?v=2.21.38")
         page = page.replace("tools-dashboard.js?v=2.21.38", "tools-dashboard.js?v=2.21.41")
         page = page.replace("tools-dashboard.js?v=2.21.41", "tools-dashboard.js?v=2.21.42")
-        page = page.replace("tools-dashboard.js?v=2.21.42", "tools-dashboard.js?v=2.21.84")
-        page = page.replace("tools-dashboard.css?v=2.20.36", "tools-dashboard.css?v=2.21.84")
+        page = page.replace("tools-dashboard.js?v=2.21.42", "tools-dashboard.js?v=2.21.85")
+        page = page.replace("tools-dashboard.css?v=2.20.36", "tools-dashboard.css?v=2.21.85")
         page = page.replace("backgrounds.css?v=2.20.20", "backgrounds.css?v=2.21.43")
         page = page.replace("intercom.css?v=2.21.14", "intercom.css?v=2.21.46")
         page = page.replace("app.js?v=2.21.11", "app.js?v=2.21.29")
@@ -2116,8 +2176,17 @@ def create_app() -> FastAPI:
             KseniaConnector(ksenia_config, settings.request_timeout_s),
             *media_connectors(settings),
         ]
+        wiim_config = wiim_settings.load()
+        wiim_task = asyncio.create_task(WiiMClient(wiim_config["host"]).snapshot()) if wiim_config.get("enabled") and wiim_config.get("host") else None
         providers = list(await asyncio.gather(*(connector.snapshot() for connector in connectors)))
         providers = [apply_preferences(provider) if provider.get("id") in {"evoice", "control4"} else provider for provider in providers]
+        if wiim_task:
+            try:
+                native_snapshot = await wiim_task
+                linked = overlay_wiim_on_control4(providers, native_snapshot, int(wiim_config.get("control4_source_id") or 0))
+                providers.append({"id": "wiim", "name": "WiiM nativo", "status": "online", "items": [] if linked else [native_wiim_media_item(native_snapshot)]})
+            except (httpx.HTTPError, RuntimeError, ValueError):
+                providers.append({"id": "wiim", "name": "WiiM nativo", "status": "offline", "items": [], "reason": "WiiM non raggiungibile"})
         dashboard = demo_dashboard() if settings.demo_mode else {"rooms": [], "widgets": [], "media": None}
         dashboard.setdefault("home", {})["name"] = settings.home_name
         if not settings.demo_mode:
@@ -2132,7 +2201,7 @@ def create_app() -> FastAPI:
             ksenia = next((item for item in providers if item.get("id") == "ksenia" and item.get("status") in {"online", "stale"}), None)
             if isinstance(ksenia, dict):
                 dashboard["devices"].extend(ksenia.get("items", []))
-            for media in (item for item in providers if item.get("id") in {"control4", "evoice"} and item.get("status") in {"online", "stale"}):
+            for media in (item for item in providers if item.get("id") in {"control4", "evoice", "wiim"} and item.get("status") in {"online", "stale"}):
                 media_items = media.get("items", [])
                 dashboard["devices"].extend(media_items)
                 playing = next((item for item in media_items if str(item.get("state", "")).lower() == "playing"), None)
@@ -2409,6 +2478,24 @@ def create_app() -> FastAPI:
     @app.post("/api/devices/{device_id}/command")
     async def device_command(device_id: str, payload: dict) -> dict:
         settings = load_settings()
+        operation = str(payload.get("action") or "")
+        wiim_actions = {
+            "media_play": "play", "media_pause": "pause", "media_stop": "stop",
+            "media_next": "next", "media_previous": "previous", "set_volume": "volume",
+            "volume_mute": "mute", "volume_unmute": "unmute",
+        }
+        if device_id.startswith("wiim:"):
+            action = wiim_actions.get(operation)
+            if not action:
+                raise HTTPException(status_code=400, detail="Comando WiiM non valido")
+            try:
+                client = configured_wiim()
+                await client.player_action(action, int(payload.get("value")) if operation == "set_volume" else None)
+                return {"ok": True, "provider": "wiim", "device": await client.snapshot()}
+            except ValueError as exc:
+                raise HTTPException(status_code=400, detail=str(exc)) from exc
+            except (httpx.HTTPError, RuntimeError) as exc:
+                raise HTTPException(status_code=502, detail="Comando WiiM non riuscito") from exc
         if device_id.startswith(("ksenia-partition:", "ksenia-zone:", "ksenia-scenario:")):
             config = await resolved_provider(settings.ksenia, "ksenia_lares_addon", 8080, settings.request_timeout_s)
             if not config.enabled or not config.base_url:
@@ -2429,12 +2516,27 @@ def create_app() -> FastAPI:
             control4_enabled = bool(control4.get("username") and control4.get("password"))
             if not control4_enabled and not config.enabled:
                 raise HTTPException(status_code=503, detail="Ekonex Media non disponibile")
-            operation = str(payload.get("action") or "")
             allowed = {"media_play", "media_pause", "media_stop", "turn_off", "media_next", "media_previous", "set_volume", "volume_mute", "volume_unmute", "select_source", "media_join", "media_unjoin", "video_remote", "tts", "set_dnd"}
             if operation not in allowed:
                 raise HTTPException(status_code=400, detail="Comando multimedia non valido")
             if device_id.startswith("c4media:") and operation in {"tts", "set_dnd"}:
                 raise HTTPException(status_code=400, detail="TTS e DND sono disponibili soltanto sui player e-Voice")
+            if device_id.startswith("c4media:") and operation in wiim_actions:
+                wiim_config = wiim_settings.load()
+                source_id = int(wiim_config.get("control4_source_id") or 0)
+                if wiim_config.get("enabled") and wiim_config.get("host") and source_id > 0:
+                    try:
+                        room_id = int(device_id.split(":", 1)[1])
+                        control4_snapshot = await Control4MediaConnector(control4).snapshot()
+                        room = next((item for item in control4_snapshot.get("items", []) if str(item.get("registry_id")) == f"c4room:{room_id}"), None)
+                        if room and int(room.get("active_source_id") or 0) == source_id:
+                            client = WiiMClient(wiim_config["host"])
+                            await client.player_action(wiim_actions[operation], int(payload.get("value")) if operation == "set_volume" else None)
+                            return {"ok": True, "provider": "wiim", "device": await client.snapshot()}
+                    except ValueError as exc:
+                        raise HTTPException(status_code=400, detail=str(exc)) from exc
+                    except (httpx.HTTPError, RuntimeError) as exc:
+                        raise HTTPException(status_code=502, detail="Comando WiiM non riuscito") from exc
             arguments = {}
             if operation == "set_volume":
                 arguments["volume_percent"] = int(payload.get("value"))

@@ -3,6 +3,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.connectors.wiim import WiiMClient, decode_linkplay_text, public_artwork, validate_host
+from app.main import native_wiim_media_item, overlay_wiim_on_control4
 
 
 def test_wiim_host_is_lan_only() -> None:
@@ -18,6 +19,25 @@ def test_wiim_metadata_helpers() -> None:
     assert public_artwork("https://i.scdn.co/image/example") == "https://i.scdn.co/image/example"
     assert public_artwork("file:///etc/passwd") == ""
     assert public_artwork("https://user:pass@example.com/image") == ""
+
+
+def test_wiim_snapshot_overlays_linked_control4_room() -> None:
+    providers = [{"id": "control4", "items": [{"id": "c4media:51", "registry_id": "c4room:51", "kind": "media_player", "active_source_id": 1667, "state": "idle", "title": "Vecchio", "capabilities": {}}]}]
+    snapshot = {"state": "playing", "title": "Titolo WiiM", "artist": "Artista", "album": "Album", "track_id": "track-1", "artwork": "https://example.com/cover.jpg", "volume": 37, "muted": False}
+    assert overlay_wiim_on_control4(providers, snapshot, 1667) is True
+    player = providers[0]["items"][0]
+    assert player["transport_provider"] == "wiim"
+    assert player["title"] == "Titolo WiiM" and player["state"] == "playing"
+    assert player["volume"] == 37 and player["wiim_artwork"] is True
+    assert player["content_fingerprint"].startswith("wiim-")
+
+
+def test_wiim_is_standalone_media_provider_without_control4_room() -> None:
+    item = native_wiim_media_item({"id": "uuid-1", "name": "WiiM Pro", "state": "playing", "source": "SoundCloud", "title": "Track", "track_id": "t1", "volume": 45, "muted": False})
+    assert item["id"] == "wiim:uuid-1"
+    assert item["provider"] == item["transport_provider"] == "wiim"
+    assert item["capabilities"]["next"] is True
+    assert item["capabilities"]["select_source"] is False
 
 
 @pytest.mark.asyncio

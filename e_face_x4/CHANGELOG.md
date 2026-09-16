@@ -1,5 +1,12 @@
 # Changelog
 
+## 2.21.85 — 2026-09-16
+
+- Rende WiiM la fonte autorevole del player e-Face per stato, traccia, artista, album, cover, volume e mute quando la stanza Control4 usa la sorgente WiiM.
+- Invia play, pausa, stop, precedente, successivo, volume e mute direttamente alle API WiiM; Control4 resta soltanto per selezione sorgente, spegnimento stanza e distribuzione zone.
+- Espone il WiiM come player e-Face autonomo quando non è collegato a una stanza Control4 attiva, preparando l’uso audio senza Control4.
+- Esegue la lettura WiiM in parallelo agli altri provider per non allungare il bootstrap della Home.
+
 ## 2.21.84 — 2026-09-16
 
 - Rimuove fondo, riquadro e spaziatura artificiale dal piccolo badge e-Face dei preferiti brano WiiM.

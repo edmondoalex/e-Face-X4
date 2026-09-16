@@ -510,7 +510,7 @@ function renderMediaExperience(devices) {
   const navigatorIcon = selected.provider === 'control4' && serviceName && recentRoomId ? `<button type="button" class="media-navigator-open" data-msp-open data-msp-service="${serviceName}" data-msp-room="${recentRoomId}" title="Apri ${esc(selected.source)}">${sourceGlyph}</button>` : sourceGlyph
   const navigatorArtwork = navigatorIcon !== sourceGlyph ? mainArtwork.replace('class="media-artwork', `data-msp-open data-msp-service="${serviceName}" data-msp-room="${recentRoomId}" role="button" tabindex="0" class="media-artwork`) : mainArtwork
   const activeOption = (selected.source_options || []).find((source) => Number(source.source_id) === Number(selected.active_source_id))
-  const wiimActive = selected.active_experience === 'listen' && /wiim/i.test(`${selected.source || ''} ${activeOption?.label || ''}`)
+  const wiimActive = selected.active_experience === 'listen' && (selected.transport_provider === 'wiim' || /wiim/i.test(`${selected.source || ''} ${activeOption?.label || ''}`))
   const timeline = wiimActive ? '<label class="media-timeline" data-wiim-timeline><input type="range" min="0" max="1" step="1" value="0" style="--position:0%" data-wiim-seek aria-label="Avanzamento brano"><span><output data-wiim-elapsed>0:00</output><output data-wiim-remaining>-0:00</output></span></label>' : ''
   const roomLabel = activeMediaRoom ? '' : `<span class="media-session-room" title="Stanza comandata: ${esc(selected.room || selected.name)}">${esc(selected.room || selected.name)}</span>`
   $('#device-list').innerHTML = `<article class="media-session ${wiimActive ? 'has-wiim-timeline' : ''} ${experienceClass} ${deviceVisualClass(selected)}" data-device-id="${esc(selected.id)}">${navigatorArtwork}${navigatorIcon}<div class="media-session-info"><strong>${esc(selected.title || selected.source || selected.name)}</strong><small>${esc(selected.artist || selected.source || selected.room)}</small><span class="media-track">${esc(selected.album || selected.name)}</span></div>${roomLabel}${power}${timeline}${deviceActions(selected, { hidePower: true, wiim: wiimActive })}</article>${voicePanel}${recent}${favorites}<div class="media-library media-room-library"><button class="media-library-toggle" data-media-section-toggle="rooms" aria-expanded="${mediaSections.rooms}"><strong>Stanze</strong><span class="mdi-mask" style="${mdiStyle(mediaSections.rooms ? 'mdi:chevron-up' : 'mdi:chevron-down', 'chevron-down')}"></span></button><div class="media-service-grid" ${mediaSections.rooms ? '' : 'hidden'}>${players}</div></div><div class="media-library media-source-library"><h3>Sorgenti e servizi</h3><div class="media-service-grid">${sources || '<span class="empty-state">Nessuna sorgente disponibile</span>'}</div></div>`
@@ -630,9 +630,9 @@ function mediaFavoritesHtml(items, roomId) {
 }
 
 function nowPlayingFavorite(selected) {
-  if (selected?.provider !== 'control4' || selected.active_experience !== 'listen') return { recent: null, favorite: null }
+  if ((!selected || !['control4','wiim'].includes(selected.provider)) || selected.active_experience !== 'listen') return { recent: null, favorite: null }
   const wiimSource = (selected.source_options || []).find((source) => source.experience === 'listen' && /wiim/i.test(String(source.label || '')))
-  if (wiimSource && Number(selected.active_source_id) === Number(wiimSource.source_id)) {
+  if (selected.transport_provider === 'wiim' || (wiimSource && Number(selected.active_source_id) === Number(wiimSource.source_id))) {
     const title = String(selected.title || '').trim().toLocaleLowerCase('it')
     const artist = String(selected.artist || '').trim().toLocaleLowerCase('it')
     const favorite = favoritesCache?.find((item) => item.kind === 'wiim_track' && String(item.title || '').trim().toLocaleLowerCase('it') === title && String(item.subtitle || '').trim().toLocaleLowerCase('it') === artist) || null
@@ -973,7 +973,7 @@ function renderHomeMediaSessions() {
     const artwork = !player.content_fingerprint && player.provider === 'control4' && sourceId
       ? `<span class="home-live-art source"><img src="${apiUrl(`api/control4/source-icon/${sourceId}?v=${encodeURIComponent(appVersion)}`)}" alt="" onload="this.parentElement.classList.add('loaded')" onerror="this.hidden=true"><span class="mdi-mask" style="${mdiStyle(video ? 'mdi:television' : mediaSourceIcon(player.source), video ? 'television' : 'music-circle')}"></span></span>`
       : player.content_fingerprint
-        ? `<span class="home-live-art"><img src="${apiUrl(`api/media/${encodeURIComponent(player.registry_id)}/artwork?fingerprint=${encodeURIComponent(player.content_fingerprint)}`)}" alt="" loading="lazy" onerror="this.hidden=true"></span>`
+      ? `<span class="home-live-art"><img src="${mediaArtworkUrl(player)}" alt="" loading="lazy" onerror="this.hidden=true"></span>`
         : `<span class="home-live-art fallback"><span class="mdi-mask" style="${mdiStyle(video ? 'mdi:television' : mediaSourceIcon(player.source), video ? 'television' : 'music-circle')}"></span></span>`
     const rooms = members.map((item) => item.room).filter(Boolean).join(' · ')
     return `<button class="home-live-session ${video ? 'video' : 'audio'}" data-home-session="${esc(player.id)}">${artwork}<span class="home-live-info"><small>${video ? 'VIDEO' : 'AUDIO'} IN RIPRODUZIONE</small><strong>${esc(player.title || player.source || player.name)}</strong><span>${esc([player.artist || player.source, rooms].filter(Boolean).join(' · '))}</span></span><i class="home-live-eq" aria-hidden="true"><b></b><b></b><b></b><b></b><b></b><b></b><b></b><b></b></i></button>`
@@ -988,8 +988,14 @@ function mediaArtwork(device) {
   if (!device.content_fingerprint) return fallback
     ? `<img class="media-artwork source-fallback" src="${esc(fallback)}" alt="" onerror="this.classList.add('missing');this.removeAttribute('src')">`
     : '<span class="media-artwork missing" aria-hidden="true"></span>'
-  const source = apiUrl(`api/media/${encodeURIComponent(device.registry_id)}/artwork?fingerprint=${encodeURIComponent(device.content_fingerprint)}`)
+  const source = mediaArtworkUrl(device)
   return `<img class="media-artwork" src="${esc(source)}" alt="" loading="lazy" onerror="${fallback ? `this.classList.add('source-fallback');this.onerror=()=>{this.classList.add('missing');this.removeAttribute('src')};this.src='${esc(fallback)}'` : `this.classList.add('missing');this.removeAttribute('src')`}">`
+}
+
+function mediaArtworkUrl(device) {
+  return device.transport_provider === 'wiim'
+    ? apiUrl(`api/wiim/artwork?fingerprint=${encodeURIComponent(device.content_fingerprint)}`)
+    : apiUrl(`api/media/${encodeURIComponent(device.registry_id)}/artwork?fingerprint=${encodeURIComponent(device.content_fingerprint)}`)
 }
 
 function lightIsOn(device) {

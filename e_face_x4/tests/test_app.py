@@ -56,7 +56,7 @@ def test_health() -> None:
     response = TestClient(create_app()).get("/health")
     assert response.status_code == 200
     assert response.json()["ok"] is True
-    assert response.json()["version"] == "2.21.84"
+    assert response.json()["version"] == "2.21.85"
 
 
 def test_installed_app_starts_at_dashboard() -> None:
@@ -95,7 +95,7 @@ def test_intercom_is_in_sidebar_with_embedded_view() -> None:
     client_script = (static / "assets" / "intercom.js").read_text(encoding="utf-8")
     intercom_page = (static / "intercom.html").read_text(encoding="utf-8")
     assert "Tablet Control4 · interno 8291" in intercom_page
-    assert "const currentVersion = '2.21.84'" in client_script
+    assert "const currentVersion = '2.21.85'" in client_script
     assert 'id="call-ufficio" data-dial-extension="8291" data-video-capable="true"' in intercom_page
     assert "Postazione esterna · interno 8201" in intercom_page
     assert "Postazione esterna · interno ${station.sip_extension}" in client_script
@@ -302,10 +302,10 @@ def test_intercom_dashboard_stores_only_local_settings(monkeypatch, tmp_path) ->
     assert 'id="users-tool"' in page
     assert 'id="logout"' in page
     assert page.index('id="logout"') < page.index('id="tools-user-section"')
-    assert "tools-dashboard.js?v=2.21.84" in page
+    assert "tools-dashboard.js?v=2.21.85" in page
     home = client.get("/").text
     assert "backgrounds.css?v=2.21.43" in home
-    assert "app.js?v=2.21.84" in home
+    assert "app.js?v=2.21.85" in home
 
 
 def test_external_stations_api_requires_login_and_hides_secrets(monkeypatch, tmp_path) -> None:
@@ -688,7 +688,7 @@ def test_tools_page_starts_with_selected_background_and_card_theme(monkeypatch, 
     login = client.get("/login").text
     assert '<body class="app-theme" data-background="midnight" data-card-theme="slate">' in home
     assert 'ui-theme-contract.css?v=2.21.29' in home
-    assert 'app.js?v=2.21.84' in home
+    assert 'app.js?v=2.21.85' in home
     assert 'energy.css?v=2.21.30' in home
     assert 'home-comfort.css?v=2.21.31' in home
     assert '<body class="login-theme" data-background="midnight" data-card-theme="slate">' in login
@@ -1635,6 +1635,31 @@ def test_wiim_track_favorite_waits_for_complete_preset_queue(monkeypatch, tmp_pa
     assert response.json()["queue_total"] == 200
     assert queue_reads == 2
     assert calls[-1] == ("queue", 1)
+
+
+def test_linked_control4_wiim_commands_use_native_wiim_api(monkeypatch) -> None:
+    import app.main as main_module
+
+    calls = []
+    monkeypatch.setattr(main_module, "load_control4_config", lambda: {"username": "configured", "password": "configured"})
+    monkeypatch.setattr(main_module.wiim_settings, "load", lambda: {"enabled": True, "host": "192.168.3.52", "control4_source_id": 1667})
+
+    async def c4_snapshot(self):
+        return {"id": "control4", "status": "online", "items": [{"registry_id": "c4room:51", "active_source_id": 1667}]}
+
+    async def player_action(self, action, value=None):
+        calls.append((action, value))
+
+    async def snapshot(self):
+        return {"id": "wiim", "state": "playing", "volume": 42}
+
+    monkeypatch.setattr(main_module.Control4MediaConnector, "snapshot", c4_snapshot)
+    monkeypatch.setattr(main_module.WiiMClient, "player_action", player_action)
+    monkeypatch.setattr(main_module.WiiMClient, "snapshot", snapshot)
+    response = TestClient(main_module.create_app()).post("/api/devices/c4media:51/command", json={"action": "media_next"})
+    assert response.status_code == 200
+    assert response.json()["provider"] == "wiim"
+    assert calls == [("next", None)]
 
 
 def test_wiim_preset_delete_endpoint_clears_cache(monkeypatch) -> None:
