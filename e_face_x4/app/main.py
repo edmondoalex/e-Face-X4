@@ -67,7 +67,7 @@ from .connectors.supervisor import discover_addon_url, discover_host_url
 from .media_realtime import SharedMediaRealtime
 from .demo import dashboard as demo_dashboard
 
-VERSION = os.environ.get("EFACE_VERSION", "2.21.120")
+VERSION = os.environ.get("EFACE_VERSION", "2.21.121")
 STATIC = Path(__file__).parent / "static"
 logging.basicConfig(level=logging.WARNING, format="%(asctime)s %(levelname)s [e-face-x4] %(message)s")
 _reconnect_warning_at: dict[str, float] = {}
@@ -1992,8 +1992,11 @@ def create_app() -> FastAPI:
         if not location: raise HTTPException(status_code=409, detail="Configura la località meteo in Strumenti")
         try:
             async with httpx.AsyncClient(timeout=8, follow_redirects=False, trust_env=False) as client:
-                geo = await client.get("https://geocoding-api.open-meteo.com/v1/search", params={"name": location, "count": 1, "language": "it", "format": "json"})
-                geo.raise_for_status(); place = (geo.json().get("results") or [None])[0]
+                parts = [part.strip() for part in re.split(r"[,;]", location) if part.strip()]
+                geo = await client.get("https://geocoding-api.open-meteo.com/v1/search", params={"name": parts[0], "count": 10, "language": "it", "format": "json"})
+                geo.raise_for_status(); results = geo.json().get("results") or []
+                qualifier = " ".join(parts[1:]).casefold()
+                place = next((item for item in results if qualifier and qualifier in " ".join(str(item.get(key) or "") for key in ("admin1", "admin2", "admin3", "country")).casefold()), results[0] if results else None)
                 if not place: raise HTTPException(status_code=404, detail="Località meteo non trovata")
                 forecast = await client.get("https://api.open-meteo.com/v1/forecast", params={"latitude": place["latitude"], "longitude": place["longitude"], "current": "temperature_2m,relative_humidity_2m,apparent_temperature,weather_code,wind_speed_10m", "daily": "weather_code,temperature_2m_max,temperature_2m_min", "timezone": "auto", "forecast_days": 5})
                 forecast.raise_for_status(); data = forecast.json()
@@ -2261,9 +2264,9 @@ def create_app() -> FastAPI:
         page = page.replace('content="#263f48"', 'content="#181c1f"')
         page = page.replace("manifest.webmanifest?v=2.20.38", "manifest.webmanifest?v=2.21.59")
         page = page.replace("app.css?v=2.20.20", "app.css?v=2.21.73")
-        page = page.replace("app.css?v=2.21.84", "app.css?v=2.21.120")
-        page = page.replace("home-status.css?v=2.20.20", "home-status.css?v=2.21.120")
-        page = page.replace("tools.js?v=2.21.1", "tools.js?v=2.21.120")
+        page = page.replace("app.css?v=2.21.84", "app.css?v=2.21.121")
+        page = page.replace("home-status.css?v=2.20.20", "home-status.css?v=2.21.121")
+        page = page.replace("tools.js?v=2.21.1", "tools.js?v=2.21.121")
         page = page.replace("ui-theme-contract.css?v=2.21.27", "ui-theme-contract.css?v=2.21.29")
         page = page.replace("tools-dashboard.js?v=2.21.27", "tools-dashboard.js?v=2.21.33")
         page = page.replace("tools-dashboard.js?v=2.21.33", "tools-dashboard.js?v=2.21.34")
@@ -2271,8 +2274,8 @@ def create_app() -> FastAPI:
         page = page.replace("tools-dashboard.js?v=2.21.36", "tools-dashboard.js?v=2.21.38")
         page = page.replace("tools-dashboard.js?v=2.21.38", "tools-dashboard.js?v=2.21.41")
         page = page.replace("tools-dashboard.js?v=2.21.41", "tools-dashboard.js?v=2.21.42")
-        page = page.replace("tools-dashboard.js?v=2.21.42", "tools-dashboard.js?v=2.21.120")
-        page = page.replace("tools-dashboard.css?v=2.20.36", "tools-dashboard.css?v=2.21.120")
+        page = page.replace("tools-dashboard.js?v=2.21.42", "tools-dashboard.js?v=2.21.121")
+        page = page.replace("tools-dashboard.css?v=2.20.36", "tools-dashboard.css?v=2.21.121")
         page = page.replace("backgrounds.css?v=2.20.20", "backgrounds.css?v=2.21.43")
         page = page.replace("intercom.css?v=2.21.14", "intercom.css?v=2.21.46")
         page = page.replace("app.js?v=2.21.11", "app.js?v=2.21.29")

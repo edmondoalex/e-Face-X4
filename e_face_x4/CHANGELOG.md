@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.21.121 — 2026-09-16
+
+- La località meteo accetta città e provincia, ad esempio `Bra,Cuneo`, selezionando il risultato geografico corretto.
+- Sostituite le icone meteo mancanti con simboli atmosferici indipendenti dal catalogo locale.
+- Widget meteo rifinito con profondità, bagliore, animazione atmosferica, pannello previsioni in vetro e resa adattiva premium.
+
 ## 2.21.120 — 2026-09-16
 
 - Un solo stream SSE e‑Voice viene ora condiviso dal backend e‑Face tra tutti i browser collegati.
