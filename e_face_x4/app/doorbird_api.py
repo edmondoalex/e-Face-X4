@@ -135,6 +135,25 @@ async def live_image(host: str, port: int, username: str, password: str) -> byte
         raise RuntimeError("Risposta DoorBird non JPEG")
     return bytes(content)
 
+async def history_image(host: str, port: int, username: str, password: str, event: str) -> bytes | None:
+    """Fetch the latest bounded DoorBird doorbell or motion history JPEG."""
+    if event not in {"doorbell", "motionsensor"}: raise ValueError("Evento DoorBird non valido")
+    if not username or not password: raise ValueError("Credenziale DoorBird non configurata")
+    url = f"http://{host}:{port}/bha-api/history.cgi"
+    try:
+        async with httpx.AsyncClient(timeout=8, follow_redirects=False, trust_env=False) as client:
+            async with client.stream("GET", url, params={"event": event, "index": 1}, auth=httpx.DigestAuth(username, password)) as response:
+                if response.status_code == 204: return None
+                if response.status_code == 401: raise PermissionError("Credenziale o permesso cronologia DoorBird rifiutato")
+                if response.status_code != 200 or response.headers.get("content-type", "").split(";", 1)[0].lower() != "image/jpeg": raise RuntimeError("Cronologia DoorBird non disponibile")
+                content = bytearray()
+                async for chunk in response.aiter_bytes():
+                    content.extend(chunk)
+                    if len(content) > MAX_IMAGE_BYTES: raise RuntimeError("Immagine DoorBird troppo grande")
+    except httpx.HTTPError as exc: raise ConnectionError("DoorBird non raggiungibile") from exc
+    if not content.startswith(b"\xff\xd8\xff"): raise RuntimeError("Risposta DoorBird non JPEG")
+    return bytes(content)
+
 
 async def check_identity(host: str, port: int, username: str, password: str) -> dict[str, str | bool]:
     """Authenticate without changing DoorBird configuration or exposing the secret."""

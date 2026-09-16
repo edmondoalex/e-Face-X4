@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.21.113 — 2026-09-16
+
+- Aggiunti alla Home dinamica i widget Meteo, ultimo evento videosorveglianza, ultima chiamata DoorBird e ultimo movimento DoorBird.
+- Le immagini Home passano da proxy autenticati e-Face: credenziali Home Assistant e DoorBird non vengono inviate al browser.
+- Il meteo usa automaticamente la prima entità `weather.*`; la videosorveglianza usa `camera.nvr_32ch_ext_ultimo_evento`.
+
 ## 2.21.112 — 2026-09-16
 
 - Aggiunta la Home dinamica: widget persistenti selezionabili, riordinabili tramite trascinamento e dimensionabili da Strumenti utente.

@@ -1,5 +1,5 @@
 const $ = (selector) => document.querySelector(selector)
-document.head.insertAdjacentHTML('beforeend', '<link rel="stylesheet" href="assets/media-x4.css?v=2.21.112">')
+document.head.insertAdjacentHTML('beforeend', '<link rel="stylesheet" href="assets/media-x4.css?v=2.21.113">')
 const glyph = { light: '✦', climate: '❄', shield: '⬡', energy: 'ϟ', cover: '▤', sensor: '◌' }
 let refreshRunning = false
 let refreshQueued = false
@@ -296,9 +296,17 @@ function renderHomeStatusCounters() {
 const shortcutCategoryLabels = {lights:'Luci',switches:'Extra',covers:'Oscuranti',climate:'Comfort',security:'Sicurezza',media:'Audio e video',sensors:'Sensori',other:'Altro'}
 function applyHomeWidgetLayout(){
   const board=$('#home-view .dashboard-grid'); if(!board)return
-  const elements={overview:$('.home-overview-summary'),states:$('#widgets'),rooms:$('#room-panel'),live:$('#home-live-media')}
+  const elements={overview:$('.home-overview-summary'),weather:$('#home-weather-widget'),camera_event:$('#home-camera-event'),doorbell:$('#home-doorbell-event'),motion:$('#home-motion-event'),states:$('#widgets'),rooms:$('#room-panel'),live:$('#home-live-media')}
   const layout=currentHomeWidgets.length?currentHomeWidgets:[{id:'overview',visible:true,size:'wide'},{id:'states',visible:true,size:'standard'},{id:'rooms',visible:true,size:'wide'},{id:'live',visible:true,size:'wide'}]
   layout.forEach((item,index)=>{const element=elements[item.id];if(!element)return;element.dataset.homeWidget=item.id;element.dataset.widgetSize=item.size||'standard';element.style.order=String(index);element.classList.toggle('widget-user-hidden',item.visible===false);board.append(element)})
+  refreshHomeHighlights()
+}
+let homeHighlightsLoadedAt=0
+async function refreshHomeHighlights(){
+  if(Date.now()-homeHighlightsLoadedAt<60000)return;homeHighlightsLoadedAt=Date.now()
+  fetch(apiUrl('api/home/weather'),{cache:'no-store'}).then(async(response)=>{if(!response.ok)throw new Error();const data=await response.json();const icons={sunny:'weather-sunny',clear:'weather-sunny','partlycloudy':'weather-partly-cloudy',cloudy:'weather-cloudy',rainy:'weather-rainy',pouring:'weather-pouring',snowy:'weather-snowy',fog:'weather-fog',windy:'weather-windy',lightning:'weather-lightning'};$('#home-weather-icon').style.cssText=mdiStyle(`mdi:${icons[data.state]||'weather-partly-cloudy'}`,'weather-partly-cloudy');$('#home-weather-state').textContent=String(data.state||'Meteo').replaceAll('_',' ');$('#home-weather-temperature').textContent=data.temperature==null?'--':`${data.temperature}${data.temperature_unit||'°C'}`;$('#home-weather-detail').textContent=[data.name,data.humidity==null?'':`UR ${data.humidity}%`,data.wind_speed==null?'':`Vento ${data.wind_speed} ${data.wind_speed_unit||''}`].filter(Boolean).join(' · ')}).catch(()=>{$('#home-weather-state').textContent='Meteo non disponibile';$('#home-weather-temperature').textContent='--'})
+  const images=[['#home-camera-event','api/home/camera-event'],['#home-doorbell-event','api/home/doorbird/doorbell'],['#home-motion-event','api/home/doorbird/motionsensor']]
+  images.forEach(([selector,path])=>{const card=$(selector),image=card.querySelector('img'),probe=new Image();probe.onload=()=>{image.src=probe.src;card.classList.remove('unavailable')};probe.onerror=()=>card.classList.add('unavailable');probe.src=`${apiUrl(path)}?v=${Date.now()}`})
 }
 const collapsedShortcutCategories = new Set()
 function shortcutDevices(){const byId=new Map(currentDevices.map((device)=>[String(device.id),device]));return currentShortcuts.flatMap((group)=>(group.devices||[]).map((id)=>byId.get(String(id))).filter(Boolean))}

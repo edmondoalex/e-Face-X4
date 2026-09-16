@@ -56,7 +56,7 @@ def test_health() -> None:
     response = TestClient(create_app()).get("/health")
     assert response.status_code == 200
     assert response.json()["ok"] is True
-    assert response.json()["version"] == "2.21.112"
+    assert response.json()["version"] == "2.21.113"
 
 
 def test_installed_app_starts_at_dashboard() -> None:
@@ -95,7 +95,7 @@ def test_intercom_is_in_sidebar_with_embedded_view() -> None:
     client_script = (static / "assets" / "intercom.js").read_text(encoding="utf-8")
     intercom_page = (static / "intercom.html").read_text(encoding="utf-8")
     assert "Tablet Control4 · interno 8291" in intercom_page
-    assert "const currentVersion = '2.21.112'" in client_script
+    assert "const currentVersion = '2.21.113'" in client_script
     assert 'id="call-ufficio" data-dial-extension="8291" data-video-capable="true"' in intercom_page
     assert "Postazione esterna · interno 8201" in intercom_page
     assert "Postazione esterna · interno ${station.sip_extension}" in client_script
@@ -302,8 +302,8 @@ def test_intercom_dashboard_stores_only_local_settings(monkeypatch, tmp_path) ->
     assert 'id="users-tool"' in page
     assert 'id="logout"' in page
     assert page.index('id="logout"') < page.index('id="tools-user-section"')
-    assert "tools-dashboard.js?v=2.21.112" in page
-    assert "tools.js?v=2.21.112" in page
+    assert "tools-dashboard.js?v=2.21.113" in page
+    assert "tools.js?v=2.21.113" in page
     tools_js = client.get("/assets/tools.js").text
     assert "document.querySelector('.tools-shell').append(shortcutsPanel)" in tools_js
     assert "data-shortcut-drag=\"category\"" in tools_js
@@ -311,7 +311,7 @@ def test_intercom_dashboard_stores_only_local_settings(monkeypatch, tmp_path) ->
     assert "pointermove" in tools_js and "finishShortcutDrag" in tools_js
     home = client.get("/").text
     assert "backgrounds.css?v=2.21.43" in home
-    assert "app.js?v=2.21.112" in home
+    assert "app.js?v=2.21.113" in home
 
 
 def test_external_stations_api_requires_login_and_hides_secrets(monkeypatch, tmp_path) -> None:
@@ -694,7 +694,7 @@ def test_tools_page_starts_with_selected_background_and_card_theme(monkeypatch, 
     login = client.get("/login").text
     assert '<body class="app-theme" data-background="midnight" data-card-theme="slate">' in home
     assert 'ui-theme-contract.css?v=2.21.29' in home
-    assert 'app.js?v=2.21.112' in home
+    assert 'app.js?v=2.21.113' in home
     assert 'energy.css?v=2.21.30' in home
     assert 'home-comfort.css?v=2.21.31' in home
     assert '<body class="login-theme" data-background="midnight" data-card-theme="slate">' in login
@@ -706,18 +706,20 @@ def test_user_appearance_persists_room_order_and_glow(monkeypatch, tmp_path) -> 
     client = TestClient(create_app())
     appearance = client.get("/api/user/appearance").json()
     assert {key: appearance[key] for key in ("card_glow", "room_order", "security_order", "shortcuts")} == {"card_glow": True, "room_order": [], "security_order": ["scenarios", "areas", "zones", "locks"], "shortcuts": []}
-    assert [item["id"] for item in appearance["home_widgets"]] == ["overview", "states", "rooms", "live"]
+    assert [item["id"] for item in appearance["home_widgets"]] == ["overview", "weather", "camera_event", "doorbell", "motion", "states", "rooms", "live"]
+    assert appearance["home_camera_entity"] == "camera.nvr_32ch_ext_ultimo_evento"
     shortcuts = [{"category": "lights", "devices": ["buspro:1", "buspro:2"]}, {"category": "climate", "devices": ["therm:1"]}]
-    home_widgets = [{"id": "live", "visible": True, "size": "wide"}, {"id": "overview", "visible": True, "size": "compact"}, {"id": "states", "visible": False, "size": "standard"}, {"id": "rooms", "visible": True, "size": "wide"}]
-    response = client.put("/api/user/appearance", json={"card_glow": False, "room_order": ["Sala", "Ufficio Alex"], "security_order": ["locks", "zones", "areas", "scenarios"], "shortcuts": shortcuts, "home_widgets": home_widgets})
+    home_widgets = [{"id": item, "visible": item != "states", "size": "wide" if item in {"live", "rooms"} else "standard"} for item in ["live", "overview", "weather", "camera_event", "doorbell", "motion", "states", "rooms"]]
+    response = client.put("/api/user/appearance", json={"card_glow": False, "room_order": ["Sala", "Ufficio Alex"], "security_order": ["locks", "zones", "areas", "scenarios"], "shortcuts": shortcuts, "home_widgets": home_widgets, "home_camera_entity": "camera.nvr_32ch_ext_ultimo_evento"})
     assert response.status_code == 200
-    assert client.get("/api/user/appearance").json() == {"card_glow": False, "room_order": ["Sala", "Ufficio Alex"], "security_order": ["locks", "zones", "areas", "scenarios"], "shortcuts": shortcuts, "home_widgets": home_widgets}
+    assert client.get("/api/user/appearance").json() == {"card_glow": False, "room_order": ["Sala", "Ufficio Alex"], "security_order": ["locks", "zones", "areas", "scenarios"], "shortcuts": shortcuts, "home_widgets": home_widgets, "home_camera_entity": "camera.nvr_32ch_ext_ultimo_evento"}
     assert client.put("/api/user/appearance", json={"room_order": ["Sala", "sala"]}).status_code == 400
     assert client.put("/api/user/appearance", json={"card_glow": "false"}).status_code == 400
     assert client.put("/api/user/appearance", json={"security_order": ["locks", "zones", "zones", "scenarios"]}).status_code == 400
     assert client.put("/api/user/appearance", json={"security_order": [{}, "zones", "areas", "scenarios"]}).status_code == 400
     assert client.put("/api/user/appearance", json={"shortcuts": [{"category": "lights", "devices": ["same"]}, {"category": "switches", "devices": ["same"]}]}).status_code == 400
     assert client.put("/api/user/appearance", json={"home_widgets": home_widgets[:-1]}).status_code == 400
+    assert client.put("/api/user/appearance", json={"home_camera_entity": "sensor.not_a_camera"}).status_code == 400
 
 
 def test_ksenia_normalizes_partitions_and_zones() -> None:
@@ -903,6 +905,8 @@ def test_x4_shell_and_brand_assets_are_served() -> None:
     assert "function renderHomeStatusCounters()" in app_js
     assert "function applyHomeWidgetLayout()" in app_js
     assert "dataset.homeWidget" in app_js
+    assert "api/home/camera-event" in app_js
+    assert "api/home/doorbird/motionsensor" in app_js
     assert "function renderShortcutDevices()" in app_js
     assert "stateLabel(device)" in app_js
     assert "shortcut-security-scenario" in app_js

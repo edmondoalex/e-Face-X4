@@ -1,13 +1,13 @@
 from __future__ import annotations
 
-import base64, binascii, hashlib, json, os
+import base64, binascii, hashlib, json, os, re
 from pathlib import Path
 
 PRESETS = {"teal", "midnight", "graphite", "ocean", "warm"}
 CARD_THEMES = {"graphite", "petrol", "midnight", "slate", "warm"}
 SECURITY_ORDER = ["scenarios", "areas", "zones", "locks"]
 SHORTCUT_CATEGORIES = ["lights", "switches", "covers", "climate", "security", "media", "sensors", "other"]
-HOME_WIDGETS = ["overview", "states", "rooms", "live"]
+HOME_WIDGETS = ["overview", "weather", "camera_event", "doorbell", "motion", "states", "rooms", "live"]
 MIME_SUFFIX = {"image/png": ".png", "image/jpeg": ".jpg", "image/webp": ".webp"}
 
 def _directory() -> Path: return Path(os.environ.get("EFACE_BACKGROUNDS", "/data/backgrounds"))
@@ -105,6 +105,14 @@ def save_home_widgets(items: list[dict[str, object]]) -> None:
         if not isinstance(item.get("visible"), bool) or item.get("size") not in {"compact", "standard", "wide"}: raise ValueError("Proprietà widget non valide")
         clean.append({"id": item["id"], "visible": item["visible"], "size": item["size"]})
     raw = _config(); raw["home_widgets"] = clean; _write(raw)
+
+def load_home_camera_entity() -> str:
+    value = str(_config().get("home_camera_entity") or "camera.nvr_32ch_ext_ultimo_evento")
+    return value if re.fullmatch(r"camera\.[a-z0-9_]+", value) else "camera.nvr_32ch_ext_ultimo_evento"
+
+def save_home_camera_entity(entity_id: str) -> None:
+    if not isinstance(entity_id, str) or not re.fullmatch(r"camera\.[a-z0-9_]+", entity_id): raise ValueError("Entità telecamera non valida")
+    raw = _config(); raw["home_camera_entity"] = entity_id; _write(raw)
 
 def load_card_glow() -> bool:
     return _config().get("card_glow", True) is not False
