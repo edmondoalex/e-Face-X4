@@ -1,5 +1,5 @@
 const $ = (selector) => document.querySelector(selector)
-document.head.insertAdjacentHTML('beforeend', '<link rel="stylesheet" href="assets/media-x4.css?v=2.21.107">')
+document.head.insertAdjacentHTML('beforeend', '<link rel="stylesheet" href="assets/media-x4.css?v=2.21.108">')
 const glyph = { light: '✦', climate: '❄', shield: '⬡', energy: 'ϟ', cover: '▤', sensor: '◌' }
 let refreshRunning = false
 let refreshQueued = false
@@ -42,6 +42,8 @@ let energyMasterColors = []
 let energyMasterPending = { signature:'', confirmations:0 }
 const securitySections = { areas: false, zones: false }
 let currentSecurityOrder = ['scenarios', 'areas', 'zones', 'locks']
+let currentShortcuts = []
+let shortcutViewOpen = false
 const mediaSections = { rooms: true, playing: true }
 const isSecurityGarage = (device) => device.kind === 'cover' && /garage|portone/i.test(`${device.icon || ''} ${device.name || ''}`)
 const mediaTransportOverrides = new Map()
@@ -191,6 +193,7 @@ function render(data) {
   document.body.dataset.cardTheme = data.appearance?.card_theme || 'graphite'
   document.body.dataset.cardGlow = data.appearance?.card_glow === false ? 'off' : 'on'
   currentSecurityOrder = data.appearance?.security_order || currentSecurityOrder
+  currentShortcuts = data.appearance?.shortcuts || currentShortcuts
   applyBackground()
   const dashboard = data.dashboard || {}
   const home = dashboard.home || {}
@@ -279,11 +282,20 @@ function renderHomeStatusCounters() {
     { kind: 'extra', label: 'Extra', icon: 'mdi:power-socket-eu', color: 'red', devices: currentDevices.filter((device) => device.kind === 'switch'), active: stateIsActive },
     { kind: 'covers', label: 'Oscuranti', icon: 'mdi:blinds-horizontal', color: 'cyan', devices: currentDevices.filter((device) => device.kind === 'cover'), active: (device) => stateIsActive(device) || Number(device.position) > 0 },
     { kind: 'security', label: 'Sicurezza', icon: 'mdi:shield-home', color: 'red', devices: currentDevices.filter((device) => ['lock','alarm_partition','alarm_zone'].includes(device.kind) || isSecurityGarage(device)), active: (device) => ['OPEN','OPENING','UNLOCKED','ARMED','ALARM','TAMPER'].includes(String(device.state ?? '').trim().toUpperCase()) },
+    { kind: 'shortcuts', label: 'Scorciatoie', icon: 'mdi:gesture-tap-button', color: 'cyan', devices: shortcutDevices(), active: () => true },
   ]
   $('#widgets').innerHTML = statusCounters.map((counter) => {
     const count = counter.devices.filter(counter.active).length
     return `<button class="quick-card status-counter ${count ? `active status-counter-${counter.color}` : ''}" data-kind="${counter.kind}" data-label="${counter.label}" aria-label="${counter.label}: ${count}"><span class="qicon mdi-mask" style="${mdiStyle(counter.icon, 'shape')}"></span><strong>${count}</strong></button>`
   }).join('')
+}
+
+const shortcutCategoryLabels = {lights:'Luci',switches:'Extra',covers:'Oscuranti',climate:'Comfort',security:'Sicurezza',media:'Audio e video',sensors:'Sensori',other:'Altro'}
+function shortcutDevices(){const byId=new Map(currentDevices.map((device)=>[String(device.id),device]));return currentShortcuts.flatMap((group)=>(group.devices||[]).map((id)=>byId.get(String(id))).filter(Boolean))}
+function renderShortcutDevices(){
+  const byId=new Map(currentDevices.map((device)=>[String(device.id),device]))
+  const sections=currentShortcuts.map((group)=>({category:group.category,devices:(group.devices||[]).map((id)=>byId.get(String(id))).filter(Boolean)})).filter((group)=>group.devices.length)
+  $('#device-list').innerHTML=sections.map((group)=>`<section class="shortcut-device-group"><h3>${esc(shortcutCategoryLabels[group.category]||group.category)}</h3><div class="shortcut-device-grid">${group.devices.map((device)=>`<article class="shortcut-device ${deviceVisualClass(device)} ${device.kind==='media_player'?'media-player-card':''}" style="${deviceCardStyle(device)}" data-device-id="${esc(device.id)}" ${['light','switch'].includes(device.kind)?'data-device-toggle tabindex="0"':''}>${mediaArtwork(device)}${deviceGlyph(device)}<div><strong>${esc(device.name)}</strong><small>${esc(device.room)}</small>${device.kind==='media_player'?`<span class="media-track">${esc(device.title||'Nessuna riproduzione')}</span>`:''}</div><em>${esc(stateLabel(device))}</em>${deviceActions(device,{wiim:device.provider==='wiim',nowPlayingFavorite:false})}</article>`).join('')}</div></section>`).join('')||'<p class="empty-state">Configura le Scorciatoie da Strumenti utente</p>'
 }
 
 function renderHomeComfort() {
@@ -1110,7 +1122,8 @@ function renderActiveDeviceList() {
   const signature = JSON.stringify({devices, selectedMediaId, currentMediaExperience, activeMediaRoom, avRoom, lightFilterRoom, lightFilterActive, sectionFilterMode, securitySections, currentSecurityOrder, mediaSections})
   if (signature === lastDetailSignature && $('#device-list').childElementCount) return
   lastDetailSignature = signature
-  renderDeviceList(devices)
+  if (shortcutViewOpen) renderShortcutDevices()
+  else renderDeviceList(devices)
 }
 
 function deviceIsActiveForFilter(device) {
@@ -1600,6 +1613,7 @@ function openDevices(title, devices, options = {}) {
   closeIntercom()
   $('#energy-view').hidden = true
   const mediaOnly = devices.length > 0 && devices.every((device) => device.kind === 'media_player')
+  shortcutViewOpen = Boolean(options.shortcuts)
   activeMediaRoom = options.room && mediaOnly ? options.room : ''
   currentMediaExperience = options.experience || ''
   const backgroundRooms = [...new Set(devices.map((device)=>device.room).filter(Boolean))]
@@ -1627,6 +1641,7 @@ function openDevices(title, devices, options = {}) {
   $('#detail-view').hidden = false
   $('#detail-view').classList.toggle('av-view', Boolean(options.av))
   $('#detail-view').classList.toggle('media-room-view', Boolean(options.room && mediaOnly))
+  $('#detail-view').classList.toggle('shortcuts-view', shortcutViewOpen)
   window.scrollTo({ top: 0, behavior: 'smooth' })
 }
 
@@ -2004,6 +2019,7 @@ document.querySelectorAll('.rail button').forEach((button) => button.addEventLis
 $('#widgets').addEventListener('click', (event) => {
   const button = event.target.closest('[data-kind]')
   if (!button) return
+  if (button.dataset.kind === 'shortcuts') { openDevices('Scorciatoie', shortcutDevices(), {shortcuts:true}); return }
   const map = { lights: ['light'], extra: ['switch'], covers: ['cover'], security: ['lock','alarm_partition','alarm_zone','alarm_scenario','alarm_system'], comfort: ['climate', 'temp', 'temperature', 'humidity', 'air', 'air_quality'] }
   const kinds = map[button.dataset.kind] || []
   openDevices(button.dataset.label || 'Dispositivi', currentDevices.filter((device) => kinds.includes(device.kind)), { filters: true, lights: button.dataset.kind === 'lights' })

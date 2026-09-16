@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.21.108 — 2026-09-16
+
+- I termostati e-Therm con `display_only` diventano automaticamente sonde in sola visualizzazione e rifiutano i comandi anche lato server.
+- Aggiunta la cella Home Scorciatoie e la relativa pagina con controlli grandi, categorie separate e aggiornamento realtime.
+- In Strumenti utente è possibile scegliere i dispositivi di ogni categoria e riordinare categorie e dispositivi.
+
 ## 2.21.107 — 2026-09-16
 
 - Corretto l'indice della selezione coda WiiM: ora parte il brano premuto, non quello precedente.

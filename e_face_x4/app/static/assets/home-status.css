@@ -1,7 +1,7 @@
-#widgets.state-summary-grid,.quick-grid{grid-column:1/3;grid-template-columns:repeat(4,minmax(0,1fr));gap:7px}
+#widgets.state-summary-grid,.quick-grid{grid-column:1/3;grid-template-columns:repeat(5,minmax(0,1fr));gap:7px}
 .quick-card.status-counter{min-width:0;min-height:52px;padding:8px 12px;border-color:rgba(170,181,184,.22);display:flex;align-items:center;justify-content:center;gap:9px;color:#89979b;background:rgba(8,30,34,.78)}
 .quick-card.status-counter .qicon{width:27px;height:27px;margin:0;padding:0;color:inherit;background:currentColor;border-radius:0}
 .quick-card.status-counter strong{margin:0;color:inherit;font-size:20px;line-height:1}
 .quick-card.status-counter.active{border-color:color-mix(in srgb,currentColor 42%,transparent);box-shadow:0 0 13px color-mix(in srgb,currentColor 16%,transparent)}
 .quick-card.status-counter-yellow{color:#ffd34e}.quick-card.status-counter-red{color:#ff5268}.quick-card.status-counter-cyan{color:#61d8f2}.quick-card.status-counter-blue{color:#7fcff0}
-@media(max-width:700px){#widgets.state-summary-grid,.quick-grid{grid-template-columns:repeat(4,minmax(0,1fr));gap:4px}.quick-card.status-counter{min-height:45px;padding:6px 4px;gap:5px}.quick-card.status-counter .qicon{width:21px;height:21px}.quick-card.status-counter strong{font-size:17px}}
+@media(max-width:700px){#widgets.state-summary-grid,.quick-grid{grid-template-columns:repeat(5,minmax(0,1fr));gap:4px}.quick-card.status-counter{min-height:45px;padding:6px 4px;gap:5px}.quick-card.status-counter .qicon{width:21px;height:21px}.quick-card.status-counter strong{font-size:17px}}

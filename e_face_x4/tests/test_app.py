@@ -56,7 +56,7 @@ def test_health() -> None:
     response = TestClient(create_app()).get("/health")
     assert response.status_code == 200
     assert response.json()["ok"] is True
-    assert response.json()["version"] == "2.21.107"
+    assert response.json()["version"] == "2.21.108"
 
 
 def test_installed_app_starts_at_dashboard() -> None:
@@ -95,7 +95,7 @@ def test_intercom_is_in_sidebar_with_embedded_view() -> None:
     client_script = (static / "assets" / "intercom.js").read_text(encoding="utf-8")
     intercom_page = (static / "intercom.html").read_text(encoding="utf-8")
     assert "Tablet Control4 · interno 8291" in intercom_page
-    assert "const currentVersion = '2.21.107'" in client_script
+    assert "const currentVersion = '2.21.108'" in client_script
     assert 'id="call-ufficio" data-dial-extension="8291" data-video-capable="true"' in intercom_page
     assert "Postazione esterna · interno 8201" in intercom_page
     assert "Postazione esterna · interno ${station.sip_extension}" in client_script
@@ -302,10 +302,10 @@ def test_intercom_dashboard_stores_only_local_settings(monkeypatch, tmp_path) ->
     assert 'id="users-tool"' in page
     assert 'id="logout"' in page
     assert page.index('id="logout"') < page.index('id="tools-user-section"')
-    assert "tools-dashboard.js?v=2.21.107" in page
+    assert "tools-dashboard.js?v=2.21.108" in page
     home = client.get("/").text
     assert "backgrounds.css?v=2.21.43" in home
-    assert "app.js?v=2.21.107" in home
+    assert "app.js?v=2.21.108" in home
 
 
 def test_external_stations_api_requires_login_and_hides_secrets(monkeypatch, tmp_path) -> None:
@@ -688,7 +688,7 @@ def test_tools_page_starts_with_selected_background_and_card_theme(monkeypatch, 
     login = client.get("/login").text
     assert '<body class="app-theme" data-background="midnight" data-card-theme="slate">' in home
     assert 'ui-theme-contract.css?v=2.21.29' in home
-    assert 'app.js?v=2.21.107' in home
+    assert 'app.js?v=2.21.108' in home
     assert 'energy.css?v=2.21.30' in home
     assert 'home-comfort.css?v=2.21.31' in home
     assert '<body class="login-theme" data-background="midnight" data-card-theme="slate">' in login
@@ -698,14 +698,16 @@ def test_tools_page_starts_with_selected_background_and_card_theme(monkeypatch, 
 def test_user_appearance_persists_room_order_and_glow(monkeypatch, tmp_path) -> None:
     monkeypatch.setenv("EFACE_BACKGROUNDS", str(tmp_path / "backgrounds"))
     client = TestClient(create_app())
-    assert client.get("/api/user/appearance").json() == {"card_glow": True, "room_order": [], "security_order": ["scenarios", "areas", "zones", "locks"]}
-    response = client.put("/api/user/appearance", json={"card_glow": False, "room_order": ["Sala", "Ufficio Alex"], "security_order": ["locks", "zones", "areas", "scenarios"]})
+    assert client.get("/api/user/appearance").json() == {"card_glow": True, "room_order": [], "security_order": ["scenarios", "areas", "zones", "locks"], "shortcuts": []}
+    shortcuts = [{"category": "lights", "devices": ["buspro:1", "buspro:2"]}, {"category": "climate", "devices": ["therm:1"]}]
+    response = client.put("/api/user/appearance", json={"card_glow": False, "room_order": ["Sala", "Ufficio Alex"], "security_order": ["locks", "zones", "areas", "scenarios"], "shortcuts": shortcuts})
     assert response.status_code == 200
-    assert client.get("/api/user/appearance").json() == {"card_glow": False, "room_order": ["Sala", "Ufficio Alex"], "security_order": ["locks", "zones", "areas", "scenarios"]}
+    assert client.get("/api/user/appearance").json() == {"card_glow": False, "room_order": ["Sala", "Ufficio Alex"], "security_order": ["locks", "zones", "areas", "scenarios"], "shortcuts": shortcuts}
     assert client.put("/api/user/appearance", json={"room_order": ["Sala", "sala"]}).status_code == 400
     assert client.put("/api/user/appearance", json={"card_glow": "false"}).status_code == 400
     assert client.put("/api/user/appearance", json={"security_order": ["locks", "zones", "zones", "scenarios"]}).status_code == 400
     assert client.put("/api/user/appearance", json={"security_order": [{}, "zones", "areas", "scenarios"]}).status_code == 400
+    assert client.put("/api/user/appearance", json={"shortcuts": [{"category": "lights", "devices": ["same"]}, {"category": "switches", "devices": ["same"]}]}).status_code == 400
 
 
 def test_ksenia_normalizes_partitions_and_zones() -> None:
@@ -896,7 +898,7 @@ def test_x4_shell_and_brand_assets_are_served() -> None:
     assert "function updateEnergyMasterIcon(flows)" in app_js
     assert "linear-gradient(90deg," in app_js
     assert "{ kind: 'comfort', label: 'Comfort'" not in app_js
-    assert "grid-template-columns:repeat(4" in client.get("/assets/home-status.css").text
+    assert "grid-template-columns:repeat(5" in client.get("/assets/home-status.css").text
     assert "event.target !== dialog" in app_js
     assert client.get("/tools").status_code == 200
     assert "Amministrazione" in client.get("/tools").text
@@ -2080,6 +2082,11 @@ def test_etherm_thermostat_is_normalized() -> None:
 def test_etherm_external_temperature_is_read_only() -> None:
     items = normalize_thermostats({"entities": [{"type": "thermostats", "id": 8, "name": "Temperatura Esterna", "realtime": {"TEMP": 17.6, "THERM": {"ACT_SEA": "WIN", "ACT_MODEL": "MAN", "DEMAND_ON": "ON", "TEMP_THR": {"VAL": 21}}}}]})
     assert items[0]["read_only"] is True
+
+def test_etherm_display_only_configuration_is_read_only() -> None:
+    items = normalize_thermostats({"entities": [{"type": "thermostats", "id": 17, "name": "MANDATA IMPIANTO", "realtime": {"TEMP": 34.3}}], "meta": {"vtherm_config": {"thermostats": [{"id": 17, "display_only": True, "floor": "LOCALE CALDAIA"}]}}})
+    assert items[0]["read_only"] is True
+    assert items[0]["icon"] == "mdi:thermometer"
     assert items[0]["state"] == "OFF"
     assert items[0]["icon"] == "mdi:thermometer"
 

@@ -6,6 +6,7 @@ from pathlib import Path
 PRESETS = {"teal", "midnight", "graphite", "ocean", "warm"}
 CARD_THEMES = {"graphite", "petrol", "midnight", "slate", "warm"}
 SECURITY_ORDER = ["scenarios", "areas", "zones", "locks"]
+SHORTCUT_CATEGORIES = ["lights", "switches", "covers", "climate", "security", "media", "sensors", "other"]
 MIME_SUFFIX = {"image/png": ".png", "image/jpeg": ".jpg", "image/webp": ".webp"}
 
 def _directory() -> Path: return Path(os.environ.get("EFACE_BACKGROUNDS", "/data/backgrounds"))
@@ -54,6 +55,32 @@ def save_security_order(order: list[str]) -> None:
     if not isinstance(order, list) or len(order) != len(SECURITY_ORDER) or not all(isinstance(item, str) for item in order) or set(order) != set(SECURITY_ORDER):
         raise ValueError("Ordine sicurezza non valido")
     raw = _config(); raw["security_order"] = order; _write(raw)
+
+def load_shortcuts() -> list[dict[str, object]]:
+    value = _config().get("shortcuts")
+    if not isinstance(value, list): return []
+    result = []
+    for group in value[:len(SHORTCUT_CATEGORIES)]:
+        if not isinstance(group, dict) or group.get("category") not in SHORTCUT_CATEGORIES: continue
+        devices = group.get("devices")
+        if not isinstance(devices, list): continue
+        clean = [item for item in devices if isinstance(item, str) and 0 < len(item) <= 200]
+        result.append({"category": group["category"], "devices": list(dict.fromkeys(clean))[:250]})
+    return result
+
+def save_shortcuts(groups: list[dict[str, object]]) -> None:
+    if not isinstance(groups, list) or len(groups) > len(SHORTCUT_CATEGORIES): raise ValueError("Scorciatoie non valide")
+    categories, device_ids, clean = set(), set(), []
+    for group in groups:
+        if not isinstance(group, dict) or group.get("category") not in SHORTCUT_CATEGORIES or group["category"] in categories: raise ValueError("Categoria scorciatoie non valida")
+        devices = group.get("devices")
+        if not isinstance(devices, list) or len(devices) > 250: raise ValueError("Dispositivi scorciatoia non validi")
+        normalized = []
+        for item in devices:
+            if not isinstance(item, str) or not item or len(item) > 200 or item in device_ids: raise ValueError("Dispositivo scorciatoia non valido")
+            device_ids.add(item); normalized.append(item)
+        categories.add(group["category"]); clean.append({"category": group["category"], "devices": normalized})
+    raw = _config(); raw["shortcuts"] = clean; _write(raw)
 
 def load_card_glow() -> bool:
     return _config().get("card_glow", True) is not False

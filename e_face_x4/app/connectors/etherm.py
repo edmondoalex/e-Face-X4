@@ -23,7 +23,7 @@ def normalize_thermostats(payload: dict[str, Any]) -> list[dict[str, Any]]:
         threshold = therm.get("TEMP_THR") if isinstance(therm.get("TEMP_THR"), dict) else {}
         cfg = configured.get(source_id, {})
         name = str(entity.get("name") or static.get("DES") or f"Termostato {source_id}")
-        read_only = bool(cfg.get("read_only")) or any(marker in name.casefold() for marker in ("temperatura esterna", "temp esterna", "external temperature"))
+        read_only = bool(cfg.get("read_only") or cfg.get("display_only")) or str(entity.get("access") or "").lower() in {"r", "ro", "read", "readonly"} or any(marker in name.casefold() for marker in ("temperatura esterna", "temp esterna", "external temperature"))
         season = str(therm.get("ACT_SEA") or "WIN").upper()
         demand = str(therm.get("DEMAND_ON") or therm.get("OUT_STATUS") or "OFF").upper() == "ON"
         mode = str(therm.get("ACT_MODEL") or therm.get("ACT_MODE") or "OFF").upper()
