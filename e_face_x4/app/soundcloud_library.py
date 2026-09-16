@@ -1,5 +1,5 @@
 from __future__ import annotations
-import json, os, re
+import json, os, re, time
 from pathlib import Path
 from typing import Any
 
@@ -36,6 +36,7 @@ def save_to_playlist(name: str, value: Any, playlist_id: str = "") -> dict:
     if playlist_id:
         playlist = next((x for x in data["playlists"] if x.get("id") == playlist_id), None)
         if not playlist: raise ValueError("Lista SoundCloud non trovata")
+        data["playlists"] = [playlist] + [x for x in data["playlists"] if x is not playlist]
     else:
         if not name: raise ValueError("Inserisci il nome della nuova lista")
         playlist_id = re.sub(r"[^a-z0-9]+", "-", name.casefold()).strip("-")[:50] or "lista"
@@ -43,6 +44,7 @@ def save_to_playlist(name: str, value: Any, playlist_id: str = "") -> dict:
         while any(x.get("id") == playlist_id for x in data["playlists"]): playlist_id, suffix = f"{base}-{suffix}", suffix + 1
         playlist = {"id": playlist_id, "name": name, "tracks": []}; data["playlists"].insert(0, playlist)
     playlist["tracks"] = [x for x in playlist.get("tracks", []) if x.get("urn") != item["urn"]] + [item]
+    playlist["updated_at"] = time.time()
     _save(data); return data
 
 def delete_playlist(playlist_id: str) -> dict:

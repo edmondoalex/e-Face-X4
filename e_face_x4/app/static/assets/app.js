@@ -2101,17 +2101,10 @@ $('#device-list').addEventListener('click', (event) => {
     ;(async () => {
       const station = nowPlayingFavorite(selected)
       if (station.wiim && /soundcloud/i.test(selected.wiim_source || selected.source || '')) {
-        const [libraryResponse, snapshotResponse] = await Promise.all([
-          fetch(apiUrl('api/wiim/services/soundcloud/library'), { cache: 'no-store' }),
-          fetch(apiUrl('api/wiim/snapshot'), { cache: 'no-store' })
-        ])
+        const libraryResponse = await fetch(apiUrl('api/wiim/services/soundcloud/library'), { cache: 'no-store' })
         if (!libraryResponse.ok) throw new Error((await libraryResponse.json().catch(() => ({}))).detail || 'Liste SoundCloud non disponibili')
-        if (!snapshotResponse.ok) throw new Error((await snapshotResponse.json().catch(() => ({}))).detail || 'WiiM non raggiungibile')
         const library = await libraryResponse.json()
-        const native = (await snapshotResponse.json()).device || {}
-        const urn = String(native.track_id || '').trim()
-        if (!/^soundcloud:tracks:\d+$/.test(urn)) throw new Error('Il WiiM non ha fornito l\'ID del brano SoundCloud. Attendi un istante e riprova.')
-        pendingSoundCloudTrack = { urn, title: native.title || selected.title, artist: native.artist || selected.artist, artwork: native.artwork || selected.native_artwork || selected.artwork, duration: native.duration, type: 'track', playable: true }
+        pendingSoundCloudTrack = { urn: selected.track_id || '', title: selected.title, artist: selected.artist, artwork: selected.native_artwork || selected.artwork, type: 'track', playable: true }
         $('#soundcloud-playlist-select').innerHTML = '<option value="">Crea nuova lista</option>' + (library.playlists || []).map((item) => `<option value="${esc(item.id)}">${esc(item.name)} (${item.tracks?.length || 0})</option>`).join('')
         $('#soundcloud-playlist-name').value = ''
         $('#soundcloud-playlist-name-row').hidden = false

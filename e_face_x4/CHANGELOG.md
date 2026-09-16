@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.21.97 — 2026-09-16
+
+- Preferiti: ordine unico tra tutti i servizi, dal piu recente a sinistra al meno recente a destra.
+- Playlist SoundCloud: aggiungere un brano a una lista esistente la riporta tra i Preferiti piu recenti.
+- Salvataggio SoundCloud: se l'ID traccia manca nel refresh corrente, il server lo recupera dallo snapshot o dalla coda WiiM.
+
 ## 2.21.96 — 2026-09-16
 
 - Sessioni: il selettore delle stanze resta aperto durante gli aggiornamenti realtime e conserva le scelte non ancora applicate.

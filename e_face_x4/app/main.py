@@ -66,7 +66,7 @@ from .connectors.control4_media import cached_control4_icon, cached_control4_ico
 from .connectors.supervisor import discover_addon_url, discover_host_url
 from .demo import dashboard as demo_dashboard
 
-VERSION = os.environ.get("EFACE_VERSION", "2.21.96")
+VERSION = os.environ.get("EFACE_VERSION", "2.21.97")
 STATIC = Path(__file__).parent / "static"
 logging.basicConfig(level=logging.WARNING, format="%(asctime)s %(levelname)s [e-face-x4] %(message)s")
 _reconnect_warning_at: dict[str, float] = {}
@@ -326,9 +326,22 @@ def create_app() -> FastAPI:
     async def soundcloud_playlist_add(request: Request) -> dict:
         try:
             payload = await request.json()
-            return soundcloud_library.save_to_playlist(str(payload.get("name") or ""), payload.get("track"), str(payload.get("playlist_id") or ""))
+            track = payload.get("track") if isinstance(payload.get("track"), dict) else {}
+            if not re.fullmatch(r"soundcloud:tracks:\d+", str(track.get("urn") or "")):
+                snapshot = await configured_wiim().snapshot()
+                track_id = str(snapshot.get("track_id") or "").strip()
+                if not re.fullmatch(r"soundcloud:tracks:\d+", track_id):
+                    queue = await configured_wiim().queue(limit=250)
+                    title = str(snapshot.get("title") or "").strip().casefold()
+                    artist = str(snapshot.get("artist") or "").strip().casefold()
+                    current = next((item for item in queue.get("tracks", []) if re.fullmatch(r"soundcloud:tracks:\d+", str(item.get("track_id") or "")) and (not title or str(item.get("title") or "").strip().casefold() == title) and (not artist or str(item.get("artist") or "").strip().casefold() == artist)), None)
+                    track_id = str((current or {}).get("track_id") or "")
+                track = {"urn": track_id, "title": snapshot.get("title"), "artist": snapshot.get("artist"), "artwork": snapshot.get("artwork"), "duration": snapshot.get("duration"), "type": "track", "playable": True}
+            return soundcloud_library.save_to_playlist(str(payload.get("name") or ""), track, str(payload.get("playlist_id") or ""))
         except ValueError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
+        except (httpx.HTTPError, RuntimeError) as exc:
+            raise HTTPException(status_code=502, detail="Dati del brano SoundCloud non disponibili dal WiiM") from exc
 
     @app.delete("/api/wiim/services/soundcloud/playlists/{playlist_id}")
     async def soundcloud_playlist_delete(playlist_id: str) -> dict:
@@ -1165,10 +1178,16 @@ def create_app() -> FastAPI:
 
     @app.get("/api/control4/favorites")
     async def control4_list_favorites() -> dict:
-        items = list(reversed(list_favorites()))
+        playlist_items = []
         for playlist in soundcloud_library.load()["playlists"]:
             tracks = playlist.get("tracks", [])
-            items.append({"id": f"soundcloud:playlist:{playlist['id']}", "kind": "soundcloud_playlist", "title": playlist["name"], "subtitle": f"{len(tracks)} brani", "item_type": "Playlist", "service": "SoundCloud", "artwork": str(tracks[0].get("artwork") or "") if tracks else ""})
+            playlist_items.append({"id": f"soundcloud:playlist:{playlist['id']}", "kind": "soundcloud_playlist", "title": playlist["name"], "subtitle": f"{len(tracks)} brani", "item_type": "Playlist", "service": "SoundCloud", "artwork": str(tracks[-1].get("artwork") or "") if tracks else "", "saved_at": float(playlist.get("updated_at") or 0)})
+        stored_favorites = list_favorites()
+        # Nuovi a sinistra, in un solo ordine cronologico per tutti i servizi.
+        # I record storici senza data mantengono il precedente ordine relativo.
+        items = playlist_items + stored_favorites
+        historical_order = {item.get("id"): index for index, item in enumerate(items)}
+        items.sort(key=lambda item: (float(item.get("saved_at") or 0), historical_order.get(item.get("id"), 0)), reverse=True)
         try:
             if time.monotonic() >= float(wiim_presets_cache["expires"]):
                 wiim_presets_cache["items"] = await configured_wiim().presets()
@@ -2105,8 +2124,8 @@ def create_app() -> FastAPI:
         page = page.replace("tools-dashboard.js?v=2.21.36", "tools-dashboard.js?v=2.21.38")
         page = page.replace("tools-dashboard.js?v=2.21.38", "tools-dashboard.js?v=2.21.41")
         page = page.replace("tools-dashboard.js?v=2.21.41", "tools-dashboard.js?v=2.21.42")
-        page = page.replace("tools-dashboard.js?v=2.21.42", "tools-dashboard.js?v=2.21.96")
-        page = page.replace("tools-dashboard.css?v=2.20.36", "tools-dashboard.css?v=2.21.96")
+        page = page.replace("tools-dashboard.js?v=2.21.42", "tools-dashboard.js?v=2.21.97")
+        page = page.replace("tools-dashboard.css?v=2.20.36", "tools-dashboard.css?v=2.21.97")
         page = page.replace("backgrounds.css?v=2.20.20", "backgrounds.css?v=2.21.43")
         page = page.replace("intercom.css?v=2.21.14", "intercom.css?v=2.21.46")
         page = page.replace("app.js?v=2.21.11", "app.js?v=2.21.29")

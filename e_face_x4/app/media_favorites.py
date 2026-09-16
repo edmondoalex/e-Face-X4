@@ -7,6 +7,7 @@ import hashlib
 import os
 import secrets
 import threading
+import time
 from pathlib import Path
 from typing import Any
 
@@ -97,6 +98,7 @@ def add_favorite(item: dict[str, Any]) -> list[dict[str, Any]]:
             return items
         if len(items) >= 100:
             raise ValueError("Limite di 100 preferiti raggiunto")
+        item = {**item, "saved_at": time.time()}
         items.append(item)
         _save(items)
         return items
