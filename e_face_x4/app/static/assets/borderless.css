@@ -1,4 +1,5 @@
 /* Prova visiva globale: superfici senza cornici, stato affidato a colore e contenuto. */
+*,*::before,*::after{border-color:transparent!important}
 .xcard,
 .quick-card,
 .room-card,

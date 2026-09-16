@@ -1,5 +1,5 @@
 const $ = (selector) => document.querySelector(selector)
-document.head.insertAdjacentHTML('beforeend', '<link rel="stylesheet" href="assets/media-x4.css?v=2.21.110">')
+document.head.insertAdjacentHTML('beforeend', '<link rel="stylesheet" href="assets/media-x4.css?v=2.21.111">')
 const glyph = { light: '✦', climate: '❄', shield: '⬡', energy: 'ϟ', cover: '▤', sensor: '◌' }
 let refreshRunning = false
 let refreshQueued = false
@@ -291,13 +291,14 @@ function renderHomeStatusCounters() {
 }
 
 const shortcutCategoryLabels = {lights:'Luci',switches:'Extra',covers:'Oscuranti',climate:'Comfort',security:'Sicurezza',media:'Audio e video',sensors:'Sensori',other:'Altro'}
+const collapsedShortcutCategories = new Set()
 function shortcutDevices(){const byId=new Map(currentDevices.map((device)=>[String(device.id),device]));return currentShortcuts.flatMap((group)=>(group.devices||[]).map((id)=>byId.get(String(id))).filter(Boolean))}
 function renderShortcutDevices(){
   const byId=new Map(currentDevices.map((device)=>[String(device.id),device]))
   const activeScenarioId=String(currentDevices.find((device)=>device.kind==='alarm_system')?.active_scenario_id||'')
   const sections=currentShortcuts.map((group)=>({category:group.category,devices:(group.devices||[]).map((id)=>byId.get(String(id))).filter(Boolean)})).filter((group)=>group.devices.length)
   const card=(device)=>{if(device.kind==='alarm_scenario'){const disarm=device.category==='DISARM',partial=device.category==='PARTIAL',active=String(device.id)===activeScenarioId;return `<button class="security-scenario shortcut-security-scenario ${disarm?'disarm':partial?'partial':'arm'} ${active?'active':''}" data-security-scenario data-device-id="${esc(device.id)}" data-action="execute"><span class="mdi-mask" style="${mdiStyle(disarm?'mdi:shield-off-outline':partial?'mdi:shield-half-full':'mdi:shield-lock-outline','shield-key-outline')}"></span><span><strong>${esc(device.name)}</strong><small>${active?'ATTIVO · Tocca per richiamare':'Tocca per eseguire con codice'}</small></span></button>`}return `<article class="shortcut-device ${deviceVisualClass(device)} ${device.kind==='media_player'?'media-player-card':''}" style="${deviceCardStyle(device)}" data-device-id="${esc(device.id)}" ${['light','switch'].includes(device.kind)?'data-device-toggle tabindex="0"':''}>${mediaArtwork(device)}${deviceGlyph(device)}<div><strong>${esc(device.name)}</strong><small>${esc(device.room)}</small>${device.kind==='media_player'?`<span class="media-track">${esc(device.title||'Nessuna riproduzione')}</span>`:''}</div><em>${esc(stateLabel(device))}</em>${deviceActions(device,{wiim:device.provider==='wiim',nowPlayingFavorite:false})}</article>`}
-  $('#device-list').innerHTML=sections.map((group)=>`<section class="shortcut-device-group"><h3>${esc(shortcutCategoryLabels[group.category]||group.category)}</h3><div class="shortcut-device-grid">${group.devices.map(card).join('')}</div></section>`).join('')||'<p class="empty-state">Configura le Scorciatoie da Strumenti utente</p>'
+  $('#device-list').innerHTML=sections.map((group)=>{const collapsed=collapsedShortcutCategories.has(group.category);return `<section class="shortcut-device-group ${collapsed?'collapsed':''}" data-shortcut-group="${esc(group.category)}"><button type="button" class="shortcut-group-toggle" data-shortcut-group-toggle="${esc(group.category)}" aria-expanded="${!collapsed}"><span>${esc(shortcutCategoryLabels[group.category]||group.category)}</span><small>${group.devices.length}</small><span class="mdi-mask" style="${mdiStyle(collapsed?'mdi:chevron-down':'mdi:chevron-up',collapsed?'chevron-down':'chevron-up')}"></span></button><div class="shortcut-device-grid" ${collapsed?'hidden':''}>${group.devices.map(card).join('')}</div></section>`}).join('')||'<p class="empty-state">Configura le Scorciatoie da Strumenti utente</p>'
 }
 
 function renderHomeComfort() {
@@ -1264,6 +1265,7 @@ function requestSecurityPin(deviceId, action, button) {
   $('#security-pin-operation').textContent = `${device?.name || 'Sicurezza'} · ${operation}`
   $('#security-pin-error').textContent = ''
   $('#security-pin-input').value = ''
+  $('#security-pin-dialog').classList.toggle('shortcut-pin-dialog', shortcutViewOpen)
   $('#security-pin-dialog').showModal()
 }
 
@@ -1292,6 +1294,7 @@ async function submitSecurityPin(event) {
   confirmButton.disabled = true
   $('#security-pin-input').value = ''
   $('#security-pin-dialog').close()
+  $('#security-pin-dialog').classList.remove('shortcut-pin-dialog')
   pendingSecurityCommand = null
   try {
     await postDeviceCommand(command.deviceId, command.action, null, null, pin)
@@ -2116,6 +2119,14 @@ $('#scenario-list').addEventListener('click', (event) => {
   if (button && card) sendScenarioCommand(card.dataset.scenarioId, button.dataset.scenarioAction, button)
 })
 $('#device-list').addEventListener('click', (event) => {
+  const shortcutToggle = event.target.closest('[data-shortcut-group-toggle]')
+  if (shortcutToggle) {
+    const category = shortcutToggle.dataset.shortcutGroupToggle
+    if (collapsedShortcutCategories.has(category)) collapsedShortcutCategories.delete(category)
+    else collapsedShortcutCategories.add(category)
+    renderShortcutDevices()
+    return
+  }
   const queueArtwork = event.target.closest('.media-session > .media-artwork')
   if (queueArtwork) {
     const selected = currentDevices.find((item) => String(item.id) === queueArtwork.closest('[data-device-id]')?.dataset.deviceId)
@@ -2443,7 +2454,7 @@ $('#device-list').addEventListener('keydown', (event) => {
 })
 $('#rgb-close').addEventListener('click', () => $('#rgb-dialog').close())
 $('#security-pin-form').addEventListener('submit', submitSecurityPin)
-function closeSecurityPin() { $('#security-pin-input').value = ''; $('#security-pin-dialog').close(); pendingSecurityCommand = null }
+function closeSecurityPin() { $('#security-pin-input').value = ''; $('#security-pin-dialog').close(); $('#security-pin-dialog').classList.remove('shortcut-pin-dialog'); pendingSecurityCommand = null }
 $('#security-pin-close').addEventListener('click', closeSecurityPin)
 $('#security-pin-cancel').addEventListener('click', closeSecurityPin)
 $('#security-pin-dialog').addEventListener('click', (event) => { if (event.target === $('#security-pin-dialog')) closeSecurityPin() })

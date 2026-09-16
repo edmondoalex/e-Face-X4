@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.21.111 — 2026-09-16
+
+- Ingrandito il tastierino PIN esclusivamente quando viene aperto dagli scenari nella pagina Scorciatoie.
+- Le categorie della pagina Scorciatoie possono essere compresse ed espanse mantenendo lo stato durante gli aggiornamenti realtime.
+- Rimossi globalmente i bordi visibili dell'interfaccia, mantenendo colori, riempimenti e stati.
+
 ## 2.21.110 — 2026-09-16
 
 - Sostituite le frecce delle Scorciatoie con il trascinamento tramite maniglia, coerente con le altre pagine di ordinamento.
