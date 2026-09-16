@@ -22,13 +22,13 @@ def test_wiim_metadata_helpers() -> None:
 
 
 def test_wiim_snapshot_overlays_linked_control4_room() -> None:
-    providers = [{"id": "control4", "items": [{"id": "c4media:51", "registry_id": "c4room:51", "kind": "media_player", "active_source_id": 1667, "state": "idle", "title": "Vecchio", "capabilities": {}}]}]
+    providers = [{"id": "control4", "items": [{"id": "c4media:51", "registry_id": "c4room:51", "kind": "media_player", "active_source_id": 1667, "state": "idle", "title": "Vecchio", "volume": 40, "muted": True, "capabilities": {}}]}]
     snapshot = {"state": "playing", "title": "Titolo WiiM", "artist": "Artista", "album": "Album", "track_id": "track-1", "artwork": "https://example.com/cover.jpg", "volume": 37, "muted": False}
     assert overlay_wiim_on_control4(providers, snapshot, 1667) is True
     player = providers[0]["items"][0]
     assert player["transport_provider"] == "wiim"
     assert player["title"] == "Titolo WiiM" and player["state"] == "playing"
-    assert player["volume"] == 37 and player["wiim_artwork"] is True
+    assert player["volume"] == 40 and player["muted"] is True and player["wiim_artwork"] is True
     assert player["content_fingerprint"].startswith("wiim-")
 
 

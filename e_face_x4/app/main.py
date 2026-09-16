@@ -66,7 +66,7 @@ from .connectors.control4_media import cached_control4_icon, cached_control4_ico
 from .connectors.supervisor import discover_addon_url, discover_host_url
 from .demo import dashboard as demo_dashboard
 
-VERSION = os.environ.get("EFACE_VERSION", "2.21.85")
+VERSION = os.environ.get("EFACE_VERSION", "2.21.86")
 STATIC = Path(__file__).parent / "static"
 logging.basicConfig(level=logging.WARNING, format="%(asctime)s %(levelname)s [e-face-x4] %(message)s")
 _reconnect_warning_at: dict[str, float] = {}
@@ -130,7 +130,6 @@ def overlay_wiim_on_control4(providers: list[dict], snapshot: dict, source_id: i
             linked = True
             item.update({
                 "transport_provider": "wiim", "state": snapshot.get("state") or item.get("state"),
-                "volume": snapshot.get("volume"), "muted": bool(snapshot.get("muted")),
                 "title": snapshot.get("title"), "artist": snapshot.get("artist"), "album": snapshot.get("album"),
                 "content_fingerprint": wiim_media_fingerprint(snapshot), "wiim_artwork": bool(snapshot.get("artwork")),
             })
@@ -2039,8 +2038,8 @@ def create_app() -> FastAPI:
         page = page.replace("tools-dashboard.js?v=2.21.36", "tools-dashboard.js?v=2.21.38")
         page = page.replace("tools-dashboard.js?v=2.21.38", "tools-dashboard.js?v=2.21.41")
         page = page.replace("tools-dashboard.js?v=2.21.41", "tools-dashboard.js?v=2.21.42")
-        page = page.replace("tools-dashboard.js?v=2.21.42", "tools-dashboard.js?v=2.21.85")
-        page = page.replace("tools-dashboard.css?v=2.20.36", "tools-dashboard.css?v=2.21.85")
+        page = page.replace("tools-dashboard.js?v=2.21.42", "tools-dashboard.js?v=2.21.86")
+        page = page.replace("tools-dashboard.css?v=2.20.36", "tools-dashboard.css?v=2.21.86")
         page = page.replace("backgrounds.css?v=2.20.20", "backgrounds.css?v=2.21.43")
         page = page.replace("intercom.css?v=2.21.14", "intercom.css?v=2.21.46")
         page = page.replace("app.js?v=2.21.11", "app.js?v=2.21.29")
@@ -2521,7 +2520,9 @@ def create_app() -> FastAPI:
                 raise HTTPException(status_code=400, detail="Comando multimedia non valido")
             if device_id.startswith("c4media:") and operation in {"tts", "set_dnd"}:
                 raise HTTPException(status_code=400, detail="TTS e DND sono disponibili soltanto sui player e-Voice")
-            if device_id.startswith("c4media:") and operation in wiim_actions:
+            # Linked WiiM owns metadata/transport only. Room volume and mute belong to Control4.
+            # Never flatten room levels with WiiM's single hardware volume (TASK_VOLUME_MASTER_PROPORZIONALE.md).
+            if device_id.startswith("c4media:") and operation in {"media_play", "media_pause", "media_stop", "media_next", "media_previous"}:
                 wiim_config = wiim_settings.load()
                 source_id = int(wiim_config.get("control4_source_id") or 0)
                 if wiim_config.get("enabled") and wiim_config.get("host") and source_id > 0:

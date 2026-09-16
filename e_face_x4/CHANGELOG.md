@@ -1,5 +1,12 @@
 # Changelog
 
+## 2.21.86 — 2026-09-16
+
+- Ripristinati volume e mute individuali delle stanze Control4 quando la sorgente attiva è WiiM.
+- Il master multiroom applica ora una variazione relativa, preservando la differenza tra i volumi delle stanze.
+- Rimossa l'etichetta stanza duplicata nel player; il nome stanza sostituisce i metadati `unknown` ed è più leggibile.
+- Aggiunti contratto tecnico e test automatici contro la regressione del volume master.
+
 ## 2.21.85 — 2026-09-16
 
 - Rende WiiM la fonte autorevole del player e-Face per stato, traccia, artista, album, cover, volume e mute quando la stanza Control4 usa la sorgente WiiM.

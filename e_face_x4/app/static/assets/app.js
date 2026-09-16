@@ -512,8 +512,8 @@ function renderMediaExperience(devices) {
   const activeOption = (selected.source_options || []).find((source) => Number(source.source_id) === Number(selected.active_source_id))
   const wiimActive = selected.active_experience === 'listen' && (selected.transport_provider === 'wiim' || /wiim/i.test(`${selected.source || ''} ${activeOption?.label || ''}`))
   const timeline = wiimActive ? '<label class="media-timeline" data-wiim-timeline><input type="range" min="0" max="1" step="1" value="0" style="--position:0%" data-wiim-seek aria-label="Avanzamento brano"><span><output data-wiim-elapsed>0:00</output><output data-wiim-remaining>-0:00</output></span></label>' : ''
-  const roomLabel = activeMediaRoom ? '' : `<span class="media-session-room" title="Stanza comandata: ${esc(selected.room || selected.name)}">${esc(selected.room || selected.name)}</span>`
-  $('#device-list').innerHTML = `<article class="media-session ${wiimActive ? 'has-wiim-timeline' : ''} ${experienceClass} ${deviceVisualClass(selected)}" data-device-id="${esc(selected.id)}">${navigatorArtwork}${navigatorIcon}<div class="media-session-info"><strong>${esc(selected.title || selected.source || selected.name)}</strong><small>${esc(selected.artist || selected.source || selected.room)}</small><span class="media-track">${esc(selected.album || selected.name)}</span></div>${roomLabel}${power}${timeline}${deviceActions(selected, { hidePower: true, wiim: wiimActive })}</article>${voicePanel}${recent}${favorites}<div class="media-library media-room-library"><button class="media-library-toggle" data-media-section-toggle="rooms" aria-expanded="${mediaSections.rooms}"><strong>Stanze</strong><span class="mdi-mask" style="${mdiStyle(mediaSections.rooms ? 'mdi:chevron-up' : 'mdi:chevron-down', 'chevron-down')}"></span></button><div class="media-service-grid" ${mediaSections.rooms ? '' : 'hidden'}>${players}</div></div><div class="media-library media-source-library"><h3>Sorgenti e servizi</h3><div class="media-service-grid">${sources || '<span class="empty-state">Nessuna sorgente disponibile</span>'}</div></div>`
+  const roomName = selected.room && !/^unknown$/i.test(selected.room) ? selected.room : selected.name
+  $('#device-list').innerHTML = `<article class="media-session ${wiimActive ? 'has-wiim-timeline' : ''} ${experienceClass} ${deviceVisualClass(selected)}" data-device-id="${esc(selected.id)}">${navigatorArtwork}${navigatorIcon}<div class="media-session-info"><strong>${esc(selected.title || selected.source || selected.name)}</strong><small>${esc(selected.artist || selected.source || roomName)}</small><span class="media-track media-room-name">${esc(roomName)}</span></div>${power}${timeline}${deviceActions(selected, { hidePower: true, wiim: wiimActive })}</article>${voicePanel}${recent}${favorites}<div class="media-library media-room-library"><button class="media-library-toggle" data-media-section-toggle="rooms" aria-expanded="${mediaSections.rooms}"><strong>Stanze</strong><span class="mdi-mask" style="${mdiStyle(mediaSections.rooms ? 'mdi:chevron-up' : 'mdi:chevron-down', 'chevron-down')}"></span></button><div class="media-service-grid" ${mediaSections.rooms ? '' : 'hidden'}>${players}</div></div><div class="media-library media-source-library"><h3>Sorgenti e servizi</h3><div class="media-service-grid">${sources || '<span class="empty-state">Nessuna sorgente disponibile</span>'}</div></div>`
   if (showRecent) {
     const controls = $('#device-list .media-session .media-controls')
     if (controls) controls.insertAdjacentHTML('beforeend', '<button type="button" class="media-now-playing-favorite" data-now-playing-favorite aria-label="Aggiungi ai Preferiti e-Face" aria-pressed="false" title="Aggiungi ai Preferiti e-Face">★</button>')
@@ -1312,17 +1312,23 @@ async function sendVideoRemote(action, button) {
 async function setMediaGroupVolume(input) {
   const group = mediaGroupFor(activeMediaPlayer)
   if (!group?.group_id) return
+  const targets = [...document.querySelectorAll('#media-zones-list [data-zone-volume]')].map((slider) => ({
+    player: currentDevices.find((item) => String(item.id) === String(slider.dataset.deviceId)),
+    level: Math.max(0, Math.min(100, Number(slider.value))),
+  })).filter((target) => target.player)
+  if (!targets.length) return
   input.disabled = true
   try {
-    const response = await fetch(apiUrl(`api/media/groups/${encodeURIComponent(group.group_id)}/command`), {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({action:'set_group_volume', value:Number(input.value), resource_revision:group.resource_revision})})
-    if (!response.ok) throw new Error((await response.json().catch(() => ({}))).detail || `HTTP ${response.status}`)
-    const result = await response.json()
-    if (result.status !== 'success') throw new Error('Volume applicato solo ad alcune stanze')
-    result.members?.forEach((member) => {
-      const player = currentDevices.find((item) => item.registry_id === member.registry_id)
-      const level = member.volume ?? member.target_percent
-      if (player && Number.isFinite(Number(level))) { player.volume = Number(level); setMediaOverride(player.id, { volume: Number(level) }) }
+    // INVARIANTE: master = delta relativo; ogni volume stanza resta comandato da Control4.
+    const results = await Promise.allSettled(targets.map(({ player, level }) => postDeviceCommand(player.id, 'set_volume', level)))
+    results.forEach((result, index) => {
+      if (result.status === 'fulfilled') {
+        targets[index].player.volume = targets[index].level
+        setMediaOverride(targets[index].player.id, { volume: targets[index].level })
+      }
     })
+    const failed = results.find((result) => result.status === 'rejected')
+    if (failed) throw failed.reason
     await refresh()
   } catch (error) { fail(error) } finally { input.disabled = false }
 }
@@ -1355,8 +1361,11 @@ async function setSessionVolume(input) {
   input.disabled = true
   try {
     if (session.group?.group_id && session.members.length > 1) {
-      const response = await fetch(apiUrl(`api/media/groups/${encodeURIComponent(session.group.group_id)}/command`), {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({action:'set_group_volume', value, resource_revision:session.group.resource_revision})})
-      if (!response.ok) throw new Error((await response.json().catch(() => ({}))).detail || `HTTP ${response.status}`)
+      // 40/50 + 10 => 50/60. Non inviare mai lo stesso valore assoluto a tutte le stanze.
+      const targets = session.members.map((player) => ({ player, level: Number.isFinite(Number(player.volume)) ? Math.max(0, Math.min(100, Number(player.volume) + delta)) : value }))
+      const results = await Promise.allSettled(targets.map(({ player, level }) => postDeviceCommand(player.id, 'set_volume', level)))
+      const failed = results.find((result) => result.status === 'rejected')
+      if (failed) throw failed.reason
     } else {
       await postDeviceCommand(session.player.id, 'set_volume', value)
     }
