@@ -58,7 +58,7 @@ from . import startup_settings
 from .connectors.soundcloud import SoundCloudClient
 from .media_preferences import apply_preferences, load_preferences, save_preferences
 from .source_icons import delete_source_icon, hidden_source_ids, load_builtin_source_icon, load_builtin_source_icon_by_id, load_source_icon, save_source_icon, set_source_hidden
-from .backgrounds import CARD_THEMES, PRESETS, load_background, load_background_image, load_backgrounds, load_card_theme, load_card_glow, load_room_order, load_security_order, load_shortcuts, save_background_image, save_card_theme, save_card_glow, save_room_order, save_security_order, save_shortcuts, save_inherit, save_preset
+from .backgrounds import CARD_THEMES, PRESETS, load_background, load_background_image, load_backgrounds, load_card_theme, load_card_glow, load_room_order, load_security_order, load_shortcuts, load_home_widgets, save_background_image, save_card_theme, save_card_glow, save_room_order, save_security_order, save_shortcuts, save_home_widgets, save_inherit, save_preset
 from .connectors import BusproConnector, Control4MediaConnector, EThermConnector, EkonexMediaConnector, EvoiceLocalMediaConnector, KseniaConnector
 from .connectors.ksenia import normalize_ksenia
 from .connectors.wiim import WiiMClient
@@ -66,7 +66,7 @@ from .connectors.control4_media import cached_control4_icon, cached_control4_ico
 from .connectors.supervisor import discover_addon_url, discover_host_url
 from .demo import dashboard as demo_dashboard
 
-VERSION = os.environ.get("EFACE_VERSION", "2.21.111")
+VERSION = os.environ.get("EFACE_VERSION", "2.21.112")
 STATIC = Path(__file__).parent / "static"
 logging.basicConfig(level=logging.WARNING, format="%(asctime)s %(levelname)s [e-face-x4] %(message)s")
 _reconnect_warning_at: dict[str, float] = {}
@@ -2191,9 +2191,9 @@ def create_app() -> FastAPI:
         page = page.replace('content="#263f48"', 'content="#181c1f"')
         page = page.replace("manifest.webmanifest?v=2.20.38", "manifest.webmanifest?v=2.21.59")
         page = page.replace("app.css?v=2.20.20", "app.css?v=2.21.73")
-        page = page.replace("app.css?v=2.21.84", "app.css?v=2.21.111")
-        page = page.replace("home-status.css?v=2.20.20", "home-status.css?v=2.21.111")
-        page = page.replace("tools.js?v=2.21.1", "tools.js?v=2.21.111")
+        page = page.replace("app.css?v=2.21.84", "app.css?v=2.21.112")
+        page = page.replace("home-status.css?v=2.20.20", "home-status.css?v=2.21.112")
+        page = page.replace("tools.js?v=2.21.1", "tools.js?v=2.21.112")
         page = page.replace("ui-theme-contract.css?v=2.21.27", "ui-theme-contract.css?v=2.21.29")
         page = page.replace("tools-dashboard.js?v=2.21.27", "tools-dashboard.js?v=2.21.33")
         page = page.replace("tools-dashboard.js?v=2.21.33", "tools-dashboard.js?v=2.21.34")
@@ -2201,8 +2201,8 @@ def create_app() -> FastAPI:
         page = page.replace("tools-dashboard.js?v=2.21.36", "tools-dashboard.js?v=2.21.38")
         page = page.replace("tools-dashboard.js?v=2.21.38", "tools-dashboard.js?v=2.21.41")
         page = page.replace("tools-dashboard.js?v=2.21.41", "tools-dashboard.js?v=2.21.42")
-        page = page.replace("tools-dashboard.js?v=2.21.42", "tools-dashboard.js?v=2.21.111")
-        page = page.replace("tools-dashboard.css?v=2.20.36", "tools-dashboard.css?v=2.21.111")
+        page = page.replace("tools-dashboard.js?v=2.21.42", "tools-dashboard.js?v=2.21.112")
+        page = page.replace("tools-dashboard.css?v=2.20.36", "tools-dashboard.css?v=2.21.112")
         page = page.replace("backgrounds.css?v=2.20.20", "backgrounds.css?v=2.21.43")
         page = page.replace("intercom.css?v=2.21.14", "intercom.css?v=2.21.46")
         page = page.replace("app.js?v=2.21.11", "app.js?v=2.21.29")
@@ -2404,7 +2404,7 @@ def create_app() -> FastAPI:
         return {
             "version": VERSION,
             "backgrounds": load_backgrounds(),
-            "appearance": {"card_theme": load_card_theme(), "card_glow": load_card_glow(), "room_order": load_room_order(), "security_order": load_security_order(), "shortcuts": load_shortcuts()},
+            "appearance": {"card_theme": load_card_theme(), "card_glow": load_card_glow(), "room_order": load_room_order(), "security_order": load_security_order(), "shortcuts": load_shortcuts(), "home_widgets": load_home_widgets()},
             "nav_icons": settings.nav_icons,
             "mode": "demo" if settings.demo_mode else "live",
             "dashboard": dashboard,
@@ -2458,7 +2458,7 @@ def create_app() -> FastAPI:
 
     @app.get("/api/user/appearance")
     async def user_appearance() -> dict:
-        return {"card_glow": load_card_glow(), "room_order": load_room_order(), "security_order": load_security_order(), "shortcuts": load_shortcuts()}
+        return {"card_glow": load_card_glow(), "room_order": load_room_order(), "security_order": load_security_order(), "shortcuts": load_shortcuts(), "home_widgets": load_home_widgets()}
 
     @app.put("/api/user/appearance")
     async def user_save_appearance(payload: dict) -> dict:
@@ -2467,8 +2467,9 @@ def create_app() -> FastAPI:
             if "room_order" in payload: save_room_order(payload["room_order"])
             if "security_order" in payload: save_security_order(payload["security_order"])
             if "shortcuts" in payload: save_shortcuts(payload["shortcuts"])
+            if "home_widgets" in payload: save_home_widgets(payload["home_widgets"])
         except ValueError as exc: raise HTTPException(status_code=400, detail=str(exc))
-        return {"card_glow": load_card_glow(), "room_order": load_room_order(), "security_order": load_security_order(), "shortcuts": load_shortcuts()}
+        return {"card_glow": load_card_glow(), "room_order": load_room_order(), "security_order": load_security_order(), "shortcuts": load_shortcuts(), "home_widgets": load_home_widgets()}
 
     @app.put("/api/user/card-theme")
     async def user_save_card_theme(payload: dict) -> dict:

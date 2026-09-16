@@ -7,6 +7,7 @@ PRESETS = {"teal", "midnight", "graphite", "ocean", "warm"}
 CARD_THEMES = {"graphite", "petrol", "midnight", "slate", "warm"}
 SECURITY_ORDER = ["scenarios", "areas", "zones", "locks"]
 SHORTCUT_CATEGORIES = ["lights", "switches", "covers", "climate", "security", "media", "sensors", "other"]
+HOME_WIDGETS = ["overview", "states", "rooms", "live"]
 MIME_SUFFIX = {"image/png": ".png", "image/jpeg": ".jpg", "image/webp": ".webp"}
 
 def _directory() -> Path: return Path(os.environ.get("EFACE_BACKGROUNDS", "/data/backgrounds"))
@@ -81,6 +82,29 @@ def save_shortcuts(groups: list[dict[str, object]]) -> None:
             device_ids.add(item); normalized.append(item)
         categories.add(group["category"]); clean.append({"category": group["category"], "devices": normalized})
     raw = _config(); raw["shortcuts"] = clean; _write(raw)
+
+def load_home_widgets() -> list[dict[str, object]]:
+    value = _config().get("home_widgets")
+    if not isinstance(value, list):
+        return [{"id": item, "visible": True, "size": "wide" if item in {"overview", "rooms", "live"} else "standard"} for item in HOME_WIDGETS]
+    clean, seen = [], set()
+    for item in value:
+        if not isinstance(item, dict) or item.get("id") not in HOME_WIDGETS or item["id"] in seen: continue
+        seen.add(item["id"]); size = item.get("size")
+        clean.append({"id": item["id"], "visible": item.get("visible") is not False, "size": size if size in {"compact", "standard", "wide"} else "standard"})
+    for widget_id in HOME_WIDGETS:
+        if widget_id not in seen: clean.append({"id": widget_id, "visible": True, "size": "standard"})
+    return clean
+
+def save_home_widgets(items: list[dict[str, object]]) -> None:
+    if not isinstance(items, list) or len(items) != len(HOME_WIDGETS): raise ValueError("Configurazione Home non valida")
+    ids = [item.get("id") for item in items if isinstance(item, dict)]
+    if set(ids) != set(HOME_WIDGETS) or len(ids) != len(set(ids)): raise ValueError("Widget Home non validi")
+    clean = []
+    for item in items:
+        if not isinstance(item.get("visible"), bool) or item.get("size") not in {"compact", "standard", "wide"}: raise ValueError("Proprietà widget non valide")
+        clean.append({"id": item["id"], "visible": item["visible"], "size": item["size"]})
+    raw = _config(); raw["home_widgets"] = clean; _write(raw)
 
 def load_card_glow() -> bool:
     return _config().get("card_glow", True) is not False

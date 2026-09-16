@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.21.112 — 2026-09-16
+
+- Aggiunta la Home dinamica: widget persistenti selezionabili, riordinabili tramite trascinamento e dimensionabili da Strumenti utente.
+- I widget mantengono gli aggiornamenti realtime e riutilizzano i controlli esistenti senza duplicare lo stato.
+
 ## 2.21.111 — 2026-09-16
 
 - Ingrandito il tastierino PIN esclusivamente quando viene aperto dagli scenari nella pagina Scorciatoie.

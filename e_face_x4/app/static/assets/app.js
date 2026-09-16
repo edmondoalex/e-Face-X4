@@ -1,5 +1,5 @@
 const $ = (selector) => document.querySelector(selector)
-document.head.insertAdjacentHTML('beforeend', '<link rel="stylesheet" href="assets/media-x4.css?v=2.21.111">')
+document.head.insertAdjacentHTML('beforeend', '<link rel="stylesheet" href="assets/media-x4.css?v=2.21.112">')
 const glyph = { light: '✦', climate: '❄', shield: '⬡', energy: 'ϟ', cover: '▤', sensor: '◌' }
 let refreshRunning = false
 let refreshQueued = false
@@ -43,6 +43,7 @@ let energyMasterPending = { signature:'', confirmations:0 }
 const securitySections = { areas: false, zones: false }
 let currentSecurityOrder = ['scenarios', 'areas', 'zones', 'locks']
 let currentShortcuts = []
+let currentHomeWidgets = []
 let shortcutViewOpen = false
 const mediaSections = { rooms: true, playing: true }
 const isSecurityGarage = (device) => device.kind === 'cover' && /garage|portone/i.test(`${device.icon || ''} ${device.name || ''}`)
@@ -194,6 +195,8 @@ function render(data) {
   document.body.dataset.cardGlow = data.appearance?.card_glow === false ? 'off' : 'on'
   currentSecurityOrder = data.appearance?.security_order || currentSecurityOrder
   currentShortcuts = data.appearance?.shortcuts || currentShortcuts
+  currentHomeWidgets = data.appearance?.home_widgets || currentHomeWidgets
+  applyHomeWidgetLayout()
   applyBackground()
   const dashboard = data.dashboard || {}
   const home = dashboard.home || {}
@@ -291,6 +294,12 @@ function renderHomeStatusCounters() {
 }
 
 const shortcutCategoryLabels = {lights:'Luci',switches:'Extra',covers:'Oscuranti',climate:'Comfort',security:'Sicurezza',media:'Audio e video',sensors:'Sensori',other:'Altro'}
+function applyHomeWidgetLayout(){
+  const board=$('#home-view .dashboard-grid'); if(!board)return
+  const elements={overview:$('.home-overview-summary'),states:$('#widgets'),rooms:$('#room-panel'),live:$('#home-live-media')}
+  const layout=currentHomeWidgets.length?currentHomeWidgets:[{id:'overview',visible:true,size:'wide'},{id:'states',visible:true,size:'standard'},{id:'rooms',visible:true,size:'wide'},{id:'live',visible:true,size:'wide'}]
+  layout.forEach((item,index)=>{const element=elements[item.id];if(!element)return;element.dataset.homeWidget=item.id;element.dataset.widgetSize=item.size||'standard';element.style.order=String(index);element.classList.toggle('widget-user-hidden',item.visible===false);board.append(element)})
+}
 const collapsedShortcutCategories = new Set()
 function shortcutDevices(){const byId=new Map(currentDevices.map((device)=>[String(device.id),device]));return currentShortcuts.flatMap((group)=>(group.devices||[]).map((id)=>byId.get(String(id))).filter(Boolean))}
 function renderShortcutDevices(){
