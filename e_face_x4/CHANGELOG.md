@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.21.110 — 2026-09-16
+
+- Sostituite le frecce delle Scorciatoie con il trascinamento tramite maniglia, coerente con le altre pagine di ordinamento.
+- Il trascinamento funziona sia sulle categorie sia sui dispositivi interni alla categoria.
+
 ## 2.21.109 — 2026-09-16
 
 - Corretto il contenitore del pannello Scorciatoie in Strumenti: il click ora apre la configurazione.
