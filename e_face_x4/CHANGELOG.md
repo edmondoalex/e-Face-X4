@@ -1,5 +1,9 @@
 # Changelog
 
+## 2.21.116 — 2026-09-16
+
+- Corretto il widget Largo: le vecchie regole interne di Riepilogo, Stati e Live non possono più restringerlo alle prime colonne della nuova griglia Home.
+
 ## 2.21.115 — 2026-09-16
 
 - Le dimensioni Home ora controllano una vera griglia: Compatto occupa un terzo, Medio metà riga e Largo tutta la riga; su mobile i widget restano a colonna singola.
