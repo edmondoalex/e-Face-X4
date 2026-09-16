@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.21.99 — 2026-09-16
+
+- Player WiiM: pannello Equalizzatore con sorgenti separate, on/off, 10 bande grafiche e tutti i preset del dispositivo.
+- EQ WiiM: applicazione delle bande e salvataggio di preset custom con nome scelto dall'utente.
+
 ## 2.21.98 — 2026-09-16
 
 - Playlist SoundCloud storiche: migrazione automatica dell'ordinamento, così tornano visibili a sinistra.

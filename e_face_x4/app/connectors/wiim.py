@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import html
 import ipaddress
+import json
 import re
 import xml.etree.ElementTree as ET
 from typing import Any
@@ -87,6 +88,53 @@ class WiiMClient:
         if not command:
             raise ValueError("Azione WiiM non valida")
         return str(await self.command(command, json_response=False))
+
+    async def _eq_json_command(self, action: str, payload: dict[str, Any]) -> Any:
+        allowed = {"EQGetLV2SourceBandEx", "EQSetLV2SourceBand", "EQChangeSourceFX", "EQSourceOff", "EQv2SourceLoad", "EQSourceSave"}
+        if action not in allowed:
+            raise ValueError("Azione EQ WiiM non valida")
+        value = json.dumps(payload, ensure_ascii=True, separators=(",", ":"))
+        async with httpx.AsyncClient(verify=False, timeout=self.timeout, transport=self._transport) as client:
+            response = await client.get(f"https://{self.host}/httpapi.asp", params={"command": f"{action}:{value}"})
+            response.raise_for_status()
+            try: return response.json()
+            except ValueError: return response.text.strip()
+
+    async def eq_state(self, source: str = "wifi") -> dict[str, Any]:
+        if source not in {"wifi", "bluetooth", "line-in", "optical"}:
+            raise ValueError("Sorgente EQ WiiM non valida")
+        plugin = "http://moddevices.com/plugins/caps/Eq10HP"
+        state, presets = await asyncio.gather(
+            self._eq_json_command("EQGetLV2SourceBandEx", {"source_name": source, "pluginURI": plugin}),
+            self.command(f"EQv2GetList:{plugin}"),
+        )
+        if not isinstance(state, dict) or state.get("status") != "OK": raise RuntimeError("EQ WiiM non disponibile")
+        lists = presets if isinstance(presets, dict) else {}
+        return {"source": source, "enabled": str(state.get("EQStat") or "").lower() == "on", "name": str(state.get("Name") or "Custom"), "channel_mode": str(state.get("channelMode") or "Stereo"), "bands": state.get("EQBand") or [], "presets": list(lists.get("preset") or []) + list(lists.get("custom") or [])}
+
+    async def set_eq(self, source: str, action: str, *, name: str = "", bands: list[dict[str, Any]] | None = None) -> dict[str, Any]:
+        if source not in {"wifi", "bluetooth", "line-in", "optical"}: raise ValueError("Sorgente EQ WiiM non valida")
+        plugin = "http://moddevices.com/plugins/caps/Eq10HP"
+        base = {"source_name": source, "pluginURI": plugin}
+        if action == "enable": await self._eq_json_command("EQChangeSourceFX", base)
+        elif action == "disable": await self._eq_json_command("EQSourceOff", base)
+        elif action == "preset":
+            if not name or len(name) > 80: raise ValueError("Preset EQ WiiM non valido")
+            await self._eq_json_command("EQv2SourceLoad", {**base, "Name": name})
+        elif action in {"bands", "save"}:
+            if not isinstance(bands, list) or len(bands) != 10: raise ValueError("Bande EQ WiiM non valide")
+            clean = []
+            for index, band in enumerate(bands):
+                value = round(float(band.get("value")), 1)
+                if not -12 <= value <= 12: raise ValueError("Valore banda EQ fuori intervallo")
+                clean.append({"index": index, "param_name": str(band.get("param_name") or "")[:30], "value": value})
+            await self._eq_json_command("EQSetLV2SourceBand", {**base, "channelMode": "Stereo", "EQBand": clean})
+            if action == "save":
+                name = str(name).strip()
+                if not 1 <= len(name) <= 40: raise ValueError("Inserisci un nome per il preset custom")
+                await self._eq_json_command("EQSourceSave", {**base, "Name": name})
+        else: raise ValueError("Azione EQ WiiM non valida")
+        return await self.eq_state(source)
 
     async def presets(self) -> list[dict[str, Any]]:
         payload = await self.command("getPresetInfo")

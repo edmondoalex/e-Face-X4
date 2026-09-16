@@ -1,4 +1,5 @@
 const $ = (selector) => document.querySelector(selector)
+document.head.insertAdjacentHTML('beforeend', '<link rel="stylesheet" href="assets/media-x4.css?v=2.21.99">')
 const glyph = { light: '✦', climate: '❄', shield: '⬡', energy: 'ϟ', cover: '▤', sensor: '◌' }
 let refreshRunning = false
 let refreshQueued = false
@@ -53,6 +54,7 @@ let wiimTimelineDragging = false
 let wiimLoopMode = 4
 let pendingSoundCloudTrack = null
 const wiimTimelineState = new Map()
+let wiimEqState = null
 const recentPending = new Map()
 const ttsVolumeRestores = new Map()
 const mediaSessionMasterKey = 'eface-media-session-masters-v1'
@@ -582,6 +584,30 @@ function renderMediaExperience(devices) {
 function mediaTime(value) {
   const seconds = Math.max(0, Math.round(Number(value) || 0))
   return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`
+}
+
+const wiimEqSources = { wifi: 'Ethernet / Wi-Fi', bluetooth: 'Bluetooth', 'line-in': 'Ingresso linea', optical: 'Ingresso ottico' }
+async function openWiimEq(source = 'wifi') {
+  const dialog = $('#wiim-eq-dialog'); if (!dialog.open) dialog.showModal()
+  $('#wiim-eq-body').innerHTML = '<span class="empty-state">Caricamento equalizzatore…</span>'
+  try {
+    const response = await fetch(apiUrl(`api/wiim/eq?source=${encodeURIComponent(source)}`), {cache:'no-store'})
+    if (!response.ok) throw new Error((await response.json().catch(() => ({}))).detail || 'Equalizzatore non disponibile')
+    wiimEqState = await response.json(); renderWiimEq()
+  } catch (error) { $('#wiim-eq-body').innerHTML = `<span class="empty-state">${esc(error.message)}</span>` }
+}
+function renderWiimEq() {
+  if (!wiimEqState) return
+  const frequencies = ['31Hz','63Hz','125Hz','250Hz','500Hz','1kHz','2kHz','4kHz','8kHz','16kHz']
+  const sources = Object.entries(wiimEqSources).map(([key,label]) => `<button data-eq-source="${key}" class="${wiimEqState.source === key ? 'active' : ''}">${label}</button>`).join('')
+  const bands = (wiimEqState.bands || []).map((band,index) => `<label><input type="range" min="-12" max="12" step="0.1" value="${Number(band.value)||0}" data-eq-band="${index}" data-param-name="${esc(band.param_name)}"><b>${frequencies[index]}</b><output>${(Number(band.value)||0).toFixed(1)} dB</output></label>`).join('')
+  const presets = (wiimEqState.presets || []).map(name => `<button data-eq-preset="${esc(name)}" class="${name === wiimEqState.name ? 'active' : ''}">${esc(name)}</button>`).join('')
+  $('#wiim-eq-body').innerHTML = `<nav class="wiim-eq-sources">${sources}</nav><div class="wiim-eq-heading"><strong>EQ grafico · ${esc(wiimEqState.name || 'Custom')}</strong><label>EQ <input type="checkbox" data-eq-enabled ${wiimEqState.enabled ? 'checked' : ''}></label></div><div class="wiim-eq-bands">${bands}</div><div class="wiim-eq-actions"><button data-eq-reset>RIPRISTINA</button><button data-eq-apply>APPLICA</button><input data-eq-custom-name maxlength="40" placeholder="Nome preset custom"><button data-eq-save-custom>SALVA CUSTOM</button></div><div class="wiim-eq-presets">${presets}</div>`
+}
+async function updateWiimEq(payload) {
+  const response = await fetch(apiUrl('api/wiim/eq'), {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({source:wiimEqState.source,...payload})})
+  if (!response.ok) throw new Error((await response.json().catch(() => ({}))).detail || 'Modifica EQ non riuscita')
+  wiimEqState = await response.json(); renderWiimEq()
 }
 
 async function loadWiimTimeline(deviceId) {
@@ -1171,7 +1197,7 @@ function deviceActions(device, options = {}) {
     const disabled = device.connection_status === 'offline' || device.availability !== 'available'
     const button = (operation, icon, label, enabled = false, className = '') => enabled ? `<button class="${className}" data-media-action="${operation}" aria-label="${label}" ${disabled ? 'disabled' : ''}><span class="mdi-mask" style="${mdiStyle(`mdi:${icon}`, icon)}"></span></button>` : ''
     const wiimButton = (action, icon, label) => `<button data-wiim-action="${action}" aria-label="${label}"><span class="mdi-mask" style="${mdiStyle(`mdi:${icon}`, icon)}"></span></button>`
-    const controls = [button('video_remote_menu', 'remote-tv', 'Telecomando video', device.active_experience === 'watch' && device.active_source_id), options.wiim ? wiimButton('shuffle', 'shuffle-variant', 'Riproduzione casuale WiiM') : button('media_shuffle', 'shuffle-variant', 'Riproduzione casuale', caps.shuffle), button('media_previous', 'skip-previous', 'Precedente', caps.previous), String(device.state).toLowerCase() === 'playing' ? button('media_pause', 'pause', 'Pausa', caps.pause, 'primary') : button('media_play', 'play', 'Riproduci', caps.play, 'primary'), button('media_next', 'skip-next', 'Successivo', caps.next), options.wiim ? wiimButton('repeat', 'repeat', 'Ripetizione WiiM') : button('media_repeat', 'repeat', 'Ripeti', caps.repeat), button('media_stop', 'stop', 'Stop', caps.stop && currentMediaExperience !== 'listen'), button('turn_off', 'power', 'Spegni stanza', caps.turn_off && !options.hidePower), button('media_zones', 'plus-box-outline', 'Aggiungi stanze', caps.grouping), options.nowPlayingFavorite ? `<button type="button" class="media-now-playing-favorite" data-now-playing-favorite aria-label="Aggiungi ai Preferiti e-Face" aria-pressed="false" title="Aggiungi ai Preferiti e-Face">★</button>` : ''].join('')
+    const controls = [button('video_remote_menu', 'remote-tv', 'Telecomando video', device.active_experience === 'watch' && device.active_source_id), options.wiim ? wiimButton('shuffle', 'shuffle-variant', 'Riproduzione casuale WiiM') : button('media_shuffle', 'shuffle-variant', 'Riproduzione casuale', caps.shuffle), button('media_previous', 'skip-previous', 'Precedente', caps.previous), String(device.state).toLowerCase() === 'playing' ? button('media_pause', 'pause', 'Pausa', caps.pause, 'primary') : button('media_play', 'play', 'Riproduci', caps.play, 'primary'), button('media_next', 'skip-next', 'Successivo', caps.next), options.wiim ? wiimButton('repeat', 'repeat', 'Ripetizione WiiM') : button('media_repeat', 'repeat', 'Ripeti', caps.repeat), options.wiim ? wiimButton('eq', 'tune-vertical', 'Equalizzatore WiiM') : '', button('media_stop', 'stop', 'Stop', caps.stop && currentMediaExperience !== 'listen'), button('turn_off', 'power', 'Spegni stanza', caps.turn_off && !options.hidePower), button('media_zones', 'plus-box-outline', 'Aggiungi stanze', caps.grouping), options.nowPlayingFavorite ? `<button type="button" class="media-now-playing-favorite" data-now-playing-favorite aria-label="Aggiungi ai Preferiti e-Face" aria-pressed="false" title="Aggiungi ai Preferiti e-Face">★</button>` : ''].join('')
     const mute = caps.mute ? button(device.muted ? 'volume_unmute' : 'volume_mute', device.muted ? 'volume-off' : 'volume-high', device.muted ? 'Riattiva audio' : 'Disattiva audio', true, 'media-volume-mute') : '<span></span>'
     const mediaVolume = Number(device.volume) || 0
     const volume = caps.set_volume ? `<label class="media-volume">${mute}<input type="range" min="0" max="100" step="1" value="${mediaVolume}" style="--volume:${mediaVolume}%" data-media-volume ${disabled ? 'disabled' : ''}><output>${mediaVolume}%</output></label>` : ''
@@ -2078,6 +2104,7 @@ $('#device-list').addEventListener('click', (event) => {
   const wiimButton = event.target.closest('[data-wiim-action]')
   if (wiimButton) {
     const action = wiimButton.dataset.wiimAction
+    if (action === 'eq') return openWiimEq()
     const shuffled = [2, 3, 5].includes(wiimLoopMode)
     const repeatState = [1, 5].includes(wiimLoopMode) ? 'one' : [0, 2].includes(wiimLoopMode) ? 'all' : 'off'
     let mode = wiimLoopMode
@@ -2602,6 +2629,17 @@ $('#soundcloud-playlist-form').addEventListener('submit', async (event) => {
   } catch (error) { fail(error) }
 })
 $('#wiim-queue-close').addEventListener('click', () => $('#wiim-queue-dialog').close())
+$('#wiim-eq-close').addEventListener('click', () => $('#wiim-eq-dialog').close())
+$('#wiim-eq-body').addEventListener('input', (event) => { if (event.target.matches('[data-eq-band]')) event.target.parentElement.querySelector('output').textContent = `${Number(event.target.value).toFixed(1)} dB` })
+$('#wiim-eq-body').addEventListener('click', (event) => {
+  const source = event.target.closest('[data-eq-source]'); if (source) return openWiimEq(source.dataset.eqSource)
+  const preset = event.target.closest('[data-eq-preset]'); if (preset) return updateWiimEq({action:'preset',name:preset.dataset.eqPreset}).catch(fail)
+  if (event.target.closest('[data-eq-reset]')) return updateWiimEq({action:'preset',name:'Flat'}).catch(fail)
+  const bands = () => [...document.querySelectorAll('[data-eq-band]')].map(input => ({param_name:input.dataset.paramName,value:Number(input.value)}))
+  if (event.target.closest('[data-eq-apply]')) return updateWiimEq({action:'bands',bands:bands()}).then(() => notify('Equalizzatore WiiM applicato')).catch(fail)
+  if (event.target.closest('[data-eq-save-custom]')) { const name = $('[data-eq-custom-name]').value.trim(); return updateWiimEq({action:'save',name,bands:bands()}).then(() => notify(`Preset EQ “${name}” salvato`)).catch(fail) }
+})
+$('#wiim-eq-body').addEventListener('change', (event) => { if (event.target.matches('[data-eq-enabled]')) updateWiimEq({action:event.target.checked?'enable':'disable'}).catch(fail) })
 $('#wiim-queue-list').addEventListener('click', async (event) => {
   const button = event.target.closest('[data-wiim-queue-index]'); if (!button) return
   try {

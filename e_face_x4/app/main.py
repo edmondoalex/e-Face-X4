@@ -66,7 +66,7 @@ from .connectors.control4_media import cached_control4_icon, cached_control4_ico
 from .connectors.supervisor import discover_addon_url, discover_host_url
 from .demo import dashboard as demo_dashboard
 
-VERSION = os.environ.get("EFACE_VERSION", "2.21.98")
+VERSION = os.environ.get("EFACE_VERSION", "2.21.99")
 STATIC = Path(__file__).parent / "static"
 logging.basicConfig(level=logging.WARNING, format="%(asctime)s %(levelname)s [e-face-x4] %(message)s")
 _reconnect_warning_at: dict[str, float] = {}
@@ -394,6 +394,18 @@ def create_app() -> FastAPI:
             return {"device": await configured_wiim().snapshot()}
         except (httpx.HTTPError, RuntimeError) as exc:
             raise HTTPException(status_code=502, detail="WiiM non raggiungibile") from exc
+
+    @app.get("/api/wiim/eq")
+    async def wiim_eq(source: str = "wifi") -> dict:
+        try: return await configured_wiim().eq_state(source)
+        except ValueError as exc: raise HTTPException(status_code=400, detail=str(exc)) from exc
+        except (httpx.HTTPError, RuntimeError) as exc: raise HTTPException(status_code=502, detail="Equalizzatore WiiM non disponibile") from exc
+
+    @app.post("/api/wiim/eq")
+    async def wiim_eq_update(payload: dict) -> dict:
+        try: return await configured_wiim().set_eq(str(payload.get("source") or "wifi"), str(payload.get("action") or ""), name=str(payload.get("name") or ""), bands=payload.get("bands"))
+        except (ValueError, TypeError) as exc: raise HTTPException(status_code=400, detail=str(exc)) from exc
+        except (httpx.HTTPError, RuntimeError) as exc: raise HTTPException(status_code=502, detail="Modifica equalizzatore WiiM non riuscita") from exc
 
     @app.get("/api/wiim/queue")
     async def wiim_queue() -> dict:
@@ -2138,8 +2150,8 @@ def create_app() -> FastAPI:
         page = page.replace("tools-dashboard.js?v=2.21.36", "tools-dashboard.js?v=2.21.38")
         page = page.replace("tools-dashboard.js?v=2.21.38", "tools-dashboard.js?v=2.21.41")
         page = page.replace("tools-dashboard.js?v=2.21.41", "tools-dashboard.js?v=2.21.42")
-        page = page.replace("tools-dashboard.js?v=2.21.42", "tools-dashboard.js?v=2.21.98")
-        page = page.replace("tools-dashboard.css?v=2.20.36", "tools-dashboard.css?v=2.21.98")
+        page = page.replace("tools-dashboard.js?v=2.21.42", "tools-dashboard.js?v=2.21.99")
+        page = page.replace("tools-dashboard.css?v=2.20.36", "tools-dashboard.css?v=2.21.99")
         page = page.replace("backgrounds.css?v=2.20.20", "backgrounds.css?v=2.21.43")
         page = page.replace("intercom.css?v=2.21.14", "intercom.css?v=2.21.46")
         page = page.replace("app.js?v=2.21.11", "app.js?v=2.21.29")
