@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.21.122 — 2026-09-16
+
+- Corretto il widget Meteo che restava visibile nonostante fosse stato disattivato in Home dinamica.
+- La scelta “Mostra” ora ha priorità assoluta sulle regole grafiche di tutti i widget Home.
+
 ## 2.21.121 — 2026-09-16
 
 - La località meteo accetta città e provincia, ad esempio `Bra,Cuneo`, selezionando il risultato geografico corretto.
