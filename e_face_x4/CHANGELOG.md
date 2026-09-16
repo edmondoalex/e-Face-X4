@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.21.126 — 2026-09-16
+
+- La suoneria video DoorBird condivisa ora si arresta automaticamente dopo 45 secondi se il browser non riceve la sessione SIP.
+- Il pulsante di chiusura interrompe subito suoneria e anteprima anche nella fase precedente alla chiamata SIP.
+- L'arrivo della vera sessione SIP prende il controllo della suoneria senza lasciare timer indipendenti attivi.
+
 ## 2.21.125 — 2026-09-16
 
 - Il backend mantiene un solo monitor eventi per ogni DoorBird e distribuisce la chiamata a tutti i browser e-Face collegati.

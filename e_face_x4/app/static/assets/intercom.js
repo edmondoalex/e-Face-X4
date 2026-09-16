@@ -2,7 +2,7 @@
   const $ = (selector) => document.querySelector(selector)
   const adminMode = document.documentElement.classList.contains('admin-intercom')
   const root = new URL('./', location.href)
-const currentVersion = '2.21.125'
+const currentVersion = '2.21.126'
   function newDeviceId() {
     if (typeof crypto.randomUUID === 'function') return crypto.randomUUID()
     const bytes = new Uint8Array(16)
@@ -57,6 +57,8 @@ const currentVersion = '2.21.125'
   let doorbirdStopped = false
   let doorbirdVideoActive = false
   let doorbirdRetryTimer = null
+  let doorbirdAlertTimer = null
+  let doorbirdAlertActive = false
   let intercomVisible = !document.documentElement.classList.contains('embedded')
   let stationsSignature = ''
   const externalVideoByExtension = new Map()
@@ -592,6 +594,8 @@ const currentVersion = '2.21.125'
 
   function clearCall(text) {
     stopRingtone()
+    clearTimeout(doorbirdAlertTimer)
+    doorbirdAlertActive = false
     call = null
     if (updateAvailable) { location.reload(); return }
     clearInterval(audioStatsTimer)
@@ -619,7 +623,24 @@ const currentVersion = '2.21.125'
     publishIntercomState(phone?.isRegistered() ? 'available' : 'idle')
   }
 
+  function closeDoorbirdAlert() {
+    clearTimeout(doorbirdAlertTimer)
+    doorbirdAlertActive = false
+    if (call) return
+    stopRingtone()
+    $('#intercom-call-panel').hidden = true
+    $('#intercom-video-panel').hidden = true
+    $('#call-doorbird-preview').removeAttribute('src')
+    $('#call-doorbird-preview').hidden = true
+    $('#remote-video-placeholder').hidden = false
+    $('#call-status').textContent = 'Nessuna chiamata in corso.'
+    $('#call-answer').disabled = true
+    $('#call-hangup').disabled = true
+  }
+
   function showDoorbirdIncoming(stationId = 'ingresso') {
+    clearTimeout(doorbirdAlertTimer)
+    doorbirdAlertActive = true
     const preview = $('#call-doorbird-preview')
     preview.src = new URL(`api/intercom/external-stations/${encodeURIComponent(stationId)}/video?t=${Date.now()}`, root).toString()
     preview.hidden = false
@@ -628,9 +649,12 @@ const currentVersion = '2.21.125'
     $('#intercom-call-panel').hidden = false
     $('#call-title').textContent = 'Chiamata da DoorBird'
     $('#call-status').textContent = 'DoorBird sta chiamandoâ€¦'
+    $('#call-answer').disabled = true
+    $('#call-hangup').disabled = false
     $('#video-status').textContent = 'Video live DoorBird attivo'
     requestAnimationFrame(() => $('#intercom-video-panel').scrollIntoView({behavior:'smooth', block:'start'}))
     if (!call) startRingtone()
+    doorbirdAlertTimer = setTimeout(closeDoorbirdAlert, 45000)
   }
 
   window.addEventListener('message', event => {
@@ -726,6 +750,8 @@ const currentVersion = '2.21.125'
       return
     }
     call = session
+    clearTimeout(doorbirdAlertTimer)
+    doorbirdAlertActive = false
     $('#intercom-call-panel').hidden = false
     $('#audio-status').textContent = 'Connessione audio in preparazione…'
     const remoteOffersVideo = session.direction === 'incoming' && sessionOffersVideo(session)
@@ -998,7 +1024,10 @@ const currentVersion = '2.21.125'
   })
 
   $('#call-hangup').addEventListener('click', () => {
-    if (!call) return
+    if (!call) {
+      if (doorbirdAlertActive) closeDoorbirdAlert()
+      return
+    }
     const incoming = call.direction === 'incoming'
     $('#call-status').textContent = 'Chiusura chiamata…'
     $('#call-hangup').disabled = true
