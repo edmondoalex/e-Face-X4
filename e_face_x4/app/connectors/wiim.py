@@ -231,8 +231,9 @@ class WiiMClient:
         queue_name = str(queue_name or "0").strip()
         if len(queue_name) > 500:
             raise ValueError("Nome coda WiiM non valido")
-        # BrowseQueueEx numbers XML nodes from Track1, while PlayQueueWithIndex uses a zero-based index.
-        await self._playqueue("PlayQueueWithIndex", {"QueueName": queue_name, "Index": int(index) - 1})
+        # This WiiM firmware expects the same one-based position exposed by
+        # BrowseQueueEx (Track1, Track2, ...).
+        await self._playqueue("PlayQueueWithIndex", {"QueueName": queue_name, "Index": int(index)})
 
     async def create_queue(self, context: str, queue_name: str) -> None:
         await self.load_queue(context)

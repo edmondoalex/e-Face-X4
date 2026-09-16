@@ -118,7 +118,7 @@ async def test_native_wiim_queue_browse_and_exact_play() -> None:
     await client.play_queue_index(1, "Playlist_#~token")
     assert [action for action, _ in actions] == ["BrowseQueueEx", "PlayQueueWithIndex"]
     assert "<QueueName>Playlist_#~token</QueueName>" in actions[-1][1]
-    assert "<Index>0</Index>" in actions[-1][1]
+    assert "<Index>1</Index>" in actions[-1][1]
     assert all("schemas-wiimu-com:service:PlayQueue:1" in body for _, body in actions)
 
 

@@ -1,5 +1,9 @@
 # Changelog
 
+## 2.21.107 — 2026-09-16
+
+- Corretto l'indice della selezione coda WiiM: ora parte il brano premuto, non quello precedente.
+
 ## 2.21.106 — 2026-09-16
 
 - Le playlist SoundCloud senza brani risolvibili vengono eliminate e spariscono subito dai Preferiti, senza schede fantasma con errore 502.
