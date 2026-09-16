@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.21.90 — 2026-09-16
+
+- Le stanze Control4 instradate sullo stesso WiiM vengono consolidate immediatamente in un'unica sessione, anche durante il ritardo transitorio dei metadati gruppo.
+- Dopo aggiunta o rimozione di una stanza viene eseguita una seconda sincronizzazione differita del gruppo.
+
 ## 2.21.89 — 2026-09-16
 
 - Il richiamo di un preferito brano WiiM mantiene in pausa il preset dinamico finché non ritrova l'ID esatto; un brano diverso non viene più lasciato in riproduzione.

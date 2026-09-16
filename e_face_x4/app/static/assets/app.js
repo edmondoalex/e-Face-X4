@@ -963,7 +963,12 @@ function activeMediaSessions() {
     const playbackKey = player.provider === 'evoice' && playbackIdentity.replaceAll('|','') ? `${player.provider}|${playbackIdentity}` : ''
     if (playbackKey && consumedPlayback.has(playbackKey)) continue
     const group = mediaGroupFor(player)
-    const members = group ? active.filter((item) => item.provider === player.provider && group.member_registry_ids.includes(item.registry_id)) : [player]
+    const linkedWiimRoute = player.transport_provider === 'wiim' && Number(player.active_source_id) > 0
+    // One physical WiiM source routed to multiple Control4 rooms is one session. During a join,
+    // room routing arrives before QUEUE_STATUS/group metadata, so consolidate by that unique route.
+    const members = linkedWiimRoute
+      ? active.filter((item) => item.provider === player.provider && item.transport_provider === 'wiim' && Number(item.active_source_id) === Number(player.active_source_id))
+      : group ? active.filter((item) => item.provider === player.provider && group.member_registry_ids.includes(item.registry_id)) : [player]
     members.forEach((item) => consumed.add(item.registry_id))
     const starter = members.find((item) => String(item.state).toLowerCase() === 'playing') || player
     const owner = mediaSessionMaster(group, starter)
@@ -1290,6 +1295,7 @@ async function saveMediaZones(button) {
     if ($('#media-zones-dialog').open) $('#media-zones-dialog').close()
     if ($('#media-sessions-dialog').open) $('#media-sessions-dialog').close()
     await refresh()
+    if (additions.length || removals.length) setTimeout(refresh, 1500)
   } catch (error) { fail(error) } finally { button.disabled = false }
 }
 
