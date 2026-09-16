@@ -1,5 +1,12 @@
 # Changelog
 
+## 2.21.98 — 2026-09-16
+
+- Playlist SoundCloud storiche: migrazione automatica dell'ordinamento, così tornano visibili a sinistra.
+- La copertina della playlist resta quella del primo brano e non cambia a ogni aggiunta.
+- Riproduzione SoundCloud: se le credenziali API sono rifiutate, usa gli stream ancora disponibili nella coda nativa WiiM.
+- Errori Preferiti: una risposta HTML non produce più il messaggio tecnico `Unexpected token`.
+
 ## 2.21.97 — 2026-09-16
 
 - Preferiti: ordine unico tra tutti i servizi, dal piu recente a sinistra al meno recente a destra.

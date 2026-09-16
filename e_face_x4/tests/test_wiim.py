@@ -114,7 +114,7 @@ async def test_native_wiim_queue_browse_and_exact_play() -> None:
     assert queue["name"] == "Cover e remix"
     assert queue["queue_name"] == "Cover e remix_#~2026-09-15"
     assert queue["total"] == 2
-    assert queue["tracks"][0] == {"index": 1, "track_id": "tracks/abc", "title": "Titolo", "artist": "Artista", "album": "Album", "artwork": "https://example.com/cover.jpg", "source": "YouTubeMusic"}
+    assert queue["tracks"][0] == {"index": 1, "track_id": "tracks/abc", "url": "", "title": "Titolo", "artist": "Artista", "album": "Album", "artwork": "https://example.com/cover.jpg", "source": "YouTubeMusic"}
     await client.play_queue_index(1, "Playlist_#~token")
     assert [action for action, _ in actions] == ["BrowseQueueEx", "PlayQueueWithIndex"]
     assert "<QueueName>Playlist_#~token</QueueName>" in actions[-1][1]

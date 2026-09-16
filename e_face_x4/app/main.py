@@ -66,7 +66,7 @@ from .connectors.control4_media import cached_control4_icon, cached_control4_ico
 from .connectors.supervisor import discover_addon_url, discover_host_url
 from .demo import dashboard as demo_dashboard
 
-VERSION = os.environ.get("EFACE_VERSION", "2.21.97")
+VERSION = os.environ.get("EFACE_VERSION", "2.21.98")
 STATIC = Path(__file__).parent / "static"
 logging.basicConfig(level=logging.WARNING, format="%(asctime)s %(levelname)s [e-face-x4] %(message)s")
 _reconnect_warning_at: dict[str, float] = {}
@@ -355,7 +355,21 @@ def create_app() -> FastAPI:
             tracks = playlist.get("tracks", [])
             if not tracks: raise ValueError("La lista SoundCloud è vuota")
             client = configured_soundcloud()
-            streams = await asyncio.gather(*(client.stream(str(track["urn"])) for track in tracks))
+            try:
+                streams = await asyncio.gather(*(client.stream(str(track["urn"])) for track in tracks))
+            except httpx.HTTPError:
+                # Un account SoundCloud usato nell'app WiiM non espone necessariamente
+                # credenziali API. Finche la coda nativa contiene i brani, riutilizziamo
+                # gli URL gia risolti dal WiiM invece di perdere la playlist e-Face.
+                native_queue = await configured_wiim().queue(limit=250)
+                native_by_id = {str(item.get("track_id") or ""): item for item in native_queue.get("tracks", [])}
+                streams = []
+                for track in tracks:
+                    native = native_by_id.get(str(track["urn"]))
+                    url = str((native or {}).get("url") or "").strip()
+                    if not url:
+                        raise RuntimeError("URL SoundCloud non presente nella coda WiiM")
+                    streams.append({"url": url, "quality": "wiim_queue"})
             queue_name = f"e-Face SoundCloud - {playlist['name']}"
             blocks = []
             for index, (track, stream) in enumerate(zip(tracks, streams), 1):
@@ -1181,7 +1195,7 @@ def create_app() -> FastAPI:
         playlist_items = []
         for playlist in soundcloud_library.load()["playlists"]:
             tracks = playlist.get("tracks", [])
-            playlist_items.append({"id": f"soundcloud:playlist:{playlist['id']}", "kind": "soundcloud_playlist", "title": playlist["name"], "subtitle": f"{len(tracks)} brani", "item_type": "Playlist", "service": "SoundCloud", "artwork": str(tracks[-1].get("artwork") or "") if tracks else "", "saved_at": float(playlist.get("updated_at") or 0)})
+            playlist_items.append({"id": f"soundcloud:playlist:{playlist['id']}", "kind": "soundcloud_playlist", "title": playlist["name"], "subtitle": f"{len(tracks)} brani", "item_type": "Playlist", "service": "SoundCloud", "artwork": str(tracks[0].get("artwork") or "") if tracks else "", "saved_at": float(playlist.get("updated_at") or 0)})
         stored_favorites = list_favorites()
         # Nuovi a sinistra, in un solo ordine cronologico per tutti i servizi.
         # I record storici senza data mantengono il precedente ordine relativo.
@@ -2124,8 +2138,8 @@ def create_app() -> FastAPI:
         page = page.replace("tools-dashboard.js?v=2.21.36", "tools-dashboard.js?v=2.21.38")
         page = page.replace("tools-dashboard.js?v=2.21.38", "tools-dashboard.js?v=2.21.41")
         page = page.replace("tools-dashboard.js?v=2.21.41", "tools-dashboard.js?v=2.21.42")
-        page = page.replace("tools-dashboard.js?v=2.21.42", "tools-dashboard.js?v=2.21.97")
-        page = page.replace("tools-dashboard.css?v=2.20.36", "tools-dashboard.css?v=2.21.97")
+        page = page.replace("tools-dashboard.js?v=2.21.42", "tools-dashboard.js?v=2.21.98")
+        page = page.replace("tools-dashboard.css?v=2.20.36", "tools-dashboard.css?v=2.21.98")
         page = page.replace("backgrounds.css?v=2.20.20", "backgrounds.css?v=2.21.43")
         page = page.replace("intercom.css?v=2.21.14", "intercom.css?v=2.21.46")
         page = page.replace("app.js?v=2.21.11", "app.js?v=2.21.29")

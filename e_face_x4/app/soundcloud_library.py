@@ -9,7 +9,13 @@ def _path() -> Path:
 def load() -> dict[str, Any]:
     try: data = json.loads(_path().read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError): data = {}
-    return {"favorites": data.get("favorites", []) if isinstance(data.get("favorites"), list) else [], "recent": data.get("recent", []) if isinstance(data.get("recent"), list) else [], "playlists": data.get("playlists", []) if isinstance(data.get("playlists"), list) else []}
+    playlists = data.get("playlists", []) if isinstance(data.get("playlists"), list) else []
+    try: legacy_time = _path().stat().st_mtime
+    except OSError: legacy_time = 0
+    for index, playlist in enumerate(playlists):
+        if isinstance(playlist, dict) and not playlist.get("updated_at"):
+            playlist["updated_at"] = legacy_time - index / 1000
+    return {"favorites": data.get("favorites", []) if isinstance(data.get("favorites"), list) else [], "recent": data.get("recent", []) if isinstance(data.get("recent"), list) else [], "playlists": playlists}
 
 def _track(value: Any) -> dict[str, Any]:
     if not isinstance(value, dict) or not re.fullmatch(r"soundcloud:tracks:\d+", str(value.get("urn") or "")):

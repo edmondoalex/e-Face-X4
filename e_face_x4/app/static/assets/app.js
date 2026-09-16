@@ -2204,7 +2204,7 @@ $('#device-list').addEventListener('click', (event) => {
     } else if (removeFavorite) { path = 'remove'; payload = {id:removeFavorite.dataset.favoriteRemove} }
     else { path = 'select'; payload = {id:selectFavorite.dataset.favoriteSelect, room_id:roomId} }
     fetch(apiUrl(`api/control4/favorites/${path}`), {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload)})
-      .then(async (response) => { if (!response.ok) throw new Error((await response.json()).detail || 'Preferito non disponibile'); if (path === 'select') { refresh(); setTimeout(refresh,2500) } else { favoritesCache = null; await loadMediaFavorites() } })
+      .then(async (response) => { if (!response.ok) { const result = await response.json().catch(() => ({})); throw new Error(result.detail || `Preferito non disponibile (HTTP ${response.status})`) } if (path === 'select') { refresh(); setTimeout(refresh,2500) } else { favoritesCache = null; await loadMediaFavorites() } })
       .catch(fail).finally(() => { control.disabled = false })
     return
   }

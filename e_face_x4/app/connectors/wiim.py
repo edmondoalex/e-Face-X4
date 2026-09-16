@@ -159,6 +159,7 @@ class WiiMClient:
             tracks.append({
                 "index": int(match.group(1)),
                 "track_id": self._queue_value(block, "Id"),
+                "url": self._queue_value(block, "URL"),
                 "title": self._queue_value(metadata, "dc:title"),
                 "artist": self._queue_value(metadata, "upnp:artist"),
                 "album": self._queue_value(metadata, "upnp:album"),
