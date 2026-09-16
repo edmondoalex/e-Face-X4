@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.21.106 — 2026-09-16
+
+- Le playlist SoundCloud senza brani risolvibili vengono eliminate e spariscono subito dai Preferiti, senza schede fantasma con errore 502.
+- Il salvataggio ricrea in modo sicuro una playlist selezionata ma nel frattempo rimossa dal backend, evitando l'errore `Lista SoundCloud non trovata`.
+
 ## 2.21.105 — 2026-09-16
 
 - Ripristinati titolo, artista, cover e servizio SoundCloud quando il firmware riproduce la lista tramite `CustomPushUrl`.

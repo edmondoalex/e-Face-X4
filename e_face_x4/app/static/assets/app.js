@@ -1,5 +1,5 @@
 const $ = (selector) => document.querySelector(selector)
-document.head.insertAdjacentHTML('beforeend', '<link rel="stylesheet" href="assets/media-x4.css?v=2.21.105">')
+document.head.insertAdjacentHTML('beforeend', '<link rel="stylesheet" href="assets/media-x4.css?v=2.21.106">')
 const glyph = { light: '✦', climate: '❄', shield: '⬡', energy: 'ϟ', cover: '▤', sensor: '◌' }
 let refreshRunning = false
 let refreshQueued = false
@@ -2143,7 +2143,7 @@ $('#device-list').addEventListener('click', (event) => {
         if (!libraryResponse.ok) throw new Error((await libraryResponse.json().catch(() => ({}))).detail || 'Liste SoundCloud non disponibili')
         const library = await libraryResponse.json()
         pendingSoundCloudTrack = { urn: selected.track_id || '', title: selected.title, artist: selected.artist, artwork: selected.native_artwork || selected.artwork, type: 'track', playable: true }
-        $('#soundcloud-playlist-select').innerHTML = '<option value="">Crea nuova lista</option>' + (library.playlists || []).map((item) => `<option value="${esc(item.id)}">${esc(item.name)} (${item.tracks?.length || 0})</option>`).join('')
+        $('#soundcloud-playlist-select').innerHTML = '<option value="">Crea nuova lista</option>' + (library.playlists || []).map((item) => `<option value="${esc(item.id)}" data-playlist-name="${esc(item.name)}">${esc(item.name)} (${item.tracks?.length || 0})</option>`).join('')
         $('#soundcloud-playlist-name').value = ''
         $('#soundcloud-playlist-name-row').hidden = false
         $('#soundcloud-playlist-dialog').showModal()
@@ -2242,7 +2242,7 @@ $('#device-list').addEventListener('click', (event) => {
     } else if (removeFavorite) { path = 'remove'; payload = {id:removeFavorite.dataset.favoriteRemove} }
     else { path = 'select'; payload = {id:selectFavorite.dataset.favoriteSelect, room_id:roomId} }
     fetch(apiUrl(`api/control4/favorites/${path}`), {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload)})
-      .then(async (response) => { const result = await response.json().catch(() => ({})); if (!response.ok) throw new Error(result.detail || `Preferito non disponibile (HTTP ${response.status})`); if (path === 'select') { if (result.pruned) { notify(`Playlist ripulita: eliminati ${result.pruned} brani non disponibili`); favoritesCache = null; await loadMediaFavorites(true) } refresh(); setTimeout(refresh,2500) } else { favoritesCache = null; await loadMediaFavorites() } })
+      .then(async (response) => { const result = await response.json().catch(() => ({})); if (response.status === 410) { favoritesCache = null; await loadMediaFavorites(true); notify(result.detail || 'Contenuto non più disponibile: rimosso dai preferiti'); return } if (!response.ok) throw new Error(result.detail || `Preferito non disponibile (HTTP ${response.status})`); if (path === 'select') { if (result.pruned) { notify(`Playlist ripulita: eliminati ${result.pruned} brani non disponibili`); favoritesCache = null; await loadMediaFavorites(true) } refresh(); setTimeout(refresh,2500) } else { favoritesCache = null; await loadMediaFavorites() } })
       .catch(fail).finally(() => { control.disabled = false })
     return
   }
@@ -2631,7 +2631,8 @@ $('#soundcloud-playlist-form').addEventListener('submit', async (event) => {
   event.preventDefault()
   if (!pendingSoundCloudTrack) return
   const playlistId = $('#soundcloud-playlist-select').value
-  const name = $('#soundcloud-playlist-name').value.trim()
+  const selectedOption = $('#soundcloud-playlist-select').selectedOptions[0]
+  const name = $('#soundcloud-playlist-name').value.trim() || selectedOption?.dataset.playlistName || ''
   if (!playlistId && !name) return fail(new Error('Scrivi il nome della nuova playlist'))
   try {
     const response = await fetch(apiUrl('api/wiim/services/soundcloud/playlists'), { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({playlist_id:playlistId,name,track:pendingSoundCloudTrack}) })

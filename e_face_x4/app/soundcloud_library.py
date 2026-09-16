@@ -41,7 +41,11 @@ def save_to_playlist(name: str, value: Any, playlist_id: str = "") -> dict:
     item = _track(value); data = load(); name = str(name).strip()[:80]
     if playlist_id:
         playlist = next((x for x in data["playlists"] if x.get("id") == playlist_id), None)
-        if not playlist: raise ValueError("Lista SoundCloud non trovata")
+        if not playlist:
+            if not name or not re.fullmatch(r"[a-z0-9-]{1,60}", playlist_id):
+                raise ValueError("Lista SoundCloud non trovata")
+            playlist = {"id": playlist_id, "name": name, "tracks": []}
+            data["playlists"].insert(0, playlist)
         data["playlists"] = [playlist] + [x for x in data["playlists"] if x is not playlist]
     else:
         if not name: raise ValueError("Inserisci il nome della nuova lista")

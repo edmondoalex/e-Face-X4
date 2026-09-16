@@ -66,7 +66,7 @@ from .connectors.control4_media import cached_control4_icon, cached_control4_ico
 from .connectors.supervisor import discover_addon_url, discover_host_url
 from .demo import dashboard as demo_dashboard
 
-VERSION = os.environ.get("EFACE_VERSION", "2.21.105")
+VERSION = os.environ.get("EFACE_VERSION", "2.21.106")
 STATIC = Path(__file__).parent / "static"
 logging.basicConfig(level=logging.WARNING, format="%(asctime)s %(levelname)s [e-face-x4] %(message)s")
 _reconnect_warning_at: dict[str, float] = {}
@@ -374,7 +374,9 @@ def create_app() -> FastAPI:
                     current_url = str(current.get("title") or "").strip()
                     if str(current.get("source") or "").lower() == "custompushurl" and current_url.startswith("https://"):
                         resolved = [(tracks[0], {"url": current_url, "quality": "wiim_current_stream"})]
-                if not resolved: raise RuntimeError("Nessun brano della playlist è ancora disponibile nella coda WiiM")
+                if not resolved:
+                    soundcloud_library.delete_playlist(playlist_id)
+                    raise HTTPException(status_code=410, detail="Playlist rimossa: nessun brano è più riproducibile")
                 soundcloud_library.retain_playlist_tracks(playlist_id, [str(track["urn"]) for track, _ in resolved])
             queue_name = f"e-Face SoundCloud - {playlist['name']}"
             blocks = []
@@ -410,6 +412,7 @@ def create_app() -> FastAPI:
                     raise RuntimeError("Il WiiM ha accettato la coda ma non ha avviato la riproduzione")
             return {"ok": True, "playlist": playlist, "count": len(blocks), "total": len(tracks), "skipped": len(tracks) - len(blocks), "pruned": len(tracks) - len(blocks)}
         except ValueError as exc: raise HTTPException(status_code=400, detail=str(exc)) from exc
+        except HTTPException: raise
         except (httpx.HTTPError, RuntimeError) as exc: raise HTTPException(status_code=502, detail="Riproduzione lista SoundCloud sul WiiM non riuscita") from exc
 
     def configured_wiim() -> WiiMClient:
@@ -2195,8 +2198,8 @@ def create_app() -> FastAPI:
         page = page.replace("tools-dashboard.js?v=2.21.36", "tools-dashboard.js?v=2.21.38")
         page = page.replace("tools-dashboard.js?v=2.21.38", "tools-dashboard.js?v=2.21.41")
         page = page.replace("tools-dashboard.js?v=2.21.41", "tools-dashboard.js?v=2.21.42")
-        page = page.replace("tools-dashboard.js?v=2.21.42", "tools-dashboard.js?v=2.21.105")
-        page = page.replace("tools-dashboard.css?v=2.20.36", "tools-dashboard.css?v=2.21.105")
+        page = page.replace("tools-dashboard.js?v=2.21.42", "tools-dashboard.js?v=2.21.106")
+        page = page.replace("tools-dashboard.css?v=2.20.36", "tools-dashboard.css?v=2.21.106")
         page = page.replace("backgrounds.css?v=2.20.20", "backgrounds.css?v=2.21.43")
         page = page.replace("intercom.css?v=2.21.14", "intercom.css?v=2.21.46")
         page = page.replace("app.js?v=2.21.11", "app.js?v=2.21.29")
