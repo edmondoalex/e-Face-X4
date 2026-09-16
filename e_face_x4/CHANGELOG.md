@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.21.123 — 2026-09-16
+
+- Cliccando su Ultimo evento, Ultima chiamata o Ultimo movimento si apre ora un visualizzatore fotografico grande.
+- Il popup è adattivo, usa quasi tutto lo schermo e si chiude con pulsante, sfondo o tasto Esc.
+
 ## 2.21.122 — 2026-09-16
 
 - Corretto il widget Meteo che restava visibile nonostante fosse stato disattivato in Home dinamica.

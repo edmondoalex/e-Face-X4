@@ -1,7 +1,7 @@
 const $ = (selector) => document.querySelector(selector)
 const deviceScope = (() => { const key='eface-device-scope-v1'; let value=localStorage.getItem(key); if(!/^[A-Za-z0-9_-]{16,64}$/.test(value||'')){value=(crypto.randomUUID?.()||`${Date.now()}-${Math.random()}`).replaceAll('-','');localStorage.setItem(key,value)} return value })()
 const deviceFetchOptions = (options={}) => ({...options,headers:{...(options.headers||{}),'X-Eface-Device':deviceScope}})
-document.head.insertAdjacentHTML('beforeend', '<link rel="stylesheet" href="assets/media-x4.css?v=2.21.122">')
+document.head.insertAdjacentHTML('beforeend', '<link rel="stylesheet" href="assets/media-x4.css?v=2.21.123">')
 const glyph = { light: '✦', climate: '❄', shield: '⬡', energy: 'ϟ', cover: '▤', sensor: '◌' }
 let refreshRunning = false
 let refreshQueued = false
@@ -314,6 +314,11 @@ function renderWeather(data){const current=data.current||{},daily=data.daily||{}
   images.forEach(([selector,path])=>{const card=$(selector),image=card.querySelector('img'),probe=new Image();probe.onload=()=>{image.src=probe.src;card.classList.remove('unavailable')};probe.onerror=()=>card.classList.add('unavailable');probe.src=`${apiUrl(path)}${path.includes('?')?'&':'?'}v=${Date.now()}`})
 }
 const collapsedShortcutCategories = new Set()
+function openHomeEventViewer(card){const image=card.querySelector('img');if(!image?.src||card.classList.contains('unavailable'))return;const dialog=$('#home-event-dialog');$('#home-event-dialog-image').src=image.src;$('#home-event-dialog-source').textContent=card.querySelector('small')?.textContent||'IMMAGINE';$('#home-event-dialog-title').textContent=card.querySelector('strong')?.textContent||image.alt||'Evento';if(!dialog.open)dialog.showModal()}
+for(const selector of ['#home-camera-event','#home-doorbell-event','#home-motion-event'])$(selector)?.addEventListener('click',(event)=>openHomeEventViewer(event.currentTarget))
+$('#home-event-dialog-close')?.addEventListener('click',()=>$('#home-event-dialog').close())
+$('#home-event-dialog')?.addEventListener('click',(event)=>{if(event.target===$('#home-event-dialog'))$('#home-event-dialog').close()})
+$('#home-event-dialog')?.addEventListener('close',()=>{$('#home-event-dialog-image').removeAttribute('src')})
 function shortcutDevices(){const byId=new Map(currentDevices.map((device)=>[String(device.id),device]));return currentShortcuts.flatMap((group)=>(group.devices||[]).map((id)=>byId.get(String(id))).filter(Boolean))}
 function renderShortcutDevices(){
   const byId=new Map(currentDevices.map((device)=>[String(device.id),device]))
