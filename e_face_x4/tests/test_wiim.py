@@ -264,6 +264,16 @@ def test_soundcloud_local_library_is_persistent(monkeypatch, tmp_path) -> None:
     assert soundcloud_library.toggle(track)["favorites"] == []
 
 
+def test_soundcloud_favorite_removal_creates_backup(monkeypatch, tmp_path) -> None:
+    from app import soundcloud_library
+    path = tmp_path / "soundcloud.json"
+    monkeypatch.setenv("EFACE_SOUNDCLOUD_LIBRARY", str(path))
+    track = {"urn": "soundcloud:tracks:42", "title": "Track", "artist": "Artist"}
+    soundcloud_library.toggle(track)
+    assert soundcloud_library.remove_favorite(track["urn"])["favorites"] == []
+    assert path.with_suffix(".json.bak").is_file()
+
+
 def test_wiim_presets_are_rendered_as_eface_favorites() -> None:
     script = __import__("app.main", fromlist=["STATIC"]).STATIC.joinpath("assets", "app.js").read_text(encoding="utf-8")
     styles = __import__("app.main", fromlist=["STATIC"]).STATIC.joinpath("assets", "recent-visibility.css").read_text(encoding="utf-8")

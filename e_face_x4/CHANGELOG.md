@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.21.129 — 2026-09-16
+
+- I singoli brani SoundCloud salvati con la stella e-Face compaiono ora nella sezione Preferiti insieme agli altri servizi.
+- Un errore SoundCloud non elimina più automaticamente playlist o brani salvati.
+- Prima di ogni modifica della libreria SoundCloud viene mantenuta una copia locale di sicurezza.
+
 ## 2.21.128 — 2026-09-16
 
 - Il video DoorBird durante la chiamata usa ora una cache JPEG backend condivisa, evitando uno stream MJPEG separato per ogni browser.

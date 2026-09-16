@@ -1,5 +1,5 @@
 from __future__ import annotations
-import json, os, re, time
+import json, os, re, time, shutil
 from pathlib import Path
 from typing import Any
 
@@ -26,6 +26,10 @@ def _track(value: Any) -> dict[str, Any]:
 
 def _save(data: dict) -> None:
     path = _path(); path.parent.mkdir(parents=True, exist_ok=True); temporary = path.with_suffix(".tmp")
+    if path.is_file():
+        backup = path.with_suffix(".json.bak")
+        shutil.copy2(path, backup)
+        os.chmod(backup, 0o600)
     temporary.write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8"); os.chmod(temporary, 0o600); temporary.replace(path)
 
 def remember(value: Any) -> dict:
@@ -34,8 +38,22 @@ def remember(value: Any) -> dict:
 def toggle(value: Any) -> dict:
     item = _track(value); data = load(); existing = any(x.get("urn") == item["urn"] for x in data["favorites"])
     data["favorites"] = [x for x in data["favorites"] if x.get("urn") != item["urn"]]
-    if not existing: data["favorites"].insert(0, item)
+    if not existing:
+        item["saved_at"] = time.time()
+        data["favorites"].insert(0, item)
     _save(data); return data
+
+def remove_favorite(urn: str) -> dict:
+    urn = str(urn or "").strip()
+    if not re.fullmatch(r"soundcloud:tracks:\d+", urn):
+        raise ValueError("Brano SoundCloud non valido")
+    data = load()
+    before = len(data["favorites"])
+    data["favorites"] = [item for item in data["favorites"] if str(item.get("urn") or "") != urn]
+    if len(data["favorites"]) == before:
+        raise ValueError("Preferito SoundCloud non trovato")
+    _save(data)
+    return data
 
 def save_to_playlist(name: str, value: Any, playlist_id: str = "") -> dict:
     item = _track(value); data = load(); name = str(name).strip()[:80]

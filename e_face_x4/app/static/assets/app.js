@@ -1,7 +1,7 @@
 const $ = (selector) => document.querySelector(selector)
 const deviceScope = (() => { const key='eface-device-scope-v1'; let value=localStorage.getItem(key); if(!/^[A-Za-z0-9_-]{16,64}$/.test(value||'')){value=(crypto.randomUUID?.()||`${Date.now()}-${Math.random()}`).replaceAll('-','');localStorage.setItem(key,value)} return value })()
 const deviceFetchOptions = (options={}) => ({...options,headers:{...(options.headers||{}),'X-Eface-Device':deviceScope}})
-document.head.insertAdjacentHTML('beforeend', '<link rel="stylesheet" href="assets/media-x4.css?v=2.21.128">')
+document.head.insertAdjacentHTML('beforeend', '<link rel="stylesheet" href="assets/media-x4.css?v=2.21.129">')
 const glyph = { light: '✦', climate: '❄', shield: '⬡', energy: 'ϟ', cover: '▤', sensor: '◌' }
 let refreshRunning = false
 let refreshQueued = false
@@ -735,7 +735,8 @@ function mediaFavoritesHtml(items, roomId) {
     const wiimPreset = item.kind === 'wiim_preset'
     const wiimTrack = item.kind === 'wiim_track'
     const soundcloudPlaylist = item.kind === 'soundcloud_playlist'
-    const art = wiimPreset || wiimTrack || soundcloudPlaylist ? item.artwork : item.kind === 'station' && item.station_id ? apiUrl(`api/control4/stations/catalog-image/${item.station_id}`) : item.kind === 'msp' && item.image ? item.image : item.kind === 'recent' ? apiUrl(`api/control4/favorites/artwork?identity=${encodeURIComponent(item.id)}`) : ''
+    const soundcloudFavorite = item.kind === 'soundcloud_favorite'
+    const art = wiimPreset || wiimTrack || soundcloudPlaylist || soundcloudFavorite ? item.artwork : item.kind === 'station' && item.station_id ? apiUrl(`api/control4/stations/catalog-image/${item.station_id}`) : item.kind === 'msp' && item.image ? item.image : item.kind === 'recent' ? apiUrl(`api/control4/favorites/artwork?identity=${encodeURIComponent(item.id)}`) : ''
     const recent = [...recentCache.values()].flatMap((scope) => [...scope.items, ...scope.hiddenItems]).find((entry) => entry.key === item.key)
     const spotify = item.service === 'spotify' || Number(item.driver_id) === 1569 || Number(recent?.driver_id) === 1569 || (item.kind === 'recent' && !item.driver_id && !recent && ['Playlist', 'Album', 'Artist', 'Track', 'Show'].includes(item.item_type))
     const spotifySource = currentDevices.flatMap((device) => device.source_options || []).find((source) => String(source.label || '').toLocaleLowerCase('it') === 'spotify connect')
@@ -749,9 +750,9 @@ function mediaFavoritesHtml(items, roomId) {
     const originBadge = wiimTrack || soundcloudPlaylist
       ? '<img class="media-favorite-origin media-favorite-eface" src="assets/brand-icon.png" alt="e-Face" title="Preferito creato da e-Face">'
       : '<span class="mdi-mask media-favorite-origin media-favorite-wiim" style="'+mdiStyle('mdi:speaker-wireless', 'speaker')+'" title="Preset nativo WiiM"></span>'
-    const serviceLogo = wiimPreset || wiimTrack || soundcloudPlaylist ? `<span class="mdi-mask" style="${mdiStyle(fallbackIcon, 'music-circle')}"></span>${originBadge}` : Number.isSafeInteger(serviceId) && serviceId > 0 ? `<img class="media-favorite-service-icon" src="${apiUrl(`api/control4/source-icon/${serviceId}`)}" alt="" loading="lazy" onerror="this.style.display='none';this.nextElementSibling.style.display='block'"><span class="mdi-mask" style="${mdiStyle(fallbackIcon, 'music-circle')};display:none"></span>` : `<span class="mdi-mask" style="${mdiStyle(fallbackIcon, 'music-circle')}"></span>`
-    const remove = wiimPreset ? `<button type="button" class="media-recent-hide" data-wiim-preset-remove="${Number(item.preset_index)}" aria-label="Elimina ${esc(item.title)} da WiiM ed e-Face" title="Elimina da WiiM ed e-Face">×</button>` : soundcloudPlaylist ? `<button type="button" class="media-recent-hide" data-soundcloud-playlist-remove="${esc(item.id.replace('soundcloud:playlist:', ''))}" aria-label="Elimina ${esc(item.title)}" title="Elimina lista SoundCloud">×</button>` : `<button type="button" class="media-recent-hide" data-favorite-remove="${esc(item.id)}" aria-label="Rimuovi ${esc(item.title)} dai Preferiti" title="Rimuovi dai Preferiti">×</button>`
-    return `<span class="media-recent-card"><button class="media-recent-item" data-favorite-select="${esc(item.id)}" data-favorite-room="${roomId}" title="${esc(item.title)}">${displayArt ? `<img src="${esc(displayArt)}" alt="" loading="lazy" draggable="false" onerror="${imageError}this.style.display='none';this.nextElementSibling.style.display='block'">` : ''}${fallback}<b>${esc(item.title)}</b><small>${esc(item.subtitle || '')}</small><em>${serviceLogo}${esc(wiimPreset || wiimTrack || soundcloudPlaylist ? item.service || 'WiiM' : item.kind === 'station' ? 'Stations' : spotify ? 'Spotify' : item.item_type || 'Audio')}</em></button>${remove}</span>`
+    const serviceLogo = wiimPreset || wiimTrack || soundcloudPlaylist || soundcloudFavorite ? `<span class="mdi-mask" style="${mdiStyle(fallbackIcon, 'music-circle')}"></span>${originBadge}` : Number.isSafeInteger(serviceId) && serviceId > 0 ? `<img class="media-favorite-service-icon" src="${apiUrl(`api/control4/source-icon/${serviceId}`)}" alt="" loading="lazy" onerror="this.style.display='none';this.nextElementSibling.style.display='block'"><span class="mdi-mask" style="${mdiStyle(fallbackIcon, 'music-circle')};display:none"></span>` : `<span class="mdi-mask" style="${mdiStyle(fallbackIcon, 'music-circle')}"></span>`
+    const remove = wiimPreset ? `<button type="button" class="media-recent-hide" data-wiim-preset-remove="${Number(item.preset_index)}" aria-label="Elimina ${esc(item.title)} da WiiM ed e-Face" title="Elimina da WiiM ed e-Face">×</button>` : soundcloudPlaylist ? `<button type="button" class="media-recent-hide" data-soundcloud-playlist-remove="${esc(item.id.replace('soundcloud:playlist:', ''))}" aria-label="Elimina ${esc(item.title)}" title="Elimina lista SoundCloud">×</button>` : soundcloudFavorite ? `<button type="button" class="media-recent-hide" data-soundcloud-favorite-remove="${esc(item.urn)}" aria-label="Rimuovi ${esc(item.title)} dai Preferiti" title="Rimuovi dai Preferiti">×</button>` : `<button type="button" class="media-recent-hide" data-favorite-remove="${esc(item.id)}" aria-label="Rimuovi ${esc(item.title)} dai Preferiti" title="Rimuovi dai Preferiti">×</button>`
+    return `<span class="media-recent-card"><button class="media-recent-item" data-favorite-select="${esc(item.id)}" data-favorite-room="${roomId}" title="${esc(item.title)}">${displayArt ? `<img src="${esc(displayArt)}" alt="" loading="lazy" draggable="false" onerror="${imageError}this.style.display='none';this.nextElementSibling.style.display='block'">` : ''}${fallback}<b>${esc(item.title)}</b><small>${esc(item.subtitle || '')}</small><em>${serviceLogo}${esc(wiimPreset || wiimTrack || soundcloudPlaylist || soundcloudFavorite ? item.service || 'WiiM' : item.kind === 'station' ? 'Stations' : spotify ? 'Spotify' : item.item_type || 'Audio')}</em></button>${remove}</span>`
   }).join('')
 }
 
@@ -2271,6 +2272,7 @@ $('#device-list').addEventListener('click', (event) => {
   const pinRecent = event.target.closest('[data-recent-pin]')
   const removeWiimPreset = event.target.closest('[data-wiim-preset-remove]')
   const removeSoundCloudPlaylist = event.target.closest('[data-soundcloud-playlist-remove]')
+  const removeSoundCloudFavorite = event.target.closest('[data-soundcloud-favorite-remove]')
   const removeFavorite = event.target.closest('[data-favorite-remove]')
   const selectFavorite = event.target.closest('[data-favorite-select]')
   if (removeWiimPreset) {
@@ -2286,6 +2288,14 @@ $('#device-list').addEventListener('click', (event) => {
     fetch(apiUrl(`api/wiim/services/soundcloud/playlists/${encodeURIComponent(removeSoundCloudPlaylist.dataset.soundcloudPlaylistRemove)}`), {method:'DELETE'})
       .then(async (response) => { if (!response.ok) throw new Error((await response.json().catch(() => ({}))).detail || 'Playlist non eliminata'); favoritesCache = null; await loadMediaFavorites(true) })
       .catch(fail)
+    return
+  }
+  if (removeSoundCloudFavorite) {
+    if (!confirm('Rimuovere questo brano SoundCloud dai Preferiti e-Face?')) return
+    removeSoundCloudFavorite.disabled = true
+    fetch(apiUrl('api/wiim/services/soundcloud/favorite/remove'), {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({urn:removeSoundCloudFavorite.dataset.soundcloudFavoriteRemove})})
+      .then(async (response) => { if (!response.ok) throw new Error((await response.json().catch(() => ({}))).detail || 'Preferito SoundCloud non eliminato'); favoritesCache = null; await loadMediaFavorites(true) })
+      .catch(fail).finally(() => { removeSoundCloudFavorite.disabled = false })
     return
   }
   if (pinRecent || removeFavorite || selectFavorite) {

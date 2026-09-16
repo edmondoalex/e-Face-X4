@@ -67,7 +67,7 @@ from .connectors.supervisor import discover_addon_url, discover_host_url
 from .media_realtime import SharedMediaRealtime
 from .demo import dashboard as demo_dashboard
 
-VERSION = os.environ.get("EFACE_VERSION", "2.21.128")
+VERSION = os.environ.get("EFACE_VERSION", "2.21.129")
 STATIC = Path(__file__).parent / "static"
 logging.basicConfig(level=logging.WARNING, format="%(asctime)s %(levelname)s [e-face-x4] %(message)s")
 _reconnect_warning_at: dict[str, float] = {}
@@ -434,6 +434,15 @@ def create_app() -> FastAPI:
         except ValueError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
 
+    @app.post("/api/wiim/services/soundcloud/favorite/remove")
+    async def soundcloud_local_favorite_remove(request: Request) -> dict:
+        require_admin(request)
+        try:
+            payload = await request.json()
+            return soundcloud_library.remove_favorite(str(payload.get("urn") or ""))
+        except ValueError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+
     @app.post("/api/wiim/services/soundcloud/playlists")
     async def soundcloud_playlist_add(request: Request) -> dict:
         try:
@@ -487,9 +496,7 @@ def create_app() -> FastAPI:
                     if str(current.get("source") or "").lower() == "custompushurl" and current_url.startswith("https://"):
                         resolved = [(tracks[0], {"url": current_url, "quality": "wiim_current_stream"})]
                 if not resolved:
-                    soundcloud_library.delete_playlist(playlist_id)
-                    raise HTTPException(status_code=410, detail="Playlist rimossa: nessun brano è più riproducibile")
-                soundcloud_library.retain_playlist_tracks(playlist_id, [str(track["urn"]) for track, _ in resolved])
+                    raise HTTPException(status_code=502, detail="Playlist conservata: SoundCloud non ha reso disponibili i brani")
             queue_name = f"e-Face SoundCloud - {playlist['name']}"
             blocks = []
             for index, (track, stream) in enumerate(resolved, 1):
@@ -1366,9 +1373,12 @@ def create_app() -> FastAPI:
     @app.get("/api/control4/favorites")
     async def control4_list_favorites() -> dict:
         playlist_items = []
-        for playlist in soundcloud_library.load()["playlists"]:
+        soundcloud_data = soundcloud_library.load()
+        for playlist in soundcloud_data["playlists"]:
             tracks = playlist.get("tracks", [])
             playlist_items.append({"id": f"soundcloud:playlist:{playlist['id']}", "kind": "soundcloud_playlist", "title": playlist["name"], "subtitle": f"{len(tracks)} brani", "item_type": "Playlist", "service": "SoundCloud", "artwork": str(tracks[0].get("artwork") or "") if tracks else "", "saved_at": float(playlist.get("updated_at") or 0)})
+        for track in soundcloud_data["favorites"]:
+            playlist_items.append({"id": f"soundcloud:favorite:{track['urn']}", "kind": "soundcloud_favorite", "title": track.get("title") or "Brano SoundCloud", "subtitle": track.get("artist") or "", "item_type": "Brano", "service": "SoundCloud", "artwork": track.get("artwork") or "", "urn": track["urn"], "saved_at": float(track.get("saved_at") or 0)})
         stored_favorites = list_favorites()
         # Nuovi a sinistra, in un solo ordine cronologico per tutti i servizi.
         # I record storici senza data mantengono il precedente ordine relativo.
@@ -1563,6 +1573,14 @@ def create_app() -> FastAPI:
                 if source_id > 0:
                     await Control4MediaConnector(load_control4_config()).command(f"c4room:{room_id}", "select_source", f"listen:{source_id}")
                 return {"ok": True, "target": "soundcloud_playlist", "playlist_id": playlist_id, "count": result["count"], "total": result.get("total", result["count"]), "skipped": result.get("skipped", 0), "pruned": result.get("pruned", 0), "room_id": room_id}
+            if identity.startswith("soundcloud:favorite:"):
+                urn = identity.removeprefix("soundcloud:favorite:")
+                track = next((item for item in soundcloud_library.load()["favorites"] if item.get("urn") == urn), None)
+                if not track:
+                    raise ValueError("Preferito SoundCloud non trovato")
+                stream = await configured_soundcloud().stream(urn)
+                await configured_wiim().play_url(stream["url"])
+                return {"ok": True, "target": "soundcloud_favorite", "urn": urn, "room_id": room_id}
             match = re.fullmatch(r"wiim:preset:(\d{1,2})", identity)
             if match:
                 preset_index = int(match.group(1))
@@ -2346,9 +2364,9 @@ def create_app() -> FastAPI:
         page = page.replace('content="#263f48"', 'content="#181c1f"')
         page = page.replace("manifest.webmanifest?v=2.20.38", "manifest.webmanifest?v=2.21.59")
         page = page.replace("app.css?v=2.20.20", "app.css?v=2.21.73")
-        page = page.replace("app.css?v=2.21.84", "app.css?v=2.21.128")
-        page = page.replace("home-status.css?v=2.20.20", "home-status.css?v=2.21.128")
-        page = page.replace("tools.js?v=2.21.1", "tools.js?v=2.21.128")
+        page = page.replace("app.css?v=2.21.84", "app.css?v=2.21.129")
+        page = page.replace("home-status.css?v=2.20.20", "home-status.css?v=2.21.129")
+        page = page.replace("tools.js?v=2.21.1", "tools.js?v=2.21.129")
         page = page.replace("ui-theme-contract.css?v=2.21.27", "ui-theme-contract.css?v=2.21.29")
         page = page.replace("tools-dashboard.js?v=2.21.27", "tools-dashboard.js?v=2.21.33")
         page = page.replace("tools-dashboard.js?v=2.21.33", "tools-dashboard.js?v=2.21.34")
@@ -2356,8 +2374,8 @@ def create_app() -> FastAPI:
         page = page.replace("tools-dashboard.js?v=2.21.36", "tools-dashboard.js?v=2.21.38")
         page = page.replace("tools-dashboard.js?v=2.21.38", "tools-dashboard.js?v=2.21.41")
         page = page.replace("tools-dashboard.js?v=2.21.41", "tools-dashboard.js?v=2.21.42")
-        page = page.replace("tools-dashboard.js?v=2.21.42", "tools-dashboard.js?v=2.21.128")
-        page = page.replace("tools-dashboard.css?v=2.20.36", "tools-dashboard.css?v=2.21.128")
+        page = page.replace("tools-dashboard.js?v=2.21.42", "tools-dashboard.js?v=2.21.129")
+        page = page.replace("tools-dashboard.css?v=2.20.36", "tools-dashboard.css?v=2.21.129")
         page = page.replace("backgrounds.css?v=2.20.20", "backgrounds.css?v=2.21.43")
         page = page.replace("intercom.css?v=2.21.14", "intercom.css?v=2.21.46")
         page = page.replace("app.js?v=2.21.11", "app.js?v=2.21.29")
