@@ -10,8 +10,8 @@ from app.doorbird_api import check_identity, live_image, live_video
 async def test_doorbird_sip_setup_backs_up_and_verifies(monkeypatch, tmp_path) -> None:
     from app import doorbird_api
     monkeypatch.setenv("EFACE_DOORBIRD_SIP_BACKUPS", str(tmp_path))
-    states = [{"ENABLE": "1", "INCOMING_CALL_ENABLE": "1", "INCOMING_CALL_USER": "192.168.3.10"},
-              {"ENABLE": "1", "INCOMING_CALL_ENABLE": "1", "INCOMING_CALL_USER": "192.168.3.24"}]
+    states = [{"ENABLE": "1", "INCOMING_CALL_ENABLE": "1", "INCOMING_CALL_USER": "192.168.3.10", "AUTOCALL_DOORBELL_URL": "none"},
+              {"ENABLE": "1", "INCOMING_CALL_ENABLE": "1", "INCOMING_CALL_USER": "192.168.3.24", "AUTOCALL_DOORBELL_URL": "sip:8290@192.168.3.24"}]
     changes = []
     async def status(*args):
         return states.pop(0)
@@ -22,6 +22,7 @@ async def test_doorbird_sip_setup_backs_up_and_verifies(monkeypatch, tmp_path) -
     previous = await doorbird_api.ensure_incoming_sip("cancello", "192.168.2.31", 80, "user", "password", "192.168.3.24")
     assert previous["incoming_call_user"] == "192.168.3.10"
     assert changes[0]["incoming_call_user"] == "192.168.3.24"
+    assert changes[0]["autocall_doorbell_url"] == "sip:8290@192.168.3.24"
     assert len(list(tmp_path.glob("cancello.*.json"))) == 1
 
 

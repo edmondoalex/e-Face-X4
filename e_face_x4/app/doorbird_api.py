@@ -39,13 +39,16 @@ async def _sip_settings(host: str, port: int, username: str, password: str, sett
 
 
 async def ensure_incoming_sip(station_id: str, host: str, port: int, username: str,
-                              password: str, asterisk_host: str) -> dict | None:
-    """Authorize Asterisk for outgoing e-Face calls; return old values for rollback."""
+                              password: str, asterisk_host: str,
+                              ring_extension: str = "8290") -> dict | None:
+    """Authorize Asterisk and route doorbell presses to the e-Face ring group."""
     before = await sip_status(host, port, username, password)
     previous = {"enable": str(before.get("ENABLE", "0")),
                 "incoming_call_enable": str(before.get("INCOMING_CALL_ENABLE", "0")),
-                "incoming_call_user": str(before.get("INCOMING_CALL_USER", ""))}
-    desired = {"enable": "1", "incoming_call_enable": "1", "incoming_call_user": asterisk_host}
+                "incoming_call_user": str(before.get("INCOMING_CALL_USER", "")),
+                "autocall_doorbell_url": str(before.get("AUTOCALL_DOORBELL_URL", "none"))}
+    desired = {"enable": "1", "incoming_call_enable": "1", "incoming_call_user": asterisk_host,
+               "autocall_doorbell_url": f"sip:{ring_extension}@{asterisk_host}"}
     if previous == desired:
         return None
     directory = Path(os.environ.get("EFACE_DOORBIRD_SIP_BACKUPS", "/data/doorbird_sip_backups"))
@@ -59,9 +62,10 @@ async def ensure_incoming_sip(station_id: str, host: str, port: int, username: s
     try:
         await _sip_settings(host, port, username, password, desired)
         after = await sip_status(host, port, username, password)
-        if any(str(after.get(field)) != value for field, value in
-               (("ENABLE", "1"), ("INCOMING_CALL_ENABLE", "1"), ("INCOMING_CALL_USER", asterisk_host))):
-            raise RuntimeError("DoorBird non ha confermato le chiamate SIP in ingresso")
+        if any(str(after.get(field, "none" if field == "AUTOCALL_DOORBELL_URL" else "")) != value for field, value in
+               (("ENABLE", "1"), ("INCOMING_CALL_ENABLE", "1"), ("INCOMING_CALL_USER", asterisk_host),
+                ("AUTOCALL_DOORBELL_URL", desired["autocall_doorbell_url"]))):
+            raise RuntimeError("DoorBird non ha confermato l'instradamento SIP del pulsante")
     except Exception:
         try:
             await restore_incoming_sip(host, port, username, password, previous)

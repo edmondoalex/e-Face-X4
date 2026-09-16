@@ -66,7 +66,7 @@ from .connectors.control4_media import cached_control4_icon, cached_control4_ico
 from .connectors.supervisor import discover_addon_url, discover_host_url
 from .demo import dashboard as demo_dashboard
 
-VERSION = os.environ.get("EFACE_VERSION", "2.21.114")
+VERSION = os.environ.get("EFACE_VERSION", "2.21.115")
 STATIC = Path(__file__).parent / "static"
 logging.basicConfig(level=logging.WARNING, format="%(asctime)s %(levelname)s [e-face-x4] %(message)s")
 _reconnect_warning_at: dict[str, float] = {}
@@ -161,6 +161,22 @@ def create_app() -> FastAPI:
     doorbird_video_slots = asyncio.Semaphore(2)
     wiim_presets_cache: dict[str, object] = {"expires": 0.0, "items": []}
 
+    async def ensure_doorbird_ring_routes() -> None:
+        """Keep each configured DoorBird button routed to the e-Face ring group."""
+        settings = intercom_settings.load()
+        for station in external_stations.load():
+            account = {"username": station.get("username", ""), "password": station.get("password", "")}
+            if station.get("id") == "ingresso" and not (account["username"] and account["password"]):
+                account = credential_inventory.load().get("doorbird", {})
+            if not account.get("username") or not account.get("password"):
+                continue
+            try:
+                await doorbird_api.ensure_incoming_sip(
+                    station["id"], station["host"], station["http_port"], account["username"], account["password"],
+                    settings["asterisk_host"], settings["ring_extension"])
+            except Exception as exc:
+                logging.warning("DoorBird %s ring route not confirmed: %s", station.get("id"), exc)
+
     async def sync_default_intercom_group(records: dict | None = None) -> None:
         remote = await provisioner_client.request("GET", "/v1/intercom-groups")
         groups = intercom_groups.with_default(remote.get("groups", []), records)
@@ -178,6 +194,9 @@ def create_app() -> FastAPI:
 
     @app.middleware("http")
     async def user_login_guard(request: Request, call_next):
+        if not getattr(app.state, "doorbird_ring_routes_started", False):
+            app.state.doorbird_ring_routes_started = True
+            asyncio.create_task(ensure_doorbird_ring_routes())
         path = request.url.path
         origin = request.headers.get("origin")
         if request.method not in {"GET", "HEAD", "OPTIONS"} and origin and urlsplit(origin).netloc != request.headers.get("host"):
@@ -915,7 +934,8 @@ def create_app() -> FastAPI:
                         raise ValueError(f"Credenziale API mancante per {station['name']}")
                     previous = await doorbird_api.ensure_incoming_sip(
                         station["id"], station["host"], station["http_port"],
-                        account["username"], account["password"], intercom_settings.load()["asterisk_host"])
+                        account["username"], account["password"], intercom_settings.load()["asterisk_host"],
+                        intercom_settings.load()["ring_extension"])
                     if previous is not None:
                         changed_doorbirds.append((station, account, previous))
                 if new_routes or old_routes:
@@ -1990,7 +2010,8 @@ def create_app() -> FastAPI:
         try:
             await doorbird_api.ensure_incoming_sip(
                 station["id"], station["host"], station["http_port"], account["username"],
-                account["password"], intercom_settings.load()["asterisk_host"])
+                account["password"], intercom_settings.load()["asterisk_host"],
+                intercom_settings.load()["ring_extension"])
         except PermissionError as exc:
             raise HTTPException(status_code=403, detail=str(exc)) from exc
         except (OSError, RuntimeError) as exc:
@@ -2227,9 +2248,9 @@ def create_app() -> FastAPI:
         page = page.replace('content="#263f48"', 'content="#181c1f"')
         page = page.replace("manifest.webmanifest?v=2.20.38", "manifest.webmanifest?v=2.21.59")
         page = page.replace("app.css?v=2.20.20", "app.css?v=2.21.73")
-        page = page.replace("app.css?v=2.21.84", "app.css?v=2.21.114")
-        page = page.replace("home-status.css?v=2.20.20", "home-status.css?v=2.21.114")
-        page = page.replace("tools.js?v=2.21.1", "tools.js?v=2.21.114")
+        page = page.replace("app.css?v=2.21.84", "app.css?v=2.21.115")
+        page = page.replace("home-status.css?v=2.20.20", "home-status.css?v=2.21.115")
+        page = page.replace("tools.js?v=2.21.1", "tools.js?v=2.21.115")
         page = page.replace("ui-theme-contract.css?v=2.21.27", "ui-theme-contract.css?v=2.21.29")
         page = page.replace("tools-dashboard.js?v=2.21.27", "tools-dashboard.js?v=2.21.33")
         page = page.replace("tools-dashboard.js?v=2.21.33", "tools-dashboard.js?v=2.21.34")
@@ -2237,8 +2258,8 @@ def create_app() -> FastAPI:
         page = page.replace("tools-dashboard.js?v=2.21.36", "tools-dashboard.js?v=2.21.38")
         page = page.replace("tools-dashboard.js?v=2.21.38", "tools-dashboard.js?v=2.21.41")
         page = page.replace("tools-dashboard.js?v=2.21.41", "tools-dashboard.js?v=2.21.42")
-        page = page.replace("tools-dashboard.js?v=2.21.42", "tools-dashboard.js?v=2.21.114")
-        page = page.replace("tools-dashboard.css?v=2.20.36", "tools-dashboard.css?v=2.21.114")
+        page = page.replace("tools-dashboard.js?v=2.21.42", "tools-dashboard.js?v=2.21.115")
+        page = page.replace("tools-dashboard.css?v=2.20.36", "tools-dashboard.css?v=2.21.115")
         page = page.replace("backgrounds.css?v=2.20.20", "backgrounds.css?v=2.21.43")
         page = page.replace("intercom.css?v=2.21.14", "intercom.css?v=2.21.46")
         page = page.replace("app.js?v=2.21.11", "app.js?v=2.21.29")

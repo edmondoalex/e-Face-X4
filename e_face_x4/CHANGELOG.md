@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.21.115 — 2026-09-16
+
+- Le dimensioni Home ora controllano una vera griglia: Compatto occupa un terzo, Medio metà riga e Largo tutta la riga; su mobile i widget restano a colonna singola.
+- Il pulsante del DoorBird viene instradato automaticamente al gruppo Intercom configurato e la rotta viene verificata a ogni avvio di e-Face.
+
 ## 2.21.114 — 2026-09-16
 
 - La configurazione della Home dinamica e la telecamera dell'ultimo evento sono ora separate per utente autenticato.
