@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.21.89 — 2026-09-16
+
+- Il richiamo di un preferito brano WiiM mantiene in pausa il preset dinamico finché non ritrova l'ID esatto; un brano diverso non viene più lasciato in riproduzione.
+- Se il provider rigenera il preset senza il brano salvato, e-Face conserva il preferito e restituisce un errore esplicito.
+
 ## 2.21.88 — 2026-09-16
 
 - e-Face memorizza la stanza che avvia una sessione come master e tratta le stanze aggiunte successivamente come slave.
