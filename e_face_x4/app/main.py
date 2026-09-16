@@ -66,7 +66,7 @@ from .connectors.control4_media import cached_control4_icon, cached_control4_ico
 from .connectors.supervisor import discover_addon_url, discover_host_url
 from .demo import dashboard as demo_dashboard
 
-VERSION = os.environ.get("EFACE_VERSION", "2.21.104")
+VERSION = os.environ.get("EFACE_VERSION", "2.21.105")
 STATIC = Path(__file__).parent / "static"
 logging.basicConfig(level=logging.WARNING, format="%(asctime)s %(levelname)s [e-face-x4] %(message)s")
 _reconnect_warning_at: dict[str, float] = {}
@@ -369,6 +369,11 @@ def create_app() -> FastAPI:
                     native = native_by_id.get(str(track["urn"]))
                     url = str((native or {}).get("url") or "").strip()
                     if url: resolved.append((track, {"url": url, "quality": "wiim_queue"}))
+                if not resolved and len(tracks) == 1:
+                    current = await configured_wiim().snapshot()
+                    current_url = str(current.get("title") or "").strip()
+                    if str(current.get("source") or "").lower() == "custompushurl" and current_url.startswith("https://"):
+                        resolved = [(tracks[0], {"url": current_url, "quality": "wiim_current_stream"})]
                 if not resolved: raise RuntimeError("Nessun brano della playlist è ancora disponibile nella coda WiiM")
                 soundcloud_library.retain_playlist_tracks(playlist_id, [str(track["urn"]) for track, _ in resolved])
             queue_name = f"e-Face SoundCloud - {playlist['name']}"
@@ -416,7 +421,22 @@ def create_app() -> FastAPI:
     @app.get("/api/wiim/snapshot")
     async def wiim_snapshot() -> dict:
         try:
-            return {"device": await configured_wiim().snapshot()}
+            client = configured_wiim()
+            device = await client.snapshot()
+            if str(device.get("source") or "").lower() == "custompushurl":
+                queue = await client.queue(limit=2)
+                items = queue.get("tracks", [])
+                if len(items) == 1:
+                    track = items[0]
+                    device.update({
+                        "source": str(track.get("source") or "SoundCloud"),
+                        "title": str(track.get("title") or device.get("title") or ""),
+                        "artist": str(track.get("artist") or ""),
+                        "album": str(track.get("album") or ""),
+                        "artwork": str(track.get("artwork") or ""),
+                        "track_id": str(track.get("track_id") or ""),
+                    })
+            return {"device": device}
         except (httpx.HTTPError, RuntimeError) as exc:
             raise HTTPException(status_code=502, detail="WiiM non raggiungibile") from exc
 
@@ -2175,8 +2195,8 @@ def create_app() -> FastAPI:
         page = page.replace("tools-dashboard.js?v=2.21.36", "tools-dashboard.js?v=2.21.38")
         page = page.replace("tools-dashboard.js?v=2.21.38", "tools-dashboard.js?v=2.21.41")
         page = page.replace("tools-dashboard.js?v=2.21.41", "tools-dashboard.js?v=2.21.42")
-        page = page.replace("tools-dashboard.js?v=2.21.42", "tools-dashboard.js?v=2.21.104")
-        page = page.replace("tools-dashboard.css?v=2.20.36", "tools-dashboard.css?v=2.21.104")
+        page = page.replace("tools-dashboard.js?v=2.21.42", "tools-dashboard.js?v=2.21.105")
+        page = page.replace("tools-dashboard.css?v=2.20.36", "tools-dashboard.css?v=2.21.105")
         page = page.replace("backgrounds.css?v=2.20.20", "backgrounds.css?v=2.21.43")
         page = page.replace("intercom.css?v=2.21.14", "intercom.css?v=2.21.46")
         page = page.replace("app.js?v=2.21.11", "app.js?v=2.21.29")

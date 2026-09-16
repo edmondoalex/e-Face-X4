@@ -1,5 +1,9 @@
 # Changelog
 
+## 2.21.105 — 2026-09-16
+
+- Ripristinati titolo, artista, cover e servizio SoundCloud quando il firmware riproduce la lista tramite `CustomPushUrl`.
+
 ## 2.21.104 — 2026-09-16
 
 - Dopo il fallback diretto, e-Face ripristina la coda SoundCloud senza interrompere il flusso e attende lo stato reale del player.
