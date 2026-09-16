@@ -114,7 +114,7 @@ class WiiMClient:
         return str(await self.command(f"setPlayerCmd:play:{value}", json_response=False))
 
     async def _playqueue(self, action: str, arguments: dict[str, Any]) -> str:
-        if action not in {"BrowseQueue", "BrowseQueueEx", "PlayQueueWithIndex", "GetKeyMapping", "SetKeyMapping"}:
+        if action not in {"CreateQueue", "ReplaceQueue", "BrowseQueue", "BrowseQueueEx", "PlayQueueWithIndex", "GetKeyMapping", "SetKeyMapping"}:
             raise ValueError("Azione coda WiiM non valida")
         service = "urn:schemas-wiimu-com:service:PlayQueue:1"
         values = "".join(f"<{key}>{html.escape(str(value))}</{key}>" for key, value in arguments.items())
@@ -132,7 +132,7 @@ class WiiMClient:
                 headers={"Content-Type": 'text/xml; charset="utf-8"', "SOAPAction": f'"{service}#{action}"'},
             )
             response.raise_for_status()
-        if action in {"PlayQueueWithIndex", "SetKeyMapping"}:
+        if action in {"CreateQueue", "ReplaceQueue", "PlayQueueWithIndex", "SetKeyMapping"}:
             return ""
         try:
             root = ET.fromstring(response.text)
@@ -168,12 +168,19 @@ class WiiMClient:
         return {"name": list_name, "queue_name": queue_name, "total": int(self._queue_value(context, "TotalNumber") or len(tracks)), "tracks": tracks}
 
     async def play_queue_index(self, index: int, queue_name: str = "0") -> None:
-        if not 0 <= int(index) <= 10_000:
+        if not 1 <= int(index) <= 10_001:
             raise ValueError("Indice coda WiiM non valido")
         queue_name = str(queue_name or "0").strip()
         if len(queue_name) > 500:
             raise ValueError("Nome coda WiiM non valido")
-        await self._playqueue("PlayQueueWithIndex", {"QueueName": queue_name, "Index": int(index)})
+        # BrowseQueueEx numbers XML nodes from Track1, while PlayQueueWithIndex uses a zero-based index.
+        await self._playqueue("PlayQueueWithIndex", {"QueueName": queue_name, "Index": int(index) - 1})
+
+    async def create_queue(self, context: str, queue_name: str) -> None:
+        if not context.startswith("<?xml") or len(context) > 1_000_000:
+            raise ValueError("Coda WiiM non valida")
+        await self._playqueue("CreateQueue", {"QueueContext": context})
+        await self.play_queue_index(1, queue_name)
 
     async def delete_preset(self, index: int) -> None:
         index = int(index)

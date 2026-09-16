@@ -118,8 +118,22 @@ async def test_native_wiim_queue_browse_and_exact_play() -> None:
     await client.play_queue_index(1, "Playlist_#~token")
     assert [action for action, _ in actions] == ["BrowseQueueEx", "PlayQueueWithIndex"]
     assert "<QueueName>Playlist_#~token</QueueName>" in actions[-1][1]
-    assert "<Index>1</Index>" in actions[-1][1]
+    assert "<Index>0</Index>" in actions[-1][1]
     assert all("schemas-wiimu-com:service:PlayQueue:1" in body for _, body in actions)
+
+
+@pytest.mark.asyncio
+async def test_native_wiim_create_queue_then_plays_first_track() -> None:
+    actions = []
+    def handler(request: httpx.Request) -> httpx.Response:
+        actions.append((request.headers["soapaction"].split("#")[-1].strip('"'), request.content.decode()))
+        return httpx.Response(200, text='<s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/"><s:Body/></s:Envelope>')
+    client = WiiMClient("192.168.3.52", transport=httpx.MockTransport(handler))
+    context = '<?xml version="1.0"?><PlayList><ListName>e-Face SoundCloud - Test</ListName></PlayList>'
+    await client.create_queue(context, "e-Face SoundCloud - Test")
+    assert [item[0] for item in actions] == ["CreateQueue", "PlayQueueWithIndex"]
+    assert "&lt;PlayList&gt;" in actions[0][1]
+    assert "<QueueName>e-Face SoundCloud - Test</QueueName>" in actions[1][1]
 
 
 @pytest.mark.asyncio
@@ -256,6 +270,18 @@ def test_wiim_presets_are_rendered_as_eface_favorites() -> None:
     assert "speaker-wireless" in script
     assert "Preferito creato da e-Face" in script
     assert ".media-favorite-eface{display:block;object-fit:contain;background:transparent}" in styles
+
+
+def test_soundcloud_local_playlists_create_and_append(monkeypatch, tmp_path) -> None:
+    from app import soundcloud_library
+    monkeypatch.setenv("EFACE_SOUNDCLOUD_LIBRARY", str(tmp_path / "soundcloud.json"))
+    first = {"urn":"soundcloud:tracks:1","title":"Uno","artist":"Artista","artwork":"","duration":120}
+    second = {"urn":"soundcloud:tracks:2","title":"Due","artist":"Artista","artwork":"","duration":140}
+    data = soundcloud_library.save_to_playlist("La mia lista", first)
+    playlist_id = data["playlists"][0]["id"]
+    data = soundcloud_library.save_to_playlist("", second, playlist_id)
+    assert data["playlists"][0]["name"] == "La mia lista"
+    assert [item["urn"] for item in data["playlists"][0]["tracks"]] == ["soundcloud:tracks:1", "soundcloud:tracks:2"]
 
 
 def test_comfort_navigation_icon_follows_heat_and_cool_state() -> None:

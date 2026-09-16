@@ -1,5 +1,12 @@
 # Changelog
 
+## 2.21.94 — 2026-09-16
+
+- WiiM: mostra il servizio reale accanto all’artista nel player.
+- SoundCloud: dalla stella si può creare una playlist e‑Face con nome scelto dall’utente oppure aggiungere il brano a una lista esistente.
+- SoundCloud: il richiamo della playlist risolve URL freschi, crea la coda WiiM completa e prosegue automaticamente tra i brani.
+- Player WiiM: cliccando sulla copertina si apre la coda con il brano corrente evidenziato e selezione diretta delle tracce.
+
 ## 2.21.93 — 2026-09-16
 
 - Preferiti WiiM: il richiamo di un brano usa il nome interno completo della coda, così `PlayQueueWithIndex` seleziona la traccia memorizzata invece del brano generico del preset.

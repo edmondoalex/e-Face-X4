@@ -66,7 +66,7 @@ from .connectors.control4_media import cached_control4_icon, cached_control4_ico
 from .connectors.supervisor import discover_addon_url, discover_host_url
 from .demo import dashboard as demo_dashboard
 
-VERSION = os.environ.get("EFACE_VERSION", "2.21.93")
+VERSION = os.environ.get("EFACE_VERSION", "2.21.94")
 STATIC = Path(__file__).parent / "static"
 logging.basicConfig(level=logging.WARNING, format="%(asctime)s %(levelname)s [e-face-x4] %(message)s")
 _reconnect_warning_at: dict[str, float] = {}
@@ -308,8 +308,7 @@ def create_app() -> FastAPI:
             raise HTTPException(status_code=502, detail="Riproduzione SoundCloud sul WiiM non riuscita") from exc
 
     @app.get("/api/wiim/services/soundcloud/library")
-    async def soundcloud_local_library(request: Request) -> dict:
-        require_admin(request)
+    async def soundcloud_local_library() -> dict:
         return soundcloud_library.load()
 
     @app.post("/api/wiim/services/soundcloud/favorite")
@@ -319,6 +318,39 @@ def create_app() -> FastAPI:
             return soundcloud_library.toggle(await request.json())
         except ValueError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    @app.post("/api/wiim/services/soundcloud/playlists")
+    async def soundcloud_playlist_add(request: Request) -> dict:
+        try:
+            payload = await request.json()
+            return soundcloud_library.save_to_playlist(str(payload.get("name") or ""), payload.get("track"), str(payload.get("playlist_id") or ""))
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    @app.delete("/api/wiim/services/soundcloud/playlists/{playlist_id}")
+    async def soundcloud_playlist_delete(playlist_id: str) -> dict:
+        try: return soundcloud_library.delete_playlist(playlist_id)
+        except ValueError as exc: raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+    @app.post("/api/wiim/services/soundcloud/playlists/{playlist_id}/play")
+    async def soundcloud_playlist_play(playlist_id: str) -> dict:
+        try:
+            playlist = soundcloud_library.playlist(playlist_id)
+            tracks = playlist.get("tracks", [])
+            if not tracks: raise ValueError("La lista SoundCloud è vuota")
+            client = configured_soundcloud()
+            streams = await asyncio.gather(*(client.stream(str(track["urn"])) for track in tracks))
+            queue_name = f"e-Face SoundCloud - {playlist['name']}"
+            blocks = []
+            for index, (track, stream) in enumerate(zip(tracks, streams), 1):
+                title, artist, artwork = (escape(str(track.get(key) or "")) for key in ("title", "artist", "artwork"))
+                metadata = f'<DIDL-Lite xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:upnp="urn:schemas-upnp-org:metadata-1-0/upnp/" xmlns="urn:schemas-upnp-org:metadata-1-0/DIDL-Lite/"><upnp:class>object.item.audioItem.musicTrack</upnp:class><item id=""><dc:title>{title}</dc:title><upnp:artist>{artist}</upnp:artist><upnp:albumArtURI>{artwork}</upnp:albumArtURI></item></DIDL-Lite>'
+                blocks.append(f'<Track{index}><Id>{escape(str(track["urn"]))}</Id><URL>{escape(stream["url"])}</URL><Metadata>{metadata}</Metadata><Source>SoundCloud</Source></Track{index}>')
+            context = f'<?xml version="1.0"?><PlayList><ListName>{escape(queue_name)}</ListName><ListInfo><QueueVersion>2.0</QueueVersion><SourceName>SoundCloud</SourceName><ContentType>songlist</ContentType><TotalNumber>{len(blocks)}</TotalNumber><TrackNumber>{len(blocks)}</TrackNumber><LastPlayIndex>1</LastPlayIndex><Loop>1</Loop><Shuffle>0</Shuffle></ListInfo><Tracks>{"".join(blocks)}</Tracks></PlayList>'
+            await configured_wiim().create_queue(context, queue_name)
+            return {"ok": True, "playlist": playlist, "count": len(blocks)}
+        except ValueError as exc: raise HTTPException(status_code=400, detail=str(exc)) from exc
+        except (httpx.HTTPError, RuntimeError) as exc: raise HTTPException(status_code=502, detail="Riproduzione lista SoundCloud sul WiiM non riuscita") from exc
 
     def configured_wiim() -> WiiMClient:
         settings = wiim_settings.load()
@@ -332,6 +364,24 @@ def create_app() -> FastAPI:
             return {"device": await configured_wiim().snapshot()}
         except (httpx.HTTPError, RuntimeError) as exc:
             raise HTTPException(status_code=502, detail="WiiM non raggiungibile") from exc
+
+    @app.get("/api/wiim/queue")
+    async def wiim_queue() -> dict:
+        try:
+            return await configured_wiim().queue(limit=250)
+        except (httpx.HTTPError, RuntimeError) as exc:
+            raise HTTPException(status_code=502, detail="Coda WiiM non disponibile") from exc
+
+    @app.post("/api/wiim/queue/play")
+    async def wiim_queue_play(payload: dict) -> dict:
+        try:
+            index = int(payload.get("index") or 0)
+            await configured_wiim().play_queue_index(index, str(payload.get("queue_name") or "0"))
+            return {"ok": True, "index": index}
+        except (ValueError, TypeError) as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        except (httpx.HTTPError, RuntimeError) as exc:
+            raise HTTPException(status_code=502, detail="Brano della coda WiiM non disponibile") from exc
 
     @app.get("/api/wiim/artwork")
     async def wiim_artwork(fingerprint: str = Query(..., min_length=8, max_length=80)) -> Response:
@@ -1113,6 +1163,9 @@ def create_app() -> FastAPI:
     @app.get("/api/control4/favorites")
     async def control4_list_favorites() -> dict:
         items = list(reversed(list_favorites()))
+        for playlist in soundcloud_library.load()["playlists"]:
+            tracks = playlist.get("tracks", [])
+            items.append({"id": f"soundcloud:playlist:{playlist['id']}", "kind": "soundcloud_playlist", "title": playlist["name"], "subtitle": f"{len(tracks)} brani", "item_type": "Playlist", "service": "SoundCloud", "artwork": str(tracks[0].get("artwork") or "") if tracks else ""})
         try:
             if time.monotonic() >= float(wiim_presets_cache["expires"]):
                 wiim_presets_cache["items"] = await configured_wiim().presets()
@@ -1294,6 +1347,13 @@ def create_app() -> FastAPI:
             room_id = int(payload.get("room_id") or 0)
             if room_id <= 0:
                 raise ValueError("Stanza non valida")
+            if identity.startswith("soundcloud:playlist:"):
+                playlist_id = identity.removeprefix("soundcloud:playlist:")
+                result = await soundcloud_playlist_play(playlist_id)
+                source_id = int(wiim_settings.load().get("control4_source_id") or 0)
+                if source_id > 0:
+                    await Control4MediaConnector(load_control4_config()).command(f"c4room:{room_id}", "select_source", f"listen:{source_id}")
+                return {"ok": True, "target": "soundcloud_playlist", "playlist_id": playlist_id, "count": result["count"], "room_id": room_id}
             match = re.fullmatch(r"wiim:preset:(\d{1,2})", identity)
             if match:
                 preset_index = int(match.group(1))
@@ -2042,8 +2102,8 @@ def create_app() -> FastAPI:
         page = page.replace("tools-dashboard.js?v=2.21.36", "tools-dashboard.js?v=2.21.38")
         page = page.replace("tools-dashboard.js?v=2.21.38", "tools-dashboard.js?v=2.21.41")
         page = page.replace("tools-dashboard.js?v=2.21.41", "tools-dashboard.js?v=2.21.42")
-        page = page.replace("tools-dashboard.js?v=2.21.42", "tools-dashboard.js?v=2.21.93")
-        page = page.replace("tools-dashboard.css?v=2.20.36", "tools-dashboard.css?v=2.21.93")
+        page = page.replace("tools-dashboard.js?v=2.21.42", "tools-dashboard.js?v=2.21.94")
+        page = page.replace("tools-dashboard.css?v=2.20.36", "tools-dashboard.css?v=2.21.94")
         page = page.replace("backgrounds.css?v=2.20.20", "backgrounds.css?v=2.21.43")
         page = page.replace("intercom.css?v=2.21.14", "intercom.css?v=2.21.46")
         page = page.replace("app.js?v=2.21.11", "app.js?v=2.21.29")

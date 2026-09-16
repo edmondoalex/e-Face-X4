@@ -49,6 +49,7 @@ let wiimTimelineTimer = null
 let wiimTimelineRequest = 0
 let wiimTimelineDragging = false
 let wiimLoopMode = 4
+let pendingSoundCloudTrack = null
 const recentPending = new Map()
 const ttsVolumeRestores = new Map()
 const mediaSessionMasterKey = 'eface-media-session-masters-v1'
@@ -559,7 +560,8 @@ function renderMediaExperience(devices) {
   const wiimActive = selected.active_experience === 'listen' && (selected.transport_provider === 'wiim' || /wiim/i.test(`${selected.source || ''} ${activeOption?.label || ''}`))
   const timeline = wiimActive ? '<label class="media-timeline" data-wiim-timeline><input type="range" min="0" max="1" step="1" value="0" style="--position:0%" data-wiim-seek aria-label="Avanzamento brano"><span><output data-wiim-elapsed>0:00</output><output data-wiim-remaining>-0:00</output></span></label>' : ''
   const roomName = selected.room && !/^unknown$/i.test(selected.room) ? selected.room : selected.name
-  $('#device-list').innerHTML = `<article class="media-session ${wiimActive ? 'has-wiim-timeline' : ''} ${experienceClass} ${deviceVisualClass(selected)}" data-device-id="${esc(selected.id)}">${navigatorArtwork}${navigatorIcon}<div class="media-session-info"><strong>${esc(selected.title || selected.source || selected.name)}</strong><small>${esc(selected.artist || selected.source || roomName)}</small><span class="media-track media-room-name">${esc(roomName)}</span></div>${power}${timeline}${deviceActions(selected, { hidePower: true, wiim: wiimActive })}</article>${voicePanel}${recent}${favorites}<div class="media-library media-room-library"><button class="media-library-toggle" data-media-section-toggle="rooms" aria-expanded="${mediaSections.rooms}"><strong>Stanze</strong><span class="mdi-mask" style="${mdiStyle(mediaSections.rooms ? 'mdi:chevron-up' : 'mdi:chevron-down', 'chevron-down')}"></span></button><div class="media-service-grid" ${mediaSections.rooms ? '' : 'hidden'}>${players}</div></div><div class="media-library media-source-library"><h3>Sorgenti e servizi</h3><div class="media-service-grid">${sources || '<span class="empty-state">Nessuna sorgente disponibile</span>'}</div></div>`
+  const artistLine = `${esc(selected.artist || selected.source || roomName)}${wiimActive && selected.source ? `<span class="media-wiim-service">${esc(selected.source)}</span>` : ''}`
+  $('#device-list').innerHTML = `<article class="media-session ${wiimActive ? 'has-wiim-timeline' : ''} ${experienceClass} ${deviceVisualClass(selected)}" data-device-id="${esc(selected.id)}">${navigatorArtwork}${navigatorIcon}<div class="media-session-info"><strong>${esc(selected.title || selected.source || selected.name)}</strong><small>${artistLine}</small><span class="media-track media-room-name">${esc(roomName)}</span></div>${power}${timeline}${deviceActions(selected, { hidePower: true, wiim: wiimActive })}</article>${voicePanel}${recent}${favorites}<div class="media-library media-room-library"><button class="media-library-toggle" data-media-section-toggle="rooms" aria-expanded="${mediaSections.rooms}"><strong>Stanze</strong><span class="mdi-mask" style="${mdiStyle(mediaSections.rooms ? 'mdi:chevron-up' : 'mdi:chevron-down', 'chevron-down')}"></span></button><div class="media-service-grid" ${mediaSections.rooms ? '' : 'hidden'}>${players}</div></div><div class="media-library media-source-library"><h3>Sorgenti e servizi</h3><div class="media-service-grid">${sources || '<span class="empty-state">Nessuna sorgente disponibile</span>'}</div></div>`
   if (showRecent) {
     const controls = $('#device-list .media-session .media-controls')
     if (controls) controls.insertAdjacentHTML('beforeend', '<button type="button" class="media-now-playing-favorite" data-now-playing-favorite aria-label="Aggiungi ai Preferiti e-Face" aria-pressed="false" title="Aggiungi ai Preferiti e-Face">★</button>')
@@ -655,7 +657,8 @@ function mediaFavoritesHtml(items, roomId) {
   return items.map((item) => {
     const wiimPreset = item.kind === 'wiim_preset'
     const wiimTrack = item.kind === 'wiim_track'
-    const art = wiimPreset || wiimTrack ? item.artwork : item.kind === 'station' && item.station_id ? apiUrl(`api/control4/stations/catalog-image/${item.station_id}`) : item.kind === 'msp' && item.image ? item.image : item.kind === 'recent' ? apiUrl(`api/control4/favorites/artwork?identity=${encodeURIComponent(item.id)}`) : ''
+    const soundcloudPlaylist = item.kind === 'soundcloud_playlist'
+    const art = wiimPreset || wiimTrack || soundcloudPlaylist ? item.artwork : item.kind === 'station' && item.station_id ? apiUrl(`api/control4/stations/catalog-image/${item.station_id}`) : item.kind === 'msp' && item.image ? item.image : item.kind === 'recent' ? apiUrl(`api/control4/favorites/artwork?identity=${encodeURIComponent(item.id)}`) : ''
     const recent = [...recentCache.values()].flatMap((scope) => [...scope.items, ...scope.hiddenItems]).find((entry) => entry.key === item.key)
     const spotify = item.service === 'spotify' || Number(item.driver_id) === 1569 || Number(recent?.driver_id) === 1569 || (item.kind === 'recent' && !item.driver_id && !recent && ['Playlist', 'Album', 'Artist', 'Track', 'Show'].includes(item.item_type))
     const spotifySource = currentDevices.flatMap((device) => device.source_options || []).find((source) => String(source.label || '').toLocaleLowerCase('it') === 'spotify connect')
@@ -663,15 +666,15 @@ function mediaFavoritesHtml(items, roomId) {
     const spotifyLogo = 'assets/control4-icons/spotify-connect.png'
     const displayArt = art || (spotify ? spotifyLogo : '')
     const wiimService = String(item.service || '').toLowerCase()
-    const fallbackIcon = wiimPreset || wiimTrack ? (wiimService.includes('soundcloud') ? 'mdi:soundcloud' : wiimService.includes('spotify') ? 'mdi:spotify' : wiimService.includes('youtube') ? 'mdi:youtube' : 'mdi:music-circle') : spotify ? 'mdi:spotify' : item.kind === 'station' || item.item_type === 'Station' ? 'mdi:radio' : 'mdi:music-circle'
+    const fallbackIcon = wiimPreset || wiimTrack || soundcloudPlaylist ? (wiimService.includes('soundcloud') ? 'mdi:soundcloud' : wiimService.includes('spotify') ? 'mdi:spotify' : wiimService.includes('youtube') ? 'mdi:youtube' : 'mdi:music-circle') : spotify ? 'mdi:spotify' : item.kind === 'station' || item.item_type === 'Station' ? 'mdi:radio' : 'mdi:music-circle'
     const fallback = `<span class="media-recent-art mdi-mask" style="${mdiStyle(fallbackIcon, 'music-circle')}${displayArt ? ';display:none' : ''}"></span>`
     const imageError = spotify && art ? `if(!this.dataset.fallback){this.dataset.fallback='1';this.src='${spotifyLogo}';return}` : ''
-    const originBadge = wiimTrack
+    const originBadge = wiimTrack || soundcloudPlaylist
       ? '<img class="media-favorite-origin media-favorite-eface" src="assets/brand-icon.png" alt="e-Face" title="Preferito creato da e-Face">'
       : '<span class="mdi-mask media-favorite-origin media-favorite-wiim" style="'+mdiStyle('mdi:speaker-wireless', 'speaker')+'" title="Preset nativo WiiM"></span>'
-    const serviceLogo = wiimPreset || wiimTrack ? `<span class="mdi-mask" style="${mdiStyle(fallbackIcon, 'music-circle')}"></span>${originBadge}` : Number.isSafeInteger(serviceId) && serviceId > 0 ? `<img class="media-favorite-service-icon" src="${apiUrl(`api/control4/source-icon/${serviceId}`)}" alt="" loading="lazy" onerror="this.style.display='none';this.nextElementSibling.style.display='block'"><span class="mdi-mask" style="${mdiStyle(fallbackIcon, 'music-circle')};display:none"></span>` : `<span class="mdi-mask" style="${mdiStyle(fallbackIcon, 'music-circle')}"></span>`
-    const remove = wiimPreset ? `<button type="button" class="media-recent-hide" data-wiim-preset-remove="${Number(item.preset_index)}" aria-label="Elimina ${esc(item.title)} da WiiM ed e-Face" title="Elimina da WiiM ed e-Face">×</button>` : `<button type="button" class="media-recent-hide" data-favorite-remove="${esc(item.id)}" aria-label="Rimuovi ${esc(item.title)} dai Preferiti" title="Rimuovi dai Preferiti">×</button>`
-    return `<span class="media-recent-card"><button class="media-recent-item" data-favorite-select="${esc(item.id)}" data-favorite-room="${roomId}" title="${esc(item.title)}">${displayArt ? `<img src="${esc(displayArt)}" alt="" loading="lazy" draggable="false" onerror="${imageError}this.style.display='none';this.nextElementSibling.style.display='block'">` : ''}${fallback}<b>${esc(item.title)}</b><small>${esc(item.subtitle || '')}</small><em>${serviceLogo}${esc(wiimPreset || wiimTrack ? item.service || 'WiiM' : item.kind === 'station' ? 'Stations' : spotify ? 'Spotify' : item.item_type || 'Audio')}</em></button>${remove}</span>`
+    const serviceLogo = wiimPreset || wiimTrack || soundcloudPlaylist ? `<span class="mdi-mask" style="${mdiStyle(fallbackIcon, 'music-circle')}"></span>${originBadge}` : Number.isSafeInteger(serviceId) && serviceId > 0 ? `<img class="media-favorite-service-icon" src="${apiUrl(`api/control4/source-icon/${serviceId}`)}" alt="" loading="lazy" onerror="this.style.display='none';this.nextElementSibling.style.display='block'"><span class="mdi-mask" style="${mdiStyle(fallbackIcon, 'music-circle')};display:none"></span>` : `<span class="mdi-mask" style="${mdiStyle(fallbackIcon, 'music-circle')}"></span>`
+    const remove = wiimPreset ? `<button type="button" class="media-recent-hide" data-wiim-preset-remove="${Number(item.preset_index)}" aria-label="Elimina ${esc(item.title)} da WiiM ed e-Face" title="Elimina da WiiM ed e-Face">×</button>` : soundcloudPlaylist ? `<button type="button" class="media-recent-hide" data-soundcloud-playlist-remove="${esc(item.id.replace('soundcloud:playlist:', ''))}" aria-label="Elimina ${esc(item.title)}" title="Elimina lista SoundCloud">×</button>` : `<button type="button" class="media-recent-hide" data-favorite-remove="${esc(item.id)}" aria-label="Rimuovi ${esc(item.title)} dai Preferiti" title="Rimuovi dai Preferiti">×</button>`
+    return `<span class="media-recent-card"><button class="media-recent-item" data-favorite-select="${esc(item.id)}" data-favorite-room="${roomId}" title="${esc(item.title)}">${displayArt ? `<img src="${esc(displayArt)}" alt="" loading="lazy" draggable="false" onerror="${imageError}this.style.display='none';this.nextElementSibling.style.display='block'">` : ''}${fallback}<b>${esc(item.title)}</b><small>${esc(item.subtitle || '')}</small><em>${serviceLogo}${esc(wiimPreset || wiimTrack || soundcloudPlaylist ? item.service || 'WiiM' : item.kind === 'station' ? 'Stations' : spotify ? 'Spotify' : item.item_type || 'Audio')}</em></button>${remove}</span>`
   }).join('')
 }
 
@@ -2042,6 +2045,20 @@ $('#scenario-list').addEventListener('click', (event) => {
   if (button && card) sendScenarioCommand(card.dataset.scenarioId, button.dataset.scenarioAction, button)
 })
 $('#device-list').addEventListener('click', (event) => {
+  const queueArtwork = event.target.closest('.media-session > .media-artwork')
+  if (queueArtwork) {
+    const selected = currentDevices.find((item) => String(item.id) === queueArtwork.closest('[data-device-id]')?.dataset.deviceId)
+    if (selected?.transport_provider === 'wiim') {
+      fetch(apiUrl('api/wiim/queue'), {cache:'no-store'}).then(async (response) => {
+        if (!response.ok) throw new Error((await response.json().catch(() => ({}))).detail || 'Coda WiiM non disponibile')
+        const queue = await response.json(); $('#wiim-queue-title').textContent = queue.name || 'Coda WiiM'
+        $('#wiim-queue-list').dataset.queueName = queue.queue_name || queue.name || '0'
+        $('#wiim-queue-list').innerHTML = (queue.tracks || []).map((track) => `<button type="button" data-wiim-queue-index="${Number(track.index)}" class="${track.track_id === selected.track_id ? 'active' : ''}">${track.artwork ? `<img src="${esc(track.artwork)}" alt="">` : '<span class="mdi-mask" style="'+mdiStyle('mdi:music','music')+'"></span>'}<span><b>${esc(track.title || 'Senza titolo')}</b><small>${esc(track.artist || track.source || '')}</small></span></button>`).join('') || '<span class="empty-state">Coda vuota</span>'
+        $('#wiim-queue-dialog').showModal()
+      }).catch(fail)
+      return
+    }
+  }
   const wiimButton = event.target.closest('[data-wiim-action]')
   if (wiimButton) {
     const action = wiimButton.dataset.wiimAction
@@ -2067,6 +2084,17 @@ $('#device-list').addEventListener('click', (event) => {
     nowFavoriteButton.disabled = true
     ;(async () => {
       const station = nowPlayingFavorite(selected)
+      if (station.wiim && /soundcloud/i.test(selected.source || '')) {
+        const response = await fetch(apiUrl('api/wiim/services/soundcloud/library'), { cache: 'no-store' })
+        if (!response.ok) throw new Error((await response.json().catch(() => ({}))).detail || 'Liste SoundCloud non disponibili')
+        const library = await response.json()
+        pendingSoundCloudTrack = { urn: selected.track_id, title: selected.title, artist: selected.artist, artwork: selected.artwork, duration: selected.duration, type: 'track', playable: true }
+        $('#soundcloud-playlist-select').innerHTML = '<option value="">Crea nuova lista</option>' + (library.playlists || []).map((item) => `<option value="${esc(item.id)}">${esc(item.name)} (${item.tracks?.length || 0})</option>`).join('')
+        $('#soundcloud-playlist-name').value = ''
+        $('#soundcloud-playlist-name-row').hidden = false
+        $('#soundcloud-playlist-dialog').showModal()
+        return
+      }
       if (station.wiim) {
         const response = await fetch(apiUrl('api/control4/favorites/current-wiim-track'), { method: 'POST' })
         if (!response.ok) throw new Error((await response.json().catch(() => ({}))).detail || 'Brano WiiM non disponibile')
@@ -2125,6 +2153,7 @@ $('#device-list').addEventListener('click', (event) => {
   if (navigatorButton) return openTuneInNavigator(Number(navigatorButton.dataset.mspRoom), navigatorButton.dataset.mspService || 'tunein')
   const pinRecent = event.target.closest('[data-recent-pin]')
   const removeWiimPreset = event.target.closest('[data-wiim-preset-remove]')
+  const removeSoundCloudPlaylist = event.target.closest('[data-soundcloud-playlist-remove]')
   const removeFavorite = event.target.closest('[data-favorite-remove]')
   const selectFavorite = event.target.closest('[data-favorite-select]')
   if (removeWiimPreset) {
@@ -2133,6 +2162,13 @@ $('#device-list').addEventListener('click', (event) => {
     fetch(apiUrl(`api/wiim/presets/${encodeURIComponent(removeWiimPreset.dataset.wiimPresetRemove)}`), { method: 'DELETE' })
       .then(async (response) => { if (!response.ok) throw new Error((await response.json().catch(() => ({}))).detail || 'Preset WiiM non eliminato'); favoritesCache = null; await loadMediaFavorites(true) })
       .catch(fail).finally(() => { removeWiimPreset.disabled = false })
+    return
+  }
+  if (removeSoundCloudPlaylist) {
+    if (!confirm('Eliminare questa playlist SoundCloud da e-Face?')) return
+    fetch(apiUrl(`api/wiim/services/soundcloud/playlists/${encodeURIComponent(removeSoundCloudPlaylist.dataset.soundcloudPlaylistRemove)}`), {method:'DELETE'})
+      .then(async (response) => { if (!response.ok) throw new Error((await response.json().catch(() => ({}))).detail || 'Playlist non eliminata'); favoritesCache = null; await loadMediaFavorites(true) })
+      .catch(fail)
     return
   }
   if (pinRecent || removeFavorite || selectFavorite) {
@@ -2533,6 +2569,30 @@ $('#rooms-toggle').addEventListener('click', (event) => {
   event.currentTarget.querySelector('span').textContent = roomsExpanded ? '⌃' : '⌄'
 })
 $('#show-all-devices').addEventListener('click', () => openDevices('Tutti i dispositivi', currentDevices, {filters:true}))
+$('#soundcloud-playlist-select').addEventListener('change', (event) => { $('#soundcloud-playlist-name-row').hidden = Boolean(event.target.value) })
+$('#soundcloud-playlist-close').addEventListener('click', () => $('#soundcloud-playlist-dialog').close())
+$('#soundcloud-playlist-cancel').addEventListener('click', () => $('#soundcloud-playlist-dialog').close())
+$('#soundcloud-playlist-form').addEventListener('submit', async (event) => {
+  event.preventDefault()
+  if (!pendingSoundCloudTrack) return
+  const playlistId = $('#soundcloud-playlist-select').value
+  const name = $('#soundcloud-playlist-name').value.trim()
+  if (!playlistId && !name) return fail(new Error('Scrivi il nome della nuova playlist'))
+  try {
+    const response = await fetch(apiUrl('api/wiim/services/soundcloud/playlists'), { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({playlist_id:playlistId,name,track:pendingSoundCloudTrack}) })
+    if (!response.ok) throw new Error((await response.json().catch(() => ({}))).detail || 'Playlist SoundCloud non salvata')
+    $('#soundcloud-playlist-dialog').close(); pendingSoundCloudTrack = null; favoritesCache = null; await loadMediaFavorites(true); notify('Brano aggiunto alla playlist SoundCloud')
+  } catch (error) { fail(error) }
+})
+$('#wiim-queue-close').addEventListener('click', () => $('#wiim-queue-dialog').close())
+$('#wiim-queue-list').addEventListener('click', async (event) => {
+  const button = event.target.closest('[data-wiim-queue-index]'); if (!button) return
+  try {
+    const response = await fetch(apiUrl('api/wiim/queue/play'), {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({index:Number(button.dataset.wiimQueueIndex),queue_name:$('#wiim-queue-list').dataset.queueName})})
+    if (!response.ok) throw new Error((await response.json().catch(() => ({}))).detail || 'Brano non disponibile')
+    $('#wiim-queue-list').querySelectorAll('button').forEach((item) => item.classList.toggle('active', item === button)); setTimeout(refresh, 500)
+  } catch (error) { fail(error) }
+})
 document.addEventListener('visibilitychange', () => { if (!document.hidden) { refresh(); connectRealtime() } })
 navigator.serviceWorker?.addEventListener('message', (event) => {
   if (event.data?.type === 'eface-open-intercom') openIntercom()
