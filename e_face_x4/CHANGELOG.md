@@ -1,5 +1,9 @@
 # Changelog
 
+## 2.21.156 — 2026-09-17
+
+- Ridisegnata la coppia di loghi Sky Q: niente riquadri neri, logo Sky pulito sopra e logo canale più largo sotto, senza sovrapposizioni.
+
 ## 2.21.155 — 2026-09-17
 
 - Ripristinato il widget Live Sky Q con la preview del contenuto corrente.
