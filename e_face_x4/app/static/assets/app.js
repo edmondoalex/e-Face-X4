@@ -1,7 +1,7 @@
 const $ = (selector) => document.querySelector(selector)
 const deviceScope = (() => { const key='eface-device-scope-v1'; let value=localStorage.getItem(key); if(!/^[A-Za-z0-9_-]{16,64}$/.test(value||'')){value=(crypto.randomUUID?.()||`${Date.now()}-${Math.random()}`).replaceAll('-','');localStorage.setItem(key,value)} return value })()
 const deviceFetchOptions = (options={}) => ({...options,headers:{...(options.headers||{}),'X-Eface-Device':deviceScope}})
-document.head.insertAdjacentHTML('beforeend', '<link rel="stylesheet" href="assets/media-x4.css?v=2.21.147">')
+document.head.insertAdjacentHTML('beforeend', '<link rel="stylesheet" href="assets/media-x4.css?v=2.21.148">')
 const glyph = { light: '✦', climate: '❄', shield: '⬡', energy: 'ϟ', cover: '▤', sensor: '◌' }
 let refreshRunning = false
 let refreshQueued = false
@@ -627,8 +627,14 @@ function renderMediaExperience(devices) {
   const roomName = selected.room && !/^unknown$/i.test(selected.room) ? selected.room : selected.name
   const artistLine = esc(selected.artist || selected.source || roomName)
   const sourceLine = selected.source ? `<span class="media-track media-source-name">Sorgente · ${esc(selected.source)}</span>` : ''
-  const skyqDescription = selected.skyq && selected.description ? `<p class="media-skyq-description">${esc(selected.description)}</p>` : ''
-  const skyqServices = selected.skyq && selected.skyq_services?.length ? `<div class="media-library media-skyq-services"><h3>App Sky Q esposte</h3><div class="media-service-grid">${selected.skyq_services.map(service => `<span class="media-service-tile"><b>${esc(service)}</b></span>`).join('')}</div></div>` : ''
+  const description = String(selected.description || '').trim()
+  const shortDescription = description.length > 150 ? `${description.slice(0, 149).trimEnd()}…` : description
+  const skyqDescription = selected.skyq && shortDescription ? `<p class="media-skyq-description">${esc(shortDescription)}</p>` : ''
+  const skyqServices = selected.skyq && selected.skyq_services?.length ? `<div class="media-library media-skyq-services"><h3>App Sky Q esposte</h3><div class="media-service-grid">${selected.skyq_services.map(service => {
+    const key = String(service).toLocaleLowerCase('it').replaceAll('+','plus').replace(/[^a-z0-9]/g,'')
+    const source = (selected.source_options || []).find(item => String(item.label || '').toLocaleLowerCase('it').replaceAll('+','plus').replace(/[^a-z0-9]/g,'').includes(key))
+    return source ? `<button class="media-service-tile" data-device-id="${esc(selected.id)}" data-media-source="${esc(source.key)}">${mediaSourceMarkup(source, selected.provider)}<b>${esc(service)}</b></button>` : `<span class="media-service-tile"><span class="mdi-mask" style="${mdiStyle(mediaSourceIcon(service),'apps')}"></span><b>${esc(service)}</b></span>`
+  }).join('')}</div></div>` : ''
   $('#device-list').innerHTML = `<article class="media-session ${selected.skyq && selected.description ? 'has-skyq-description' : ''} ${wiimActive ? 'has-wiim-timeline' : ''} ${experienceClass} ${deviceVisualClass(selected)}" data-device-id="${esc(selected.id)}">${navigatorArtwork}${navigatorIcon}<div class="media-session-info"><strong>${esc(selected.title || selected.source || selected.name)}</strong>${sourceLine}<small>${artistLine}</small><span class="media-track media-room-name">${esc(roomName)}</span>${skyqDescription}</div>${power}${timeline}${deviceActions(selected, { hidePower: true, wiim: wiimActive })}</article>${voicePanel}${recent}${favorites}${skyqServices}<div class="media-library media-room-library"><button class="media-library-toggle" data-media-section-toggle="rooms" aria-expanded="${mediaSections.rooms}"><strong>Stanze</strong><span class="mdi-mask" style="${mdiStyle(mediaSections.rooms ? 'mdi:chevron-up' : 'mdi:chevron-down', 'chevron-down')}"></span></button><div class="media-service-grid" ${mediaSections.rooms ? '' : 'hidden'}>${players}</div></div><div class="media-library media-source-library"><h3>Sorgenti e servizi</h3><div class="media-service-grid">${sources || '<span class="empty-state">Nessuna sorgente disponibile</span>'}</div></div>`
   if (showRecent) {
     const controls = $('#device-list .media-session .media-controls')
@@ -1511,11 +1517,12 @@ function openVideoRemote(device) {
 async function sendVideoRemote(action, button) {
   if (!activeVideoRemote) return
   button.disabled = true
+  button.classList.add('is-working')
   try {
     if (action === 'off') await postDeviceCommand(activeVideoRemote.device.id, 'turn_off')
     else await postDeviceCommand(activeVideoRemote.device.id, 'video_remote', { source_id: activeVideoRemote.source.source_id, command: action })
   } catch (error) { fail(error) }
-  finally { button.disabled = false }
+  finally { window.setTimeout(() => { button.disabled = false; button.classList.remove('is-working') }, 180) }
 }
 
 async function sendVideoChannel(device, command, button) {

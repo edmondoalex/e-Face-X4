@@ -30,6 +30,7 @@
   transform: scale(.94);
   box-shadow: 0 0 18px var(--remote-color);
 }
+.remote-custom .remote-color.is-working{background:color-mix(in srgb,var(--remote-color) 48%,#15191b)!important;box-shadow:inset 0 0 0 2px var(--remote-color),0 0 22px color-mix(in srgb,var(--remote-color) 55%,transparent)}.remote-custom .remote-color.is-working span{transform:scale(.78);box-shadow:0 0 24px var(--remote-color)}
 
 .media-session-row-watch .media-session-row-source {
   color: #61d8f2;

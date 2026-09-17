@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.21.148 — 2026-09-17
+
+- Le sezioni App Sky Q, Stanze e Sorgenti ora occupano tutta la larghezza e usano tessere compatte in righe orizzontali.
+- Le app esposte riutilizzano le icone native Control4 e diventano richiami selezionabili quando la sorgente corrispondente è disponibile.
+- La descrizione viene troncata anche nei dati renderizzati, oltre al limite grafico di due righe.
+
 ## 2.21.147 — 2026-09-17
 
 - La descrizione Sky Q nel dettaglio è limitata a due righe con ellissi.
