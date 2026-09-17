@@ -71,7 +71,7 @@ from .connectors.supervisor import discover_addon_url, discover_host_url
 from .media_realtime import SharedMediaRealtime
 from .demo import dashboard as demo_dashboard
 
-VERSION = os.environ.get("EFACE_VERSION", "2.21.149")
+VERSION = os.environ.get("EFACE_VERSION", "2.21.150")
 STATIC = Path(__file__).parent / "static"
 logging.basicConfig(level=logging.WARNING, format="%(asctime)s %(levelname)s [e-face-x4] %(message)s")
 _reconnect_warning_at: dict[str, float] = {}
@@ -2457,9 +2457,9 @@ def create_app() -> FastAPI:
         page = page.replace('content="#263f48"', 'content="#181c1f"')
         page = page.replace("manifest.webmanifest?v=2.20.38", "manifest.webmanifest?v=2.21.59")
         page = page.replace("app.css?v=2.20.20", "app.css?v=2.21.73")
-        page = page.replace("app.css?v=2.21.84", "app.css?v=2.21.149")
-        page = page.replace("home-status.css?v=2.20.20", "home-status.css?v=2.21.149")
-        page = page.replace("tools.js?v=2.21.1", "tools.js?v=2.21.149")
+        page = page.replace("app.css?v=2.21.84", "app.css?v=2.21.150")
+        page = page.replace("home-status.css?v=2.20.20", "home-status.css?v=2.21.150")
+        page = page.replace("tools.js?v=2.21.1", "tools.js?v=2.21.150")
         page = page.replace("media-remote-colors.css?v=2.20.20", "media-remote-colors.css?v=2.21.148")
         page = page.replace("ui-theme-contract.css?v=2.21.27", "ui-theme-contract.css?v=2.21.29")
         page = page.replace("tools-dashboard.js?v=2.21.27", "tools-dashboard.js?v=2.21.33")
@@ -2468,8 +2468,8 @@ def create_app() -> FastAPI:
         page = page.replace("tools-dashboard.js?v=2.21.36", "tools-dashboard.js?v=2.21.38")
         page = page.replace("tools-dashboard.js?v=2.21.38", "tools-dashboard.js?v=2.21.41")
         page = page.replace("tools-dashboard.js?v=2.21.41", "tools-dashboard.js?v=2.21.42")
-        page = page.replace("tools-dashboard.js?v=2.21.42", "tools-dashboard.js?v=2.21.149")
-        page = page.replace("tools-dashboard.css?v=2.20.36", "tools-dashboard.css?v=2.21.149")
+        page = page.replace("tools-dashboard.js?v=2.21.42", "tools-dashboard.js?v=2.21.150")
+        page = page.replace("tools-dashboard.css?v=2.20.36", "tools-dashboard.css?v=2.21.150")
         page = page.replace("backgrounds.css?v=2.20.20", "backgrounds.css?v=2.21.43")
         page = page.replace("intercom.css?v=2.21.14", "intercom.css?v=2.21.46")
         page = page.replace("app.js?v=2.21.11", "app.js?v=2.21.29")
@@ -3133,6 +3133,21 @@ def create_app() -> FastAPI:
         if upstream.headers.get("etag"):
             headers["ETag"] = upstream.headers["etag"]
         return Response(upstream.content, media_type=media_type, headers=headers)
+
+    @app.get("/api/skyq/apps/{app_id}/icon", include_in_schema=False)
+    async def skyq_app_icon(app_id: str) -> Response:
+        if not re.fullmatch(r"[A-Za-z0-9._-]{1,100}", app_id):
+            raise HTTPException(status_code=400, detail="App Sky Q non valida")
+        try:
+            upstream = await skyq_connector.app_icon(app_id)
+        except httpx.HTTPError:
+            raise HTTPException(status_code=502, detail="Icona Sky Q non raggiungibile")
+        if upstream.status_code != 200:
+            raise HTTPException(status_code=upstream.status_code, detail="Icona Sky Q non disponibile")
+        media_type = artwork_media_type(upstream.headers.get("content-type", ""), upstream.content)
+        if not media_type or len(upstream.content) > 300_000:
+            raise HTTPException(status_code=415, detail="Icona Sky Q non valida")
+        return Response(upstream.content, media_type=media_type, headers={"Cache-Control": "private, max-age=3600", "X-Content-Type-Options": "nosniff"})
 
     @app.get("/api/control4/recently-played")
     async def control4_recently_played(room_id: int | None = Query(None, gt=0), limit: int = Query(20, ge=1, le=20)) -> dict:

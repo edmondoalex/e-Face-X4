@@ -15,6 +15,7 @@ _command_lock = asyncio.Lock()
 _remotes: dict[str, Any] = {}
 _digit_buffers: dict[str, list[str]] = {}
 _digit_tasks: dict[str, asyncio.Task] = {}
+_app_icons: dict[str, tuple[str, str]] = {}
 REMOTE_ACTIONS = ["play", "pause", "stop", "scan_fwd", "scan_rev", "skip_fwd", "skip_rev", "menu", "up", "down", "left", "right", "enter", "channel_up", "channel_down", "record", "page_up", "page_down", "info", "cancel", "dvr", "guide", *[f"digit_{value}" for value in range(10)], "custom:PROGRAM_A", "custom:PROGRAM_B", "custom:PROGRAM_C", "custom:PROGRAM_D"]
 COMMANDS = {"play": "play", "pause": "pause", "stop": "stop", "scan_fwd": "fastforward", "skip_fwd": "fastforward", "scan_rev": "rewind", "skip_rev": "rewind", "menu": "home", "up": "up", "down": "down", "left": "left", "right": "right", "enter": "select", "channel_up": "channelup", "channel_down": "channeldown", "record": "record", "page_up": "channelup", "page_down": "channeldown", "info": "i", "cancel": "dismiss", "dvr": "sky", "guide": "tvguide", "custom:PROGRAM_A": "red", "custom:PROGRAM_B": "green", "custom:PROGRAM_C": "yellow", "custom:PROGRAM_D": "blue"}
 COMMANDS.update({f"digit_{value}": str(value) for value in range(10)})
@@ -36,6 +37,24 @@ def _read_box(host: str) -> dict[str, Any]:
         "status": "online", "power": power, "state": "off" if power in {"off", "standby"} else "playing",
         "device": {key: getattr(device, key, None) for key in ("hardwareName", "hardwareModel", "deviceType", "manufacturer", "modelNumber", "serialNumber", "versionNumber", "countryCode", "uhdCapable", "hdrCapable")},
     }
+    raw_apps = remote._remote_config.device_access.retrieve_information("apps") or {}
+    apps = []
+    excluded_ids = ("com.bskyb.broadcast", "com.bskyb.ca-", "com.bskyb.epgui", "com.bskyb.local", "com.bskyb.metric", "com.sky.my-sky", "com.skyita.channelchange", "com.skyita.dxxx")
+    for entry in raw_apps.get("apps", []) if isinstance(raw_apps, dict) else []:
+        app_id = _text(entry.get("appId"))
+        title = _text(entry.get("title"))
+        if not app_id or not title or entry.get("blocked") or app_id.startswith(excluded_ids):
+            continue
+        icon = ""
+        for icon_entry in entry.get("icons", []) if isinstance(entry.get("icons"), list) else []:
+            if isinstance(icon_entry, dict) and icon_entry.get("APPTRAY"):
+                icon = _text(icon_entry["APPTRAY"])
+                break
+        if icon:
+            path = httpx.URL(icon).path
+            _app_icons[app_id] = (host, path)
+        apps.append({"id": app_id, "title": title, "icon": bool(icon)})
+    result["apps"] = sorted(apps, key=lambda item: item["title"].casefold())
     if result["state"] == "off":
         return result
     transport = remote.get_current_state()
@@ -109,7 +128,7 @@ def overlay_control4(providers: list[dict], data: dict[str, Any], config: dict[s
             item.update({
                 "metadata_provider": "skyq", "skyq": True, "skyq_app": data.get("app"),
                 "skyq_app_id": data.get("app_id"), "channel": data.get("channel"),
-                "skyq_services": list(config.get("services") or []),
+                "skyq_services": list(config.get("services") or []), "skyq_apps": list(data.get("apps") or []),
                 "channel_number": data.get("channel_number"), "description": data.get("description"),
                 "season": data.get("season"), "episode": data.get("episode"),
                 "title": data.get("title") or item.get("title"), "artist": data.get("channel") or data.get("app"),
@@ -192,6 +211,15 @@ async def artwork(fingerprint: str) -> httpx.Response:
         return httpx.Response(415)
     async with httpx.AsyncClient(timeout=8, follow_redirects=True) as client:
         return await client.get(url)
+
+
+async def app_icon(app_id: str) -> httpx.Response:
+    cached = _app_icons.get(app_id)
+    if not cached:
+        return httpx.Response(404)
+    host, path = cached
+    async with httpx.AsyncClient(timeout=5, follow_redirects=False) as client:
+        return await client.get(f"http://{host}:8008{path}")
 
 
 async def test(config: dict[str, Any]) -> dict[str, Any]:

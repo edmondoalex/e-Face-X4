@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.21.150 — 2026-09-17
+
+- Le app Sky Q vengono ora scoperte direttamente dal decoder invece di usare una lista manuale.
+- Visualizzate 23 app utente reali con icone APPTRAY lette dal box; escluse app bloccate e componenti tecnici interni.
+
 ## 2.21.149 — 2026-09-17
 
 - Serializzati tutti i comandi del telecomando Sky Q per evitare connessioni concorrenti e tasti persi.
