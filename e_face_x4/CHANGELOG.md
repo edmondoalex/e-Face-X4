@@ -1,5 +1,12 @@
 # Changelog
 
+## 2.21.134 — 2026-09-17
+
+- In Installatore → Videocitofono arriva la lettura completa e non distruttiva di tutto ciò che la LAN API DoorBird espone: dispositivo, firmware, hardware, relè/controller, SIP, preferiti e programmazioni di tutti gli eventi.
+- La schermata distingue esplicitamente i dati letti da quelli che DoorBird conserva soltanto nel portale/app e non rende disponibili alla LAN API.
+- La diagnostica confronta automaticamente il percorso DoorBird con Asterisk/e-Face e segnala proxy e destinazione attesi.
+- Le password possono essere mostrate esplicitamente dopo una nuova autenticazione admin; la lettura normale le mantiene oscurate.
+
 ## 2.21.133 — 2026-09-17
 
 - Località meteo ed entità dell'ultimo evento videosorveglianza sono ora impostazioni uniche dell'impianto, condivise da tutte le UI.

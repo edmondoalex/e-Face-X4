@@ -3,7 +3,7 @@ import asyncio
 import httpx
 import pytest
 
-from app.doorbird_api import check_identity, history_image, live_image, live_video
+from app.doorbird_api import check_identity, configuration, history_image, live_image, live_video
 
 
 @pytest.mark.asyncio
@@ -150,3 +150,33 @@ def test_live_video_uses_digest_and_checks_multipart_type(monkeypatch) -> None:
         pass
     else:
         assert False, "Non-MJPEG response must be rejected"
+
+
+def test_configuration_reads_all_sections_and_requires_reveal_for_passwords(monkeypatch) -> None:
+    original = httpx.AsyncClient
+
+    def handle(request):
+        if "authorization" not in request.headers:
+            return httpx.Response(401, headers={"WWW-Authenticate": 'Digest realm="DoorBird", nonce="abc", qop="auth"'})
+        path = request.url.path
+        if path.endswith("sip.cgi"):
+            data = {"BHA":{"SIP":[{"URL":"192.168.3.10","PASSWORD":"sip-private","INCOMING_CALL_USER":"192.168.3.24","AUTOCALL_DOORBELL_URL":"sip:8290@192.168.3.24"}]}}
+        elif path.endswith("favorites.cgi"):
+            data = {"BHA":{"FAVORITES":[{"type":"http","value":"https://user:private@192.168.3.10/ring"}]}}
+        elif path.endswith("schedule.cgi"):
+            data = [{"input":"doorbell","output":[{"event":"sip","param":"2"}]}]
+        else:
+            data = {"BHA":{"RETURNCODE":"1","VERSION":[{"DEVICE-TYPE":"DoorBird","FIRMWARE":"000123","RELAYS":["1","controller@1"]}]}}
+        return httpx.Response(200, json=data)
+
+    monkeypatch.setattr(httpx, "AsyncClient", lambda **kwargs: original(transport=httpx.MockTransport(handle), **kwargs))
+    hidden = asyncio.run(configuration("192.168.2.30", 80, "user", "api-private", "192.168.3.24", "8290"))
+    assert hidden["sip"]["BHA"]["SIP"][0]["PASSWORD"] == "configurato"
+    assert "private" not in str(hidden)
+    assert hidden["verifica_eface"]["proxy_sip"] == "192.168.3.10"
+    assert hidden["verifica_eface"]["asterisk_autorizzato"] is True
+    assert hidden["rele_e_controller"]["rele_esposti"] == ["1", "controller@1"]
+    assert hidden["copertura_api_lan"]["sola_lettura"] is True
+    assert len(hidden["copertura_api_lan"]["letti"]) == 4
+    revealed = asyncio.run(configuration("192.168.2.30", 80, "user", "api-private", "192.168.3.24", "8290", reveal=True))
+    assert revealed["sip"]["BHA"]["SIP"][0]["PASSWORD"] == "sip-private"

@@ -56,7 +56,7 @@ def test_health() -> None:
     response = TestClient(create_app()).get("/health")
     assert response.status_code == 200
     assert response.json()["ok"] is True
-    assert response.json()["version"] == "2.21.133"
+    assert response.json()["version"] == "2.21.134"
 
 
 def test_installed_app_starts_at_dashboard() -> None:
@@ -95,7 +95,7 @@ def test_intercom_is_in_sidebar_with_embedded_view() -> None:
     client_script = (static / "assets" / "intercom.js").read_text(encoding="utf-8")
     intercom_page = (static / "intercom.html").read_text(encoding="utf-8")
     assert "Tablet Control4 · interno 8291" in intercom_page
-    assert "const currentVersion = '2.21.133'" in client_script
+    assert "const currentVersion = '2.21.134'" in client_script
     assert 'id="call-ufficio" data-dial-extension="8291" data-video-capable="true"' in intercom_page
     assert "Postazione esterna · interno 8201" in intercom_page
     assert "Postazione esterna · interno ${station.sip_extension}" in client_script
@@ -302,8 +302,8 @@ def test_intercom_dashboard_stores_only_local_settings(monkeypatch, tmp_path) ->
     assert 'id="users-tool"' in page
     assert 'id="logout"' in page
     assert page.index('id="logout"') < page.index('id="tools-user-section"')
-    assert "tools-dashboard.js?v=2.21.133" in page
-    assert "tools.js?v=2.21.133" in page
+    assert "tools-dashboard.js?v=2.21.134" in page
+    assert "tools.js?v=2.21.134" in page
     tools_js = client.get("/assets/tools.js").text
     assert "document.querySelector('.tools-shell').append(shortcutsPanel)" in tools_js
     assert "data-shortcut-drag=\"category\"" in tools_js
@@ -311,7 +311,7 @@ def test_intercom_dashboard_stores_only_local_settings(monkeypatch, tmp_path) ->
     assert "pointermove" in tools_js and "finishShortcutDrag" in tools_js
     home = client.get("/").text
     assert "backgrounds.css?v=2.21.43" in home
-    assert "app.js?v=2.21.133" in home
+    assert "app.js?v=2.21.134" in home
 
 
 def test_external_stations_api_requires_login_and_hides_secrets(monkeypatch, tmp_path) -> None:
@@ -476,6 +476,35 @@ def test_admin_doorbird_check_uses_stored_credential_without_exposing_it(monkeyp
     assert response.headers["cache-control"] == "no-store, private"
     assert "doorbird-secret" not in response.text
     assert calls == [("192.168.2.30", 80, "doorbird-admin", "doorbird-secret")]
+
+
+def test_admin_doorbird_configuration_is_read_only_and_reveal_requires_reauth(monkeypatch, tmp_path) -> None:
+    monkeypatch.setenv("EFACE_AUTH_DIR", str(tmp_path / "auth"))
+    monkeypatch.setenv("EFACE_CREDENTIAL_INVENTORY", str(tmp_path / "inventory.json"))
+    from app.user_auth import create_admin
+    from app import credential_inventory, doorbird_api
+    create_admin("password-admin-lunga")
+    credential_inventory.save("doorbird", "doorbird-admin", "doorbird-secret")
+    client = TestClient(create_app())
+    endpoint = "/api/admin/intercom/doorbird/configuration"
+    assert client.get(endpoint).status_code == 401
+    assert client.post("/api/auth/login", json={"username": "admin", "password": "password-admin-lunga"}).status_code == 200
+    calls = []
+
+    async def fake_configuration(host, port, username, password, asterisk_host, ring_extension, reveal=False):
+        calls.append((host, port, username, password, asterisk_host, ring_extension, reveal))
+        return {"sip": {"PASSWORD": "visible" if reveal else "configurato"}}
+
+    monkeypatch.setattr(doorbird_api, "configuration", fake_configuration)
+    hidden = client.get(endpoint)
+    assert hidden.json()["sip"]["PASSWORD"] == "configurato"
+    assert hidden.headers["cache-control"] == "no-store, private"
+    reveal = f"{endpoint}/reveal"
+    assert client.post(reveal, json={"admin_password": "wrong"}).status_code == 403
+    visible = client.post(reveal, json={"admin_password": "password-admin-lunga"})
+    assert visible.json()["sip"]["PASSWORD"] == "visible"
+    assert visible.headers["cache-control"] == "no-store, private"
+    assert calls[-1][-1] is True
 
 
 def test_doorbird_image_requires_login_and_keeps_credential_server_side(monkeypatch, tmp_path) -> None:
@@ -696,7 +725,7 @@ def test_tools_page_starts_with_selected_background_and_card_theme(monkeypatch, 
     login = client.get("/login").text
     assert '<body class="app-theme" data-background="midnight" data-card-theme="slate">' in home
     assert 'ui-theme-contract.css?v=2.21.29' in home
-    assert 'app.js?v=2.21.133' in home
+    assert 'app.js?v=2.21.134' in home
     assert 'energy.css?v=2.21.30' in home
     assert 'home-comfort.css?v=2.21.31' in home
     assert '<body class="login-theme" data-background="midnight" data-card-theme="slate">' in login

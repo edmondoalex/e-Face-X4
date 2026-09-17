@@ -68,7 +68,7 @@ from .connectors.supervisor import discover_addon_url, discover_host_url
 from .media_realtime import SharedMediaRealtime
 from .demo import dashboard as demo_dashboard
 
-VERSION = os.environ.get("EFACE_VERSION", "2.21.133")
+VERSION = os.environ.get("EFACE_VERSION", "2.21.134")
 STATIC = Path(__file__).parent / "static"
 logging.basicConfig(level=logging.WARNING, format="%(asctime)s %(levelname)s [e-face-x4] %(message)s")
 _reconnect_warning_at: dict[str, float] = {}
@@ -2068,6 +2068,38 @@ def create_app() -> FastAPI:
         result = await doorbird_api.check_identity(settings["doorbird_host"], settings["doorbird_port"], account["username"], account["password"])
         return JSONResponse(result, headers={"Cache-Control": "no-store, private"})
 
+    async def doorbird_configuration_response(request: Request, reveal: bool = False) -> Response:
+        require_admin(request)
+        station, account = external_access("ingresso")
+        settings = intercom_settings.load()
+        try:
+            result = await doorbird_api.configuration(
+                station["host"], station["http_port"], account["username"], account["password"],
+                settings["asterisk_host"], settings["ring_extension"], reveal=reveal,
+            )
+        except (ValueError, PermissionError, ConnectionError, RuntimeError) as exc:
+            raise HTTPException(status_code=502, detail=str(exc)) from exc
+        return JSONResponse(result, headers={"Cache-Control": "no-store, private", "Pragma": "no-cache"})
+
+    @app.get("/api/admin/intercom/doorbird/configuration")
+    async def admin_doorbird_configuration(request: Request) -> Response:
+        return await doorbird_configuration_response(request)
+
+    @app.post("/api/admin/intercom/doorbird/configuration/reveal")
+    async def admin_doorbird_configuration_reveal(request: Request, payload: dict) -> Response:
+        require_admin(request)
+        session = request.cookies.get(user_auth.COOKIE, "")
+        key = hashlib.sha256(session.encode()).hexdigest()
+        now = time.monotonic()
+        attempts = [instant for instant in reveal_failures.get(key, []) if now - instant < 900]
+        if len(attempts) >= 5:
+            raise HTTPException(status_code=429, detail="Troppi tentativi. Riprova più tardi")
+        if set(payload) != {"admin_password"} or not user_auth.verify("admin", str(payload["admin_password"])):
+            reveal_failures[key] = attempts + [now]
+            raise HTTPException(status_code=403, detail="Password admin non valida")
+        reveal_failures.pop(key, None)
+        return await doorbird_configuration_response(request, reveal=True)
+
     def external_access(station_id: str) -> tuple[dict, dict]:
         station = external_stations.get(station_id)
         if station is None:
@@ -2391,9 +2423,9 @@ def create_app() -> FastAPI:
         page = page.replace('content="#263f48"', 'content="#181c1f"')
         page = page.replace("manifest.webmanifest?v=2.20.38", "manifest.webmanifest?v=2.21.59")
         page = page.replace("app.css?v=2.20.20", "app.css?v=2.21.73")
-        page = page.replace("app.css?v=2.21.84", "app.css?v=2.21.133")
-        page = page.replace("home-status.css?v=2.20.20", "home-status.css?v=2.21.133")
-        page = page.replace("tools.js?v=2.21.1", "tools.js?v=2.21.133")
+        page = page.replace("app.css?v=2.21.84", "app.css?v=2.21.134")
+        page = page.replace("home-status.css?v=2.20.20", "home-status.css?v=2.21.134")
+        page = page.replace("tools.js?v=2.21.1", "tools.js?v=2.21.134")
         page = page.replace("ui-theme-contract.css?v=2.21.27", "ui-theme-contract.css?v=2.21.29")
         page = page.replace("tools-dashboard.js?v=2.21.27", "tools-dashboard.js?v=2.21.33")
         page = page.replace("tools-dashboard.js?v=2.21.33", "tools-dashboard.js?v=2.21.34")
@@ -2401,8 +2433,8 @@ def create_app() -> FastAPI:
         page = page.replace("tools-dashboard.js?v=2.21.36", "tools-dashboard.js?v=2.21.38")
         page = page.replace("tools-dashboard.js?v=2.21.38", "tools-dashboard.js?v=2.21.41")
         page = page.replace("tools-dashboard.js?v=2.21.41", "tools-dashboard.js?v=2.21.42")
-        page = page.replace("tools-dashboard.js?v=2.21.42", "tools-dashboard.js?v=2.21.133")
-        page = page.replace("tools-dashboard.css?v=2.20.36", "tools-dashboard.css?v=2.21.133")
+        page = page.replace("tools-dashboard.js?v=2.21.42", "tools-dashboard.js?v=2.21.134")
+        page = page.replace("tools-dashboard.css?v=2.20.36", "tools-dashboard.css?v=2.21.134")
         page = page.replace("backgrounds.css?v=2.20.20", "backgrounds.css?v=2.21.43")
         page = page.replace("intercom.css?v=2.21.14", "intercom.css?v=2.21.46")
         page = page.replace("app.js?v=2.21.11", "app.js?v=2.21.29")

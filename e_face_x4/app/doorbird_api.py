@@ -7,11 +7,107 @@ import re
 import json
 import os
 import secrets
+from urllib.parse import urlsplit, urlunsplit
 from collections.abc import AsyncIterator
 from pathlib import Path
 
 MAX_IMAGE_BYTES = 2 * 1024 * 1024
 VIDEO_CONTENT_TYPE = re.compile(r"multipart/x-mixed-replace\s*;\s*boundary=[A-Za-z0-9_-]{1,70}\Z", re.I)
+SENSITIVE_FIELD = re.compile(r"password|passwd|secret|token|credential", re.I)
+
+
+def _safe_configuration(value, key: str = "", reveal: bool = False):
+    """Bound DoorBird data and hide secrets unless an admin explicitly re-authenticated."""
+    if SENSITIVE_FIELD.search(key) and not reveal:
+        return "configurato" if value not in (None, "", [], {}) else "non configurato"
+    if isinstance(value, dict):
+        return {str(k)[:80]: _safe_configuration(v, str(k), reveal) for k, v in list(value.items())[:100]}
+    if isinstance(value, list):
+        return [_safe_configuration(item, key, reveal) for item in value[:100]]
+    if isinstance(value, str):
+        text = value[:1000]
+        if not reveal and "://" in text:
+            try:
+                parsed = urlsplit(text)
+                if parsed.username or parsed.password:
+                    host = parsed.hostname or ""
+                    if parsed.port: host = f"{host}:{parsed.port}"
+                    text = urlunsplit((parsed.scheme, host, parsed.path, parsed.query, parsed.fragment))
+            except ValueError:
+                return "valore oscurato"
+        return text
+    return value if isinstance(value, (int, float, bool)) or value is None else str(value)[:1000]
+
+
+async def configuration(host: str, port: int, username: str, password: str,
+                        asterisk_host: str, ring_extension: str, reveal: bool = False) -> dict:
+    """Read every configuration block exposed by the official DoorBird LAN API."""
+    if not username or not password:
+        raise ValueError("Credenziale DoorBird non configurata")
+    resources = {
+        "dispositivo": ("info.cgi", None),
+        "sip": ("sip.cgi", {"action": "status"}),
+        "preferiti": ("favorites.cgi", None),
+        "programmazione": ("schedule.cgi", None),
+    }
+    result = {}
+    async with httpx.AsyncClient(timeout=10, follow_redirects=False, trust_env=False) as client:
+        for label, (path, params) in resources.items():
+            try:
+                response = await client.get(f"http://{host}:{port}/bha-api/{path}", params=params,
+                                            auth=httpx.DigestAuth(username, password))
+            except httpx.HTTPError as exc:
+                raise ConnectionError("DoorBird non raggiungibile") from exc
+            if response.status_code == 401:
+                raise PermissionError("La credenziale DoorBird non ha il permesso API operator")
+            if response.status_code != 200:
+                result[label] = {"errore": f"HTTP {response.status_code}"}
+                continue
+            if len(response.content) > 256_000:
+                result[label] = {"errore": "Risposta troppo grande"}
+                continue
+            try:
+                result[label] = _safe_configuration(response.json(), reveal=reveal)
+            except ValueError:
+                result[label] = {"errore": "Risposta non JSON"}
+    try:
+        sip = result["sip"]["BHA"]["SIP"][0]
+    except (KeyError, IndexError, TypeError):
+        sip = {}
+    expected = f"sip:{ring_extension}@{asterisk_host}"
+    proxy = str(sip.get("URL") or sip.get("PROXY") or sip.get("SIP_PROXY") or "")
+    autocall = str(sip.get("AUTOCALL_DOORBELL_URL") or "")
+    authorized = str(sip.get("INCOMING_CALL_USER") or "")
+    result["verifica_eface"] = {
+        "destinazione_attesa": expected,
+        "proxy_sip": proxy or "non dichiarato",
+        "asterisk_autorizzato": asterisk_host in re.split(r"[,;\s]+", authorized),
+        "chiamata_automatica_legacy": autocall or "none",
+        "destinazione_legacy_corretta": autocall == expected,
+        "nota": "La destinazione legacy non dimostra che la programmazione moderna del pulsante sia attiva.",
+    }
+    try:
+        version = result["dispositivo"]["BHA"]["VERSION"][0]
+    except (KeyError, IndexError, TypeError):
+        version = {}
+    result["rele_e_controller"] = {
+        "rele_esposti": version.get("RELAYS", []),
+        "nota": "Comprende i relè fisici e gli eventuali Door Controller abbinati dichiarati da info.cgi.",
+    }
+    result["copertura_api_lan"] = {
+        "letti": [
+            "Dispositivo, firmware, MAC, modello e relè/controller (info.cgi)",
+            "Configurazione e stato SIP (sip.cgi?action=status)",
+            "Tutti i preferiti SIP e HTTP (favorites.cgi)",
+            "Tutte le regole per campanello, movimento, RFID, impronta, notifiche, SIP, HTTP e relè (schedule.cgi)",
+        ],
+        "non_esposti_da_doorbird": [
+            "Password SIP in chiaro, se il firmware non la restituisce nello stato SIP",
+            "Impostazioni disponibili soltanto nel portale/app DoorBird (cloud, utenti, badge/PIN completi, rete e parametri Esperto non presenti nei quattro endpoint ufficiali)",
+        ],
+        "sola_lettura": True,
+    }
+    return result
 
 
 async def monitor_events(host: str, port: int, username: str, password: str) -> AsyncIterator[str]:

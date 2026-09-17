@@ -425,18 +425,27 @@ amiTestForm.innerHTML = '<div class="admin-info"><b>Accesso Asterisk dedicato</b
 $('#intercom-config').append(amiTestForm)
 const doorbirdCheck = document.createElement('div')
 doorbirdCheck.className = 'admin-form'
-doorbirdCheck.innerHTML = '<div class="admin-info"><b>DoorBird</b><p>Verifica la credenziale salvata in e-Face leggendo le informazioni del dispositivo. Non modifica SIP, pulsante o relè.</p></div><div class="admin-form-actions"><button type="button">VERIFICA CREDENZIALE DOORBIRD</button></div><div class="admin-status" role="status" hidden></div>'
+doorbirdCheck.innerHTML = '<div class="admin-info"><b>Configurazione completa DoorBird</b><p>Legge tutto ciò che il DoorBird espone tramite API LAN: dispositivo, firmware, relè e controller, SIP, preferiti e tutte le programmazioni. Le impostazioni disponibili soltanto nel portale DoorBird vengono dichiarate come non leggibili. Nessun dato viene modificato.</p></div><div class="admin-form-actions"><button type="button" data-doorbird-read>LEGGI TUTTA LA CONFIGURAZIONE</button><button type="button" class="secondary" data-doorbird-reveal>MOSTRA PASSWORD</button></div><div class="admin-status" role="status" hidden></div><div class="doorbird-config-readout" hidden></div>'
 $('#intercom-config').append(doorbirdCheck)
-doorbirdCheck.querySelector('button').addEventListener('click', async () => {
-  const button = doorbirdCheck.querySelector('button')
+function renderDoorbirdConfiguration(data) {
+  const readout = doorbirdCheck.querySelector('.doorbird-config-readout')
+  const labels = {dispositivo:'Dispositivo, firmware e hardware',rele_e_controller:'Relè e Door Controller',sip:'Configurazione SIP',preferiti:'Tutti i preferiti SIP e HTTP',programmazione:'Tutte le programmazioni ed eventi',verifica_eface:'Verifica percorso e-Face',copertura_api_lan:'Copertura e limiti API DoorBird',credenziale_eface:'Credenziale DoorBird salvata in e-Face'}
+  readout.replaceChildren(...Object.entries(data).map(([key,value]) => {
+    const section = document.createElement('section'), title = document.createElement('h3'), content = document.createElement('pre')
+    title.textContent = labels[key] || key
+    content.textContent = JSON.stringify(value, null, 2)
+    section.append(title, content)
+    return section
+  }))
+  readout.hidden = false
+}
+doorbirdCheck.querySelector('[data-doorbird-read]').addEventListener('click', async () => {
+  const button = doorbirdCheck.querySelector('[data-doorbird-read]')
   const status = doorbirdCheck.querySelector('[role=status]')
   button.disabled = true
   try {
-    const data = await request('api/admin/intercom/doorbird/check', {method:'POST'})
-    status.textContent = data.authenticated ? 'Credenziale DoorBird valida.'
-      : data.reason === 'authentication' ? 'DoorBird raggiungibile, ma credenziale rifiutata.'
-      : data.reason === 'network' ? 'DoorBird non raggiungibile.'
-      : 'DoorBird raggiungibile, risposta non verificata.'
+    renderDoorbirdConfiguration(await request('api/admin/intercom/doorbird/configuration'))
+    status.textContent = 'Lettura completata. Nessuna impostazione DoorBird è stata modificata.'
   } catch(error) { status.textContent = error.message }
   finally { status.hidden = false; button.disabled = false }
 })
@@ -936,6 +945,25 @@ deviceSoundForm.addEventListener('submit', async event => {
     message('Impostazioni del dispositivo salvate')
     closePanel(deviceSoundPanel.id)
   } catch(error) { message(error.message) }
+})
+doorbirdCheck.querySelector('[data-doorbird-reveal]').addEventListener('click', async () => {
+  const adminPassword = window.prompt('Password admin e-Face per mostrare le password DoorBird')
+  if (adminPassword === null) return
+  const button = doorbirdCheck.querySelector('[data-doorbird-reveal]')
+  const status = doorbirdCheck.querySelector('[role=status]')
+  button.disabled = true
+  try {
+    const data = await request('api/admin/intercom/doorbird/configuration/reveal', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({admin_password:adminPassword})})
+    const vault = await request('api/admin/credentials')
+    const doorbirdCredential = (vault.credentials||[]).find(item=>item.kind==='doorbird')
+    if (doorbirdCredential?.revealable) {
+      const secret = await request('api/admin/credentials/doorbird/reveal', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({admin_password:adminPassword})})
+      data.credenziale_eface = {username:doorbirdCredential.username,password:secret.password}
+    }
+    renderDoorbirdConfiguration(data)
+    status.textContent = 'Password visibili per questa lettura. Chiudi la sezione quando hai terminato.'
+  } catch(error) { status.textContent = error.message }
+  finally { status.hidden = false; button.disabled = false }
 })
 $('#doorbird-call-test').addEventListener('click', async () => {
   const button = $('#doorbird-call-test')
