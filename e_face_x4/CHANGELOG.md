@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.21.155 — 2026-09-17
+
+- Ripristinato il widget Live Sky Q con la preview del contenuto corrente.
+- Separati graficamente logo Sky e logo del canale nella scheda Guarda; il logo canale ora riempie il proprio riquadro senza sovrapposizioni.
+- Ripristinato l'accesso diretto alla configurazione Player multimediali Control4; Sky Q dispone ora di una scheda Admin separata.
+
 ## 2.21.154 — 2026-09-17
 
 - Configurazione Sky Q: ogni app permette di caricare un'icona PNG, JPEG, WebP o GIF personalizzata e persistente, con ripristino dell'icona automatica.

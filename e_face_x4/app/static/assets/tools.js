@@ -242,7 +242,8 @@ async function sendControl4(path, button) {
 }
 
 $('#login-form').addEventListener('submit', async (event) => { event.preventDefault(); try { const response = await fetch(apiUrl('../api/installer/login'), { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({password:$('#installer-password').value}) }); if (!response.ok) throw new Error((await response.json()).detail); $('#installer-password').value=''; await unlockTools() } catch(error){ notice(error.message) } })
-$('#media-tool').addEventListener('click', async () => { try { if (await loadPlayers()) $('#skyq-config').hidden = false } catch(error){ notice(error.message) } })
+$('#media-tool').addEventListener('click', async () => { try { if (await loadPlayers()) { await loadSourceIcons(); $('#media-config').hidden = false } } catch(error){ notice(error.message) } })
+$('#skyq-tool').addEventListener('click', async () => { try { if (await loadPlayers()) $('#skyq-config').hidden = false } catch(error){ notice(error.message) } })
 $('#control4-tool').addEventListener('click', async () => { try { await loadControl4(); $('#control4-config').hidden=false } catch(error){ notice(error.message) } })
 $('#control4-back').addEventListener('click', () => { $('#control4-config').hidden=true })
 $('#control4-save').addEventListener('click', (event) => sendControl4('', event.currentTarget))

@@ -1,7 +1,7 @@
 const $ = (selector) => document.querySelector(selector)
 const deviceScope = (() => { const key='eface-device-scope-v1'; let value=localStorage.getItem(key); if(!/^[A-Za-z0-9_-]{16,64}$/.test(value||'')){value=(crypto.randomUUID?.()||`${Date.now()}-${Math.random()}`).replaceAll('-','');localStorage.setItem(key,value)} return value })()
 const deviceFetchOptions = (options={}) => ({...options,headers:{...(options.headers||{}),'X-Eface-Device':deviceScope}})
-document.head.insertAdjacentHTML('beforeend', '<link rel="stylesheet" href="assets/media-x4.css?v=2.21.154">')
+document.head.insertAdjacentHTML('beforeend', '<link rel="stylesheet" href="assets/media-x4.css?v=2.21.155">')
 const glyph = { light: '✦', climate: '❄', shield: '⬡', energy: 'ϟ', cover: '▤', sensor: '◌' }
 let refreshRunning = false
 let refreshQueued = false
@@ -1162,9 +1162,7 @@ function renderHomeMediaSessions() {
     const video = player.active_experience === 'watch'
     const activeSource = (player.source_options || []).find((source) => Number(source.source_id) === Number(player.active_source_id) || source.label === player.source)
     const sourceId = Number(player.active_source_id || activeSource?.source_id || 0)
-    const artwork = player.skyq && player.skyq_channel_fingerprint
-      ? `<span class="home-live-art source"><img src="${apiUrl(`api/media/${encodeURIComponent(player.registry_id)}/artwork?fingerprint=${encodeURIComponent(player.skyq_channel_fingerprint)}`)}" alt="${esc(player.channel || '')}" onload="this.parentElement.classList.add('loaded')" onerror="if(!this.dataset.fallback&&${sourceId}>0){this.dataset.fallback='1';this.src='${apiUrl(`api/control4/source-icon/${sourceId}?v=${encodeURIComponent(appVersion)}`)}'}else{this.hidden=true}"><span class="mdi-mask" style="${mdiStyle('mdi:television','television')}"></span></span>`
-      : !player.content_fingerprint && player.provider === 'control4' && sourceId
+    const artwork = !player.content_fingerprint && player.provider === 'control4' && sourceId
       ? `<span class="home-live-art source"><img src="${apiUrl(`api/control4/source-icon/${sourceId}?v=${encodeURIComponent(appVersion)}`)}" alt="" onload="this.parentElement.classList.add('loaded')" onerror="this.hidden=true"><span class="mdi-mask" style="${mdiStyle(video ? 'mdi:television' : mediaSourceIcon(player.source), video ? 'television' : 'music-circle')}"></span></span>`
       : player.content_fingerprint
       ? `<span class="home-live-art"><img src="${mediaArtworkUrl(player)}" alt="" loading="lazy" onerror="this.hidden=true"></span>`
