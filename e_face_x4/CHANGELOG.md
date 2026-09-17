@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.21.147 — 2026-09-17
+
+- La descrizione Sky Q nel dettaglio è limitata a due righe con ellissi.
+- La sorgente attiva è ora indicata esplicitamente sia per le sessioni video sia per quelle audio, nella Home e nel dettaglio.
+
 ## 2.21.146 — 2026-09-17
 
 - Resi visibili e riconoscibili i quattro tasti Sky Q rosso, verde, giallo e blu nel telecomando video, con feedback alla pressione e cache CSS aggiornata.
