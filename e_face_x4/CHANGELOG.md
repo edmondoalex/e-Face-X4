@@ -1,5 +1,9 @@
 # Changelog
 
+## 2.21.157 — 2026-09-17
+
+- Uniformate le dimensioni del logo Sky Q e del logo canale a 54×40 px, entrambi centrati nel proprio spazio.
+
 ## 2.21.156 — 2026-09-17
 
 - Ridisegnata la coppia di loghi Sky Q: niente riquadri neri, logo Sky pulito sopra e logo canale più largo sotto, senza sovrapposizioni.
