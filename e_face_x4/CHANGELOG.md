@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.21.153 — 2026-09-17
+
+- Ripristinata la composizione originale della scheda Sky Q: preview principale invariata, logo Sky mantenuto e logo del canale aggiunto sotto in dimensione leggibile.
+- Nel widget Live della Home viene mostrato il logo del canale corrente, senza usare la preview del programma.
+
 ## 2.21.152 — 2026-09-17
 
 - Le app Sky Q si possono riordinare tramite trascinamento; ordine e visibilità restano persistenti e vengono applicati anche alla pagina Guarda.
