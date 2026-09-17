@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.21.136 — 2026-09-17
+
+- Corretto l'overflow dell'equalizzatore WiiM: tutte le dieci bande restano dentro il popup senza barra orizzontale.
+- Preset e comandi EQ mostrano selezione, pressione, attività in corso e conferma dell'azione eseguita.
+
 ## 2.21.135 — 2026-09-17
 
 - La diagnostica DoorBird incrocia programmazione del pulsante, azione SIP e preferito associato e mostra un esito immediato SÌ/NO, la destinazione e le fasce orarie.

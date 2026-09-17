@@ -1,7 +1,7 @@
 const $ = (selector) => document.querySelector(selector)
 const deviceScope = (() => { const key='eface-device-scope-v1'; let value=localStorage.getItem(key); if(!/^[A-Za-z0-9_-]{16,64}$/.test(value||'')){value=(crypto.randomUUID?.()||`${Date.now()}-${Math.random()}`).replaceAll('-','');localStorage.setItem(key,value)} return value })()
 const deviceFetchOptions = (options={}) => ({...options,headers:{...(options.headers||{}),'X-Eface-Device':deviceScope}})
-document.head.insertAdjacentHTML('beforeend', '<link rel="stylesheet" href="assets/media-x4.css?v=2.21.135">')
+document.head.insertAdjacentHTML('beforeend', '<link rel="stylesheet" href="assets/media-x4.css?v=2.21.136">')
 const glyph = { light: '✦', climate: '❄', shield: '⬡', energy: 'ϟ', cover: '▤', sensor: '◌' }
 let refreshRunning = false
 let refreshQueued = false
@@ -642,15 +642,30 @@ async function openWiimEq(source = 'wifi') {
 function renderWiimEq() {
   if (!wiimEqState) return
   const frequencies = ['31Hz','63Hz','125Hz','250Hz','500Hz','1kHz','2kHz','4kHz','8kHz','16kHz']
-  const sources = Object.entries(wiimEqSources).map(([key,label]) => `<button data-eq-source="${key}" class="${wiimEqState.source === key ? 'active' : ''}">${label}</button>`).join('')
+  const sources = Object.entries(wiimEqSources).map(([key,label]) => `<button data-eq-source="${key}" class="${wiimEqState.source === key ? 'active' : ''}" aria-pressed="${wiimEqState.source === key}">${label}</button>`).join('')
   const bands = (wiimEqState.bands || []).map((band,index) => `<label><input type="range" min="-12" max="12" step="0.1" value="${Number(band.value)||0}" data-eq-band="${index}" data-param-name="${esc(band.param_name)}"><b>${frequencies[index]}</b><output>${(Number(band.value)||0).toFixed(1)} dB</output></label>`).join('')
-  const presets = (wiimEqState.presets || []).map(name => `<button data-eq-preset="${esc(name)}" class="${name === wiimEqState.name ? 'active' : ''}">${esc(name)}</button>`).join('')
+  const presets = (wiimEqState.presets || []).map(name => `<button data-eq-preset="${esc(name)}" class="${name === wiimEqState.name ? 'active' : ''}" aria-pressed="${name === wiimEqState.name}">${esc(name)}</button>`).join('')
   $('#wiim-eq-body').innerHTML = `<nav class="wiim-eq-sources">${sources}</nav><div class="wiim-eq-heading"><strong>EQ grafico · ${esc(wiimEqState.name || 'Custom')}</strong><label>EQ <input type="checkbox" data-eq-enabled ${wiimEqState.enabled ? 'checked' : ''}></label></div><div class="wiim-eq-bands">${bands}</div><div class="wiim-eq-actions"><button data-eq-reset>RIPRISTINA</button><button data-eq-apply>APPLICA</button><input data-eq-custom-name maxlength="40" placeholder="Nome preset custom"><button data-eq-save-custom>SALVA CUSTOM</button></div><div class="wiim-eq-presets">${presets}</div>`
 }
 async function updateWiimEq(payload) {
   const response = await fetch(apiUrl('api/wiim/eq'), {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({source:wiimEqState.source,...payload})})
   if (!response.ok) throw new Error((await response.json().catch(() => ({}))).detail || 'Modifica EQ non riuscita')
   wiimEqState = await response.json(); renderWiimEq()
+}
+async function runWiimEqAction(button, action, successMessage = '') {
+  if (!button || button.disabled) return
+  button.disabled = true
+  button.classList.add('is-working')
+  button.setAttribute('aria-busy', 'true')
+  try {
+    await action()
+    if (successMessage) notify(successMessage)
+  } catch (error) {
+    button.disabled = false
+    button.classList.remove('is-working')
+    button.removeAttribute('aria-busy')
+    fail(error)
+  }
 }
 
 async function loadWiimTimeline(deviceId) {
@@ -2727,11 +2742,11 @@ $('#wiim-eq-close').addEventListener('click', () => $('#wiim-eq-dialog').close()
 $('#wiim-eq-body').addEventListener('input', (event) => { if (event.target.matches('[data-eq-band]')) event.target.parentElement.querySelector('output').textContent = `${Number(event.target.value).toFixed(1)} dB` })
 $('#wiim-eq-body').addEventListener('click', (event) => {
   const source = event.target.closest('[data-eq-source]'); if (source) return openWiimEq(source.dataset.eqSource)
-  const preset = event.target.closest('[data-eq-preset]'); if (preset) return updateWiimEq({action:'preset',name:preset.dataset.eqPreset}).catch(fail)
-  if (event.target.closest('[data-eq-reset]')) return updateWiimEq({action:'preset',name:'Flat'}).catch(fail)
+  const preset = event.target.closest('[data-eq-preset]'); if (preset) { preset.parentElement.querySelectorAll('button').forEach(item => { item.classList.toggle('active', item === preset); item.setAttribute('aria-pressed', String(item === preset)) }); return runWiimEqAction(preset, () => updateWiimEq({action:'preset',name:preset.dataset.eqPreset}), `Preset ${preset.dataset.eqPreset} applicato`) }
+  const reset = event.target.closest('[data-eq-reset]'); if (reset) return runWiimEqAction(reset, () => updateWiimEq({action:'preset',name:'Flat'}), 'Equalizzatore ripristinato su Flat')
   const bands = () => [...document.querySelectorAll('[data-eq-band]')].map(input => ({param_name:input.dataset.paramName,value:Number(input.value)}))
-  if (event.target.closest('[data-eq-apply]')) return updateWiimEq({action:'bands',bands:bands()}).then(() => notify('Equalizzatore WiiM applicato')).catch(fail)
-  if (event.target.closest('[data-eq-save-custom]')) { const name = $('[data-eq-custom-name]').value.trim(); return updateWiimEq({action:'save',name,bands:bands()}).then(() => notify(`Preset EQ “${name}” salvato`)).catch(fail) }
+  const apply = event.target.closest('[data-eq-apply]'); if (apply) return runWiimEqAction(apply, () => updateWiimEq({action:'bands',bands:bands()}), 'Equalizzatore WiiM applicato')
+  const save = event.target.closest('[data-eq-save-custom]'); if (save) { const name = $('[data-eq-custom-name]').value.trim(); return runWiimEqAction(save, () => updateWiimEq({action:'save',name,bands:bands()}), `Preset EQ “${name}” salvato`) }
 })
 $('#wiim-eq-body').addEventListener('change', (event) => { if (event.target.matches('[data-eq-enabled]')) updateWiimEq({action:event.target.checked?'enable':'disable'}).catch(fail) })
 $('#wiim-queue-list').addEventListener('click', async (event) => {
