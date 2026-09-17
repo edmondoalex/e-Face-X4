@@ -1,7 +1,7 @@
 const $ = (selector) => document.querySelector(selector)
 const deviceScope = (() => { const key='eface-device-scope-v1'; let value=localStorage.getItem(key); if(!/^[A-Za-z0-9_-]{16,64}$/.test(value||'')){value=(crypto.randomUUID?.()||`${Date.now()}-${Math.random()}`).replaceAll('-','');localStorage.setItem(key,value)} return value })()
 const deviceFetchOptions = (options={}) => ({...options,headers:{...(options.headers||{}),'X-Eface-Device':deviceScope}})
-document.head.insertAdjacentHTML('beforeend', '<link rel="stylesheet" href="assets/media-x4.css?v=2.21.137">')
+document.head.insertAdjacentHTML('beforeend', '<link rel="stylesheet" href="assets/media-x4.css?v=2.21.138">')
 const glyph = { light: '✦', climate: '❄', shield: '⬡', energy: 'ϟ', cover: '▤', sensor: '◌' }
 let refreshRunning = false
 let refreshQueued = false
@@ -305,11 +305,13 @@ function applyHomeWidgetLayout(){
   layout.forEach((item,index)=>{const element=elements[item.id];if(!element)return;element.dataset.homeWidget=item.id;element.dataset.widgetSize=item.size||'standard';element.style.order=String(index);element.classList.toggle('widget-user-hidden',item.visible===false);board.append(element)})
   refreshHomeHighlights()
 }
-let homeHighlightsLoadedAt=0
+let homeWeatherLoadedAt=0
+let homeImagesLoadedAt=0
 const weatherMeta=(code)=>{code=Number(code);if(code===0)return['Sereno','☀️','sunny'];if([1,2].includes(code))return['Poco nuvoloso','🌤️','cloudy'];if(code===3)return['Nuvoloso','☁️','cloudy'];if([45,48].includes(code))return['Nebbia','🌫️','fog'];if(code>=51&&code<=67)return['Pioggia','🌧️','rain'];if(code>=71&&code<=77)return['Neve','🌨️','snow'];if(code>=80&&code<=82)return['Rovesci','🌦️','rain'];if(code>=85&&code<=86)return['Neve','❄️','snow'];if(code>=95)return['Temporale','⛈️','storm'];return['Variabile','🌥️','cloudy']}
 function renderWeather(data){const current=data.current||{},daily=data.daily||{},meta=weatherMeta(current.weather_code),card=$('#home-weather-widget');card.dataset.weather=meta[2];$('#home-weather-place').textContent=[data.name,data.area].filter(Boolean).join(' · ');$('#home-weather-clock').textContent=new Intl.DateTimeFormat('it-IT',{hour:'2-digit',minute:'2-digit',timeZone:data.timezone||undefined}).format(new Date());$('#home-weather-icon').textContent=meta[1];$('#home-weather-state').textContent=meta[0];$('#home-weather-temperature').textContent=`${Math.round(Number(current.temperature_2m))}°`;$('#home-weather-detail').textContent=`Percepita ${Math.round(Number(current.apparent_temperature))}° · UR ${Math.round(Number(current.relative_humidity_2m))}% · Vento ${Math.round(Number(current.wind_speed_10m))} km/h`;const days=daily.time||[];$('#home-weather-forecast').innerHTML=days.slice(0,5).map((date,index)=>{const item=weatherMeta((daily.weather_code||[])[index]);const day=new Intl.DateTimeFormat('it-IT',{weekday:'short'}).format(new Date(`${date}T12:00:00`)).replace('.','').toUpperCase();return `<div><small>${day}</small><i class="weather-symbol">${item[1]}</i><span><b>${Math.round(Number((daily.temperature_2m_max||[])[index]))}°</b> ${Math.round(Number((daily.temperature_2m_min||[])[index]))}°</span></div>`}).join('')}async function refreshHomeHighlights(){
-  if(Date.now()-homeHighlightsLoadedAt<60000)return;homeHighlightsLoadedAt=Date.now()
-  fetch(apiUrl('api/home/weather'),deviceFetchOptions({cache:'no-store'})).then(async(response)=>{if(!response.ok)throw new Error();renderWeather(await response.json())}).catch(()=>{$('#home-weather-state').textContent='Configura il meteo in Strumenti';$('#home-weather-temperature').textContent='--°';$('#home-weather-forecast').innerHTML=''})
+  const now=Date.now()
+  if(now-homeWeatherLoadedAt>=600000){homeWeatherLoadedAt=now;fetch(apiUrl('api/home/weather'),deviceFetchOptions({cache:'no-store'})).then(async(response)=>{if(!response.ok)throw new Error();renderWeather(await response.json())}).catch(()=>{$('#home-weather-state').textContent='Configura il meteo in Strumenti';$('#home-weather-temperature').textContent='--°';$('#home-weather-forecast').innerHTML=''})}
+  if(now-homeImagesLoadedAt<15000)return;homeImagesLoadedAt=now
   const images=[['#home-camera-event',`api/home/camera-event?device=${encodeURIComponent(deviceScope)}`],['#home-doorbell-event','api/home/doorbird/doorbell'],['#home-motion-event','api/home/doorbird/motionsensor']]
   images.forEach(([selector,path])=>{const card=$(selector),image=card.querySelector('img'),probe=new Image();probe.onload=()=>{image.src=probe.src;card.classList.remove('unavailable')};probe.onerror=()=>card.classList.add('unavailable');probe.src=`${apiUrl(path)}${path.includes('?')?'&':'?'}v=${Date.now()}`})
 }
@@ -2757,7 +2759,7 @@ $('#wiim-queue-list').addEventListener('click', async (event) => {
     $('#wiim-queue-list').querySelectorAll('button').forEach((item) => item.classList.toggle('active', item === button)); setTimeout(refresh, 500)
   } catch (error) { fail(error) }
 })
-document.addEventListener('visibilitychange', () => { if (!document.hidden) { refresh(); connectRealtime() } })
+document.addEventListener('visibilitychange', () => { if (!document.hidden) { homeImagesLoadedAt=0; refreshHomeHighlights(); refresh(); connectRealtime() } })
 navigator.serviceWorker?.addEventListener('message', (event) => {
   if (event.data?.type === 'eface-open-intercom') openIntercom()
 })
@@ -2768,7 +2770,7 @@ document.addEventListener('click', (event) => {
   if (label) lastInteraction = { label: label.replace(/\s+/g, ' ').slice(0, 80), at: Date.now() }
 }, true)
 window.addEventListener('message', (event) => {
-  if (event.origin === location.origin && event.source === $('#intercom-frame').contentWindow && event.data?.type === 'eface-intercom-incoming') openIntercom()
+  if (event.origin === location.origin && event.source === $('#intercom-frame').contentWindow && event.data?.type === 'eface-intercom-incoming') { homeImagesLoadedAt=0; refreshHomeHighlights(); openIntercom() }
 })
 window.addEventListener('message', (event) => {
   if (event.origin !== location.origin || event.source !== $('#intercom-frame').contentWindow || event.data?.type !== 'eface-intercom-state') return
@@ -2790,6 +2792,7 @@ setInterval(() => {
   if (!realtimeSocket || realtimeSocket.readyState !== WebSocket.OPEN) refresh()
 }, 30000)
 setInterval(refresh, 60000)
+setInterval(() => { if (!document.hidden) refreshHomeHighlights() }, 15000)
 setInterval(() => {
   if (!document.hidden && (activeMediaSessions().length || $('#media-sessions-dialog')?.open || $('#media-zones-dialog')?.open)) refresh()
 }, 5000)

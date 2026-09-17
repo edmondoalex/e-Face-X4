@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.21.138 — 2026-09-17
+
+- Rimosso il testo visibile “Accesi” dal filtro Luci in tutte le UI; resta soltanto l'icona con descrizione accessibile.
+- I widget immagine della Home si aggiornano automaticamente ogni 15 secondi, al ritorno sulla pagina e alla ricezione di una chiamata DoorBird; il meteo ogni 10 minuti.
+
 ## 2.21.137 — 2026-09-17
 
 - Ripristinati i livelli verticali dell'equalizzatore sui browser che non supportano gli slider verticali nativi, mantenendo il popup senza overflow.
