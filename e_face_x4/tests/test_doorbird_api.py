@@ -162,7 +162,7 @@ def test_configuration_reads_all_sections_and_requires_reveal_for_passwords(monk
         if path.endswith("sip.cgi"):
             data = {"BHA":{"SIP":[{"URL":"192.168.3.10","PASSWORD":"sip-private","INCOMING_CALL_USER":"192.168.3.24","AUTOCALL_DOORBELL_URL":"sip:8290@192.168.3.24"}]}}
         elif path.endswith("favorites.cgi"):
-            data = {"BHA":{"FAVORITES":[{"type":"http","value":"https://user:private@192.168.3.10/ring"}]}}
+            data = {"sip":{"2":{"title":"e-Face","value":"8290@192.168.3.24"}},"http":{"1":{"title":"Eventi","value":"https://user:private@192.168.3.10/ring"}}}
         elif path.endswith("schedule.cgi"):
             data = [{"input":"doorbell","output":[{"event":"sip","param":"2"}]}]
         else:
@@ -175,6 +175,9 @@ def test_configuration_reads_all_sections_and_requires_reveal_for_passwords(monk
     assert "private" not in str(hidden)
     assert hidden["verifica_eface"]["proxy_sip"] == "192.168.3.10"
     assert hidden["verifica_eface"]["asterisk_autorizzato"] is True
+    assert hidden["verifica_pulsante_sip"]["genera_chiamata_sip"] is True
+    assert hidden["verifica_pulsante_sip"]["genera_chiamata_sip_verso_eface"] is True
+    assert hidden["verifica_pulsante_sip"]["azioni_sip_pulsante"][0]["destinazione"] == "8290@192.168.3.24"
     assert hidden["rele_e_controller"]["rele_esposti"] == ["1", "controller@1"]
     assert hidden["copertura_api_lan"]["sola_lettura"] is True
     assert len(hidden["copertura_api_lan"]["letti"]) == 4

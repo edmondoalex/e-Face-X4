@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.21.135 — 2026-09-17
+
+- La diagnostica DoorBird incrocia programmazione del pulsante, azione SIP e preferito associato e mostra un esito immediato SÌ/NO, la destinazione e le fasce orarie.
+- L'esito distingue una rotta configurata dalla prova reale di consegna dell'INVITE SIP ad Asterisk.
+
 ## 2.21.134 — 2026-09-17
 
 - In Installatore → Videocitofono arriva la lettura completa e non distruttiva di tutto ciò che la LAN API DoorBird espone: dispositivo, firmware, hardware, relè/controller, SIP, preferiti e programmazioni di tutti gli eventi.

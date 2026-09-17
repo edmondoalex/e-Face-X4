@@ -39,6 +39,63 @@ def _safe_configuration(value, key: str = "", reveal: bool = False):
     return value if isinstance(value, (int, float, bool)) or value is None else str(value)[:1000]
 
 
+def _doorbell_sip_route(favorites, schedules, expected: str) -> dict:
+    """Resolve doorbell schedule SIP IDs to their favorite destinations."""
+    favorite_root = favorites.get("BHA", {}).get("FAVORITES", favorites) if isinstance(favorites, dict) else {}
+    sip_root = favorite_root.get("sip", {}) if isinstance(favorite_root, dict) else {}
+    sip_favorites = {}
+    if isinstance(sip_root, dict):
+        sip_favorites = {str(key): value for key, value in sip_root.items() if isinstance(value, dict)}
+    elif isinstance(sip_root, list):
+        sip_favorites = {str(value.get("id", index)): value for index, value in enumerate(sip_root) if isinstance(value, dict)}
+    elif isinstance(favorite_root, list):
+        sip_favorites = {str(value.get("id", index)): value for index, value in enumerate(favorite_root)
+                         if isinstance(value, dict) and str(value.get("type", "")).lower() == "sip"}
+
+    schedule_root = schedules.get("BHA", {}).get("SCHEDULE", schedules) if isinstance(schedules, dict) else schedules
+    rules = schedule_root if isinstance(schedule_root, list) else []
+    actions = []
+    for rule in rules:
+        if not isinstance(rule, dict) or str(rule.get("input", "")).lower() != "doorbell":
+            continue
+        for output in rule.get("output", []):
+            if not isinstance(output, dict) or str(output.get("event", "")).lower() != "sip":
+                continue
+            favorite_id = str(output.get("param", ""))
+            favorite = sip_favorites.get(favorite_id, {})
+            destination = str(favorite.get("value", ""))
+            active = str(output.get("enabled", "1")).lower() not in {"0", "false", "off"}
+            normalized = destination.removeprefix("sip:").rstrip("/").lower()
+            expected_normalized = expected.removeprefix("sip:").rstrip("/").lower()
+            actions.append({
+                "pulsante": str(rule.get("param", "1") or "1"),
+                "azione_abilitata": active,
+                "preferito_sip_id": favorite_id or "mancante",
+                "titolo_preferito": favorite.get("title", "non trovato"),
+                "destinazione": destination or "preferito non trovato",
+                "destinazione_eface": bool(destination) and normalized == expected_normalized,
+                "fasce_orarie": output.get("schedule", "non dichiarate"),
+            })
+    active = [action for action in actions if action["azione_abilitata"]]
+    routes_eface = [action for action in active if action["destinazione_eface"]]
+    if routes_eface:
+        verdict = "SÌ: il pulsante ha un'azione SIP attiva verso e-Face"
+    elif active:
+        verdict = "NO: il pulsante chiama via SIP, ma verso una destinazione diversa da e-Face"
+    elif actions:
+        verdict = "NO: l'azione SIP del pulsante esiste ma è disabilitata"
+    else:
+        verdict = "NO: nella programmazione del pulsante non esiste alcuna azione SIP"
+    return {
+        "esito": verdict,
+        "destinazione_eface_attesa": expected,
+        "genera_chiamata_sip": bool(active),
+        "genera_chiamata_sip_verso_eface": bool(routes_eface),
+        "azioni_sip_pulsante": actions,
+        "avvertenza": "La configurazione prova l'instradamento previsto; la ricezione effettiva si conferma soltanto premendo il pulsante e verificando un INVITE SIP su Asterisk.",
+    }
+
+
 async def configuration(host: str, port: int, username: str, password: str,
                         asterisk_host: str, ring_extension: str, reveal: bool = False) -> dict:
     """Read every configuration block exposed by the official DoorBird LAN API."""
@@ -75,6 +132,9 @@ async def configuration(host: str, port: int, username: str, password: str,
     except (KeyError, IndexError, TypeError):
         sip = {}
     expected = f"sip:{ring_extension}@{asterisk_host}"
+    result["verifica_pulsante_sip"] = _doorbell_sip_route(
+        result.get("preferiti", {}), result.get("programmazione", []), expected,
+    )
     proxy = str(sip.get("URL") or sip.get("PROXY") or sip.get("SIP_PROXY") or "")
     autocall = str(sip.get("AUTOCALL_DOORBELL_URL") or "")
     authorized = str(sip.get("INCOMING_CALL_USER") or "")

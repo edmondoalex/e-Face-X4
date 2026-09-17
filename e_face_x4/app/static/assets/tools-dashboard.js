@@ -429,11 +429,12 @@ doorbirdCheck.innerHTML = '<div class="admin-info"><b>Configurazione completa Do
 $('#intercom-config').append(doorbirdCheck)
 function renderDoorbirdConfiguration(data) {
   const readout = doorbirdCheck.querySelector('.doorbird-config-readout')
-  const labels = {dispositivo:'Dispositivo, firmware e hardware',rele_e_controller:'Relè e Door Controller',sip:'Configurazione SIP',preferiti:'Tutti i preferiti SIP e HTTP',programmazione:'Tutte le programmazioni ed eventi',verifica_eface:'Verifica percorso e-Face',copertura_api_lan:'Copertura e limiti API DoorBird',credenziale_eface:'Credenziale DoorBird salvata in e-Face'}
+  const labels = {verifica_pulsante_sip:'IL PULSANTE GENERA LA CHIAMATA SIP?',dispositivo:'Dispositivo, firmware e hardware',rele_e_controller:'Relè e Door Controller',sip:'Configurazione SIP',preferiti:'Tutti i preferiti SIP e HTTP',programmazione:'Tutte le programmazioni ed eventi',verifica_eface:'Verifica percorso e-Face',copertura_api_lan:'Copertura e limiti API DoorBird',credenziale_eface:'Credenziale DoorBird salvata in e-Face'}
   readout.replaceChildren(...Object.entries(data).map(([key,value]) => {
     const section = document.createElement('section'), title = document.createElement('h3'), content = document.createElement('pre')
     title.textContent = labels[key] || key
     content.textContent = JSON.stringify(value, null, 2)
+    if (key === 'verifica_pulsante_sip') section.classList.add(value?.genera_chiamata_sip_verso_eface ? 'doorbird-route-ok' : 'doorbird-route-error')
     section.append(title, content)
     return section
   }))
