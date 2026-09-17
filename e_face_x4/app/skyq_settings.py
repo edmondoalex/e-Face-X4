@@ -17,7 +17,7 @@ def _path() -> Path:
 def load() -> dict[str, Any]:
     defaults = {
         "enabled": False, "host": "", "name": "Sky Q", "control4_room_id": 0,
-        "control4_source_id": 0, "command_provider": "native", "services": DEFAULT_SERVICES,
+        "control4_source_id": 0, "command_provider": "native", "services": DEFAULT_SERVICES, "app_order": [],
     }
     try:
         value = json.loads(_path().read_text(encoding="utf-8"))
@@ -49,6 +49,14 @@ def save(raw: Any) -> dict[str, Any]:
         if title and key not in seen_services:
             selected_services.append(title)
             seen_services.add(key)
+    app_order = []
+    seen_order = set()
+    for item in raw.get("app_order", [])[:64] if isinstance(raw.get("app_order", []), list) else []:
+        title = str(item or "").strip()[:100]
+        key = title.casefold()
+        if title and key not in seen_order:
+            app_order.append(title)
+            seen_order.add(key)
     value = {
         "enabled": enabled,
         "host": host,
@@ -57,6 +65,7 @@ def save(raw: Any) -> dict[str, Any]:
         "control4_source_id": max(0, int(raw.get("control4_source_id") or 0)),
         "command_provider": "native",
         "services": selected_services,
+        "app_order": app_order,
     }
     path = _path()
     path.parent.mkdir(parents=True, exist_ok=True)

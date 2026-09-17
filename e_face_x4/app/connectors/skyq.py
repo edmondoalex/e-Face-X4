@@ -67,7 +67,8 @@ def _read_box(host: str) -> dict[str, Any]:
         return result
     result.update({
         "channel": _text(getattr(media, "channel", "")), "channel_number": _text(getattr(media, "channelno", "")),
-        "artwork": _text(getattr(media, "image_url", "")), "media_type": "live" if getattr(media, "live", False) else "recording",
+        "artwork": _text(getattr(media, "image_url", "")), "channel_artwork": _text(getattr(media, "image_url", "")),
+        "media_type": "live" if getattr(media, "live", False) else "recording",
     })
     if getattr(media, "live", False) and getattr(media, "sid", None):
         programme = remote.get_current_live_tv_programme(media.sid)
@@ -112,7 +113,9 @@ def overlay_control4(providers: list[dict], data: dict[str, Any], config: dict[s
     source_id = int(config.get("control4_source_id") or 0)
     linked = False
     selected_apps = {str(title).strip().casefold() for title in config.get("services", []) if str(title).strip()}
+    order = {str(title).strip().casefold(): index for index, title in enumerate(config.get("app_order", []))}
     visible_apps = [app for app in data.get("apps", []) if _text(app.get("title")).casefold() in selected_apps]
+    visible_apps.sort(key=lambda app: (order.get(_text(app.get("title")).casefold(), len(order)), _text(app.get("title")).casefold()))
     for provider in providers:
         if provider.get("id") != "control4":
             continue
@@ -127,9 +130,14 @@ def overlay_control4(providers: list[dict], data: dict[str, Any], config: dict[s
             fingerprint = f"skyq-{hashlib.sha256(artwork_url.encode()).hexdigest()[:24]}" if artwork_url else ""
             if fingerprint:
                 _artwork[fingerprint] = artwork_url
+            channel_artwork_url = _text(data.get("channel_artwork"))
+            channel_fingerprint = f"skyq-channel-{hashlib.sha256(channel_artwork_url.encode()).hexdigest()[:24]}" if channel_artwork_url else ""
+            if channel_fingerprint:
+                _artwork[channel_fingerprint] = channel_artwork_url
             item.update({
                 "metadata_provider": "skyq", "skyq": True, "skyq_app": data.get("app"),
                 "skyq_app_id": data.get("app_id"), "channel": data.get("channel"),
+                "skyq_channel_fingerprint": channel_fingerprint,
                 "skyq_services": list(config.get("services") or []), "skyq_apps": visible_apps,
                 "channel_number": data.get("channel_number"), "description": data.get("description"),
                 "season": data.get("season"), "episode": data.get("episode"),

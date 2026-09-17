@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.21.152 — 2026-09-17
+
+- Le app Sky Q si possono riordinare tramite trascinamento; ordine e visibilità restano persistenti e vengono applicati anche alla pagina Guarda.
+- Aggiunto un fallback grafico quando le icone interne del decoder non sono accessibili dalla LAN.
+- La scheda Sky Q centra la cover e mostra il logo ufficiale del canale corrente al posto del logo generico della sorgente.
+
 ## 2.21.151 — 2026-09-17
 
 - Admin Sky Q: mostra sotto la configurazione l'elenco completo delle app rilevate direttamente dal decoder, con icone originali e selezione singola, tutte o nessuna.

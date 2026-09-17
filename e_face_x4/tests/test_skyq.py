@@ -8,9 +8,10 @@ from app.connectors import skyq
 
 def test_skyq_settings_are_native_and_validated(tmp_path, monkeypatch) -> None:
     monkeypatch.setenv("EFACE_SKYQ_CONFIG", str(tmp_path / "skyq.json"))
-    saved = skyq_settings.save({"enabled": True, "host": "192.168.10.64", "name": "Sky Q Sala", "control4_room_id": 61, "control4_source_id": 244, "command_provider": "control4", "services": ["Netflix", "DAZN", "dazn", ""]})
+    saved = skyq_settings.save({"enabled": True, "host": "192.168.10.64", "name": "Sky Q Sala", "control4_room_id": 61, "control4_source_id": 244, "command_provider": "control4", "services": ["Netflix", "DAZN", "dazn", ""], "app_order": ["DAZN", "Netflix"]})
     assert saved["command_provider"] == "native"
     assert saved["services"] == ["Netflix", "DAZN"]
+    assert saved["app_order"] == ["DAZN", "Netflix"]
     assert skyq_settings.load()["control4_source_id"] == 244
 
 

@@ -1,7 +1,7 @@
 const $ = (selector) => document.querySelector(selector)
 const deviceScope = (() => { const key='eface-device-scope-v1'; let value=localStorage.getItem(key); if(!/^[A-Za-z0-9_-]{16,64}$/.test(value||'')){value=(crypto.randomUUID?.()||`${Date.now()}-${Math.random()}`).replaceAll('-','');localStorage.setItem(key,value)} return value })()
 const deviceFetchOptions = (options={}) => ({...options,headers:{...(options.headers||{}),'X-Eface-Device':deviceScope}})
-document.head.insertAdjacentHTML('beforeend', '<link rel="stylesheet" href="assets/media-x4.css?v=2.21.151">')
+document.head.insertAdjacentHTML('beforeend', '<link rel="stylesheet" href="assets/media-x4.css?v=2.21.152">')
 const glyph = { light: '✦', climate: '❄', shield: '⬡', energy: 'ϟ', cover: '▤', sensor: '◌' }
 let refreshRunning = false
 let refreshQueued = false
@@ -145,6 +145,16 @@ function mediaSourceIcon(source) {
   if (value.includes('radio') || value.includes('tunein')) return 'mdi:radio'
   if (value.includes('tv') || value.includes('video')) return 'mdi:television'
   return 'mdi:music-circle'
+}
+
+function skyQAppIcon(source) {
+  const value = String(source || '').toLowerCase()
+  if (value.includes('netflix')) return 'mdi:netflix'
+  if (value.includes('spotify')) return 'mdi:spotify'
+  if (value.includes('youtube')) return 'mdi:youtube'
+  if (value.includes('apple')) return 'mdi:apple'
+  if (value.includes('amazon') || value.includes('prime')) return 'mdi:amazon'
+  return 'mdi:television-play'
 }
 
 function mediaSourceMarkup(source, provider = '') {
@@ -613,7 +623,8 @@ function renderMediaExperience(devices) {
   const ttsPlayers = currentDevices.filter((device) => device.kind === 'media_player' && device.provider === 'evoice' && device.tts_enabled)
   const ttsVolume = Math.max(0, Math.min(100, Number(localStorage.getItem('eface-tts-volume') ?? 50)))
   const voicePanel = selected.provider === 'evoice' && selected.tts_enabled && ttsPlayers.length ? `<section class="evoice-panel"><div class="evoice-heading"><h3>Messaggio vocale</h3><label><input type="checkbox" data-tts-select-all ${ttsPlayers.length === 1 ? 'checked' : ''}> Seleziona tutti</label></div><div class="evoice-targets">${ttsPlayers.map((device) => `<div class="evoice-target"><label><input type="checkbox" data-tts-target value="${esc(device.id)}" ${device.id === selected.id ? 'checked' : ''}><span>${esc(device.name)}</span><small>${esc(device.room)}</small></label>${device.dnd_available ? `<button class="evoice-dnd ${device.dnd ? 'active' : ''}" data-dnd-device="${esc(device.id)}" data-dnd-value="${device.dnd ? 'false' : 'true'}">DND</button>` : ''}</div>`).join('')}</div><label class="evoice-volume"><span>Volume messaggio</span><input type="range" min="0" max="100" value="${ttsVolume}" style="--volume:${ttsVolume}%" data-tts-volume><output>${ttsVolume}%</output></label><textarea id="evoice-tts-message" maxlength="500" rows="3" placeholder="Scrivi il messaggio da pronunciare"></textarea><button class="evoice-send" data-tts-send>INVIA MESSAGGIO</button></section>` : ''
-  const sourceGlyph = activeMediaSourceMarkup(selected, 'device-glyph', mainIcon)
+  const channelLogo = selected.skyq && selected.skyq_channel_fingerprint ? `<span class="device-glyph media-skyq-channel-logo"><img src="${apiUrl(`api/media/${encodeURIComponent(selected.registry_id)}/artwork?fingerprint=${encodeURIComponent(selected.skyq_channel_fingerprint)}`)}" alt="${esc(selected.channel || '')}" onerror="this.parentElement.classList.add('failed');this.hidden=true"><i class="mdi-mask" style="${mdiStyle(mainIcon, 'television')}"></i></span>` : ''
+  const sourceGlyph = channelLogo || activeMediaSourceMarkup(selected, 'device-glyph', mainIcon)
   const serviceName = /tunein/i.test(selected.source || '') ? 'tunein' : /amazon music/i.test(selected.source || '') ? 'amazon' : /tidal/i.test(selected.source || '') ? 'tidal' : /stations/i.test(selected.source || '') ? 'stations' : /spotify connect/i.test(selected.source || '') ? 'spotify' : /wireless music bridge/i.test(selected.source || '') ? 'bridge' : ''
   const navigatorIcon = selected.provider === 'control4' && serviceName && recentRoomId ? `<button type="button" class="media-navigator-open" data-msp-open data-msp-service="${serviceName}" data-msp-room="${recentRoomId}" title="Apri ${esc(selected.source)}">${sourceGlyph}</button>` : sourceGlyph
   const navigatorArtwork = navigatorIcon !== sourceGlyph ? mainArtwork.replace('class="media-artwork', `data-msp-open data-msp-service="${serviceName}" data-msp-room="${recentRoomId}" role="button" tabindex="0" class="media-artwork`) : mainArtwork
@@ -634,7 +645,8 @@ function renderMediaExperience(devices) {
     const service = app.title
     const key = String(service).toLocaleLowerCase('it').replaceAll('+','plus').replace(/[^a-z0-9]/g,'')
     const source = (selected.source_options || []).find(item => String(item.label || '').toLocaleLowerCase('it').replaceAll('+','plus').replace(/[^a-z0-9]/g,'').includes(key))
-    const icon = app.icon ? `<span class="media-source-native loaded"><img src="${apiUrl(`api/skyq/apps/${encodeURIComponent(app.id)}/icon`)}" alt="" loading="lazy" onerror="this.hidden=true"></span>` : `<span class="mdi-mask" style="${mdiStyle(mediaSourceIcon(service),'apps')}"></span>`
+    const fallback = `<span class="mdi-mask" style="${mdiStyle(skyQAppIcon(service),'television-play')}"></span>`
+    const icon = app.icon ? `<span class="media-source-native">${fallback}<img src="${apiUrl(`api/skyq/apps/${encodeURIComponent(app.id)}/icon`)}" alt="" loading="lazy" onload="this.parentElement.classList.add('loaded')" onerror="this.parentElement.classList.add('failed');this.hidden=true"></span>` : fallback
     return source ? `<button class="media-service-tile" data-device-id="${esc(selected.id)}" data-media-source="${esc(source.key)}">${icon}<b>${esc(service)}</b></button>` : `<span class="media-service-tile">${icon}<b>${esc(service)}</b></span>`
   }).join('')}</div></div>` : ''
   $('#device-list').innerHTML = `<article class="media-session ${selected.skyq && selected.description ? 'has-skyq-description' : ''} ${wiimActive ? 'has-wiim-timeline' : ''} ${experienceClass} ${deviceVisualClass(selected)}" data-device-id="${esc(selected.id)}">${navigatorArtwork}${navigatorIcon}<div class="media-session-info"><strong>${esc(selected.title || selected.source || selected.name)}</strong>${sourceLine}<small>${artistLine}</small><span class="media-track media-room-name">${esc(roomName)}</span>${skyqDescription}</div>${power}${timeline}${deviceActions(selected, { hidePower: true, wiim: wiimActive })}</article>${voicePanel}${recent}${favorites}${skyqServices}<div class="media-library media-room-library"><button class="media-library-toggle" data-media-section-toggle="rooms" aria-expanded="${mediaSections.rooms}"><strong>Stanze</strong><span class="mdi-mask" style="${mdiStyle(mediaSections.rooms ? 'mdi:chevron-up' : 'mdi:chevron-down', 'chevron-down')}"></span></button><div class="media-service-grid" ${mediaSections.rooms ? '' : 'hidden'}>${players}</div></div><div class="media-library media-source-library"><h3>Sorgenti e servizi</h3><div class="media-service-grid">${sources || '<span class="empty-state">Nessuna sorgente disponibile</span>'}</div></div>`
