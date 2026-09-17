@@ -4,3 +4,4 @@ uvicorn[standard]==0.35.0
 websockets==15.0.1
 pyControl4==2.0.2
 pywebpush==2.5.0
+pyskyqremote==0.3.26

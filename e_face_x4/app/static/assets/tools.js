@@ -125,11 +125,46 @@ async function unlockTools() {
 
 async function loadPlayers() {
   if (!await unlockTools()) return false
+  ensureSkyqPanel()
   const response = await fetch(apiUrl('../api/installer/media-players'), { cache: 'no-store' })
   if (!response.ok) throw new Error((await response.json().catch(() => ({}))).detail || `HTTP ${response.status}`)
   const data = await response.json()
+  const skyq = data.skyq || {}
+  $('#skyq-enabled').checked = Boolean(skyq.enabled)
+  $('#skyq-host').value = skyq.host || ''
+  $('#skyq-name').value = skyq.name || 'Sky Q'
+  $('#skyq-control4-room').value = Number(skyq.control4_room_id || 0)
+  $('#skyq-control4-source').value = Number(skyq.control4_source_id || 0)
+  $('#skyq-command-provider').value = 'native'
+  $('#skyq-services').innerHTML = (data.skyq_services || []).map(service => `<label><input type="checkbox" value="${esc(service)}" ${(skyq.services || []).includes(service) ? 'checked' : ''}><span>${esc(service)}</span></label>`).join('')
   $('#player-list').innerHTML = data.items.map((player) => `<div class="player-row ${player.device_type === 'echo' ? 'player-echo' : ''}" data-player="${esc(player.registry_id)}"><button class="drag-handle" type="button" aria-label="Trascina ${esc(player.original_name)}">☰</button><span class="player-identity"><b>${esc(player.original_name)}</b><small>${esc(player.device_type === 'echo' ? 'ECHO' : 'MEDIA PLAYER')} · ${esc(player.entity_id)}</small><span class="player-fields"><label>Nome e-Face<input type="text" maxlength="80" data-field="name" value="${esc(player.name)}" placeholder="${esc(player.original_name)}"></label><label>Stanza<input type="text" maxlength="80" data-field="room" value="${esc(player.room)}" placeholder="${esc(player.original_room)}"></label></span></span><label title="Mostra"><input type="checkbox" data-field="visible" ${player.visible ? 'checked' : ''}></label><label title="Audio"><input type="checkbox" data-field="audio" ${player.audio ? 'checked' : ''}></label><label title="Video"><input type="checkbox" data-field="video" ${player.video ? 'checked' : ''}></label><label title="TTS"><input type="checkbox" data-field="tts" ${player.provider === 'evoice' && player.tts_available && player.tts ? 'checked' : ''} ${player.provider === 'evoice' && player.tts_available ? '' : 'disabled'}></label></div>`).join('') || '<p>Nessun player disponibile</p>'
   return true
+}
+
+function ensureSkyqPanel() {
+  if ($('#skyq-config')) return
+  document.head.insertAdjacentHTML('beforeend', '<style>.skyq-form{margin:18px 0}.skyq-services{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}.skyq-services label{display:flex;align-items:center;gap:7px;padding:9px 12px;border:1px solid var(--line);border-radius:999px;background:rgba(255,255,255,.055)}.skyq-services input{width:18px;height:18px;accent-color:var(--cyan)}</style>')
+  document.body.insertAdjacentHTML('beforeend', `<section id="skyq-config" class="media-config" hidden><header><button id="skyq-back">&#8249;</button><div><h2>Sky Q nativo</h2></div></header><form id="skyq-form" class="admin-form skyq-form"><div class="admin-info"><b>Collegamento diretto e-Face → Sky Q</b><p>e-Face legge direttamente il decoder in LAN: programma, canale, descrizione, app e copertina. Home Assistant non viene utilizzato. Per ora i comandi restano affidati alla zona Control4 associata.</p></div><label class="glow-option"><span>Abilita Sky Q nativo</span><input id="skyq-enabled" type="checkbox"></label><div class="admin-form-grid"><label>Indirizzo IPv4 Sky Q<input id="skyq-host" inputmode="decimal" placeholder="192.168.10.64"></label><label>Nome decoder<input id="skyq-name" maxlength="80" placeholder="Sky Q Sala"></label><label>ID stanza Control4<input id="skyq-control4-room" type="number" min="0" placeholder="0 = associazione automatica"></label><label>ID sorgente Control4<input id="skyq-control4-source" type="number" min="0" placeholder="0 = sorgente con nome Sky"></label></div><label>Comandi<select id="skyq-command-provider"><option value="control4">Control4 (attuale)</option><option value="native">Sky Q diretto (futuro)</option></select></label><div><b>Servizi da esporre</b><div id="skyq-services" class="skyq-services"></div></div><div class="admin-form-actions"><button type="submit">SALVA SKY Q</button><button id="skyq-test" type="button" class="secondary">SALVA E VERIFICA DIRETTA</button><button id="skyq-players" type="button" class="secondary">PLAYER E ICONE</button></div><div id="skyq-result" class="admin-status" role="status">Sky Q non ancora verificato.</div></form></section>`)
+  $('#skyq-back').addEventListener('click', () => { $('#skyq-config').hidden=true })
+  $('#skyq-command-provider').closest('label').hidden = true
+  $('#skyq-form .admin-info p').textContent = 'e-Face legge metadati e invia tutti i tasti del telecomando direttamente al decoder in LAN. Home Assistant e Control4 non sono nel percorso dei comandi Sky Q; il volume della stanza resta su Control4.'
+  $('#skyq-players').addEventListener('click', async () => { try { await loadSourceIcons(); $('#media-config').hidden=false } catch(error){notice(error.message)} })
+  $('#skyq-form').addEventListener('submit', async (event) => { event.preventDefault(); const button=event.submitter;button.disabled=true;try{await saveSkyq(false)}catch(error){notice(error.message)}finally{button.disabled=false} })
+  $('#skyq-test').addEventListener('click', async (event) => { const button=event.currentTarget;button.disabled=true;try{await saveSkyq(true);notice('Sky Q collegato direttamente a e-Face')}catch(error){notice(error.message)}finally{button.disabled=false} })
+}
+
+function skyqPayload() {
+  return { enabled: $('#skyq-enabled').checked, host: $('#skyq-host').value.trim(), name: $('#skyq-name').value.trim(), control4_room_id: Number($('#skyq-control4-room').value || 0), control4_source_id: Number($('#skyq-control4-source').value || 0), command_provider: 'native', services: [...$('#skyq-services').querySelectorAll('input:checked')].map(input => input.value) }
+}
+
+async function saveSkyq(test = false) {
+  const response = await fetch(apiUrl(`../api/installer/skyq${test ? '/test' : ''}`), {method: test ? 'POST' : 'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify(skyqPayload())})
+  const data = await response.json().catch(() => ({}))
+  if (!response.ok) throw new Error(data.detail || `HTTP ${response.status}`)
+  if (test) {
+    const device = data.device || {}
+    $('#skyq-result').innerHTML = `<b>Collegamento diretto riuscito</b><span>${esc(device.hardwareName || device.modelNumber || 'Sky Q')} · ${esc(device.deviceType || '')}</span><span>${esc(data.channel || data.app || data.power || 'Online')}${data.channel_number ? ` · canale ${esc(data.channel_number)}` : ''}</span>${data.title ? `<span>In onda: ${esc(data.title)}</span>` : ''}`
+  } else notice('Configurazione Sky Q salvata')
 }
 
 async function loadControl4() {
@@ -167,7 +202,7 @@ async function sendControl4(path, button) {
 }
 
 $('#login-form').addEventListener('submit', async (event) => { event.preventDefault(); try { const response = await fetch(apiUrl('../api/installer/login'), { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({password:$('#installer-password').value}) }); if (!response.ok) throw new Error((await response.json()).detail); $('#installer-password').value=''; await unlockTools() } catch(error){ notice(error.message) } })
-$('#media-tool').addEventListener('click', async () => { try { if (await loadPlayers()) { await loadSourceIcons(); $('#media-config').hidden = false } } catch(error){ notice(error.message) } })
+$('#media-tool').addEventListener('click', async () => { try { if (await loadPlayers()) $('#skyq-config').hidden = false } catch(error){ notice(error.message) } })
 $('#control4-tool').addEventListener('click', async () => { try { await loadControl4(); $('#control4-config').hidden=false } catch(error){ notice(error.message) } })
 $('#control4-back').addEventListener('click', () => { $('#control4-config').hidden=true })
 $('#control4-save').addEventListener('click', (event) => sendControl4('', event.currentTarget))

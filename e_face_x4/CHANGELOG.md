@@ -1,5 +1,12 @@
 # Changelog
 
+## 2.21.145 — 2026-09-17
+
+- Sky Q nativo: e-Face legge direttamente dal decoder stato, app, canale, programma, descrizione e copertina, senza Home Assistant.
+- Telecomando Sky Q diretto per navigazione, canali, numeri, trasporto e tasti colorati; volume e spegnimento stanza restano su Control4.
+- L'associazione segue la sorgente Control4 Sky Q in qualunque zona video, compresa Sala Cinema, senza vincolarla a una stanza.
+- Configurazione e verifica diretta aggiunte in Strumenti → Player multimediali.
+
 ## 2.21.144 — 2026-09-17
 
 - La cache e‑Voice ritenta automaticamente lo snapshot dopo uno stato offline iniziale, evitando che un 502 temporaneo durante il riavvio di Home Assistant lasci l'avviso bloccato.

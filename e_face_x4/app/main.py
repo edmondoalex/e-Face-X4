@@ -56,6 +56,7 @@ from . import soundcloud_settings
 from . import soundcloud_library
 from . import media_project
 from . import startup_settings
+from . import skyq_settings
 from .connectors.soundcloud import SoundCloudClient
 from .media_preferences import apply_preferences, load_preferences, save_preferences
 from .source_icons import delete_source_icon, hidden_source_ids, load_builtin_source_icon, load_builtin_source_icon_by_id, load_source_icon, save_source_icon, set_source_hidden
@@ -64,12 +65,13 @@ from .connectors import BusproConnector, Control4MediaConnector, EThermConnector
 from .connectors.ksenia import normalize_ksenia
 from .connectors.local_media import LocalMediaConnector
 from .connectors.wiim import WiiMClient
+from .connectors import skyq as skyq_connector
 from .connectors.control4_media import cached_control4_icon, cached_control4_icon_path, cached_control4_source_label, control4_icon_path
 from .connectors.supervisor import discover_addon_url, discover_host_url
 from .media_realtime import SharedMediaRealtime
 from .demo import dashboard as demo_dashboard
 
-VERSION = os.environ.get("EFACE_VERSION", "2.21.144")
+VERSION = os.environ.get("EFACE_VERSION", "2.21.145")
 STATIC = Path(__file__).parent / "static"
 logging.basicConfig(level=logging.WARNING, format="%(asctime)s %(levelname)s [e-face-x4] %(message)s")
 _reconnect_warning_at: dict[str, float] = {}
@@ -2455,9 +2457,9 @@ def create_app() -> FastAPI:
         page = page.replace('content="#263f48"', 'content="#181c1f"')
         page = page.replace("manifest.webmanifest?v=2.20.38", "manifest.webmanifest?v=2.21.59")
         page = page.replace("app.css?v=2.20.20", "app.css?v=2.21.73")
-        page = page.replace("app.css?v=2.21.84", "app.css?v=2.21.144")
-        page = page.replace("home-status.css?v=2.20.20", "home-status.css?v=2.21.144")
-        page = page.replace("tools.js?v=2.21.1", "tools.js?v=2.21.144")
+        page = page.replace("app.css?v=2.21.84", "app.css?v=2.21.145")
+        page = page.replace("home-status.css?v=2.20.20", "home-status.css?v=2.21.145")
+        page = page.replace("tools.js?v=2.21.1", "tools.js?v=2.21.145")
         page = page.replace("ui-theme-contract.css?v=2.21.27", "ui-theme-contract.css?v=2.21.29")
         page = page.replace("tools-dashboard.js?v=2.21.27", "tools-dashboard.js?v=2.21.33")
         page = page.replace("tools-dashboard.js?v=2.21.33", "tools-dashboard.js?v=2.21.34")
@@ -2465,8 +2467,8 @@ def create_app() -> FastAPI:
         page = page.replace("tools-dashboard.js?v=2.21.36", "tools-dashboard.js?v=2.21.38")
         page = page.replace("tools-dashboard.js?v=2.21.38", "tools-dashboard.js?v=2.21.41")
         page = page.replace("tools-dashboard.js?v=2.21.41", "tools-dashboard.js?v=2.21.42")
-        page = page.replace("tools-dashboard.js?v=2.21.42", "tools-dashboard.js?v=2.21.144")
-        page = page.replace("tools-dashboard.css?v=2.20.36", "tools-dashboard.css?v=2.21.144")
+        page = page.replace("tools-dashboard.js?v=2.21.42", "tools-dashboard.js?v=2.21.145")
+        page = page.replace("tools-dashboard.css?v=2.20.36", "tools-dashboard.css?v=2.21.145")
         page = page.replace("backgrounds.css?v=2.20.20", "backgrounds.css?v=2.21.43")
         page = page.replace("intercom.css?v=2.21.14", "intercom.css?v=2.21.46")
         page = page.replace("app.js?v=2.21.11", "app.js?v=2.21.29")
@@ -2606,6 +2608,8 @@ def create_app() -> FastAPI:
         ]
         wiim_config = wiim_settings.load()
         wiim_task = asyncio.create_task(WiiMClient(wiim_config["host"]).snapshot()) if wiim_config.get("enabled") and wiim_config.get("host") else None
+        skyq_config = skyq_settings.load()
+        skyq_task = asyncio.create_task(skyq_connector.snapshot(skyq_config)) if skyq_config.get("enabled") and skyq_config.get("host") else None
         providers = list(await asyncio.gather(*(connector.snapshot() for connector in connectors)))
         if settings.evoice.enabled:
             providers.append(await app.state.evoice_realtime.get_snapshot())
@@ -2617,6 +2621,11 @@ def create_app() -> FastAPI:
                 providers.append({"id": "wiim", "name": "WiiM nativo", "status": "online", "items": [] if linked else [native_wiim_media_item(native_snapshot)]})
             except (httpx.HTTPError, RuntimeError, ValueError):
                 providers.append({"id": "wiim", "name": "WiiM nativo", "status": "offline", "items": [], "reason": "WiiM non raggiungibile"})
+        if skyq_task:
+            try:
+                skyq_connector.overlay_control4(providers, await skyq_task, skyq_config)
+            except Exception:
+                pass
         dashboard = demo_dashboard() if settings.demo_mode else {"rooms": [], "widgets": [], "media": None}
         dashboard.setdefault("home", {})["name"] = settings.home_name
         if not settings.demo_mode:
@@ -2796,7 +2805,24 @@ def create_app() -> FastAPI:
                 **{key: selected.get(key) for key in ("visible", "audio", "video", "tts", "order")},
             })
         items.sort(key=lambda item: int(item.get("order", 0)))
-        return {"items": items, "configured": bool(saved)}
+        return {"items": items, "configured": bool(saved), "skyq": skyq_settings.load(), "skyq_services": skyq_settings.DEFAULT_SERVICES}
+
+    @app.put("/api/installer/skyq")
+    async def installer_save_skyq(request: Request, payload: dict) -> dict:
+        require_installer(request)
+        try:
+            return {"ok": True, "skyq": skyq_settings.save(payload)}
+        except (OSError, ValueError, TypeError) as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    @app.post("/api/installer/skyq/test")
+    async def installer_test_skyq(request: Request, payload: dict) -> dict:
+        require_installer(request)
+        try:
+            config = skyq_settings.save(payload)
+            return await skyq_connector.test(config)
+        except (ConnectionError, OSError, ValueError, TypeError) as exc:
+            raise HTTPException(status_code=502, detail=str(exc)) from exc
 
     @app.put("/api/installer/media-players")
     async def installer_save_media_players(request: Request, payload: dict) -> dict:
@@ -2957,6 +2983,34 @@ def create_app() -> FastAPI:
                 raise HTTPException(status_code=400, detail="Comando multimedia non valido")
             if device_id.startswith("c4media:") and operation in {"tts", "set_dnd"}:
                 raise HTTPException(status_code=400, detail="TTS e DND sono disponibili soltanto sui player e-Voice")
+            if device_id.startswith("c4media:") and operation in {"media_play", "media_pause", "media_stop", "media_next", "media_previous"}:
+                skyq_config = skyq_settings.load()
+                room_id = int(device_id.split(":", 1)[1])
+                linked_room = int(skyq_config.get("control4_room_id") or 0)
+                linked_source = int(skyq_config.get("control4_source_id") or 0)
+                if skyq_config.get("enabled") and linked_source and (not linked_room or linked_room == room_id):
+                    try:
+                        current = await Control4MediaConnector(control4).snapshot()
+                        room = next((item for item in current.get("items", []) if item.get("registry_id") == f"c4room:{room_id}"), None)
+                        if room and int(room.get("active_source_id") or 0) == linked_source:
+                            action = {"media_play": "play", "media_pause": "pause", "media_stop": "stop", "media_next": "skip_fwd", "media_previous": "skip_rev"}[operation]
+                            return await skyq_connector.command(skyq_config, action)
+                    except (ConnectionError, OSError, asyncio.TimeoutError) as exc:
+                        raise HTTPException(status_code=502, detail="Comando diretto Sky Q non riuscito") from exc
+            if device_id.startswith("c4media:") and operation == "video_remote":
+                skyq_config = skyq_settings.load()
+                value = payload.get("value") if isinstance(payload.get("value"), dict) else {}
+                room_id = int(device_id.split(":", 1)[1])
+                source_id = int(value.get("source_id") or 0)
+                linked_room = int(skyq_config.get("control4_room_id") or 0)
+                linked_source = int(skyq_config.get("control4_source_id") or 0)
+                if skyq_config.get("enabled") and (not linked_room or linked_room == room_id) and (not linked_source or linked_source == source_id):
+                    try:
+                        return await skyq_connector.command(skyq_config, str(value.get("command") or ""))
+                    except ValueError as exc:
+                        raise HTTPException(status_code=400, detail=str(exc)) from exc
+                    except (ConnectionError, OSError, asyncio.TimeoutError) as exc:
+                        raise HTTPException(status_code=502, detail="Comando diretto Sky Q non riuscito") from exc
             # Linked WiiM owns metadata/transport only. Room volume and mute belong to Control4.
             # Never flatten room levels with WiiM's single hardware volume (TASK_VOLUME_MASTER_PROPORZIONALE.md).
             if device_id.startswith("c4media:") and operation in {"media_play", "media_pause", "media_stop", "media_next", "media_previous"}:
@@ -3049,6 +3103,17 @@ def create_app() -> FastAPI:
     async def media_artwork(registry_id: str, fingerprint: str = Query(..., min_length=8, max_length=256), if_none_match: str | None = Header(None)) -> Response:
         settings = load_settings()
         config = settings.evoice
+        if fingerprint.startswith("skyq-"):
+            try:
+                upstream = await skyq_connector.artwork(fingerprint)
+            except httpx.HTTPError:
+                raise HTTPException(status_code=502, detail="Copertina Sky Q non raggiungibile")
+            if upstream.status_code != 200:
+                raise HTTPException(status_code=upstream.status_code, detail="Copertina Sky Q non disponibile")
+            media_type = artwork_media_type(upstream.headers.get("content-type", ""), upstream.content)
+            if not media_type or len(upstream.content) > 700_000:
+                raise HTTPException(status_code=415, detail="Copertina Sky Q non valida")
+            return Response(upstream.content, media_type=media_type, headers={"Cache-Control": "private, max-age=300", "X-Content-Type-Options": "nosniff"})
         connector = media_connector(settings, registry_id)
         if not config.enabled and not isinstance(connector, Control4MediaConnector):
             raise HTTPException(status_code=503, detail="Ekonex Media non disponibile")
