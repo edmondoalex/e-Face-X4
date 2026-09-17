@@ -3,7 +3,7 @@ import asyncio
 import httpx
 import pytest
 
-from app.doorbird_api import check_identity, live_image, live_video
+from app.doorbird_api import check_identity, history_image, live_image, live_video
 
 
 @pytest.mark.asyncio
@@ -94,6 +94,24 @@ def test_live_image_uses_digest_and_rejects_non_jpeg(monkeypatch) -> None:
         pass
     else:
         assert False, "HTML must not be exposed as an image"
+
+
+@pytest.mark.parametrize("event", ["doorbell", "motionsensor"])
+def test_history_image_preserves_official_doorbird_event(monkeypatch, event) -> None:
+    original = httpx.AsyncClient
+    requests = []
+
+    def handle(request):
+        requests.append(request)
+        if "authorization" not in request.headers:
+            return httpx.Response(401, headers={"WWW-Authenticate": 'Digest realm="DoorBird", nonce="abc", qop="auth"'})
+        return httpx.Response(200, headers={"Content-Type": "image/jpeg"}, content=b"\xff\xd8\xffhistory")
+
+    monkeypatch.setattr(httpx, "AsyncClient", lambda **kwargs: original(transport=httpx.MockTransport(handle), **kwargs))
+    assert asyncio.run(history_image("192.168.2.30", 80, "user", "private", event)) == b"\xff\xd8\xffhistory"
+    assert len(requests) == 2
+    assert all(request.url.params["event"] == event for request in requests)
+    assert all(request.url.params["index"] == "1" for request in requests)
 
 
 def test_live_video_uses_digest_and_checks_multipart_type(monkeypatch) -> None:

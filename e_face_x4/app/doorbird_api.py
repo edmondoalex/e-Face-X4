@@ -189,9 +189,9 @@ async def history_image(host: str, port: int, username: str, password: str, even
     url = f"http://{host}:{port}/bha-api/history.cgi"
     try:
         async with httpx.AsyncClient(timeout=8, follow_redirects=False, trust_env=False) as client:
-            # DoorBird firmware families use ``ring`` for the local doorbell
-            # history, while motion consistently uses ``motionsensor``.
-            params = {"event": "ring" if event == "doorbell" else event, "index": 1}
+            # DoorBird LAN API defines exactly these two history values:
+            # ``doorbell`` for calls and ``motionsensor`` for motion events.
+            params = {"event": event, "index": 1}
             async with client.stream("GET", url, params=params, auth=httpx.DigestAuth(username, password)) as response:
                 if response.status_code == 204:
                     # Some models keep ring history only in the DoorBird cloud

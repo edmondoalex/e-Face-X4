@@ -1,5 +1,9 @@
 # Changelog
 
+## 2.21.132 — 2026-09-17
+
+- Corretto lo storico DoorBird: Ultima chiamata usa `doorbell` e Ultimo movimento usa `motionsensor`, come previsto dalla LAN API ufficiale.
+
 ## 2.21.131 — 2026-09-16
 
 - Gestione stanze riconosce anche le sessioni create dal percorso WiiM condiviso quando Control4 non pubblica ancora il gruppo.
