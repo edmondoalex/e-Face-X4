@@ -116,3 +116,24 @@ def test_skyq_inventory_serializes_decoder_lists(monkeypatch) -> None:
     assert data["summary"] == {"channels": 1, "recordings": 1, "apps": 1, "recording_statuses": {"RECORDED": 1}, "recording_sources": {"VOD": 1}}
     assert data["channels"][0]["name"] == "Sky Cinema Uno"
     assert data["recordings"][0]["artwork_fingerprint"].startswith("skyq-")
+
+
+def test_skyq_launches_only_an_exposed_decoder_app(monkeypatch) -> None:
+    calls = []
+    remote = SimpleNamespace(_remote_config=SimpleNamespace(device_access=SimpleNamespace(retrieve_information=lambda path: {"apps": [{"appId": "Netflix", "title": "Netflix", "blocked": False}]})))
+    monkeypatch.setattr(skyq, "_remote", lambda host: remote)
+    monkeypatch.setattr(skyq.httpx, "post", lambda url, **kwargs: calls.append((url, kwargs)) or SimpleNamespace(status_code=200))
+    result = asyncio.run(skyq.launch_app({"enabled": True, "host": "192.168.10.64", "services": ["Netflix"]}, "Netflix"))
+    assert result == {"ok": True, "provider": "skyq", "app_id": "Netflix"}
+    assert calls[0][1]["params"] == {"appId": "Netflix"}
+
+
+def test_skyq_rejects_app_not_exposed(monkeypatch) -> None:
+    remote = SimpleNamespace(_remote_config=SimpleNamespace(device_access=SimpleNamespace(retrieve_information=lambda path: {"apps": [{"appId": "Netflix", "title": "Netflix", "blocked": False}]})))
+    monkeypatch.setattr(skyq, "_remote", lambda host: remote)
+    try:
+        asyncio.run(skyq.launch_app({"enabled": True, "host": "192.168.10.64", "services": []}, "Netflix"))
+    except ValueError as exc:
+        assert "non disponibile" in str(exc)
+    else:
+        raise AssertionError("An app not exposed in admin must not be launched")

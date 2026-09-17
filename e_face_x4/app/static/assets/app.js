@@ -1,7 +1,7 @@
 const $ = (selector) => document.querySelector(selector)
 const deviceScope = (() => { const key='eface-device-scope-v1'; let value=localStorage.getItem(key); if(!/^[A-Za-z0-9_-]{16,64}$/.test(value||'')){value=(crypto.randomUUID?.()||`${Date.now()}-${Math.random()}`).replaceAll('-','');localStorage.setItem(key,value)} return value })()
 const deviceFetchOptions = (options={}) => ({...options,headers:{...(options.headers||{}),'X-Eface-Device':deviceScope}})
-document.head.insertAdjacentHTML('beforeend', '<link rel="stylesheet" href="assets/media-x4.css?v=2.21.160">')
+document.head.insertAdjacentHTML('beforeend', '<link rel="stylesheet" href="assets/media-x4.css?v=2.21.161">')
 const glyph = { light: '✦', climate: '❄', shield: '⬡', energy: 'ϟ', cover: '▤', sensor: '◌' }
 let refreshRunning = false
 let refreshQueued = false
@@ -650,11 +650,9 @@ function renderMediaExperience(devices) {
   const skyqDescription = selected.skyq && shortDescription ? `<p class="media-skyq-description">${esc(shortDescription)}</p>` : ''
   const skyqServices = selected.skyq && selected.skyq_apps?.length ? `<div class="media-library media-skyq-services"><h3>App Sky Q esposte</h3><div class="media-service-grid">${selected.skyq_apps.map(app => {
     const service = app.title
-    const key = String(service).toLocaleLowerCase('it').replaceAll('+','plus').replace(/[^a-z0-9]/g,'')
-    const source = (selected.source_options || []).find(item => String(item.label || '').toLocaleLowerCase('it').replaceAll('+','plus').replace(/[^a-z0-9]/g,'').includes(key))
     const fallback = `<span class="mdi-mask" style="${mdiStyle(skyQAppIcon(service),'television-play')}"></span>`
     const icon = `<span class="media-source-native">${fallback}<img src="${apiUrl(`api/skyq/apps/${encodeURIComponent(app.id)}/icon`)}" alt="" loading="lazy" onload="this.parentElement.classList.add('loaded')" onerror="this.parentElement.classList.add('failed');this.hidden=true"></span>`
-    return source ? `<button class="media-service-tile" data-device-id="${esc(selected.id)}" data-media-source="${esc(source.key)}">${icon}<b>${esc(service)}</b></button>` : `<span class="media-service-tile">${icon}<b>${esc(service)}</b></span>`
+    return `<button class="media-service-tile" data-skyq-app-launch="${esc(app.id)}" title="Apri ${esc(service)} su Sky Q">${icon}<b>${esc(service)}</b></button>`
   }).join('')}</div></div>` : ''
   $('#device-list').innerHTML = `<article class="media-session ${selected.skyq && selected.description ? 'has-skyq-description' : ''} ${wiimActive ? 'has-wiim-timeline' : ''} ${experienceClass} ${deviceVisualClass(selected)}" data-device-id="${esc(selected.id)}">${navigatorArtwork}${navigatorIcon}<div class="media-session-info"><strong>${esc(selected.title || selected.source || selected.name)}</strong>${sourceLine}<small>${artistLine}</small><span class="media-track media-room-name">${esc(roomName)}</span>${skyqDescription}</div>${power}${timeline}${deviceActions(selected, { hidePower: true, wiim: wiimActive })}</article>${voicePanel}${recent}${favorites}${skyqServices}<div class="media-library media-room-library"><button class="media-library-toggle" data-media-section-toggle="rooms" aria-expanded="${mediaSections.rooms}"><strong>Stanze</strong><span class="mdi-mask" style="${mdiStyle(mediaSections.rooms ? 'mdi:chevron-up' : 'mdi:chevron-down', 'chevron-down')}"></span></button><div class="media-service-grid" ${mediaSections.rooms ? '' : 'hidden'}>${players}</div></div><div class="media-library media-source-library"><h3>Sorgenti e servizi</h3><div class="media-service-grid">${sources || '<span class="empty-state">Nessuna sorgente disponibile</span>'}</div></div>`
   if (showRecent) {
@@ -2575,6 +2573,14 @@ $('#device-list').addEventListener('click', (event) => {
   if (climateModeButton && climateCard) return sendDeviceCommand(climateCard.dataset.deviceId, 'set_mode', climateModeButton, climateModeButton.dataset.climateMode)
   const mediaButton = event.target.closest('[data-media-action]')
   const mediaCard = event.target.closest('[data-device-id]')
+  const skyqAppButton = event.target.closest('button[data-skyq-app-launch]')
+  if (skyqAppButton) {
+    skyqAppButton.disabled = true
+    lastInteraction = {at:Date.now(),label:`Apertura ${String(skyqAppButton.textContent || 'app Sky Q').trim()}`}
+    return fetch(apiUrl(`api/skyq/apps/${encodeURIComponent(skyqAppButton.dataset.skyqAppLaunch)}/launch`), {method:'POST'})
+      .then(async response => { if(!response.ok)throw new Error((await response.json().catch(()=>({}))).detail||`HTTP ${response.status}`);setTimeout(refresh,1800) })
+      .catch(fail).finally(()=>{skyqAppButton.disabled=false})
+  }
   const mediaVideoChannel = event.target.closest('[data-media-video-channel]')
   if (mediaVideoChannel && mediaCard) return sendVideoChannel(currentDevices.find((item) => String(item.id) === mediaCard.dataset.deviceId), mediaVideoChannel.dataset.mediaVideoChannel, mediaVideoChannel)
   if (mediaButton?.dataset.mediaAction === 'media_zones' && mediaCard) return openMediaZones(currentDevices.find((item) => String(item.id) === mediaCard.dataset.deviceId))

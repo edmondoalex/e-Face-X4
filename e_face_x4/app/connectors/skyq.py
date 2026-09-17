@@ -346,6 +346,37 @@ async def app_icon(app_id: str) -> httpx.Response:
         return await client.get(f"http://{host}:8008{path}")
 
 
+def _launch_app(host: str, app_id: str, allowed_titles: set[str]) -> None:
+    remote = _remote(host)
+    raw_apps = remote._remote_config.device_access.retrieve_information("apps") or {}
+    available = {
+        _text(entry.get("appId")): _text(entry.get("title"))
+        for entry in raw_apps.get("apps", []) if isinstance(entry, dict) and not entry.get("blocked")
+    }
+    title = available.get(app_id, "")
+    if not title or title.casefold() not in allowed_titles:
+        raise ValueError("App Sky Q non disponibile o non esposta")
+    response = httpx.post(
+        f"http://{host}:9006/as/apps/action/launch",
+        params={"appId": app_id}, headers={"Content-Length": "0"}, timeout=8,
+    )
+    if response.status_code != 200:
+        raise ConnectionError(f"Sky Q ha rifiutato l'apertura dell'app (HTTP {response.status_code})")
+
+
+async def launch_app(config: dict[str, Any], app_id: str) -> dict[str, Any]:
+    host = _text(config.get("host"))
+    if not config.get("enabled") or not host:
+        raise ValueError("Sky Q nativo non configurato")
+    app_id = _text(app_id)
+    if not app_id or len(app_id) > 120 or not all(character.isalnum() or character in ".-_" for character in app_id):
+        raise ValueError("App Sky Q non valida")
+    allowed_titles = {_text(title).casefold() for title in config.get("services", []) if _text(title)}
+    await asyncio.wait_for(asyncio.to_thread(_launch_app, host, app_id, allowed_titles), timeout=12)
+    _cache["expires"] = 0.0
+    return {"ok": True, "provider": "skyq", "app_id": app_id}
+
+
 async def test(config: dict[str, Any]) -> dict[str, Any]:
     data = await snapshot({**config, "enabled": True})
     return {**data, "host": config.get("host")}

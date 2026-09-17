@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.21.161 — 2026-09-17
+
+- Le tessere delle app esposte in Guarda aprono ora direttamente la relativa app sul decoder Sky Q tramite il servizio LAN nativo.
+- Il lancio verifica che l'app sia realmente installata, non bloccata e selezionata nella configurazione Admin.
+
 ## 2.21.160 — 2026-09-17
 
 - Configurazione Sky Q: aggiunto l'inventario diretto del decoder con tutti i canali, tutte le registrazioni, tutte le app, quote e riepiloghi per stato e provenienza.
