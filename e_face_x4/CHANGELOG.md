@@ -1,5 +1,9 @@
 # Changelog
 
+## 2.21.159 — 2026-09-17
+
+- Quando Sky Q è dentro un'app e non espone i metadati del contenuto, e-Face usa l'icona dell'app come cover in Guarda, Home Live e Sessioni.
+
 ## 2.21.158 — 2026-09-17
 
 - Rimossa l'icona del canale dalla scheda Sky Q; resta il solo logo Sky.

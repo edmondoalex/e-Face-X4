@@ -1,7 +1,7 @@
 const $ = (selector) => document.querySelector(selector)
 const deviceScope = (() => { const key='eface-device-scope-v1'; let value=localStorage.getItem(key); if(!/^[A-Za-z0-9_-]{16,64}$/.test(value||'')){value=(crypto.randomUUID?.()||`${Date.now()}-${Math.random()}`).replaceAll('-','');localStorage.setItem(key,value)} return value })()
 const deviceFetchOptions = (options={}) => ({...options,headers:{...(options.headers||{}),'X-Eface-Device':deviceScope}})
-document.head.insertAdjacentHTML('beforeend', '<link rel="stylesheet" href="assets/media-x4.css?v=2.21.158">')
+document.head.insertAdjacentHTML('beforeend', '<link rel="stylesheet" href="assets/media-x4.css?v=2.21.159">')
 const glyph = { light: '✦', climate: '❄', shield: '⬡', energy: 'ϟ', cover: '▤', sensor: '◌' }
 let refreshRunning = false
 let refreshQueued = false
@@ -155,6 +155,14 @@ function skyQAppIcon(source) {
   if (value.includes('apple')) return 'mdi:apple'
   if (value.includes('amazon') || value.includes('prime')) return 'mdi:amazon'
   return 'mdi:television-play'
+}
+
+function skyQAppArtwork(device, className = 'media-artwork') {
+  const appId = String(device?.skyq_app_id || '').trim()
+  const appName = String(device?.skyq_app || '').trim()
+  if (!device?.skyq || device.content_fingerprint || !appId || !appName || /epg[_ ]?ui/i.test(`${appId} ${appName}`)) return ''
+  const fallback = `<span class="mdi-mask" style="${mdiStyle(skyQAppIcon(appName), 'television-play')}"></span>`
+  return `<span class="${className} media-video-source media-skyq-app-cover">${fallback}<img src="${apiUrl(`api/skyq/apps/${encodeURIComponent(appId)}/icon`)}" alt="${esc(appName)}" onload="this.parentElement.classList.add('loaded')" onerror="this.parentElement.classList.add('failed');this.hidden=true"></span>`
 }
 
 function mediaSourceMarkup(source, provider = '') {
@@ -612,7 +620,7 @@ function renderMediaExperience(devices) {
   const power = caps.turn_off ? `<button class="media-session-power" data-media-action="turn_off" aria-label="Spegni stanza" ${disabled ? 'disabled' : ''}><span class="mdi-mask" style="${mdiStyle('mdi:power', 'power')}"></span></button>` : ''
   const experienceClass = selected.active_experience === 'watch' ? 'media-session-watch' : 'media-session-listen'
   const mainIcon = selected.active_experience === 'watch' ? 'mdi:video' : mediaSourceIcon(selected.source)
-  const mainArtwork = selected.active_experience === 'watch' && !selected.content_fingerprint && selected.active_source_id ? `<span class="media-artwork media-video-source"><img src="${apiUrl(`api/control4/source-icon/${selected.active_source_id}?v=${encodeURIComponent(appVersion)}`)}" alt="${esc(selected.source || '')}" onerror="this.hidden=true"></span>` : mediaArtwork(selected)
+  const mainArtwork = skyQAppArtwork(selected) || (selected.active_experience === 'watch' && !selected.content_fingerprint && selected.active_source_id ? `<span class="media-artwork media-video-source"><img src="${apiUrl(`api/control4/source-icon/${selected.active_source_id}?v=${encodeURIComponent(appVersion)}`)}" alt="${esc(selected.source || '')}" onerror="this.hidden=true"></span>` : mediaArtwork(selected))
   const recentRoomId = Number(String(selected.registry_id || '').replace('c4room:', ''))
   const recentScope = (avRoom || activeMediaRoom) && recentRoomId ? `room-${recentRoomId}` : 'global'
   const cachedRecent = recentCache.get(recentScope)
@@ -1135,7 +1143,7 @@ function openMediaSessions() {
     const volume = members.length > 1 && volumes.length ? Math.max(...volumes) : (Number.isFinite(Number(player.volume)) ? Number(player.volume) : 0)
     const muted = members.length > 0 && members.every((item) => item.muted)
     const isVideo = player.active_experience === 'watch'
-    const artwork = isVideo && !player.content_fingerprint && player.active_source_id ? `<span class="media-artwork media-video-source"><img src="${apiUrl(`api/control4/source-icon/${player.active_source_id}?v=${encodeURIComponent(appVersion)}`)}" alt="${esc(player.source || '')}" onerror="this.hidden=true"></span>` : mediaArtwork(player)
+    const artwork = skyQAppArtwork(player) || (isVideo && !player.content_fingerprint && player.active_source_id ? `<span class="media-artwork media-video-source"><img src="${apiUrl(`api/control4/source-icon/${player.active_source_id}?v=${encodeURIComponent(appVersion)}`)}" alt="${esc(player.source || '')}" onerror="this.hidden=true"></span>` : mediaArtwork(player))
     return `<div class="media-session-row ${isVideo ? 'media-session-row-watch' : 'media-session-row-listen'}" data-session-device="${esc(player.id)}" role="button" tabindex="0">${artwork}${activeMediaSourceMarkup(player, 'media-session-row-source', isVideo ? 'mdi:video' : mediaSourceIcon(player.source))}<span class="media-session-row-info"><strong>${esc(player.title || player.source || player.name)}</strong><small>${esc(player.artist || player.source || '')}</small></span><button class="media-session-row-power" data-session-power="${esc(player.id)}" aria-label="Spegni intera sessione" title="Spegni intera sessione"><span class="mdi-mask" style="${mdiStyle('mdi:power', 'power')}"></span></button><div class="media-session-row-volume"><button type="button" class="media-session-row-mute${muted ? ' active' : ''}" data-session-mute="${esc(player.id)}" aria-label="${muted ? 'Riattiva' : 'Silenzia'} intera sessione" title="${muted ? 'Riattiva' : 'Silenzia'} intera sessione"><span class="mdi-mask" style="${mdiStyle(muted ? 'mdi:volume-off' : 'mdi:volume-high', muted ? 'volume-off' : 'volume-high')}"></span></button><input type="range" min="0" max="100" value="${volume}" style="--volume:${volume}%" data-session-volume="${esc(player.id)}" aria-label="Volume sessione"><b>${volume}%</b></div><span class="media-session-row-rooms"><span class="mdi-mask" style="${mdiStyle(members.length > 1 ? 'mdi:home-group' : 'mdi:plus-box-outline', 'plus-box-outline')}"></span><b>${esc(members.map((item) => item.room).join(', '))}</b></span><em class="media-session-expand"><span class="mdi-mask" style="${mdiStyle('mdi:chevron-down', 'chevron-down')}"></span></em></div>`
   }).join('') || '<p class="empty-state">Nessuna sessione attiva</p>'
   if (!$('#media-sessions-dialog').open) $('#media-sessions-dialog').showModal()
@@ -1161,11 +1169,12 @@ function renderHomeMediaSessions() {
     const video = player.active_experience === 'watch'
     const activeSource = (player.source_options || []).find((source) => Number(source.source_id) === Number(player.active_source_id) || source.label === player.source)
     const sourceId = Number(player.active_source_id || activeSource?.source_id || 0)
-    const artwork = !player.content_fingerprint && player.provider === 'control4' && sourceId
+    const appArtwork = skyQAppArtwork(player, 'home-live-art')
+    const artwork = appArtwork || (!player.content_fingerprint && player.provider === 'control4' && sourceId
       ? `<span class="home-live-art source"><img src="${apiUrl(`api/control4/source-icon/${sourceId}?v=${encodeURIComponent(appVersion)}`)}" alt="" onload="this.parentElement.classList.add('loaded')" onerror="this.hidden=true"><span class="mdi-mask" style="${mdiStyle(video ? 'mdi:television' : mediaSourceIcon(player.source), video ? 'television' : 'music-circle')}"></span></span>`
       : player.content_fingerprint
       ? `<span class="home-live-art"><img src="${mediaArtworkUrl(player)}" alt="" loading="lazy" onerror="this.hidden=true"></span>`
-        : `<span class="home-live-art fallback"><span class="mdi-mask" style="${mdiStyle(video ? 'mdi:television' : mediaSourceIcon(player.source), video ? 'television' : 'music-circle')}"></span></span>`
+        : `<span class="home-live-art fallback"><span class="mdi-mask" style="${mdiStyle(video ? 'mdi:television' : mediaSourceIcon(player.source), video ? 'television' : 'music-circle')}"></span></span>`)
     const rooms = members.map((item) => item.room).filter(Boolean).join(' · ')
     const zoneVolume = Number.isFinite(Number(player.volume)) ? Number(player.volume) : 0
     const levels = members.map((item) => Number(item.volume)).filter(Number.isFinite)
