@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.21.141 — 2026-09-17
+
+- Gli slider volume della Home e di Sessioni non vengono più ricreati durante il trascinamento o la conferma del comando.
+- Lo stato locale resta stabile mentre arrivano gli aggiornamenti intermedi del backend, eliminando il salto indietro e avanti del cursore.
+
 ## 2.21.140 — 2026-09-17
 
 - La Home mostra il volume della stanza e, nelle sessioni multizona, il master relativo: spostandolo ogni zona mantiene la propria differenza di livello.

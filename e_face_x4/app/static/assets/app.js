@@ -1,7 +1,7 @@
 const $ = (selector) => document.querySelector(selector)
 const deviceScope = (() => { const key='eface-device-scope-v1'; let value=localStorage.getItem(key); if(!/^[A-Za-z0-9_-]{16,64}$/.test(value||'')){value=(crypto.randomUUID?.()||`${Date.now()}-${Math.random()}`).replaceAll('-','');localStorage.setItem(key,value)} return value })()
 const deviceFetchOptions = (options={}) => ({...options,headers:{...(options.headers||{}),'X-Eface-Device':deviceScope}})
-document.head.insertAdjacentHTML('beforeend', '<link rel="stylesheet" href="assets/media-x4.css?v=2.21.140">')
+document.head.insertAdjacentHTML('beforeend', '<link rel="stylesheet" href="assets/media-x4.css?v=2.21.141">')
 const glyph = { light: '✦', climate: '❄', shield: '⬡', energy: 'ϟ', cover: '▤', sensor: '◌' }
 let refreshRunning = false
 let refreshQueued = false
@@ -50,6 +50,13 @@ let shortcutViewOpen = false
 const mediaSections = { rooms: true, playing: true }
 const isSecurityGarage = (device) => device.kind === 'cover' && /garage|portone/i.test(`${device.icon || ''} ${device.name || ''}`)
 const mediaTransportOverrides = new Map()
+let mediaVolumeDragging = false
+let mediaVolumeCommands = 0
+const mediaVolumeUiLocked = () => mediaVolumeDragging || mediaVolumeCommands > 0
+function finishMediaVolumeDrag() {
+  clearTimeout(finishMediaVolumeDrag.timer)
+  finishMediaVolumeDrag.timer = setTimeout(() => { mediaVolumeDragging = false }, 120)
+}
 const recentCache = new Map()
 let favoritesCache = null
 let favoritesPending = null
@@ -224,14 +231,17 @@ function render(data) {
       else device.muted = override.muted
     }
     if (Object.hasOwn(override, 'volume')) {
-      if (Number(device.volume) === override.volume) delete override.volume
+      if (override.volumeExpires && Date.now() >= override.volumeExpires) {
+        delete override.volume
+        delete override.volumeExpires
+      } else if (!override.volumeExpires && Number(device.volume) === override.volume) delete override.volume
       else device.volume = override.volume
     }
     if (!override.state && !Object.hasOwn(override, 'muted') && !Object.hasOwn(override, 'volume')) mediaTransportOverrides.delete(String(device.id))
   })
   updateGlobalMediaSession()
   if (!energyMasterInitialized) { energyMasterInitialized = true; loadEnergyDashboards(false) }
-  renderHomeMediaSessions()
+  if (!mediaVolumeUiLocked()) renderHomeMediaSessions()
   updateNavigationStates()
   if (activeDetailIds && !$('#detail-view').hidden) {
     renderActiveDeviceList()
@@ -273,7 +283,7 @@ function render(data) {
 }
 
 function renderOpenStatePanels() {
-  if ($('#media-sessions-dialog')?.open) openMediaSessions()
+  if ($('#media-sessions-dialog')?.open && !mediaVolumeUiLocked()) openMediaSessions()
   if ($('#media-zones-dialog')?.open) {
     activeMediaPlayer = currentDevices.find((item) => String(item.id) === String(activeMediaPlayer?.id)) || activeMediaPlayer
     renderMediaZones()
@@ -1549,24 +1559,33 @@ async function setSessionVolume(input) {
   const levels = session.members.map((player) => player.volume).filter((level) => level !== null && level !== undefined && Number.isFinite(Number(level))).map(Number)
   const reference = session.members.length > 1 && levels.length ? Math.max(...levels) : (Number.isFinite(Number(session.player.volume)) ? Number(session.player.volume) : value)
   const delta = value - (Number.isFinite(reference) ? reference : value)
+  const targets = session.members.map((player) => ({ player, previous: player.volume, level: Number.isFinite(Number(player.volume)) ? Math.max(0, Math.min(100, Number(player.volume) + delta)) : value }))
+  const holdUntil = Date.now() + 3500
+  mediaVolumeCommands += 1
+  mediaVolumeDragging = false
+  targets.forEach(({ player, level }) => { player.volume = level; setMediaOverride(player.id, { volume: level, volumeExpires: holdUntil }) })
   input.disabled = true
   try {
     if (session.members.length > 1) {
       // 40/50 + 10 => 50/60. Non inviare mai lo stesso valore assoluto a tutte le stanze.
-      const targets = session.members.map((player) => ({ player, level: Number.isFinite(Number(player.volume)) ? Math.max(0, Math.min(100, Number(player.volume) + delta)) : value }))
       const results = await Promise.allSettled(targets.map(({ player, level }) => postDeviceCommand(player.id, 'set_volume', level)))
       const failed = results.find((result) => result.status === 'rejected')
       if (failed) throw failed.reason
     } else {
       await postDeviceCommand(session.player.id, 'set_volume', value)
     }
-    session.members.forEach((player) => {
-      const level = Number.isFinite(Number(player.volume)) ? Math.max(0, Math.min(100, Number(player.volume) + delta)) : value
-      player.volume = level
-      setMediaOverride(player.id, { volume: level })
-    })
     await refresh()
-  } catch (error) { fail(error) } finally { input.disabled = false }
+  } catch (error) {
+    targets.forEach(({ player, previous }) => { player.volume = previous; const override=mediaTransportOverrides.get(String(player.id)); if(override){delete override.volume;delete override.volumeExpires} })
+    fail(error)
+  } finally {
+    input.disabled = false
+    mediaVolumeCommands = Math.max(0, mediaVolumeCommands - 1)
+    if (!mediaVolumeUiLocked()) {
+      renderHomeMediaSessions()
+      if ($('#media-sessions-dialog')?.open) openMediaSessions()
+    }
+  }
 }
 
 async function setSessionMute(button) {
@@ -1594,13 +1613,27 @@ async function setHomeZoneVolume(input) {
   const player = currentDevices.find((item) => String(item.id) === String(input.dataset.homeZoneVolume))
   if (!player) return
   const value = Math.max(0, Math.min(100, Number(input.value)))
+  const previous = player.volume
+  mediaVolumeCommands += 1
+  mediaVolumeDragging = false
+  player.volume = value
+  setMediaOverride(player.id, { volume: value, volumeExpires: Date.now() + 3500 })
   input.disabled = true
   try {
     await postDeviceCommand(player.id, 'set_volume', value)
-    player.volume = value
-    setMediaOverride(player.id, { volume: value })
     await refresh()
-  } catch (error) { fail(error) } finally { input.disabled = false }
+  } catch (error) {
+    player.volume = previous
+    const override=mediaTransportOverrides.get(String(player.id));if(override){delete override.volume;delete override.volumeExpires}
+    fail(error)
+  } finally {
+    input.disabled = false
+    mediaVolumeCommands = Math.max(0, mediaVolumeCommands - 1)
+    if (!mediaVolumeUiLocked()) {
+      renderHomeMediaSessions()
+      if ($('#media-sessions-dialog')?.open) openMediaSessions()
+    }
+  }
 }
 
 async function adjustActiveUiVolume(delta) {
@@ -2075,18 +2108,23 @@ function applyRealtimeEvent(event) {
       snapshotRefreshTimer = setTimeout(refresh, 500)
       return
     }
+    const transportOverride = mediaTransportOverrides.get(String(device.id))
     let changed = false
     for (const field of ['state','title','artist','album','volume','muted','source']) {
+      if (field === 'volume' && transportOverride?.volumeExpires > Date.now()) {
+        device.volume = transportOverride.volume
+        continue
+      }
       if (data[field] !== undefined && data[field] !== device[field]) {
         device[field] = data[field]
         changed = true
       }
     }
     if (!changed) return
-    renderHomeMediaSessions()
+    if (!mediaVolumeUiLocked()) renderHomeMediaSessions()
     updateNavigationStates()
     if (activeDetailIds && !$('#detail-view').hidden) requestAnimationFrame(renderActiveDeviceList)
-    renderOpenStatePanels()
+    if (!mediaVolumeUiLocked()) renderOpenStatePanels()
     return
   }
   if (event.type === 'light_scenario_state' || event.type === 'light_scenario_running') {
@@ -2164,6 +2202,7 @@ $('#home-live-media-list').addEventListener('click', (event) => {
 })
 $('#home-live-media-list').addEventListener('pointerdown', (event) => {
   const input=event.target.closest('.home-live-volume input');if(!input||input.disabled)return
+  mediaVolumeDragging=true
   const rect=input.getBoundingClientRect(),min=Number(input.min)||0,max=Number(input.max)||100,value=Number(input.value)||0,thumb=rect.left+((value-min)/Math.max(1,max-min))*rect.width
   if(Math.abs(event.clientX-thumb)<=18)return
   event.preventDefault();input.value=String(Math.max(min,Math.min(max,value+(event.clientX<thumb?-2:2))));input.style.setProperty('--volume',`${input.value}%`);input.nextElementSibling.textContent=`${input.value}%`;input.dispatchEvent(new Event('change',{bubbles:true}))
@@ -2618,6 +2657,7 @@ $('#media-sessions-list').addEventListener('change', (event) => { if (event.targ
 $('#media-sessions-list').addEventListener('pointerdown', (event) => {
   const input = event.target.closest('[data-session-volume]')
   if (!input || input.disabled) return
+  mediaVolumeDragging = true
   const rect = input.getBoundingClientRect(); const value = Number(input.value) || 0
   const thumbX = rect.left + value / 100 * rect.width
   if (Math.abs(event.clientX - thumbX) <= 18) return
@@ -2627,6 +2667,8 @@ $('#media-sessions-list').addEventListener('pointerdown', (event) => {
   input.nextElementSibling.textContent = `${input.value}%`
   setSessionVolume(input)
 }, { capture: true })
+window.addEventListener('pointerup', finishMediaVolumeDrag, { capture: true })
+window.addEventListener('pointercancel', finishMediaVolumeDrag, { capture: true })
 function stepSessionRangeClick(event) {
   const input = event.target.closest('input[type=range]')
   if (!input || input.disabled) return
