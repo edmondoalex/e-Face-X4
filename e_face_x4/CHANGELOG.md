@@ -1,5 +1,9 @@
 # Changelog
 
+## 2.21.146 — 2026-09-17
+
+- Resi visibili e riconoscibili i quattro tasti Sky Q rosso, verde, giallo e blu nel telecomando video, con feedback alla pressione e cache CSS aggiornata.
+
 ## 2.21.145 — 2026-09-17
 
 - Sky Q nativo: e-Face legge direttamente dal decoder stato, app, canale, programma, descrizione e copertina, senza Home Assistant.

@@ -2,14 +2,17 @@
   display: flex;
   align-items: center;
   justify-content: center;
+  min-height: 58px;
+  border-color: color-mix(in srgb, var(--remote-color) 55%, #36474c) !important;
+  background: linear-gradient(145deg, color-mix(in srgb, var(--remote-color) 14%, #252b2e), #15191b) !important;
 }
 
 .remote-color span {
-  width: 62%;
-  height: 8px;
+  width: 24px;
+  height: 24px;
   border-radius: 999px;
   background: var(--remote-color);
-  box-shadow: 0 0 10px color-mix(in srgb, var(--remote-color) 65%, transparent);
+  box-shadow: 0 0 16px color-mix(in srgb, var(--remote-color) 78%, transparent);
 }
 
 .remote-color.remote-red { --remote-color: #ff243f; }
@@ -19,7 +22,8 @@
 
 .remote-custom .remote-color:active {
   color: inherit;
-  background: color-mix(in srgb, var(--remote-color) 28%, #15191b);
+  background: color-mix(in srgb, var(--remote-color) 38%, #15191b) !important;
+  transform: translateY(2px);
 }
 
 .remote-custom .remote-color:active span {
