@@ -27,6 +27,7 @@ def test_skyq_overlay_replaces_metadata_and_exposes_native_remote() -> None:
 
 def test_skyq_command_maps_remote_button(monkeypatch) -> None:
     pressed = []
+    skyq._remotes.clear()
 
     class Remote:
         device_setup = True
@@ -42,3 +43,32 @@ def test_skyq_command_maps_remote_button(monkeypatch) -> None:
     result = asyncio.run(skyq.command({"enabled": True, "host": "192.168.10.64"}, "custom:PROGRAM_A"))
     assert result["provider"] == "skyq"
     assert pressed == ["red"]
+
+
+def test_skyq_digits_are_aggregated_in_order(monkeypatch) -> None:
+    pressed = []
+    skyq._remotes.clear()
+    skyq._digit_buffers.clear()
+    skyq._digit_tasks.clear()
+
+    class Remote:
+        device_setup = True
+
+        def __init__(self, host):
+            pass
+
+        def press(self, value):
+            pressed.append(value)
+
+    import pyskyqremote.skyq_remote
+    monkeypatch.setattr(pyskyqremote.skyq_remote, "SkyQRemote", Remote)
+
+    async def run() -> None:
+        config = {"enabled": True, "host": "192.168.10.64"}
+        await skyq.command(config, "digit_1")
+        await skyq.command(config, "digit_0")
+        await skyq.command(config, "digit_0")
+        await asyncio.sleep(0.7)
+
+    asyncio.run(run())
+    assert pressed == [["1", "0", "0"]]

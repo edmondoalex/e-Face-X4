@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.21.149 — 2026-09-17
+
+- Serializzati tutti i comandi del telecomando Sky Q per evitare connessioni concorrenti e tasti persi.
+- Le cifre ravvicinate vengono aggregate in una singola sequenza temporizzata: digitando 100 il decoder riceve ordinatamente 1, 0, 0.
+- Frecce, colori e trasporto condividono la stessa coda nativa verso il decoder.
+
 ## 2.21.148 — 2026-09-17
 
 - Le sezioni App Sky Q, Stanze e Sorgenti ora occupano tutta la larghezza e usano tessere compatte in righe orizzontali.

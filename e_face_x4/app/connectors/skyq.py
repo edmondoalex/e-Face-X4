@@ -11,6 +11,10 @@ import httpx
 _artwork: dict[str, str] = {}
 _cache: dict[str, Any] = {"host": "", "expires": 0.0, "value": None}
 _lock = asyncio.Lock()
+_command_lock = asyncio.Lock()
+_remotes: dict[str, Any] = {}
+_digit_buffers: dict[str, list[str]] = {}
+_digit_tasks: dict[str, asyncio.Task] = {}
 REMOTE_ACTIONS = ["play", "pause", "stop", "scan_fwd", "scan_rev", "skip_fwd", "skip_rev", "menu", "up", "down", "left", "right", "enter", "channel_up", "channel_down", "record", "page_up", "page_down", "info", "cancel", "dvr", "guide", *[f"digit_{value}" for value in range(10)], "custom:PROGRAM_A", "custom:PROGRAM_B", "custom:PROGRAM_C", "custom:PROGRAM_D"]
 COMMANDS = {"play": "play", "pause": "pause", "stop": "stop", "scan_fwd": "fastforward", "skip_fwd": "fastforward", "scan_rev": "rewind", "skip_rev": "rewind", "menu": "home", "up": "up", "down": "down", "left": "left", "right": "right", "enter": "select", "channel_up": "channelup", "channel_down": "channeldown", "record": "record", "page_up": "channelup", "page_down": "channeldown", "info": "i", "cancel": "dismiss", "dvr": "sky", "guide": "tvguide", "custom:PROGRAM_A": "red", "custom:PROGRAM_B": "green", "custom:PROGRAM_C": "yellow", "custom:PROGRAM_D": "blue"}
 COMMANDS.update({f"digit_{value}": str(value) for value in range(10)})
@@ -118,6 +122,34 @@ def overlay_control4(providers: list[dict], data: dict[str, Any], config: dict[s
     return linked
 
 
+def _remote(host: str) -> Any:
+    from pyskyqremote.skyq_remote import SkyQRemote
+    remote = _remotes.get(host)
+    if remote is None:
+        remote = SkyQRemote(host)
+        if not remote.device_setup:
+            raise ConnectionError("Decoder Sky Q non raggiungibile")
+        _remotes[host] = remote
+    return remote
+
+
+async def _press(host: str, keys: str | list[str]) -> None:
+    async with _command_lock:
+        await asyncio.wait_for(asyncio.to_thread(lambda: _remote(host).press(keys)), timeout=max(8, len(keys) if isinstance(keys, list) else 1))
+
+
+async def _flush_digits(host: str, delay: float = 0.55) -> None:
+    task = asyncio.current_task()
+    try:
+        await asyncio.sleep(delay)
+        keys = _digit_buffers.pop(host, [])
+        if keys:
+            await _press(host, keys)
+    finally:
+        if _digit_tasks.get(host) is task:
+            _digit_tasks.pop(host, None)
+
+
 async def command(config: dict[str, Any], action: str) -> dict[str, Any]:
     sky_command = COMMANDS.get(action)
     if not sky_command:
@@ -126,14 +158,20 @@ async def command(config: dict[str, Any], action: str) -> dict[str, Any]:
     if not config.get("enabled") or not host:
         raise ValueError("Sky Q nativo non configurato")
 
-    def press() -> None:
-        from pyskyqremote.skyq_remote import SkyQRemote
-        remote = SkyQRemote(host)
-        if not remote.device_setup:
-            raise ConnectionError("Decoder Sky Q non raggiungibile")
-        remote.press(sky_command)
-
-    await asyncio.wait_for(asyncio.to_thread(press), timeout=8)
+    if action.startswith("digit_"):
+        _digit_buffers.setdefault(host, []).append(sky_command)
+        previous = _digit_tasks.pop(host, None)
+        if previous:
+            previous.cancel()
+        _digit_tasks[host] = asyncio.create_task(_flush_digits(host))
+        return {"ok": True, "provider": "skyq", "command": sky_command, "queued": True}
+    pending = _digit_tasks.pop(host, None)
+    if pending:
+        pending.cancel()
+        keys = _digit_buffers.pop(host, [])
+        if keys:
+            await _press(host, keys)
+    await _press(host, sky_command)
     _cache["expires"] = 0.0
     return {"ok": True, "provider": "skyq", "command": sky_command}
 
