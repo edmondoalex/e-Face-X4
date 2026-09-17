@@ -56,7 +56,7 @@ def test_health() -> None:
     response = TestClient(create_app()).get("/health")
     assert response.status_code == 200
     assert response.json()["ok"] is True
-    assert response.json()["version"] == "2.21.139"
+    assert response.json()["version"] == "2.21.140"
 
 
 def test_installed_app_starts_at_dashboard() -> None:
@@ -95,7 +95,7 @@ def test_intercom_is_in_sidebar_with_embedded_view() -> None:
     client_script = (static / "assets" / "intercom.js").read_text(encoding="utf-8")
     intercom_page = (static / "intercom.html").read_text(encoding="utf-8")
     assert "Tablet Control4 · interno 8291" in intercom_page
-    assert "const currentVersion = '2.21.139'" in client_script
+    assert "const currentVersion = '2.21.140'" in client_script
     assert 'id="call-ufficio" data-dial-extension="8291" data-video-capable="true"' in intercom_page
     assert "Postazione esterna · interno 8201" in intercom_page
     assert "Postazione esterna · interno ${station.sip_extension}" in client_script
@@ -302,8 +302,8 @@ def test_intercom_dashboard_stores_only_local_settings(monkeypatch, tmp_path) ->
     assert 'id="users-tool"' in page
     assert 'id="logout"' in page
     assert page.index('id="logout"') < page.index('id="tools-user-section"')
-    assert "tools-dashboard.js?v=2.21.139" in page
-    assert "tools.js?v=2.21.139" in page
+    assert "tools-dashboard.js?v=2.21.140" in page
+    assert "tools.js?v=2.21.140" in page
     tools_js = client.get("/assets/tools.js").text
     assert "document.querySelector('.tools-shell').append(shortcutsPanel)" in tools_js
     assert "data-shortcut-drag=\"category\"" in tools_js
@@ -313,7 +313,7 @@ def test_intercom_dashboard_stores_only_local_settings(monkeypatch, tmp_path) ->
     assert '<b>Accesi</b>' not in home
     assert 'id="light-on-filter"' in home
     assert "backgrounds.css?v=2.21.43" in home
-    assert "app.js?v=2.21.139" in home
+    assert "app.js?v=2.21.140" in home
     app_js = client.get("/assets/app.js").text
     assert "event.type === 'doorbird_event'" in app_js
     assert "event.type === 'home_camera_event'" in app_js
@@ -731,7 +731,7 @@ def test_tools_page_starts_with_selected_background_and_card_theme(monkeypatch, 
     login = client.get("/login").text
     assert '<body class="app-theme" data-background="midnight" data-card-theme="slate">' in home
     assert 'ui-theme-contract.css?v=2.21.29' in home
-    assert 'app.js?v=2.21.139' in home
+    assert 'app.js?v=2.21.140' in home
     assert 'energy.css?v=2.21.30' in home
     assert 'home-comfort.css?v=2.21.31' in home
     assert '<body class="login-theme" data-background="midnight" data-card-theme="slate">' in login
@@ -747,7 +747,7 @@ def test_user_appearance_persists_room_order_and_glow(monkeypatch, tmp_path) -> 
     assert appearance["home_camera_entity"] == "camera.nvr_32ch_ext_ultimo_evento"
     assert appearance["home_weather_location"] == ""
     shortcuts = [{"category": "lights", "devices": ["buspro:1", "buspro:2"]}, {"category": "climate", "devices": ["therm:1"]}]
-    home_widgets = [{"id": item, "visible": item != "states", "size": "wide" if item in {"live", "rooms"} else "standard"} for item in ["live", "overview", "weather", "camera_event", "doorbell", "motion", "states", "rooms"]]
+    home_widgets = [{"id": item, "visible": item != "states", "size": "wide" if item in {"live", "rooms"} else "standard", "height": "standard"} for item in ["live", "overview", "weather", "camera_event", "doorbell", "motion", "states", "rooms"]]
     response = client.put("/api/user/appearance", json={"card_glow": False, "room_order": ["Sala", "Ufficio Alex"], "security_order": ["locks", "zones", "areas", "scenarios"], "shortcuts": shortcuts, "home_widgets": home_widgets, "home_camera_entity": "camera.nvr_32ch_ext_ultimo_evento", "home_weather_location": "Torino"})
     assert response.status_code == 200
     assert client.get("/api/user/appearance").json() == {"card_glow": False, "room_order": ["Sala", "Ufficio Alex"], "security_order": ["locks", "zones", "areas", "scenarios"], "shortcuts": shortcuts, "home_widgets": home_widgets, "home_camera_entity": "camera.nvr_32ch_ext_ultimo_evento", "home_weather_location": "Torino"}
@@ -763,7 +763,7 @@ def test_user_appearance_persists_room_order_and_glow(monkeypatch, tmp_path) -> 
 
 def test_dynamic_home_layout_is_isolated_but_camera_is_shared(monkeypatch, tmp_path) -> None:
     monkeypatch.setenv("EFACE_BACKGROUNDS", str(tmp_path / "backgrounds"))
-    global_widgets = [{"id": item, "visible": True, "size": "standard"} for item in HOME_WIDGETS]
+    global_widgets = [{"id": item, "visible": True, "size": "standard", "height": "standard"} for item in HOME_WIDGETS]
     alex_widgets = [{**item, "visible": item["id"] != "weather"} for item in reversed(global_widgets)]
     mario_widgets = [{**item, "visible": item["id"] != "motion"} for item in global_widgets]
     save_home_widgets(global_widgets)
@@ -780,8 +780,8 @@ def test_dynamic_home_layout_is_isolated_but_camera_is_shared(monkeypatch, tmp_p
 
 def test_dynamic_home_settings_are_isolated_by_device(monkeypatch, tmp_path) -> None:
     monkeypatch.setenv("EFACE_BACKGROUNDS", str(tmp_path / "backgrounds"))
-    account_widgets = [{"id": item, "visible": True, "size": "wide" if item == "overview" else "standard"} for item in HOME_WIDGETS]
-    device_widgets = [{"id": item, "visible": item != "weather", "size": "compact" if item == "states" else "standard"} for item in HOME_WIDGETS]
+    account_widgets = [{"id": item, "visible": True, "size": "wide" if item == "overview" else "standard", "height": "standard"} for item in HOME_WIDGETS]
+    device_widgets = [{"id": item, "visible": item != "weather", "size": "compact" if item == "states" else "standard", "height": "standard"} for item in HOME_WIDGETS]
     owner = "admin:device:0123456789abcdef"
     save_home_widgets(account_widgets, "admin")
     save_home_camera_entity("camera.account", "admin")

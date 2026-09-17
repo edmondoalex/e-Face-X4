@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.21.140 — 2026-09-17
+
+- La Home mostra il volume della stanza e, nelle sessioni multizona, il master relativo: spostandolo ogni zona mantiene la propria differenza di livello.
+- Il mute master in Sessioni silenzia o riattiva tutte le zone senza aprire il dettaglio dei volumi.
+- I controlli audio sono verdi e quelli video celesti; per i widget videosorveglianza e DoorBird l'altezza è configurabile in Strumenti (bassa, media o alta).
+
 ## 2.21.139 — 2026-09-17
 
 - Videosorveglianza e DoorBird aggiornano il relativo widget immediatamente sull'evento reale; il monitor DoorBird ascolta sia campanello sia movimento. Il timer resta soltanto come recupero.
