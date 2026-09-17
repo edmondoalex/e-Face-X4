@@ -1,5 +1,9 @@
 # Changelog
 
+## 2.21.143 — 2026-09-17
+
+- I comandi canale video seguono il layout richiesto: CH sopra la freccia giù a sinistra e freccia su sopra CH a destra.
+
 ## 2.21.142 — 2026-09-17
 
 - Home dinamica trasformata in compositore visuale a 12 colonne con anteprima, riempimento degli spazi e larghezze 25%, 33%, 50%, 66% e 100%.
