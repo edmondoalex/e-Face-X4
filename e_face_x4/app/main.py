@@ -62,13 +62,14 @@ from .source_icons import delete_source_icon, hidden_source_ids, load_builtin_so
 from .backgrounds import CARD_THEMES, PRESETS, load_background, load_background_image, load_backgrounds, load_card_theme, load_card_glow, load_room_order, load_security_order, load_shortcuts, load_home_widgets, load_home_camera_entity, load_home_weather_location, save_background_image, save_card_theme, save_card_glow, save_room_order, save_security_order, save_shortcuts, save_home_widgets, save_home_camera_entity, save_home_weather_location, save_inherit, save_preset
 from .connectors import BusproConnector, Control4MediaConnector, EThermConnector, EkonexMediaConnector, EvoiceLocalMediaConnector, KseniaConnector
 from .connectors.ksenia import normalize_ksenia
+from .connectors.local_media import LocalMediaConnector
 from .connectors.wiim import WiiMClient
 from .connectors.control4_media import cached_control4_icon, cached_control4_icon_path, cached_control4_source_label, control4_icon_path
 from .connectors.supervisor import discover_addon_url, discover_host_url
 from .media_realtime import SharedMediaRealtime
 from .demo import dashboard as demo_dashboard
 
-VERSION = os.environ.get("EFACE_VERSION", "2.21.138")
+VERSION = os.environ.get("EFACE_VERSION", "2.21.139")
 STATIC = Path(__file__).parent / "static"
 logging.basicConfig(level=logging.WARNING, format="%(asctime)s %(levelname)s [e-face-x4] %(message)s")
 _reconnect_warning_at: dict[str, float] = {}
@@ -156,12 +157,15 @@ def create_app() -> FastAPI:
     app.state.evoice_realtime = SharedMediaRealtime(lambda: evoice_connector(load_settings()))
     app.state.realtime_clients = set()
     app.state.doorbird_monitor_tasks = []
+    app.state.home_camera_monitor_task = None
 
     @app.on_event("shutdown")
     async def close_shared_media_realtime() -> None:
         await app.state.evoice_realtime.close()
         for task in app.state.doorbird_monitor_tasks:
             task.cancel()
+        if app.state.home_camera_monitor_task:
+            app.state.home_camera_monitor_task.cancel()
     app.mount("/assets", AppAssets(directory=STATIC / "assets"), name="assets")
     login_failures: dict[tuple[str, str], list[float]] = {}
     reveal_failures: dict[str, list[float]] = {}
@@ -221,6 +225,7 @@ def create_app() -> FastAPI:
                     station["host"], station["http_port"], account["username"], account["password"]
                 ):
                     delay = 2
+                    await broadcast_realtime({"type": "doorbird_event", "data": {"station_id": station["id"], "event": event}})
                     if event == "doorbell":
                         await broadcast_realtime({"type": "doorbird_incoming", "data": {"station_id": station["id"]}})
                         await push_intercom_group(intercom_settings.load()["ring_extension"], station.get("name") or "DoorBird")
@@ -238,6 +243,33 @@ def create_app() -> FastAPI:
                 account = credential_inventory.load().get("doorbird", {})
             if account.get("username") and account.get("password"):
                 app.state.doorbird_monitor_tasks.append(asyncio.create_task(monitor_doorbird(station, account)))
+
+    async def monitor_home_camera() -> None:
+        """Keep one shared HA event stream and notify every connected e-Face UI."""
+        delay = 2
+        connector = LocalMediaConnector(load_settings().request_timeout_s)
+        while True:
+            socket = None
+            try:
+                socket = await connector._connect_websocket()
+                await socket.send(json.dumps({"id": 901, "type": "subscribe_events", "event_type": "state_changed"}))
+                while True:
+                    message = json.loads(await socket.recv())
+                    if message.get("type") != "event":
+                        continue
+                    data = message.get("event", {}).get("data", {})
+                    if str(data.get("entity_id") or "") == load_home_camera_entity():
+                        delay = 2
+                        await broadcast_realtime({"type": "home_camera_event", "data": {"entity_id": data["entity_id"]}})
+            except asyncio.CancelledError:
+                raise
+            except Exception as exc:
+                log_reconnect_warning("Home camera")
+                await asyncio.sleep(delay)
+                delay = min(delay * 2, 30)
+            finally:
+                if socket is not None:
+                    await socket.close()
 
     async def ensure_default_intercom_group() -> None:
         try:
@@ -2423,9 +2455,9 @@ def create_app() -> FastAPI:
         page = page.replace('content="#263f48"', 'content="#181c1f"')
         page = page.replace("manifest.webmanifest?v=2.20.38", "manifest.webmanifest?v=2.21.59")
         page = page.replace("app.css?v=2.20.20", "app.css?v=2.21.73")
-        page = page.replace("app.css?v=2.21.84", "app.css?v=2.21.138")
-        page = page.replace("home-status.css?v=2.20.20", "home-status.css?v=2.21.138")
-        page = page.replace("tools.js?v=2.21.1", "tools.js?v=2.21.138")
+        page = page.replace("app.css?v=2.21.84", "app.css?v=2.21.139")
+        page = page.replace("home-status.css?v=2.20.20", "home-status.css?v=2.21.139")
+        page = page.replace("tools.js?v=2.21.1", "tools.js?v=2.21.139")
         page = page.replace("ui-theme-contract.css?v=2.21.27", "ui-theme-contract.css?v=2.21.29")
         page = page.replace("tools-dashboard.js?v=2.21.27", "tools-dashboard.js?v=2.21.33")
         page = page.replace("tools-dashboard.js?v=2.21.33", "tools-dashboard.js?v=2.21.34")
@@ -2433,8 +2465,8 @@ def create_app() -> FastAPI:
         page = page.replace("tools-dashboard.js?v=2.21.36", "tools-dashboard.js?v=2.21.38")
         page = page.replace("tools-dashboard.js?v=2.21.38", "tools-dashboard.js?v=2.21.41")
         page = page.replace("tools-dashboard.js?v=2.21.41", "tools-dashboard.js?v=2.21.42")
-        page = page.replace("tools-dashboard.js?v=2.21.42", "tools-dashboard.js?v=2.21.138")
-        page = page.replace("tools-dashboard.css?v=2.20.36", "tools-dashboard.css?v=2.21.138")
+        page = page.replace("tools-dashboard.js?v=2.21.42", "tools-dashboard.js?v=2.21.139")
+        page = page.replace("tools-dashboard.css?v=2.20.36", "tools-dashboard.css?v=2.21.139")
         page = page.replace("backgrounds.css?v=2.20.20", "backgrounds.css?v=2.21.43")
         page = page.replace("intercom.css?v=2.21.14", "intercom.css?v=2.21.46")
         page = page.replace("app.js?v=2.21.11", "app.js?v=2.21.29")
@@ -3157,6 +3189,8 @@ def create_app() -> FastAPI:
             await websocket.close(code=1008)
             return
         await websocket.accept()
+        if app.state.home_camera_monitor_task is None or app.state.home_camera_monitor_task.done():
+            app.state.home_camera_monitor_task = asyncio.create_task(monitor_home_camera())
         settings = load_settings()
         buspro, etherm, ksenia = await asyncio.gather(
             resolved_provider(settings.buspro, "e_hdl_buspro_mqtt", 8124, settings.request_timeout_s),

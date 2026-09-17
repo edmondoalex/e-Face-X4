@@ -1,7 +1,7 @@
 const $ = (selector) => document.querySelector(selector)
 const deviceScope = (() => { const key='eface-device-scope-v1'; let value=localStorage.getItem(key); if(!/^[A-Za-z0-9_-]{16,64}$/.test(value||'')){value=(crypto.randomUUID?.()||`${Date.now()}-${Math.random()}`).replaceAll('-','');localStorage.setItem(key,value)} return value })()
 const deviceFetchOptions = (options={}) => ({...options,headers:{...(options.headers||{}),'X-Eface-Device':deviceScope}})
-document.head.insertAdjacentHTML('beforeend', '<link rel="stylesheet" href="assets/media-x4.css?v=2.21.138">')
+document.head.insertAdjacentHTML('beforeend', '<link rel="stylesheet" href="assets/media-x4.css?v=2.21.139">')
 const glyph = { light: '✦', climate: '❄', shield: '⬡', energy: 'ϟ', cover: '▤', sensor: '◌' }
 let refreshRunning = false
 let refreshQueued = false
@@ -312,9 +312,10 @@ function renderWeather(data){const current=data.current||{},daily=data.daily||{}
   const now=Date.now()
   if(now-homeWeatherLoadedAt>=600000){homeWeatherLoadedAt=now;fetch(apiUrl('api/home/weather'),deviceFetchOptions({cache:'no-store'})).then(async(response)=>{if(!response.ok)throw new Error();renderWeather(await response.json())}).catch(()=>{$('#home-weather-state').textContent='Configura il meteo in Strumenti';$('#home-weather-temperature').textContent='--°';$('#home-weather-forecast').innerHTML=''})}
   if(now-homeImagesLoadedAt<15000)return;homeImagesLoadedAt=now
-  const images=[['#home-camera-event',`api/home/camera-event?device=${encodeURIComponent(deviceScope)}`],['#home-doorbell-event','api/home/doorbird/doorbell'],['#home-motion-event','api/home/doorbird/motionsensor']]
-  images.forEach(([selector,path])=>{const card=$(selector),image=card.querySelector('img'),probe=new Image();probe.onload=()=>{image.src=probe.src;card.classList.remove('unavailable')};probe.onerror=()=>card.classList.add('unavailable');probe.src=`${apiUrl(path)}${path.includes('?')?'&':'?'}v=${Date.now()}`})
+  ;['camera','doorbell','motion'].forEach(refreshHomeEventImage)
 }
+function refreshHomeEventImage(kind){const map={camera:['#home-camera-event',`api/home/camera-event?device=${encodeURIComponent(deviceScope)}`],doorbell:['#home-doorbell-event','api/home/doorbird/doorbell'],motion:['#home-motion-event','api/home/doorbird/motionsensor']},entry=map[kind];if(!entry)return;const[selector,path]=entry,card=$(selector),image=card?.querySelector('img');if(!card||!image)return;const probe=new Image();probe.onload=()=>{image.src=probe.src;card.classList.remove('unavailable')};probe.onerror=()=>card.classList.add('unavailable');probe.src=`${apiUrl(path)}${path.includes('?')?'&':'?'}v=${Date.now()}`}
+function refreshHomeEventNow(kind){for(const delay of [0,500,1500])setTimeout(()=>refreshHomeEventImage(kind),delay)}
 const collapsedShortcutCategories = new Set()
 function openHomeEventViewer(card){const image=card.querySelector('img');if(!image?.src||card.classList.contains('unavailable'))return;const dialog=$('#home-event-dialog');$('#home-event-dialog-image').src=image.src;$('#home-event-dialog-source').textContent=card.querySelector('small')?.textContent||'IMMAGINE';$('#home-event-dialog-title').textContent=card.querySelector('strong')?.textContent||image.alt||'Evento';if(!dialog.open)dialog.showModal()}
 for(const selector of ['#home-camera-event','#home-doorbell-event','#home-motion-event'])$(selector)?.addEventListener('click',(event)=>openHomeEventViewer(event.currentTarget))
@@ -1992,6 +1993,14 @@ function connectRealtime() {
 }
 
 function applyRealtimeEvent(event) {
+  if (event.type === 'home_camera_event') {
+    refreshHomeEventNow('camera')
+    return
+  }
+  if (event.type === 'doorbird_event') {
+    refreshHomeEventNow(event.data?.event === 'motionsensor' ? 'motion' : 'doorbell')
+    return
+  }
   if (event.type === 'doorbird_incoming') {
     openIntercom()
     const notify = () => $('#intercom-frame').contentWindow?.postMessage({type:'eface-doorbird-incoming',station_id:event.data?.station_id || 'ingresso'}, location.origin)
@@ -2000,6 +2009,7 @@ function applyRealtimeEvent(event) {
     return
   }
   if (event.type === 'devices_changed' || event.type === 'thermostats_changed' || event.type === 'media_changed') {
+    if (event.type === 'devices_changed') refreshHomeEventNow('camera')
     clearTimeout(snapshotRefreshTimer)
     snapshotRefreshTimer = setTimeout(refresh, 500)
     return

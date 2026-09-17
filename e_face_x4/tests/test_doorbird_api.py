@@ -3,7 +3,7 @@ import asyncio
 import httpx
 import pytest
 
-from app.doorbird_api import check_identity, configuration, history_image, live_image, live_video
+from app.doorbird_api import check_identity, configuration, history_image, live_image, live_video, monitor_events
 
 
 @pytest.mark.asyncio
@@ -183,3 +183,22 @@ def test_configuration_reads_all_sections_and_requires_reveal_for_passwords(monk
     assert len(hidden["copertura_api_lan"]["letti"]) == 4
     revealed = asyncio.run(configuration("192.168.2.30", 80, "user", "api-private", "192.168.3.24", "8290", reveal=True))
     assert revealed["sip"]["BHA"]["SIP"][0]["PASSWORD"] == "sip-private"
+
+
+def test_monitor_subscribes_to_doorbell_and_motion(monkeypatch) -> None:
+    original = httpx.AsyncClient
+    requests = []
+
+    def handle(request):
+        requests.append(request)
+        if "authorization" not in request.headers:
+            return httpx.Response(401, headers={"WWW-Authenticate": 'Digest realm="DoorBird", nonce="abc", qop="auth"'})
+        return httpx.Response(200, text="doorbell:H\r\nmotionsensor:H\r\ndoorbell:L\r\n")
+
+    monkeypatch.setattr(httpx, "AsyncClient", lambda **kwargs: original(transport=httpx.MockTransport(handle), **kwargs))
+
+    async def collect():
+        return [event async for event in monitor_events("192.168.2.30", 80, "user", "secret")]
+
+    assert asyncio.run(collect()) == ["doorbell", "motionsensor"]
+    assert requests[-1].url.params["ring"] == "doorbell,motionsensor"

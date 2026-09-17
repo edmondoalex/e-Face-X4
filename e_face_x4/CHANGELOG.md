@@ -1,5 +1,9 @@
 # Changelog
 
+## 2.21.139 — 2026-09-17
+
+- Videosorveglianza e DoorBird aggiornano il relativo widget immediatamente sull'evento reale; il monitor DoorBird ascolta sia campanello sia movimento. Il timer resta soltanto come recupero.
+
 ## 2.21.138 — 2026-09-17
 
 - Rimosso il testo visibile “Accesi” dal filtro Luci in tutte le UI; resta soltanto l'icona con descrizione accessibile.

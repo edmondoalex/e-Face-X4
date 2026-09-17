@@ -178,7 +178,7 @@ async def monitor_events(host: str, port: int, username: str, password: str) -> 
     timeout = httpx.Timeout(10, read=None)
     try:
         async with httpx.AsyncClient(timeout=timeout, follow_redirects=False, trust_env=False) as client:
-            async with client.stream("GET", url, params={"ring": "doorbell"},
+            async with client.stream("GET", url, params={"ring": "doorbell,motionsensor"},
                                      auth=httpx.DigestAuth(username, password)) as response:
                 if response.status_code == 401:
                     raise PermissionError("Credenziale DoorBird rifiutata")
@@ -188,12 +188,12 @@ async def monitor_events(host: str, port: int, username: str, password: str) -> 
                 async for chunk in response.aiter_text():
                     pending = (pending + chunk)[-4096:]
                     while True:
-                        match = re.search(r"doorbell:([HL])", pending, re.I)
+                        match = re.search(r"(doorbell|motionsensor):([HL])", pending, re.I)
                         if not match:
                             break
                         pending = pending[match.end():]
-                        if match.group(1).upper() == "H":
-                            yield "doorbell"
+                        if match.group(2).upper() == "H":
+                            yield match.group(1).lower()
     except httpx.HTTPError as exc:
         raise ConnectionError("DoorBird non raggiungibile") from exc
 
