@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.21.158 — 2026-09-17
+
+- Rimossa l'icona del canale dalla scheda Sky Q; resta il solo logo Sky.
+- DoorBird: quando arriva una pressione del campanello e la cronologia locale restituisce 404, e-Face acquisisce e salva in modo persistente un fotogramma live per il widget Ultima chiamata.
+
 ## 2.21.157 — 2026-09-17
 
 - Uniformate le dimensioni del logo Sky Q e del logo canale a 54×40 px, entrambi centrati nel proprio spazio.

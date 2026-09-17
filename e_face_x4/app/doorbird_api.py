@@ -16,6 +16,31 @@ VIDEO_CONTENT_TYPE = re.compile(r"multipart/x-mixed-replace\s*;\s*boundary=[A-Za
 SENSITIVE_FIELD = re.compile(r"password|passwd|secret|token|credential", re.I)
 
 
+def _event_image_path(event: str) -> Path:
+    if event not in {"doorbell", "motionsensor"}:
+        raise ValueError("Evento DoorBird non valido")
+    return Path(os.environ.get("EFACE_DOORBIRD_EVENT_DIR", "/data/doorbird-events")) / f"{event}.jpg"
+
+
+def load_event_image(event: str) -> bytes | None:
+    try:
+        content = _event_image_path(event).read_bytes()
+    except OSError:
+        return None
+    return content if content.startswith(b"\xff\xd8\xff") and len(content) <= MAX_IMAGE_BYTES else None
+
+
+def save_event_image(event: str, content: bytes) -> None:
+    if not content.startswith(b"\xff\xd8\xff") or not 16 <= len(content) <= MAX_IMAGE_BYTES:
+        raise ValueError("Immagine DoorBird non valida")
+    target = _event_image_path(event)
+    target.parent.mkdir(parents=True, exist_ok=True)
+    temporary = target.with_suffix(".tmp")
+    temporary.write_bytes(content)
+    os.chmod(temporary, 0o600)
+    temporary.replace(target)
+
+
 def _safe_configuration(value, key: str = "", reveal: bool = False):
     """Bound DoorBird data and hide secrets unless an admin explicitly re-authenticated."""
     if SENSITIVE_FIELD.search(key) and not reveal:
@@ -321,7 +346,7 @@ async def live_image(host: str, port: int, username: str, password: str) -> byte
     try:
         async with httpx.AsyncClient(timeout=6, follow_redirects=False, trust_env=False) as client:
             async with client.stream("GET", url, auth=httpx.DigestAuth(username, password)) as response:
-                if response.status_code == 204:
+                if response.status_code in {204, 404}:
                     return None
                 if response.status_code == 401:
                     raise PermissionError("Credenziale DoorBird rifiutata")
@@ -354,7 +379,10 @@ async def history_image(host: str, port: int, username: str, password: str, even
                     # (visible in the app) and expose no local historical JPEG.
                     # Return the current protected camera frame so the Home
                     # widget remains useful instead of showing an empty card.
-                    return await live_image(host, port, username, password) if event == "doorbell" else None
+                    content = await live_image(host, port, username, password) if event == "doorbell" else None
+                    if content:
+                        save_event_image(event, content)
+                    return content
                 if response.status_code == 401: raise PermissionError("Credenziale o permesso cronologia DoorBird rifiutato")
                 if response.status_code != 200 or response.headers.get("content-type", "").split(";", 1)[0].lower() != "image/jpeg": raise RuntimeError("Cronologia DoorBird non disponibile")
                 content = bytearray()

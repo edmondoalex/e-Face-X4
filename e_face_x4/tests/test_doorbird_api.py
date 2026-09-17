@@ -3,7 +3,14 @@ import asyncio
 import httpx
 import pytest
 
-from app.doorbird_api import check_identity, configuration, history_image, live_image, live_video, monitor_events
+from app.doorbird_api import check_identity, configuration, history_image, live_image, live_video, load_event_image, monitor_events, save_event_image
+
+
+def test_doorbell_event_image_is_persistent(tmp_path, monkeypatch) -> None:
+    monkeypatch.setenv("EFACE_DOORBIRD_EVENT_DIR", str(tmp_path / "events"))
+    content = b"\xff\xd8\xff" + b"doorbell-snapshot"
+    save_event_image("doorbell", content)
+    assert load_event_image("doorbell") == content
 
 
 @pytest.mark.asyncio
