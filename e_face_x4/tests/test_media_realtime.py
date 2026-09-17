@@ -46,3 +46,23 @@ async def test_shared_media_snapshot_cache_prevents_parallel_upstream_requests()
     assert connector.snapshot_calls == 1
     assert all(item == snapshots[0] for item in snapshots)
     await broker.close()
+
+
+@pytest.mark.asyncio
+async def test_shared_media_snapshot_recovers_after_initial_offline_result() -> None:
+    connector = FakeConnector()
+    results = iter([
+        {"id": "evoice", "status": "offline", "reason": "risposta HTTP 502", "items": []},
+        {"id": "evoice", "status": "online", "items": [{"id": "player"}]},
+    ])
+
+    async def snapshot():
+        connector.snapshot_calls += 1
+        return next(results)
+
+    connector.snapshot = snapshot
+    broker = SharedMediaRealtime(lambda: connector, offline_retry_seconds=0)
+    assert (await broker.get_snapshot())["status"] == "offline"
+    assert (await broker.get_snapshot())["status"] == "online"
+    assert connector.snapshot_calls == 2
+    await broker.close()

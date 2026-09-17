@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import time
 from contextlib import suppress
 from typing import Any, Callable
 
@@ -9,7 +10,7 @@ from typing import Any, Callable
 class SharedMediaRealtime:
     """One upstream media stream and snapshot cache shared by every UI client."""
 
-    def __init__(self, connector_factory: Callable[[], Any], debounce_seconds: float = 0.35) -> None:
+    def __init__(self, connector_factory: Callable[[], Any], debounce_seconds: float = 0.35, offline_retry_seconds: float = 2.0) -> None:
         self._connector_factory = connector_factory
         self._debounce = debounce_seconds
         self._subscribers: set[asyncio.Queue[dict[str, Any]]] = set()
@@ -17,6 +18,8 @@ class SharedMediaRealtime:
         self._snapshot_task: asyncio.Task | None = None
         self._snapshot_requested = asyncio.Event()
         self._snapshot: dict[str, Any] | None = None
+        self._snapshot_checked_at = 0.0
+        self._offline_retry = offline_retry_seconds
         self._snapshot_lock = asyncio.Lock()
         self._closed = False
 
@@ -39,9 +42,15 @@ class SharedMediaRealtime:
         if self._snapshot_task is None or self._snapshot_task.done(): self._snapshot_task = asyncio.create_task(self._snapshot_loop())
 
     async def get_snapshot(self) -> dict[str, Any]:
-        if self._snapshot is not None: return self._snapshot
+        status = str((self._snapshot or {}).get("status") or "")
+        if self._snapshot is not None and status in {"online", "stale"}: return self._snapshot
+        if self._snapshot is not None and time.monotonic() - self._snapshot_checked_at < self._offline_retry: return self._snapshot
         async with self._snapshot_lock:
-            if self._snapshot is None: self._snapshot = await self._connector_factory().snapshot()
+            status = str((self._snapshot or {}).get("status") or "")
+            if self._snapshot is not None and status in {"online", "stale"}: return self._snapshot
+            if self._snapshot is None or time.monotonic() - self._snapshot_checked_at >= self._offline_retry:
+                self._snapshot = await self._connector_factory().snapshot()
+                self._snapshot_checked_at = time.monotonic()
         return self._snapshot
 
     async def close(self) -> None:
@@ -67,6 +76,7 @@ class SharedMediaRealtime:
             try:
                 async with self._snapshot_lock:
                     snapshot = await self._connector_factory().snapshot()
+                    self._snapshot_checked_at = time.monotonic()
                 if snapshot.get("status") in {"online", "stale"}:
                     self._snapshot = snapshot
                     await self._broadcast({"type": "media_changed", "event_type": "player.updated"})

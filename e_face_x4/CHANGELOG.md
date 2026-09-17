@@ -1,5 +1,9 @@
 # Changelog
 
+## 2.21.144 — 2026-09-17
+
+- La cache e‑Voice ritenta automaticamente lo snapshot dopo uno stato offline iniziale, evitando che un 502 temporaneo durante il riavvio di Home Assistant lasci l'avviso bloccato.
+
 ## 2.21.143 — 2026-09-17
 
 - I comandi canale video seguono il layout richiesto: CH sopra la freccia giù a sinistra e freccia su sopra CH a destra.
