@@ -117,18 +117,23 @@ def save_home_widgets(items: list[dict[str, object]], owner: str | None = None) 
     _write(raw)
 
 def load_home_camera_entity(owner: str | None = None) -> str:
-    raw = _config(); users = raw.get("user_appearance") if isinstance(raw.get("user_appearance"), dict) else {}; scoped = users.get(owner) if owner and isinstance(users.get(owner), dict) else {}
-    account_owner = owner.split(":device:", 1)[0] if owner and ":device:" in owner else None
-    account = users.get(account_owner) if account_owner and isinstance(users.get(account_owner), dict) else {}
-    value = str((scoped.get("home_camera_entity") if owner else raw.get("home_camera_entity")) or account.get("home_camera_entity") or raw.get("home_camera_entity") or "camera.nvr_32ch_ext_ultimo_evento")
+    raw = _config()
+    shared = str(raw.get("home_camera_entity") or "").strip()
+    if shared:
+        value = shared
+    else:
+        # Automatic migration: a previously scoped value becomes the shared
+        # installation setting returned to every panel.
+        users = raw.get("user_appearance") if isinstance(raw.get("user_appearance"), dict) else {}
+        value = next((str(item.get("home_camera_entity") or "").strip() for item in users.values() if isinstance(item, dict) and str(item.get("home_camera_entity") or "").strip()), "camera.nvr_32ch_ext_ultimo_evento")
     return value if re.fullmatch(r"camera\.[a-z0-9_]+", value) else "camera.nvr_32ch_ext_ultimo_evento"
 
 def save_home_camera_entity(entity_id: str, owner: str | None = None) -> None:
     if not isinstance(entity_id, str) or not re.fullmatch(r"camera\.[a-z0-9_]+", entity_id): raise ValueError("Entità telecamera non valida")
-    raw = _config()
-    if owner:
-        users = raw.get("user_appearance") if isinstance(raw.get("user_appearance"), dict) else {}; scoped = users.get(owner) if isinstance(users.get(owner), dict) else {}; scoped["home_camera_entity"] = entity_id; users[owner] = scoped; raw["user_appearance"] = users
-    else: raw["home_camera_entity"] = entity_id
+    raw = _config(); raw["home_camera_entity"] = entity_id
+    users = raw.get("user_appearance") if isinstance(raw.get("user_appearance"), dict) else {}
+    for scoped in users.values():
+        if isinstance(scoped, dict): scoped.pop("home_camera_entity", None)
     _write(raw)
 
 def load_home_weather_location(owner: str | None = None) -> str:

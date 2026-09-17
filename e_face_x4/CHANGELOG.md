@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.21.133 — 2026-09-17
+
+- Località meteo ed entità dell'ultimo evento videosorveglianza sono ora impostazioni uniche dell'impianto, condivise da tutte le UI.
+- I precedenti valori telecamera salvati per utente o dispositivo vengono migrati automaticamente e rimossi al primo salvataggio globale.
+
 ## 2.21.132 — 2026-09-17
 
 - Corretto lo storico DoorBird: Ultima chiamata usa `doorbell` e Ultimo movimento usa `motionsensor`, come previsto dalla LAN API ufficiale.

@@ -56,7 +56,7 @@ def test_health() -> None:
     response = TestClient(create_app()).get("/health")
     assert response.status_code == 200
     assert response.json()["ok"] is True
-    assert response.json()["version"] == "2.21.132"
+    assert response.json()["version"] == "2.21.133"
 
 
 def test_installed_app_starts_at_dashboard() -> None:
@@ -95,7 +95,7 @@ def test_intercom_is_in_sidebar_with_embedded_view() -> None:
     client_script = (static / "assets" / "intercom.js").read_text(encoding="utf-8")
     intercom_page = (static / "intercom.html").read_text(encoding="utf-8")
     assert "Tablet Control4 · interno 8291" in intercom_page
-    assert "const currentVersion = '2.21.132'" in client_script
+    assert "const currentVersion = '2.21.133'" in client_script
     assert 'id="call-ufficio" data-dial-extension="8291" data-video-capable="true"' in intercom_page
     assert "Postazione esterna · interno 8201" in intercom_page
     assert "Postazione esterna · interno ${station.sip_extension}" in client_script
@@ -302,8 +302,8 @@ def test_intercom_dashboard_stores_only_local_settings(monkeypatch, tmp_path) ->
     assert 'id="users-tool"' in page
     assert 'id="logout"' in page
     assert page.index('id="logout"') < page.index('id="tools-user-section"')
-    assert "tools-dashboard.js?v=2.21.132" in page
-    assert "tools.js?v=2.21.132" in page
+    assert "tools-dashboard.js?v=2.21.133" in page
+    assert "tools.js?v=2.21.133" in page
     tools_js = client.get("/assets/tools.js").text
     assert "document.querySelector('.tools-shell').append(shortcutsPanel)" in tools_js
     assert "data-shortcut-drag=\"category\"" in tools_js
@@ -311,7 +311,7 @@ def test_intercom_dashboard_stores_only_local_settings(monkeypatch, tmp_path) ->
     assert "pointermove" in tools_js and "finishShortcutDrag" in tools_js
     home = client.get("/").text
     assert "backgrounds.css?v=2.21.43" in home
-    assert "app.js?v=2.21.132" in home
+    assert "app.js?v=2.21.133" in home
 
 
 def test_external_stations_api_requires_login_and_hides_secrets(monkeypatch, tmp_path) -> None:
@@ -696,7 +696,7 @@ def test_tools_page_starts_with_selected_background_and_card_theme(monkeypatch, 
     login = client.get("/login").text
     assert '<body class="app-theme" data-background="midnight" data-card-theme="slate">' in home
     assert 'ui-theme-contract.css?v=2.21.29' in home
-    assert 'app.js?v=2.21.132' in home
+    assert 'app.js?v=2.21.133' in home
     assert 'energy.css?v=2.21.30' in home
     assert 'home-comfort.css?v=2.21.31' in home
     assert '<body class="login-theme" data-background="midnight" data-card-theme="slate">' in login
@@ -726,7 +726,7 @@ def test_user_appearance_persists_room_order_and_glow(monkeypatch, tmp_path) -> 
     assert client.put("/api/user/appearance", json={"home_weather_location": "x"}).status_code == 400
 
 
-def test_dynamic_home_settings_are_isolated_by_user(monkeypatch, tmp_path) -> None:
+def test_dynamic_home_layout_is_isolated_but_camera_is_shared(monkeypatch, tmp_path) -> None:
     monkeypatch.setenv("EFACE_BACKGROUNDS", str(tmp_path / "backgrounds"))
     global_widgets = [{"id": item, "visible": True, "size": "standard"} for item in HOME_WIDGETS]
     alex_widgets = [{**item, "visible": item["id"] != "weather"} for item in reversed(global_widgets)]
@@ -739,7 +739,7 @@ def test_dynamic_home_settings_are_isolated_by_user(monkeypatch, tmp_path) -> No
     assert load_home_widgets("admin") == alex_widgets
     assert load_home_widgets("mario") == mario_widgets
     assert load_home_widgets("luca") == global_widgets
-    assert load_home_camera_entity("admin") == "camera.nvr_32ch_ext_ultimo_evento"
+    assert load_home_camera_entity("admin") == "camera.porta"
     assert load_home_camera_entity("mario") == "camera.porta"
 
 
@@ -761,7 +761,8 @@ def test_dynamic_home_settings_are_isolated_by_device(monkeypatch, tmp_path) -> 
     assert load_home_camera_entity(owner) == "camera.device"
     assert load_home_weather_location(owner) == "Milano"
     assert load_home_widgets("admin") == account_widgets
-    assert load_home_camera_entity("admin") == "camera.account"
+    assert load_home_camera_entity("admin") == "camera.device"
+    assert load_home_camera_entity("mario:device:fedcba9876543210") == "camera.device"
     assert load_home_weather_location("admin") == "Milano"
     assert load_home_weather_location("mario:device:fedcba9876543210") == "Milano"
 
