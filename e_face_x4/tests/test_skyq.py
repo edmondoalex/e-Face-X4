@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import asyncio
+from datetime import datetime, timezone
+from types import SimpleNamespace
 
 from app import skyq_icons, skyq_settings
 from app.connectors import skyq
@@ -85,3 +87,32 @@ def test_skyq_digits_are_aggregated_in_order(monkeypatch) -> None:
 
     asyncio.run(run())
     assert pressed == [["1", "0", "0"]]
+
+
+def test_skyq_inventory_serializes_decoder_lists(monkeypatch) -> None:
+    class Remote:
+        device_setup = True
+
+        def __init__(self, host):
+            assert host == "192.168.10.64"
+
+        def get_channel_list(self):
+            return SimpleNamespace(channels=[SimpleNamespace(channelno="110")])
+
+        def get_channel_info(self, number):
+            return SimpleNamespace(channelno=number, channelname="Sky Cinema Uno", channelsid="203", channeltype="video", sf="hd", channelimageurl="https://images.sky.com/channel.png")
+
+        def get_recordings(self, limit, offset):
+            assert (limit, offset) == (1000, 0)
+            return SimpleNamespace(recordings=[SimpleNamespace(pvrid="p1", title="Film", channelname="Sky Cinema Uno", synopsis="Trama", summary="", season=1, episode=2, status="RECORDED", source="VOD", starttime=datetime(2026, 9, 17, tzinfo=timezone.utc), endtime=None, image_url="https://images.sky.com/film.jpg")])
+
+        def get_quota(self):
+            return SimpleNamespace(quota_max=1000, quota_used=250)
+
+    monkeypatch.setattr(skyq, "_read_box", lambda host: {"apps": [{"id": "netflix", "title": "Netflix"}]})
+    import pyskyqremote.skyq_remote
+    monkeypatch.setattr(pyskyqremote.skyq_remote, "SkyQRemote", Remote)
+    data = skyq._read_inventory("192.168.10.64")
+    assert data["summary"] == {"channels": 1, "recordings": 1, "apps": 1, "recording_statuses": {"RECORDED": 1}, "recording_sources": {"VOD": 1}}
+    assert data["channels"][0]["name"] == "Sky Cinema Uno"
+    assert data["recordings"][0]["artwork_fingerprint"].startswith("skyq-")

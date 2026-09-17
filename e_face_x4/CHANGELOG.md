@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.21.160 — 2026-09-17
+
+- Configurazione Sky Q: aggiunto l'inventario diretto del decoder con tutti i canali, tutte le registrazioni, tutte le app, quote e riepiloghi per stato e provenienza.
+- Aggiunte ricerca e guida giornaliera apribile selezionando un canale, con titoli, orari, descrizioni e copertine disponibili.
+
 ## 2.21.159 — 2026-09-17
 
 - Quando Sky Q è dentro un'app e non espone i metadati del contenuto, e-Face usa l'icona dell'app come cover in Guarda, Home Live e Sessioni.

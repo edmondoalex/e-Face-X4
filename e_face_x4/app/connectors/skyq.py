@@ -4,6 +4,7 @@ import asyncio
 import hashlib
 import ipaddress
 import time
+from datetime import date, datetime
 from typing import Any
 
 import httpx
@@ -16,6 +17,8 @@ _remotes: dict[str, Any] = {}
 _digit_buffers: dict[str, list[str]] = {}
 _digit_tasks: dict[str, asyncio.Task] = {}
 _app_icons: dict[str, tuple[str, str]] = {}
+_inventory_cache: dict[str, Any] = {"host": "", "expires": 0.0, "value": None}
+_inventory_lock = asyncio.Lock()
 REMOTE_ACTIONS = ["play", "pause", "stop", "scan_fwd", "scan_rev", "skip_fwd", "skip_rev", "menu", "up", "down", "left", "right", "enter", "channel_up", "channel_down", "record", "page_up", "page_down", "info", "cancel", "dvr", "guide", *[f"digit_{value}" for value in range(10)], "custom:PROGRAM_A", "custom:PROGRAM_B", "custom:PROGRAM_C", "custom:PROGRAM_D"]
 COMMANDS = {"play": "play", "pause": "pause", "stop": "stop", "scan_fwd": "fastforward", "skip_fwd": "fastforward", "scan_rev": "rewind", "skip_rev": "rewind", "menu": "home", "up": "up", "down": "down", "left": "left", "right": "right", "enter": "select", "channel_up": "channelup", "channel_down": "channeldown", "record": "record", "page_up": "channelup", "page_down": "channeldown", "info": "i", "cancel": "dismiss", "dvr": "sky", "guide": "tvguide", "custom:PROGRAM_A": "red", "custom:PROGRAM_B": "green", "custom:PROGRAM_C": "yellow", "custom:PROGRAM_D": "blue"}
 COMMANDS.update({f"digit_{value}": str(value) for value in range(10)})
@@ -23,6 +26,19 @@ COMMANDS.update({f"digit_{value}": str(value) for value in range(10)})
 
 def _text(value: Any) -> str:
     return str(value or "").strip()
+
+
+def _iso(value: Any) -> str:
+    return value.isoformat() if isinstance(value, (date, datetime)) else ""
+
+
+def _register_artwork(url: Any) -> str:
+    url_text = _text(url)
+    if not url_text:
+        return ""
+    fingerprint = f"skyq-{hashlib.sha256(url_text.encode()).hexdigest()[:24]}"
+    _artwork[fingerprint] = url_text
+    return fingerprint
 
 
 def _read_box(host: str) -> dict[str, Any]:
@@ -104,6 +120,104 @@ async def snapshot(config: dict[str, Any]) -> dict[str, Any]:
             raise ConnectionError("Sky Q non risponde entro 12 secondi") from exc
         _cache.update({"host": host, "expires": time.monotonic() + 5, "value": value})
         return dict(value)
+
+
+def _read_inventory(host: str) -> dict[str, Any]:
+    """Read the complete lists exposed by the decoder without affecting live polling."""
+    from pyskyqremote.skyq_remote import SkyQRemote
+
+    remote = SkyQRemote(host)
+    if not remote.device_setup:
+        raise ConnectionError("Decoder Sky Q non raggiungibile")
+    channels_result = remote.get_channel_list()
+    channels = []
+    for channel in list(getattr(channels_result, "channels", []) or []):
+        info = remote.get_channel_info(_text(getattr(channel, "channelno", ""))) or channel
+        channels.append({
+            "number": _text(getattr(info, "channelno", "")),
+            "name": _text(getattr(info, "channelname", "")),
+            "sid": _text(getattr(info, "channelsid", "")),
+            "type": _text(getattr(info, "channeltype", "")),
+            "format": _text(getattr(info, "sf", "")),
+            "artwork_fingerprint": _register_artwork(getattr(info, "channelimageurl", "")),
+        })
+    recordings_result = remote.get_recordings(limit=1000, offset=0)
+    recordings = []
+    for item in list(getattr(recordings_result, "recordings", []) or []):
+        recordings.append({
+            "id": _text(getattr(item, "pvrid", "")),
+            "title": _text(getattr(item, "title", "")),
+            "channel": _text(getattr(item, "channelname", "")),
+            "description": _text(getattr(item, "synopsis", "") or getattr(item, "summary", "")),
+            "season": _text(getattr(item, "season", "")),
+            "episode": _text(getattr(item, "episode", "")),
+            "status": _text(getattr(item, "status", "")),
+            "source": _text(getattr(item, "source", "")),
+            "start": _iso(getattr(item, "starttime", None)),
+            "end": _iso(getattr(item, "endtime", None)),
+            "artwork_fingerprint": _register_artwork(getattr(item, "image_url", "")),
+        })
+    quota = remote.get_quota()
+    apps = _read_box(host).get("apps", [])
+    statuses: dict[str, int] = {}
+    sources: dict[str, int] = {}
+    for item in recordings:
+        statuses[item["status"]] = statuses.get(item["status"], 0) + 1
+        sources[item["source"]] = sources.get(item["source"], 0) + 1
+    return {
+        "status": "online", "generated_at": datetime.now().astimezone().isoformat(),
+        "channels": channels, "recordings": recordings, "apps": apps,
+        "summary": {"channels": len(channels), "recordings": len(recordings), "apps": len(apps), "recording_statuses": statuses, "recording_sources": sources},
+        "quota": {"max": getattr(quota, "quota_max", None), "used": getattr(quota, "quota_used", None)} if quota else None,
+    }
+
+
+async def inventory(config: dict[str, Any], refresh: bool = False) -> dict[str, Any]:
+    host = _text(config.get("host"))
+    if not config.get("enabled") or not host:
+        raise ValueError("Sky Q nativo non configurato")
+    async with _inventory_lock:
+        if not refresh and _inventory_cache["host"] == host and time.monotonic() < float(_inventory_cache["expires"]) and isinstance(_inventory_cache["value"], dict):
+            return dict(_inventory_cache["value"])
+        try:
+            value = await asyncio.wait_for(asyncio.to_thread(_read_inventory, host), timeout=60)
+        except asyncio.TimeoutError as exc:
+            raise ConnectionError("Inventario Sky Q non completato entro 60 secondi") from exc
+        _inventory_cache.update({"host": host, "expires": time.monotonic() + 300, "value": value})
+        return dict(value)
+
+
+def _read_guide(host: str, sid: str, day: str) -> list[dict[str, Any]]:
+    from pyskyqremote.skyq_remote import SkyQRemote
+
+    remote = SkyQRemote(host)
+    if not remote.device_setup:
+        raise ConnectionError("Decoder Sky Q non raggiungibile")
+    guide_date = datetime.strptime(day, "%Y-%m-%d").date()
+    result = remote.get_epg_data(sid, guide_date, days=1)
+    programmes = getattr(result, "programmes", result) or []
+    return [{
+        "id": _text(getattr(item, "programmeuuid", "") or getattr(item, "eid", "")),
+        "title": _text(getattr(item, "title", "")), "description": _text(getattr(item, "synopsis", "")),
+        "channel": _text(getattr(item, "channelname", "")), "season": _text(getattr(item, "season", "")),
+        "episode": _text(getattr(item, "episode", "")), "status": _text(getattr(item, "status", "")),
+        "start": _iso(getattr(item, "starttime", None)), "end": _iso(getattr(item, "endtime", None)),
+        "artwork_fingerprint": _register_artwork(getattr(item, "image_url", "")),
+    } for item in list(programmes)]
+
+
+async def guide(config: dict[str, Any], sid: str, day: str) -> list[dict[str, Any]]:
+    host = _text(config.get("host"))
+    if not config.get("enabled") or not host or not sid:
+        raise ValueError("Sky Q o canale non configurato")
+    try:
+        datetime.strptime(day, "%Y-%m-%d")
+    except ValueError as exc:
+        raise ValueError("Data guida non valida") from exc
+    try:
+        return await asyncio.wait_for(asyncio.to_thread(_read_guide, host, sid, day), timeout=20)
+    except asyncio.TimeoutError as exc:
+        raise ConnectionError("Guida Sky Q non disponibile entro 20 secondi") from exc
 
 
 def overlay_control4(providers: list[dict], data: dict[str, Any], config: dict[str, Any]) -> bool:
