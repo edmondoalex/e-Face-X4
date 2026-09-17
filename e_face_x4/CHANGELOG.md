@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.21.154 — 2026-09-17
+
+- Configurazione Sky Q: ogni app permette di caricare un'icona PNG, JPEG, WebP o GIF personalizzata e persistente, con ripristino dell'icona automatica.
+- Le icone personalizzate hanno priorità su quelle del decoder e vengono utilizzate anche nella pagina Guarda.
+
 ## 2.21.153 — 2026-09-17
 
 - Ripristinata la composizione originale della scheda Sky Q: preview principale invariata, logo Sky mantenuto e logo del canale aggiunto sotto in dimensione leggibile.

@@ -2,8 +2,19 @@ from __future__ import annotations
 
 import asyncio
 
-from app import skyq_settings
+from app import skyq_icons, skyq_settings
 from app.connectors import skyq
+
+
+def test_skyq_custom_icon_is_persistent(tmp_path, monkeypatch) -> None:
+    import base64
+
+    monkeypatch.setenv("EFACE_SKYQ_ICON_DIR", str(tmp_path / "icons"))
+    content = b"\x89PNG\r\n\x1a\n" + b"custom-icon-data"
+    skyq_icons.save("prime.video", "image/png", base64.b64encode(content).decode())
+    assert skyq_icons.load("prime.video") == ("image/png", content)
+    assert skyq_icons.delete("prime.video") is True
+    assert skyq_icons.load("prime.video") is None
 
 
 def test_skyq_settings_are_native_and_validated(tmp_path, monkeypatch) -> None:

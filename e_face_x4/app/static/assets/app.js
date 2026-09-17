@@ -1,7 +1,7 @@
 const $ = (selector) => document.querySelector(selector)
 const deviceScope = (() => { const key='eface-device-scope-v1'; let value=localStorage.getItem(key); if(!/^[A-Za-z0-9_-]{16,64}$/.test(value||'')){value=(crypto.randomUUID?.()||`${Date.now()}-${Math.random()}`).replaceAll('-','');localStorage.setItem(key,value)} return value })()
 const deviceFetchOptions = (options={}) => ({...options,headers:{...(options.headers||{}),'X-Eface-Device':deviceScope}})
-document.head.insertAdjacentHTML('beforeend', '<link rel="stylesheet" href="assets/media-x4.css?v=2.21.153">')
+document.head.insertAdjacentHTML('beforeend', '<link rel="stylesheet" href="assets/media-x4.css?v=2.21.154">')
 const glyph = { light: '✦', climate: '❄', shield: '⬡', energy: 'ϟ', cover: '▤', sensor: '◌' }
 let refreshRunning = false
 let refreshQueued = false
@@ -646,7 +646,7 @@ function renderMediaExperience(devices) {
     const key = String(service).toLocaleLowerCase('it').replaceAll('+','plus').replace(/[^a-z0-9]/g,'')
     const source = (selected.source_options || []).find(item => String(item.label || '').toLocaleLowerCase('it').replaceAll('+','plus').replace(/[^a-z0-9]/g,'').includes(key))
     const fallback = `<span class="mdi-mask" style="${mdiStyle(skyQAppIcon(service),'television-play')}"></span>`
-    const icon = app.icon ? `<span class="media-source-native">${fallback}<img src="${apiUrl(`api/skyq/apps/${encodeURIComponent(app.id)}/icon`)}" alt="" loading="lazy" onload="this.parentElement.classList.add('loaded')" onerror="this.parentElement.classList.add('failed');this.hidden=true"></span>` : fallback
+    const icon = `<span class="media-source-native">${fallback}<img src="${apiUrl(`api/skyq/apps/${encodeURIComponent(app.id)}/icon`)}" alt="" loading="lazy" onload="this.parentElement.classList.add('loaded')" onerror="this.parentElement.classList.add('failed');this.hidden=true"></span>`
     return source ? `<button class="media-service-tile" data-device-id="${esc(selected.id)}" data-media-source="${esc(source.key)}">${icon}<b>${esc(service)}</b></button>` : `<span class="media-service-tile">${icon}<b>${esc(service)}</b></span>`
   }).join('')}</div></div>` : ''
   $('#device-list').innerHTML = `<article class="media-session ${selected.skyq && selected.description ? 'has-skyq-description' : ''} ${wiimActive ? 'has-wiim-timeline' : ''} ${experienceClass} ${deviceVisualClass(selected)}" data-device-id="${esc(selected.id)}">${navigatorArtwork}${navigatorIcon}<div class="media-session-info"><strong>${esc(selected.title || selected.source || selected.name)}</strong>${sourceLine}<small>${artistLine}</small><span class="media-track media-room-name">${esc(roomName)}</span>${skyqDescription}</div>${power}${timeline}${deviceActions(selected, { hidePower: true, wiim: wiimActive })}</article>${voicePanel}${recent}${favorites}${skyqServices}<div class="media-library media-room-library"><button class="media-library-toggle" data-media-section-toggle="rooms" aria-expanded="${mediaSections.rooms}"><strong>Stanze</strong><span class="mdi-mask" style="${mdiStyle(mediaSections.rooms ? 'mdi:chevron-up' : 'mdi:chevron-down', 'chevron-down')}"></span></button><div class="media-service-grid" ${mediaSections.rooms ? '' : 'hidden'}>${players}</div></div><div class="media-library media-source-library"><h3>Sorgenti e servizi</h3><div class="media-service-grid">${sources || '<span class="empty-state">Nessuna sorgente disponibile</span>'}</div></div>`

@@ -57,6 +57,7 @@ from . import soundcloud_library
 from . import media_project
 from . import startup_settings
 from . import skyq_settings
+from . import skyq_icons
 from .connectors.soundcloud import SoundCloudClient
 from .media_preferences import apply_preferences, load_preferences, save_preferences
 from .source_icons import delete_source_icon, hidden_source_ids, load_builtin_source_icon, load_builtin_source_icon_by_id, load_source_icon, save_source_icon, set_source_hidden
@@ -71,7 +72,7 @@ from .connectors.supervisor import discover_addon_url, discover_host_url
 from .media_realtime import SharedMediaRealtime
 from .demo import dashboard as demo_dashboard
 
-VERSION = os.environ.get("EFACE_VERSION", "2.21.153")
+VERSION = os.environ.get("EFACE_VERSION", "2.21.154")
 STATIC = Path(__file__).parent / "static"
 logging.basicConfig(level=logging.WARNING, format="%(asctime)s %(levelname)s [e-face-x4] %(message)s")
 _reconnect_warning_at: dict[str, float] = {}
@@ -2457,9 +2458,9 @@ def create_app() -> FastAPI:
         page = page.replace('content="#263f48"', 'content="#181c1f"')
         page = page.replace("manifest.webmanifest?v=2.20.38", "manifest.webmanifest?v=2.21.59")
         page = page.replace("app.css?v=2.20.20", "app.css?v=2.21.73")
-        page = page.replace("app.css?v=2.21.84", "app.css?v=2.21.153")
-        page = page.replace("home-status.css?v=2.20.20", "home-status.css?v=2.21.153")
-        page = page.replace("tools.js?v=2.21.1", "tools.js?v=2.21.153")
+        page = page.replace("app.css?v=2.21.84", "app.css?v=2.21.154")
+        page = page.replace("home-status.css?v=2.20.20", "home-status.css?v=2.21.154")
+        page = page.replace("tools.js?v=2.21.1", "tools.js?v=2.21.154")
         page = page.replace("media-remote-colors.css?v=2.20.20", "media-remote-colors.css?v=2.21.148")
         page = page.replace("ui-theme-contract.css?v=2.21.27", "ui-theme-contract.css?v=2.21.29")
         page = page.replace("tools-dashboard.js?v=2.21.27", "tools-dashboard.js?v=2.21.33")
@@ -2468,8 +2469,8 @@ def create_app() -> FastAPI:
         page = page.replace("tools-dashboard.js?v=2.21.36", "tools-dashboard.js?v=2.21.38")
         page = page.replace("tools-dashboard.js?v=2.21.38", "tools-dashboard.js?v=2.21.41")
         page = page.replace("tools-dashboard.js?v=2.21.41", "tools-dashboard.js?v=2.21.42")
-        page = page.replace("tools-dashboard.js?v=2.21.42", "tools-dashboard.js?v=2.21.153")
-        page = page.replace("tools-dashboard.css?v=2.20.36", "tools-dashboard.css?v=2.21.153")
+        page = page.replace("tools-dashboard.js?v=2.21.42", "tools-dashboard.js?v=2.21.154")
+        page = page.replace("tools-dashboard.css?v=2.20.36", "tools-dashboard.css?v=2.21.154")
         page = page.replace("backgrounds.css?v=2.20.20", "backgrounds.css?v=2.21.43")
         page = page.replace("intercom.css?v=2.21.14", "intercom.css?v=2.21.46")
         page = page.replace("app.js?v=2.21.11", "app.js?v=2.21.29")
@@ -2811,6 +2812,8 @@ def create_app() -> FastAPI:
         if skyq_config.get("enabled") and skyq_config.get("host"):
             try:
                 skyq_apps = list((await skyq_connector.snapshot(skyq_config)).get("apps") or [])
+                for skyq_app in skyq_apps:
+                    skyq_app["custom"] = skyq_icons.load(str(skyq_app.get("id") or "")) is not None
             except (ConnectionError, OSError, ValueError, TypeError):
                 pass
         return {"items": items, "configured": bool(saved), "skyq": skyq_config, "skyq_apps": skyq_apps}
@@ -3145,6 +3148,9 @@ def create_app() -> FastAPI:
     async def skyq_app_icon(app_id: str) -> Response:
         if not re.fullmatch(r"[A-Za-z0-9._-]{1,100}", app_id):
             raise HTTPException(status_code=400, detail="App Sky Q non valida")
+        custom = skyq_icons.load(app_id)
+        if custom:
+            return Response(custom[1], media_type=custom[0], headers={"Cache-Control": "private, max-age=300", "X-Content-Type-Options": "nosniff"})
         try:
             upstream = await skyq_connector.app_icon(app_id)
         except httpx.HTTPError:
@@ -3155,6 +3161,24 @@ def create_app() -> FastAPI:
         if not media_type or len(upstream.content) > 300_000:
             raise HTTPException(status_code=415, detail="Icona Sky Q non valida")
         return Response(upstream.content, media_type=media_type, headers={"Cache-Control": "private, max-age=3600", "X-Content-Type-Options": "nosniff"})
+
+    @app.put("/api/installer/skyq/apps/{app_id}/icon")
+    async def installer_save_skyq_app_icon(app_id: str, request: Request, payload: dict) -> dict:
+        require_installer(request)
+        try:
+            skyq_icons.save(app_id, str(payload.get("mime") or ""), str(payload.get("data") or ""))
+        except (OSError, ValueError) as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        return {"ok": True}
+
+    @app.delete("/api/installer/skyq/apps/{app_id}/icon")
+    async def installer_delete_skyq_app_icon(app_id: str, request: Request) -> dict:
+        require_installer(request)
+        try:
+            removed = skyq_icons.delete(app_id)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        return {"ok": True, "removed": removed}
 
     @app.get("/api/control4/recently-played")
     async def control4_recently_played(room_id: int | None = Query(None, gt=0), limit: int = Query(20, ge=1, le=20)) -> dict:
