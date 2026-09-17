@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.21.142 — 2026-09-17
+
+- Home dinamica trasformata in compositore visuale a 12 colonne con anteprima, riempimento degli spazi e larghezze 25%, 33%, 50%, 66% e 100%.
+- Il widget LIVE integra i comandi con le icone e-Face: precedente, play/pausa dinamico, successivo e stop, con feedback alla pressione; nelle sessioni video sono disponibili anche CH− e CH+ sia in Home sia nella scheda zona.
+
 ## 2.21.141 — 2026-09-17
 
 - Gli slider volume della Home e di Sessioni non vengono più ricreati durante il trascinamento o la conferma del comando.

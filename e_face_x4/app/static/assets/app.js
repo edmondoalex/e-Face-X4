@@ -1,7 +1,7 @@
 const $ = (selector) => document.querySelector(selector)
 const deviceScope = (() => { const key='eface-device-scope-v1'; let value=localStorage.getItem(key); if(!/^[A-Za-z0-9_-]{16,64}$/.test(value||'')){value=(crypto.randomUUID?.()||`${Date.now()}-${Math.random()}`).replaceAll('-','');localStorage.setItem(key,value)} return value })()
 const deviceFetchOptions = (options={}) => ({...options,headers:{...(options.headers||{}),'X-Eface-Device':deviceScope}})
-document.head.insertAdjacentHTML('beforeend', '<link rel="stylesheet" href="assets/media-x4.css?v=2.21.141">')
+document.head.insertAdjacentHTML('beforeend', '<link rel="stylesheet" href="assets/media-x4.css?v=2.21.142">')
 const glyph = { light: '✦', climate: '❄', shield: '⬡', energy: 'ϟ', cover: '▤', sensor: '◌' }
 let refreshRunning = false
 let refreshQueued = false
@@ -1150,7 +1150,10 @@ function renderHomeMediaSessions() {
     const masterVolume = members.length > 1 && levels.length ? Math.max(...levels) : zoneVolume
     const zoneSlider = player.capabilities?.set_volume ? `<label class="home-live-volume zone"><span class="mdi-mask" style="${mdiStyle('mdi:volume-high','volume-high')}" title="Volume ${esc(player.room||player.name)}"></span><input type="range" min="0" max="100" value="${zoneVolume}" style="--volume:${zoneVolume}%" data-home-zone-volume="${esc(player.id)}" aria-label="Volume ${esc(player.room||player.name)}"><output>${zoneVolume}%</output></label>` : ''
     const masterSlider = members.length>1 ? `<label class="home-live-volume master"><span class="mdi-mask" style="${mdiStyle('mdi:home-group','home-group')}" title="Volume sessione"></span><input type="range" min="0" max="100" value="${masterVolume}" style="--volume:${masterVolume}%" data-session-volume="${esc(player.id)}" aria-label="Volume generale sessione"><output>${masterVolume}%</output></label>` : ''
-    return `<article class="home-live-session ${video ? 'video' : 'audio'}" data-home-session="${esc(player.id)}">${artwork}<button type="button" class="home-live-open"><span class="home-live-info"><small>${video ? 'VIDEO' : 'AUDIO'} IN RIPRODUZIONE</small><strong>${esc(player.title || player.source || player.name)}</strong><span>${esc([player.artist || player.source, rooms].filter(Boolean).join(' · '))}</span></span></button><div class="home-live-controls">${zoneSlider}${masterSlider}</div><i class="home-live-eq" aria-hidden="true"><b></b><b></b><b></b><b></b><b></b><b></b><b></b><b></b></i></article>`
+    const action=(operation,icon,label,enabled)=>enabled?`<button type="button" data-home-media-action="${operation}" aria-label="${label}" title="${label}"><span class="mdi-mask" style="${mdiStyle(`mdi:${icon}`,icon)}"></span></button>`:''
+    const channel=(command,label)=>video&&sourceId?`<button type="button" class="home-live-channel" data-home-video-channel="${command}" aria-label="${label}" title="${label}"><b>${command==='channel_up'?'CH+':'CH−'}</b></button>`:''
+    const transport=`<div class="home-live-transport">${channel('channel_down','Canale precedente')}${action('media_previous','skip-previous','Precedente',player.capabilities?.previous)}${String(player.state).toLowerCase()==='playing'?action('media_pause','pause','Pausa',player.capabilities?.pause):action('media_play','play','Riproduci',player.capabilities?.play)}${action('media_next','skip-next','Successivo',player.capabilities?.next)}${action('media_stop','stop','Stop',player.capabilities?.stop)}${channel('channel_up','Canale successivo')}</div>`
+    return `<article class="home-live-session ${video ? 'video' : 'audio'}" data-home-session="${esc(player.id)}">${artwork}<button type="button" class="home-live-open"><span class="home-live-info"><small>${video ? 'VIDEO' : 'AUDIO'} IN RIPRODUZIONE</small><strong>${esc(player.title || player.source || player.name)}</strong><span>${esc([player.artist || player.source, rooms].filter(Boolean).join(' · '))}</span></span></button><div class="home-live-controls">${zoneSlider}${masterSlider}${transport}</div><i class="home-live-eq" aria-hidden="true"><b></b><b></b><b></b><b></b><b></b><b></b><b></b><b></b></i></article>`
   }).join('')
 }
 
@@ -1277,8 +1280,9 @@ function deviceActions(device, options = {}) {
     const caps = device.capabilities || {}
     const disabled = device.connection_status === 'offline' || device.availability !== 'available'
     const button = (operation, icon, label, enabled = false, className = '') => enabled ? `<button class="${className}" data-media-action="${operation}" aria-label="${label}" ${disabled ? 'disabled' : ''}><span class="mdi-mask" style="${mdiStyle(`mdi:${icon}`, icon)}"></span></button>` : ''
+    const channelButton = (command, label) => device.active_experience === 'watch' && device.active_source_id ? `<button class="media-channel-button" data-media-video-channel="${command}" aria-label="${label}" title="${label}" ${disabled ? 'disabled' : ''}><b>${command==='channel_up'?'CH+':'CH−'}</b></button>` : ''
     const wiimButton = (action, icon, label) => `<button data-wiim-action="${action}" aria-label="${label}"><span class="mdi-mask" style="${mdiStyle(`mdi:${icon}`, icon)}"></span></button>`
-    const controls = [button('video_remote_menu', 'remote-tv', 'Telecomando video', device.active_experience === 'watch' && device.active_source_id), options.wiim ? wiimButton('shuffle', 'shuffle-variant', 'Riproduzione casuale WiiM') : button('media_shuffle', 'shuffle-variant', 'Riproduzione casuale', caps.shuffle), button('media_previous', 'skip-previous', 'Precedente', caps.previous), String(device.state).toLowerCase() === 'playing' ? button('media_pause', 'pause', 'Pausa', caps.pause, 'primary') : button('media_play', 'play', 'Riproduci', caps.play, 'primary'), button('media_next', 'skip-next', 'Successivo', caps.next), options.wiim ? wiimButton('repeat', 'repeat', 'Ripetizione WiiM') : button('media_repeat', 'repeat', 'Ripeti', caps.repeat), options.wiim ? wiimButton('eq', 'tune-vertical', 'Equalizzatore WiiM') : '', button('media_stop', 'stop', 'Stop', caps.stop && currentMediaExperience !== 'listen'), button('turn_off', 'power', 'Spegni stanza', caps.turn_off && !options.hidePower), button('media_zones', 'plus-box-outline', 'Aggiungi stanze', caps.grouping), options.nowPlayingFavorite ? `<button type="button" class="media-now-playing-favorite" data-now-playing-favorite aria-label="Aggiungi ai Preferiti e-Face" aria-pressed="false" title="Aggiungi ai Preferiti e-Face">★</button>` : ''].join('')
+    const controls = [button('video_remote_menu', 'remote-tv', 'Telecomando video', device.active_experience === 'watch' && device.active_source_id), channelButton('channel_down','Canale precedente'), options.wiim ? wiimButton('shuffle', 'shuffle-variant', 'Riproduzione casuale WiiM') : button('media_shuffle', 'shuffle-variant', 'Riproduzione casuale', caps.shuffle), button('media_previous', 'skip-previous', 'Precedente', caps.previous), String(device.state).toLowerCase() === 'playing' ? button('media_pause', 'pause', 'Pausa', caps.pause, 'primary') : button('media_play', 'play', 'Riproduci', caps.play, 'primary'), button('media_next', 'skip-next', 'Successivo', caps.next), options.wiim ? wiimButton('repeat', 'repeat', 'Ripetizione WiiM') : button('media_repeat', 'repeat', 'Ripeti', caps.repeat), options.wiim ? wiimButton('eq', 'tune-vertical', 'Equalizzatore WiiM') : '', button('media_stop', 'stop', 'Stop', caps.stop && currentMediaExperience !== 'listen'), channelButton('channel_up','Canale successivo'), button('turn_off', 'power', 'Spegni stanza', caps.turn_off && !options.hidePower), button('media_zones', 'plus-box-outline', 'Aggiungi stanze', caps.grouping), options.nowPlayingFavorite ? `<button type="button" class="media-now-playing-favorite" data-now-playing-favorite aria-label="Aggiungi ai Preferiti e-Face" aria-pressed="false" title="Aggiungi ai Preferiti e-Face">★</button>` : ''].join('')
     const mute = caps.mute ? button(device.muted ? 'volume_unmute' : 'volume_mute', device.muted ? 'volume-off' : 'volume-high', device.muted ? 'Riattiva audio' : 'Disattiva audio', true, 'media-volume-mute') : '<span></span>'
     const mediaVolume = Number(device.volume) || 0
     const volume = caps.set_volume ? `<label class="media-volume">${mute}<input type="range" min="0" max="100" step="1" value="${mediaVolume}" style="--volume:${mediaVolume}%" data-media-volume ${disabled ? 'disabled' : ''}><output>${mediaVolume}%</output></label>` : ''
@@ -1506,6 +1510,15 @@ async function sendVideoRemote(action, button) {
   try {
     if (action === 'off') await postDeviceCommand(activeVideoRemote.device.id, 'turn_off')
     else await postDeviceCommand(activeVideoRemote.device.id, 'video_remote', { source_id: activeVideoRemote.source.source_id, command: action })
+  } catch (error) { fail(error) }
+  finally { button.disabled = false }
+}
+
+async function sendVideoChannel(device, command, button) {
+  if (!device?.active_source_id || !['channel_up','channel_down'].includes(command)) return
+  button.disabled = true
+  try {
+    await postDeviceCommand(device.id, 'video_remote', { source_id: Number(device.active_source_id), command })
   } catch (error) { fail(error) }
   finally { button.disabled = false }
 }
@@ -2194,9 +2207,14 @@ $('#rooms').addEventListener('click', (event) => {
 })
 $('#home-live-media-list').addEventListener('click', (event) => {
   const card = event.target.closest('[data-home-session]')
-  if (!card || event.target.closest('.home-live-controls')) return
+  if (!card) return
   const player = currentDevices.find((item) => String(item.id) === card.dataset.homeSession)
   if (!player) return
+  const mediaAction=event.target.closest('[data-home-media-action]')
+  if(mediaAction)return sendDeviceCommand(player.id,mediaAction.dataset.homeMediaAction,mediaAction)
+  const videoChannel=event.target.closest('[data-home-video-channel]')
+  if(videoChannel)return sendVideoChannel(player,videoChannel.dataset.homeVideoChannel,videoChannel)
+  if(event.target.closest('.home-live-controls'))return
   if (event.target.closest('.home-live-art')) return openMediaRoomControl(player)
   player.active_experience === 'watch' ? openVideoRemote(player) : openMediaZones(player)
 })
@@ -2524,6 +2542,8 @@ $('#device-list').addEventListener('click', (event) => {
   if (climateModeButton && climateCard) return sendDeviceCommand(climateCard.dataset.deviceId, 'set_mode', climateModeButton, climateModeButton.dataset.climateMode)
   const mediaButton = event.target.closest('[data-media-action]')
   const mediaCard = event.target.closest('[data-device-id]')
+  const mediaVideoChannel = event.target.closest('[data-media-video-channel]')
+  if (mediaVideoChannel && mediaCard) return sendVideoChannel(currentDevices.find((item) => String(item.id) === mediaCard.dataset.deviceId), mediaVideoChannel.dataset.mediaVideoChannel, mediaVideoChannel)
   if (mediaButton?.dataset.mediaAction === 'media_zones' && mediaCard) return openMediaZones(currentDevices.find((item) => String(item.id) === mediaCard.dataset.deviceId))
   if (mediaButton?.dataset.mediaAction === 'video_remote_menu' && mediaCard) return openVideoRemote(currentDevices.find((item) => String(item.id) === mediaCard.dataset.deviceId))
   if (mediaButton && mediaCard) return sendDeviceCommand(mediaCard.dataset.deviceId, mediaButton.dataset.mediaAction, mediaButton)
