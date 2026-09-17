@@ -1,5 +1,9 @@
 # Changelog
 
+## 2.21.137 — 2026-09-17
+
+- Ripristinati i livelli verticali dell'equalizzatore sui browser che non supportano gli slider verticali nativi, mantenendo il popup senza overflow.
+
 ## 2.21.136 — 2026-09-17
 
 - Corretto l'overflow dell'equalizzatore WiiM: tutte le dieci bande restano dentro il popup senza barra orizzontale.
