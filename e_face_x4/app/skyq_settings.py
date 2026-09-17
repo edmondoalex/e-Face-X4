@@ -41,7 +41,14 @@ def save(raw: Any) -> dict[str, Any]:
     services = raw.get("services", [])
     if not isinstance(services, list):
         raise ValueError("Servizi Sky Q non validi")
-    allowed = set(DEFAULT_SERVICES)
+    selected_services = []
+    seen_services = set()
+    for item in services[:64]:
+        title = str(item or "").strip()[:100]
+        key = title.casefold()
+        if title and key not in seen_services:
+            selected_services.append(title)
+            seen_services.add(key)
     value = {
         "enabled": enabled,
         "host": host,
@@ -49,7 +56,7 @@ def save(raw: Any) -> dict[str, Any]:
         "control4_room_id": max(0, int(raw.get("control4_room_id") or 0)),
         "control4_source_id": max(0, int(raw.get("control4_source_id") or 0)),
         "command_provider": "native",
-        "services": [item for item in DEFAULT_SERVICES if item in services and item in allowed],
+        "services": selected_services,
     }
     path = _path()
     path.parent.mkdir(parents=True, exist_ok=True)

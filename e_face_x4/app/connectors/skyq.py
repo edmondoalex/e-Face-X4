@@ -111,6 +111,8 @@ def overlay_control4(providers: list[dict], data: dict[str, Any], config: dict[s
     room_id = int(config.get("control4_room_id") or 0)
     source_id = int(config.get("control4_source_id") or 0)
     linked = False
+    selected_apps = {str(title).strip().casefold() for title in config.get("services", []) if str(title).strip()}
+    visible_apps = [app for app in data.get("apps", []) if _text(app.get("title")).casefold() in selected_apps]
     for provider in providers:
         if provider.get("id") != "control4":
             continue
@@ -128,7 +130,7 @@ def overlay_control4(providers: list[dict], data: dict[str, Any], config: dict[s
             item.update({
                 "metadata_provider": "skyq", "skyq": True, "skyq_app": data.get("app"),
                 "skyq_app_id": data.get("app_id"), "channel": data.get("channel"),
-                "skyq_services": list(config.get("services") or []), "skyq_apps": list(data.get("apps") or []),
+                "skyq_services": list(config.get("services") or []), "skyq_apps": visible_apps,
                 "channel_number": data.get("channel_number"), "description": data.get("description"),
                 "season": data.get("season"), "episode": data.get("episode"),
                 "title": data.get("title") or item.get("title"), "artist": data.get("channel") or data.get("app"),

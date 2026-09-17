@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.21.151 — 2026-09-17
+
+- Admin Sky Q: mostra sotto la configurazione l'elenco completo delle app rilevate direttamente dal decoder, con icone originali e selezione singola, tutte o nessuna.
+- La selezione salvata determina realmente quali app Sky Q vengono esposte nell'interfaccia Guarda.
+
 ## 2.21.150 — 2026-09-17
 
 - Le app Sky Q vengono ora scoperte direttamente dal decoder invece di usare una lista manuale.
