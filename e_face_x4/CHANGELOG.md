@@ -1,5 +1,9 @@
 # Changelog
 
+## 2.21.167 — 2026-09-18
+
+- Aggiungendo una videocamera, Strumenti porta ora alla nuova riga e seleziona il suo nome senza tornare alla prima telecamera.
+
 ## 2.21.166 — 2026-09-18
 
 - Le miniature delle videocamere nella pagina Sicurezza si aggiornano ogni 8 secondi.
