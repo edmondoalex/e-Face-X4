@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.21.169 — 2026-09-18
+
+- Ogni videocamera può usare modalità Fotogrammi oppure Video live + audio.
+- Il video live usa lo stream HLS di Home Assistant, mantiene l'intera inquadratura e mostra i controlli multimediali.
+
 ## 2.21.168 — 2026-09-18
 
 - L'anteprima videocamera aperta usa fotogrammi blob distinti per forzare il ridisegno nei browser mobili e nelle WebView.

@@ -9,3 +9,4 @@
 .user-save{width:100%;min-height:48px;border:0;border-radius:9px;color:#06252a;background:var(--cyan);font-weight:800}
 .glow-option{display:flex;align-items:center;justify-content:space-between;gap:14px;margin-top:18px;padding:17px;border:0;border-radius:10px;background:var(--user-card)}
 .glow-option input{width:25px;height:25px;flex:none;accent-color:var(--cyan)}
+.security-camera-admin{grid-template-columns:112px minmax(130px,.6fr) minmax(210px,1.15fr) minmax(140px,.55fr) 132px 42px}.security-camera-admin select{width:100%;min-height:42px;padding:8px;border:1px solid var(--line);border-radius:8px;color:#fff;background:#102c31}
