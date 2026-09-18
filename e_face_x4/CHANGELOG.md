@@ -1,5 +1,9 @@
 # Changelog
 
+## 2.21.182 — 2026-09-18
+
+- Uniformati accessi e portoni in Sicurezza e Scorciatoie: LOCKED/CLOSED sono verdi, UNLOCKED/OPEN sono rossi.
+
 ## 2.21.181 — 2026-09-18
 
 - I pulsanti delle Scorciatoie intercettano direttamente il rilascio touch nelle app mobili, evitando sia i tap persi sia i doppi comandi.

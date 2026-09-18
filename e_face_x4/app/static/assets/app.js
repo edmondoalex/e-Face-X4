@@ -600,10 +600,7 @@ function renderSecurityDevices(devices) {
   }).join('')
   const lockCards = locks.map((device) => {
     const state = String(device.state || '').trim().toUpperCase()
-    const relaySwitch = device.entity_domain === 'switch'
-    const stateClass = relaySwitch
-      ? (['OFF','0','FALSE'].includes(state) ? 'relay-open' : ['ON','1','TRUE'].includes(state) ? 'relay-closed' : 'unknown')
-      : (['LOCKED','CLOSED','OFF','0'].includes(state) ? 'locked' : ['UNLOCKED','UNLOCKING','LOCKING','OPEN','OPENING','CLOSING','ON','1'].includes(state) ? 'unlocked' : 'unknown')
+    const stateClass = ['LOCKED','CLOSED','OFF','0','FALSE'].includes(state) ? 'locked' : ['UNLOCKED','UNLOCKING','LOCKING','OPEN','OPENING','CLOSING','ON','1','TRUE'].includes(state) ? 'unlocked' : 'unknown'
     const rawBattery = device.battery_percent ?? device.battery_percentage ?? device.battery_level ?? device.battery
     const battery = rawBattery !== null && rawBattery !== undefined && rawBattery !== '' && Number.isFinite(Number(rawBattery)) ? Math.max(0, Math.min(100, Math.round(Number(rawBattery)))) : null
     const batteryMarkup = battery === null ? '' : `<span class="security-lock-battery ${battery <= 20 ? 'low' : ''}" title="Batteria ${battery}%"><i class="mdi-mask" style="${mdiStyle(battery <= 20 ? 'mdi:battery-alert-variant-outline' : 'mdi:battery', 'battery')}"></i>${battery}%</span>`
@@ -1313,7 +1310,7 @@ function deviceVisualClass(device) {
   if (isLight) return active ? 'device-light-on' : ''
   if (device.kind === 'switch') return active ? 'device-switch-on' : 'device-switch-off'
   if (device.kind === 'cover') return ['OPEN', 'OPENING'].includes(state) || Number(device.position) > 0 ? 'device-cover-open' : 'device-cover-closed'
-  if (device.kind === 'lock' && device.entity_domain === 'switch') return active ? 'device-relay-closed' : 'device-relay-open'
+  if (device.kind === 'lock' && device.entity_domain === 'switch') return active ? 'device-lock-open' : 'device-lock-closed'
   if (device.kind === 'lock') return ['UNLOCKED', 'OPEN', 'OPENING'].includes(state) ? 'device-lock-open' : 'device-lock-closed'
   if (device.kind === 'climate') return device.read_only ? 'device-climate-off' : state === 'HEATING' ? 'device-climate-heat' : state === 'COOLING' ? 'device-climate-cool' : 'device-climate-off'
   if (device.kind === 'media_player') return state === 'PLAYING' ? 'device-media-playing' : ''
