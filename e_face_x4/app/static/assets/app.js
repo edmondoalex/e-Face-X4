@@ -1,7 +1,7 @@
 const $ = (selector) => document.querySelector(selector)
 const deviceScope = (() => { const key='eface-device-scope-v1'; let value=localStorage.getItem(key); if(!/^[A-Za-z0-9_-]{16,64}$/.test(value||'')){value=(crypto.randomUUID?.()||`${Date.now()}-${Math.random()}`).replaceAll('-','');localStorage.setItem(key,value)} return value })()
 const deviceFetchOptions = (options={}) => ({...options,headers:{...(options.headers||{}),'X-Eface-Device':deviceScope}})
-document.head.insertAdjacentHTML('beforeend', '<link rel="stylesheet" href="assets/media-x4.css?v=2.21.167">')
+document.head.insertAdjacentHTML('beforeend', '<link rel="stylesheet" href="assets/media-x4.css?v=2.21.168">')
 const glyph = { light: '✦', climate: '❄', shield: '⬡', energy: 'ϟ', cover: '▤', sensor: '◌' }
 let refreshRunning = false
 let refreshQueued = false
@@ -348,9 +348,12 @@ function refreshHomeEventImage(kind){const map={camera:['#home-camera-event',`ap
 function refreshHomeEventNow(kind){for(const delay of [0,500,1500])setTimeout(()=>refreshHomeEventImage(kind),delay)}
 const collapsedShortcutCategories = new Set()
 let homeEventRefreshTimer=null
-function stopHomeEventRefresh(){clearInterval(homeEventRefreshTimer);homeEventRefreshTimer=null}
+let homeEventRefreshBusy=false
+let homeEventObjectUrl=''
+function stopHomeEventRefresh(){clearInterval(homeEventRefreshTimer);homeEventRefreshTimer=null;homeEventRefreshBusy=false;if(homeEventObjectUrl){URL.revokeObjectURL(homeEventObjectUrl);homeEventObjectUrl=''}}
 function cameraRefreshUrl(source){const url=new URL(source,location.href);url.searchParams.set('v',Date.now());return url.href}
-function openHomeEventViewer(card){const image=card.querySelector('img');if(!image?.src||card.classList.contains('unavailable'))return;const dialog=$('#home-event-dialog');const viewer=$('#home-event-dialog-image');stopHomeEventRefresh();viewer.src=image.src;$('#home-event-dialog-source').textContent=card.querySelector('small')?.textContent||'IMMAGINE';$('#home-event-dialog-title').textContent=card.querySelector('strong')?.textContent||image.alt||'Evento';if(card.matches('[data-security-camera-entity]'))homeEventRefreshTimer=setInterval(()=>{viewer.src=cameraRefreshUrl(image.src)},1000);if(!dialog.open)dialog.showModal()}
+async function refreshOpenCamera(source){if(homeEventRefreshBusy)return;homeEventRefreshBusy=true;try{const response=await fetch(cameraRefreshUrl(source),{cache:'no-store'});if(!response.ok)throw new Error(`HTTP ${response.status}`);const nextUrl=URL.createObjectURL(await response.blob());const viewer=$('#home-event-dialog-image');const previous=homeEventObjectUrl;viewer.onload=()=>{if(previous)URL.revokeObjectURL(previous)};viewer.src=nextUrl;homeEventObjectUrl=nextUrl}catch(error){console.warn('Aggiornamento videocamera non disponibile',error)}finally{homeEventRefreshBusy=false}}
+function openHomeEventViewer(card){const image=card.querySelector('img');if(!image?.src||card.classList.contains('unavailable'))return;const dialog=$('#home-event-dialog');const viewer=$('#home-event-dialog-image');stopHomeEventRefresh();viewer.src=image.src;$('#home-event-dialog-source').textContent=card.querySelector('small')?.textContent||'IMMAGINE';$('#home-event-dialog-title').textContent=card.querySelector('strong')?.textContent||image.alt||'Evento';if(card.matches('[data-security-camera-entity]')){refreshOpenCamera(image.src);homeEventRefreshTimer=setInterval(()=>refreshOpenCamera(image.src),1000)}if(!dialog.open)dialog.showModal()}
 for(const selector of ['#home-camera-event','#home-doorbell-event','#home-motion-event'])$(selector)?.addEventListener('click',(event)=>openHomeEventViewer(event.currentTarget))
 $('#home-event-dialog-close')?.addEventListener('click',()=>$('#home-event-dialog').close())
 $('#home-event-dialog')?.addEventListener('close',stopHomeEventRefresh)

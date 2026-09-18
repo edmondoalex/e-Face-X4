@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.21.168 — 2026-09-18
+
+- L'anteprima videocamera aperta usa fotogrammi blob distinti per forzare il ridisegno nei browser mobili e nelle WebView.
+- Le richieste sovrapposte vengono evitate e le risorse temporanee vengono liberate alla chiusura.
+
 ## 2.21.167 — 2026-09-18
 
 - Aggiungendo una videocamera, Strumenti porta ora alla nuova riga e seleziona il suo nome senza tornare alla prima telecamera.
