@@ -2652,6 +2652,7 @@ $('#device-list').addEventListener('click', (event) => {
   }
   const securityCameraEntity = event.target.closest('[data-security-camera-entity]')
   if (securityCameraEntity) {
+    securityCameraEntity.classList.remove('unavailable')
     openHomeEventViewer(securityCameraEntity)
     return
   }

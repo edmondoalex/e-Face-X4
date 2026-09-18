@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.21.177 — 2026-09-18
+
+- Se uno snapshot NVR fallisce, l'anteprima usa automaticamente il fotogramma dell'entità video associata.
+- Il live resta apribile anche quando la miniatura non è disponibile.
+
 ## 2.21.176 — 2026-09-18
 
 - Il widget Ultima chiamata identifica i tre pulsanti DoorBird come Piano Terra, Primo Piano e Mansarda, salvando nome, ora e nuova immagine.

@@ -72,7 +72,7 @@ from .connectors.supervisor import discover_addon_url, discover_host_url
 from .media_realtime import SharedMediaRealtime
 from .demo import dashboard as demo_dashboard
 
-VERSION = os.environ.get("EFACE_VERSION", "2.21.176")
+VERSION = os.environ.get("EFACE_VERSION", "2.21.177")
 STATIC = Path(__file__).parent / "static"
 logging.basicConfig(level=logging.WARNING, format="%(asctime)s %(levelname)s [e-face-x4] %(message)s")
 _reconnect_warning_at: dict[str, float] = {}
@@ -2266,7 +2266,12 @@ def create_app() -> FastAPI:
         entity_id = str(entity or "").strip()
         if not re.fullmatch(r"camera\.[a-z0-9_]+", entity_id):
             raise HTTPException(status_code=400, detail="Inserisci un'entità camera.* valida")
-        response = await home_assistant_get(f"camera_proxy/{entity_id}")
+        try:
+            response = await home_assistant_get(f"camera_proxy/{entity_id}")
+        except HTTPException:
+            fallback = str((camera or {}).get("video_url") or "")
+            if fallback == entity_id or not re.fullmatch(r"camera\.[a-z0-9_]+", fallback): raise
+            response = await home_assistant_get(f"camera_proxy/{fallback}")
         media_type = artwork_media_type(response.headers.get("content-type", ""), response.content)
         if not media_type or len(response.content) > 5_000_000:
             raise HTTPException(status_code=415, detail="Immagine videocamera non valida")
@@ -2567,7 +2572,7 @@ def create_app() -> FastAPI:
         page = page.replace("app.css?v=2.21.84", "app.css?v=2.21.174")
         page = page.replace("home-status.css?v=2.20.20", "home-status.css?v=2.21.174")
         page = page.replace("tools.js?v=2.21.1", "tools.js?v=2.21.174")
-        page = page.replace("tools-user.css?v=2.21.163", "tools-user.css?v=2.21.176")
+        page = page.replace("tools-user.css?v=2.21.163", "tools-user.css?v=2.21.177")
         page = page.replace("media-remote-colors.css?v=2.20.20", "media-remote-colors.css?v=2.21.148")
         page = page.replace("ui-theme-contract.css?v=2.21.27", "ui-theme-contract.css?v=2.21.29")
         page = page.replace("tools-dashboard.js?v=2.21.27", "tools-dashboard.js?v=2.21.33")
