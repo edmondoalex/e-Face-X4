@@ -1,5 +1,9 @@
 # Changelog
 
+## 2.21.178 — 2026-09-18
+
+- La posizione configurata di un dispositivo resta invariata, ma stato e comandi seguono il dominio Home Assistant originale; un cancello mostrato tra i lock usa realmente i servizi della propria entità switch.
+
 ## 2.21.177 — 2026-09-18
 
 - Se uno snapshot NVR fallisce, l'anteprima usa automaticamente il fotogramma dell'entità video associata.

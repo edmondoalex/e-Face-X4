@@ -43,6 +43,8 @@ def normalize_snapshot(payload: dict[str, Any]) -> dict[str, Any]:
         raw_kind = str(raw.get("type") or raw.get("domain") or "light").strip().lower()
         category = str(raw.get("category") or raw.get("page") or "").strip()
         entity_domain = str(raw.get("entity_id") or "").split(".", 1)[0].lower()
+        # Keep the configured presentation/group, while retaining the real HA
+        # domain below for state and command routing.
         kind = "cover" if raw_kind == "lock" and entity_domain == "cover" else ("switch" if category.casefold() == "switch" else raw_kind)
         room = str(raw.get("group") or "Senza stanza").strip() or "Senza stanza"
         name = str(raw.get("name") or raw.get("entity_id") or f"Dispositivo {index + 1}").strip()
@@ -95,7 +97,7 @@ def normalize_snapshot(payload: dict[str, Any]) -> dict[str, Any]:
         normalized.append({
             "id": device_id, "name": name, "kind": kind, "room": room_entry["name"], "state": state,
             "unit": unit, "position": position, "icon": str(raw.get("icon") or "").strip(),
-            "category": category,
+            "category": category, "entity_domain": entity_domain,
             "state_key": entity_id or address,
             "dimmable": bool(raw.get("dimmable")), "brightness": brightness,
             "battery_percent": battery if kind == "lock" else None,
@@ -193,7 +195,9 @@ class BusproConnector(Connector):
             entity_id = str(raw.get("entity_id") or "").strip().lower()
             if entity_id:
                 domain = entity_id.split(".", 1)[0]
-                if domain in {"light", "switch"} and action in {"on", "off", "brightness"}:
+                if domain == "switch" and kind == "lock" and action in {"lock", "unlock", "open"}:
+                    path, body = f"/api/control/ha/switch/{entity_id}", {"state": "OFF" if action == "lock" else "ON"}
+                elif domain in {"light", "switch"} and action in {"on", "off", "brightness"}:
                     body = {"state": "ON" if action == "brightness" else action.upper()}
                     if action == "brightness" and domain == "light":
                         body["brightness"] = brightness_value
