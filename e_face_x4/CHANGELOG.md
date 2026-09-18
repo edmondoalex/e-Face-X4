@@ -1,5 +1,9 @@
 # Changelog
 
+## 2.21.185 — 2026-09-18
+
+- Ambienti, Sicurezza e Scorciatoie aprono il relativo editor completo con un solo tocco sul ramo, senza il passaggio intermedio APRI CONFIGURAZIONE.
+
 ## 2.21.184 — 2026-09-18
 
 - I rami Ambienti, Sicurezza e Scorciatoie aprono correttamente i rispettivi editor.

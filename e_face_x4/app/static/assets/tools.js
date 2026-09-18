@@ -341,7 +341,9 @@ async function loadRoomOrder() {
   orderedRooms = names.sort((a, b) => (ranks.get(a.toLocaleLowerCase('it')) ?? Number.MAX_SAFE_INTEGER) - (ranks.get(b.toLocaleLowerCase('it')) ?? Number.MAX_SAFE_INTEGER) || a.localeCompare(b, 'it'))
   renderRoomOrder()
 }
-$('#room-order-tool').addEventListener('click', async () => { try { await loadRoomOrder(); $('#room-order-config').hidden = false } catch (error) { notice(error.message) } })
+async function openRoomOrderEditor(){try{await loadRoomOrder();$('#room-order-config').hidden=false}catch(error){notice(error.message)}}
+window.efaceOpenRoomOrder=openRoomOrderEditor
+$('#room-order-tool').addEventListener('click',openRoomOrderEditor)
 $('#room-order-back').addEventListener('click', () => { $('#room-order-config').hidden = true })
 let draggedRoom = null
 $('#room-order-list').addEventListener('pointerdown', (event) => { const handle = event.target.closest('.room-drag-handle'); if (!handle) return; draggedRoom = handle.closest('.room-order-row'); draggedRoom.classList.add('dragging'); handle.setPointerCapture(event.pointerId); event.preventDefault() })
@@ -363,7 +365,9 @@ function renderSecurityCameras() {
 }
 const securityStatus=(text,state='')=>{const el=$('#security-save-status');el.textContent=text;el.className=state}
 const markSecurityDirty=()=>securityStatus('Modifiche non salvate: premi SALVA E PROVA','dirty')
-$('#security-order-tool').addEventListener('click', async () => { try { const response = await fetch(apiUrl('../api/user/appearance'), {cache:'no-store'}); if (!response.ok) throw new Error(`HTTP ${response.status}`); const data=await response.json();orderedSecurity=data.security_order||Object.keys(securityLabels);securityCameras=data.security_cameras||[];renderSecurityOrder();renderSecurityCameras();securityStatus('Configurazione caricata');$('#security-order-config').hidden = false } catch (error) { notice(error.message) } })
+async function openSecurityOrderEditor(){try{const response=await fetch(apiUrl('../api/user/appearance'),{cache:'no-store'});if(!response.ok)throw new Error(`HTTP ${response.status}`);const data=await response.json();orderedSecurity=data.security_order||Object.keys(securityLabels);securityCameras=data.security_cameras||[];renderSecurityOrder();renderSecurityCameras();securityStatus('Configurazione caricata');$('#security-order-config').hidden=false}catch(error){notice(error.message)}}
+window.efaceOpenSecurityOrder=openSecurityOrderEditor
+$('#security-order-tool').addEventListener('click',openSecurityOrderEditor)
 $('#security-order-back').addEventListener('click', () => { $('#security-order-config').hidden = true })
 let draggedSecurity = null
 securityList.addEventListener('pointerdown', (event) => { const handle = event.target.closest('.room-drag-handle'); if (!handle) return; draggedSecurity = handle.closest('.room-order-row'); draggedSecurity.classList.add('dragging'); handle.setPointerCapture(event.pointerId); event.preventDefault() })
@@ -416,7 +420,9 @@ async function loadShortcutAdmin(){
   shortcutGroups=[...saved.map((group)=>({category:group.category,devices:[...group.devices]})),...Object.keys(shortcutLabels).filter((key)=>!byCategory.has(key)).map((category)=>({category,devices:[]}))]
   renderShortcutAdmin()
 }
-shortcutsCard.addEventListener('click',async()=>{try{await loadShortcutAdmin();shortcutsPanel.hidden=false}catch(error){notice(error.message)}})
+async function openShortcutEditor(){try{await loadShortcutAdmin();shortcutsPanel.hidden=false}catch(error){notice(error.message)}}
+window.efaceOpenShortcutOrder=openShortcutEditor
+shortcutsCard.addEventListener('click',openShortcutEditor)
 $('#shortcuts-back').addEventListener('click',()=>{shortcutsPanel.hidden=true})
 function syncShortcutGroups(){shortcutGroups=[...$('#shortcuts-order-list').querySelectorAll('[data-shortcut-category]')].map((section)=>({category:section.dataset.shortcutCategory,devices:[...section.querySelectorAll('[data-shortcut-device]')].filter((row)=>row.querySelector('input').checked).map((row)=>row.dataset.shortcutDevice)}))}
 $('#shortcuts-order-list').addEventListener('change',syncShortcutGroups)
