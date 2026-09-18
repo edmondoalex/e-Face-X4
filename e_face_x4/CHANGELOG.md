@@ -1,5 +1,9 @@
 # Changelog
 
+## 2.21.172 — 2026-09-18
+
+- Playlist, segmenti video e tracce audio HLS vengono ora inoltrati da e-Face, evitando percorsi errati su accesso locale, Ingress e remoto.
+
 ## 2.21.171 — 2026-09-18
 
 - Integrato localmente HLS.js per riprodurre il live delle videocamere anche nei browser privi di supporto HLS nativo.

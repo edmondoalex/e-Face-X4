@@ -72,7 +72,7 @@ from .connectors.supervisor import discover_addon_url, discover_host_url
 from .media_realtime import SharedMediaRealtime
 from .demo import dashboard as demo_dashboard
 
-VERSION = os.environ.get("EFACE_VERSION", "2.21.171")
+VERSION = os.environ.get("EFACE_VERSION", "2.21.172")
 STATIC = Path(__file__).parent / "static"
 logging.basicConfig(level=logging.WARNING, format="%(asctime)s %(levelname)s [e-face-x4] %(message)s")
 _reconnect_warning_at: dict[str, float] = {}
@@ -2235,7 +2235,28 @@ def create_app() -> FastAPI:
         entity_id = str((camera or {}).get("url") or "")
         if not camera or camera.get("mode") != "video" or not re.fullmatch(r"camera\.[a-z0-9_]+", entity_id):
             raise HTTPException(status_code=404, detail="Flusso videocamera non configurato")
-        return {"url": await home_assistant_camera_stream(entity_id)}
+        url = await home_assistant_camera_stream(entity_id)
+        return {"url": f"api/security/hls/{url.removeprefix('/api/hls/')}"}
+
+    @app.get("/api/security/hls/{resource_path:path}")
+    async def security_camera_hls(resource_path: str, request: Request) -> Response:
+        if not resource_path or ".." in resource_path.split("/"):
+            raise HTTPException(status_code=400, detail="Risorsa HLS non valida")
+        token = str(os.environ.get("SUPERVISOR_TOKEN") or "").strip()
+        if not token: raise HTTPException(status_code=503, detail="Home Assistant non disponibile")
+        headers = {"Authorization": f"Bearer {token}"}
+        if request.headers.get("range"): headers["Range"] = request.headers["range"]
+        try:
+            async with httpx.AsyncClient(timeout=20, follow_redirects=False) as client:
+                upstream = await client.get(f"http://supervisor/core/api/hls/{resource_path}", params=request.query_params, headers=headers)
+        except httpx.HTTPError as exc:
+            raise HTTPException(status_code=502, detail="Segmento HLS non disponibile") from exc
+        if upstream.status_code not in {200, 206}:
+            raise HTTPException(status_code=502, detail="Segmento HLS non disponibile")
+        response_headers = {"Cache-Control":"no-store, private", "X-Content-Type-Options":"nosniff"}
+        for key in ("accept-ranges", "content-range"):
+            if upstream.headers.get(key): response_headers[key.title()] = upstream.headers[key]
+        return Response(upstream.content, status_code=upstream.status_code, media_type=upstream.headers.get("content-type", "application/octet-stream"), headers=response_headers)
 
     @app.get("/api/user/security-camera-preview")
     async def user_security_camera_preview(entity: str) -> Response:
@@ -2512,10 +2533,10 @@ def create_app() -> FastAPI:
         page = page.replace('content="#263f48"', 'content="#181c1f"')
         page = page.replace("manifest.webmanifest?v=2.20.38", "manifest.webmanifest?v=2.21.59")
         page = page.replace("app.css?v=2.20.20", "app.css?v=2.21.73")
-        page = page.replace("app.css?v=2.21.84", "app.css?v=2.21.171")
-        page = page.replace("home-status.css?v=2.20.20", "home-status.css?v=2.21.171")
-        page = page.replace("tools.js?v=2.21.1", "tools.js?v=2.21.171")
-        page = page.replace("tools-user.css?v=2.21.163", "tools-user.css?v=2.21.171")
+        page = page.replace("app.css?v=2.21.84", "app.css?v=2.21.172")
+        page = page.replace("home-status.css?v=2.20.20", "home-status.css?v=2.21.172")
+        page = page.replace("tools.js?v=2.21.1", "tools.js?v=2.21.172")
+        page = page.replace("tools-user.css?v=2.21.163", "tools-user.css?v=2.21.172")
         page = page.replace("media-remote-colors.css?v=2.20.20", "media-remote-colors.css?v=2.21.148")
         page = page.replace("ui-theme-contract.css?v=2.21.27", "ui-theme-contract.css?v=2.21.29")
         page = page.replace("tools-dashboard.js?v=2.21.27", "tools-dashboard.js?v=2.21.33")
@@ -2524,8 +2545,8 @@ def create_app() -> FastAPI:
         page = page.replace("tools-dashboard.js?v=2.21.36", "tools-dashboard.js?v=2.21.38")
         page = page.replace("tools-dashboard.js?v=2.21.38", "tools-dashboard.js?v=2.21.41")
         page = page.replace("tools-dashboard.js?v=2.21.41", "tools-dashboard.js?v=2.21.42")
-        page = page.replace("tools-dashboard.js?v=2.21.42", "tools-dashboard.js?v=2.21.171")
-        page = page.replace("tools-dashboard.css?v=2.20.36", "tools-dashboard.css?v=2.21.171")
+        page = page.replace("tools-dashboard.js?v=2.21.42", "tools-dashboard.js?v=2.21.172")
+        page = page.replace("tools-dashboard.css?v=2.20.36", "tools-dashboard.css?v=2.21.172")
         page = page.replace("backgrounds.css?v=2.20.20", "backgrounds.css?v=2.21.43")
         page = page.replace("intercom.css?v=2.21.14", "intercom.css?v=2.21.46")
         page = page.replace("app.js?v=2.21.11", "app.js?v=2.21.29")
