@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.21.183 — 2026-09-18
+
+- Unite Sfondo e Colore card in una sola scheda di aspetto.
+- Aggiunta la scheda ORDINA con struttura ad albero collassabile per ambienti, sicurezza, dispositivi, scorciatoie, Extra, Comfort, Luci, Scenari e Intercom.
+- Ogni dispositivo dispone di visibilità UI persistente e assegnazione multipla alle categorie; le scelte vengono applicate alla UI principale.
+
 ## 2.21.182 — 2026-09-18
 
 - Uniformati accessi e portoni in Sicurezza e Scorciatoie: LOCKED/CLOSED sono verdi, UNLOCKED/OPEN sono rossi.

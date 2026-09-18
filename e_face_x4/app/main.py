@@ -61,7 +61,7 @@ from . import skyq_icons
 from .connectors.soundcloud import SoundCloudClient
 from .media_preferences import apply_preferences, load_preferences, save_preferences
 from .source_icons import delete_source_icon, hidden_source_ids, load_builtin_source_icon, load_builtin_source_icon_by_id, load_source_icon, save_source_icon, set_source_hidden
-from .backgrounds import CARD_THEMES, PRESETS, load_background, load_background_image, load_backgrounds, load_card_theme, load_card_glow, load_room_order, load_security_order, load_security_cameras, load_shortcuts, load_home_widgets, load_home_camera_entity, load_home_weather_location, save_background_image, save_card_theme, save_card_glow, save_room_order, save_security_order, save_security_cameras, save_shortcuts, save_home_widgets, save_home_camera_entity, save_home_weather_location, save_inherit, save_preset
+from .backgrounds import CARD_THEMES, PRESETS, load_background, load_background_image, load_backgrounds, load_card_theme, load_card_glow, load_room_order, load_security_order, load_security_cameras, load_shortcuts, load_device_organization, load_home_widgets, load_home_camera_entity, load_home_weather_location, save_background_image, save_card_theme, save_card_glow, save_room_order, save_security_order, save_security_cameras, save_shortcuts, save_device_organization, save_home_widgets, save_home_camera_entity, save_home_weather_location, save_inherit, save_preset
 from .connectors import BusproConnector, Control4MediaConnector, EThermConnector, EkonexMediaConnector, EvoiceLocalMediaConnector, KseniaConnector
 from .connectors.ksenia import normalize_ksenia
 from .connectors.local_media import LocalMediaConnector
@@ -72,7 +72,7 @@ from .connectors.supervisor import discover_addon_url, discover_host_url
 from .media_realtime import SharedMediaRealtime
 from .demo import dashboard as demo_dashboard
 
-VERSION = os.environ.get("EFACE_VERSION", "2.21.182")
+VERSION = os.environ.get("EFACE_VERSION", "2.21.183")
 STATIC = Path(__file__).parent / "static"
 logging.basicConfig(level=logging.WARNING, format="%(asctime)s %(levelname)s [e-face-x4] %(message)s")
 _reconnect_warning_at: dict[str, float] = {}
@@ -2571,8 +2571,8 @@ def create_app() -> FastAPI:
         page = page.replace("app.css?v=2.20.20", "app.css?v=2.21.73")
         page = page.replace("app.css?v=2.21.84", "app.css?v=2.21.174")
         page = page.replace("home-status.css?v=2.20.20", "home-status.css?v=2.21.174")
-        page = page.replace("tools.js?v=2.21.1", "tools.js?v=2.21.174")
-        page = page.replace("tools-user.css?v=2.21.163", "tools-user.css?v=2.21.182")
+        page = re.sub(r"tools\.js\?v=[0-9.]+", f"tools.js?v={VERSION}", page)
+        page = page.replace("tools-user.css?v=2.21.163", "tools-user.css?v=2.21.183")
         page = page.replace("media-remote-colors.css?v=2.20.20", "media-remote-colors.css?v=2.21.148")
         page = page.replace("ui-theme-contract.css?v=2.21.27", "ui-theme-contract.css?v=2.21.29")
         page = page.replace("tools-dashboard.js?v=2.21.27", "tools-dashboard.js?v=2.21.33")
@@ -2794,7 +2794,7 @@ def create_app() -> FastAPI:
         return {
             "version": VERSION,
             "backgrounds": load_backgrounds(),
-            "appearance": {"card_theme": load_card_theme(), "card_glow": load_card_glow(), "room_order": load_room_order(), "security_order": load_security_order(), "security_cameras": load_security_cameras(), "shortcuts": load_shortcuts(), "home_widgets": load_home_widgets(owner), "home_camera_entity": load_home_camera_entity(owner), "home_weather_location": load_home_weather_location(owner)},
+            "appearance": {"card_theme": load_card_theme(), "card_glow": load_card_glow(), "room_order": load_room_order(), "security_order": load_security_order(), "security_cameras": load_security_cameras(), "shortcuts": load_shortcuts(), "device_organization": load_device_organization(), "home_widgets": load_home_widgets(owner), "home_camera_entity": load_home_camera_entity(owner), "home_weather_location": load_home_weather_location(owner)},
             "nav_icons": settings.nav_icons,
             "mode": "demo" if settings.demo_mode else "live",
             "dashboard": dashboard,
@@ -2849,7 +2849,7 @@ def create_app() -> FastAPI:
     @app.get("/api/user/appearance")
     async def user_appearance(request: Request) -> dict:
         owner = appearance_owner(request)
-        return {"card_glow": load_card_glow(), "room_order": load_room_order(), "security_order": load_security_order(), "security_cameras": load_security_cameras(), "shortcuts": load_shortcuts(), "home_widgets": load_home_widgets(owner), "home_camera_entity": load_home_camera_entity(owner), "home_weather_location": load_home_weather_location(owner)}
+        return {"card_glow": load_card_glow(), "room_order": load_room_order(), "security_order": load_security_order(), "security_cameras": load_security_cameras(), "shortcuts": load_shortcuts(), "device_organization": load_device_organization(), "home_widgets": load_home_widgets(owner), "home_camera_entity": load_home_camera_entity(owner), "home_weather_location": load_home_weather_location(owner)}
 
     @app.put("/api/user/appearance")
     async def user_save_appearance(request: Request, payload: dict) -> dict:
@@ -2860,11 +2860,12 @@ def create_app() -> FastAPI:
             if "security_order" in payload: save_security_order(payload["security_order"])
             if "security_cameras" in payload: save_security_cameras(payload["security_cameras"])
             if "shortcuts" in payload: save_shortcuts(payload["shortcuts"])
+            if "device_organization" in payload: save_device_organization(payload["device_organization"])
             if "home_widgets" in payload: save_home_widgets(payload["home_widgets"], owner)
             if "home_camera_entity" in payload: save_home_camera_entity(payload["home_camera_entity"], owner)
             if "home_weather_location" in payload: save_home_weather_location(payload["home_weather_location"], owner)
         except ValueError as exc: raise HTTPException(status_code=400, detail=str(exc))
-        return {"card_glow": load_card_glow(), "room_order": load_room_order(), "security_order": load_security_order(), "security_cameras": load_security_cameras(), "shortcuts": load_shortcuts(), "home_widgets": load_home_widgets(owner), "home_camera_entity": load_home_camera_entity(owner), "home_weather_location": load_home_weather_location(owner)}
+        return {"card_glow": load_card_glow(), "room_order": load_room_order(), "security_order": load_security_order(), "security_cameras": load_security_cameras(), "shortcuts": load_shortcuts(), "device_organization": load_device_organization(), "home_widgets": load_home_widgets(owner), "home_camera_entity": load_home_camera_entity(owner), "home_weather_location": load_home_weather_location(owner)}
 
     @app.put("/api/user/card-theme")
     async def user_save_card_theme(payload: dict) -> dict:

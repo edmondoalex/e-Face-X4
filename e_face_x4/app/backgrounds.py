@@ -8,6 +8,7 @@ PRESETS = {"teal", "midnight", "graphite", "ocean", "warm"}
 CARD_THEMES = {"graphite", "petrol", "midnight", "slate", "warm"}
 SECURITY_ORDER = ["scenarios", "areas", "zones", "locks", "cameras"]
 SHORTCUT_CATEGORIES = ["lights", "switches", "covers", "climate", "security", "media", "sensors", "other"]
+DEVICE_ORGANIZATION_CATEGORIES = ["lights", "extra", "covers", "comfort", "security", "scenarios", "intercom", "media"]
 HOME_WIDGETS = ["overview", "weather", "camera_event", "doorbell", "motion", "states", "rooms", "live"]
 MIME_SUFFIX = {"image/png": ".png", "image/jpeg": ".jpg", "image/webp": ".webp"}
 
@@ -125,6 +126,27 @@ def save_shortcuts(groups: list[dict[str, object]]) -> None:
             device_ids.add(item); normalized.append(item)
         categories.add(group["category"]); clean.append({"category": group["category"], "devices": normalized})
     raw = _config(); raw["shortcuts"] = clean; _write(raw)
+
+def load_device_organization() -> dict[str, dict[str, object]]:
+    value = _config().get("device_organization")
+    if not isinstance(value, dict): return {}
+    result = {}
+    for device_id, item in list(value.items())[:2000]:
+        if not isinstance(device_id, str) or not device_id or len(device_id) > 200 or not isinstance(item, dict): continue
+        categories = item.get("categories")
+        clean_categories = [category for category in categories if category in DEVICE_ORGANIZATION_CATEGORIES] if isinstance(categories, list) else []
+        result[device_id] = {"visible": item.get("visible") is not False, "categories": list(dict.fromkeys(clean_categories))}
+    return result
+
+def save_device_organization(value: dict[str, dict[str, object]]) -> None:
+    if not isinstance(value, dict) or len(value) > 2000: raise ValueError("Organizzazione dispositivi non valida")
+    clean = {}
+    for device_id, item in value.items():
+        if not isinstance(device_id, str) or not device_id or len(device_id) > 200 or not isinstance(item, dict): raise ValueError("Dispositivo organizzato non valido")
+        categories = item.get("categories")
+        if not isinstance(categories, list) or any(category not in DEVICE_ORGANIZATION_CATEGORIES for category in categories): raise ValueError("Categoria dispositivo non valida")
+        clean[device_id] = {"visible": item.get("visible") is not False, "categories": list(dict.fromkeys(categories))}
+    raw = _config(); raw["device_organization"] = clean; _write(raw)
 
 def load_home_widgets(owner: str | None = None) -> list[dict[str, object]]:
     raw = _config(); users = raw.get("user_appearance") if isinstance(raw.get("user_appearance"), dict) else {}
