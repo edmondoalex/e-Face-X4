@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.21.165 — 2026-09-18
+
+- Corregge il salvataggio delle videocamere create da browser che fornivano un identificatore interno non valido.
+- Gli identificatori mancanti o non validi vengono riparati automaticamente senza perdere nome ed entità.
+
 ## 2.21.164 — 2026-09-18
 
 - Strumenti mostra l'anteprima delle entità `camera.*` prima del salvataggio.

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-import base64, binascii, hashlib, json, os, re
+import base64, binascii, hashlib, json, os, re, secrets
 from pathlib import Path
 from urllib.parse import urlsplit
 
@@ -78,8 +78,10 @@ def save_security_cameras(cameras: list[dict[str, str]]) -> None:
     for item in cameras:
         if not isinstance(item, dict): raise ValueError("Videocamera non valida")
         camera_id, name, url = str(item.get("id") or "").strip(), str(item.get("name") or "").strip(), str(item.get("url") or "").strip()
-        if not re.fullmatch(r"[A-Za-z0-9_-]{8,80}", camera_id) or camera_id in ids or not name or len(name) > 100 or not url or len(url) > 2000:
-            raise ValueError("Nome o link videocamera non valido")
+        if not name or len(name) > 100: raise ValueError("Nome videocamera non valido")
+        if not url or len(url) > 2000: raise ValueError("Link o entità videocamera non valido")
+        if not re.fullmatch(r"[A-Za-z0-9_-]{8,80}", camera_id) or camera_id in ids:
+            camera_id = secrets.token_hex(16)
         parsed = urlsplit(url)
         is_entity = bool(re.fullmatch(r"camera\.[a-z0-9_]+", url))
         if not (is_entity or (parsed.scheme in {"http", "https"} and parsed.netloc) or (not parsed.scheme and url.startswith("/") and not url.startswith("//"))):
