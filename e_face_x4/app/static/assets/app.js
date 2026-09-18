@@ -362,7 +362,20 @@ $('#home-event-dialog-close')?.addEventListener('click',()=>$('#home-event-dialo
 $('#home-event-dialog')?.addEventListener('close',stopHomeEventRefresh)
 $('#home-event-dialog')?.addEventListener('close',()=>{const video=$('#home-event-dialog-video');if(video){video.pause();video.removeAttribute('src');video.load()}})
 $('#home-event-dialog')?.addEventListener('click',(event)=>{if(event.target===$('#home-event-dialog'))$('#home-event-dialog').close()})
-setInterval(()=>document.querySelectorAll('[data-security-camera-entity] img').forEach(image=>{image.src=cameraRefreshUrl(image.src)}),8000)
+let securityCameraRefreshCursor=0
+function refreshNextSecurityCameraThumbnail(){
+  if(document.hidden||$('#home-event-dialog')?.open)return
+  const images=[...document.querySelectorAll('[data-security-camera-entity] img')].filter(image=>{const bounds=image.getBoundingClientRect();return bounds.bottom>0&&bounds.top<window.innerHeight})
+  if(!images.length)return
+  securityCameraRefreshCursor%=images.length
+  const image=images[securityCameraRefreshCursor++]
+  if(image.dataset.refreshing==='1')return
+  image.dataset.refreshing='1'
+  const done=()=>{delete image.dataset.refreshing;image.removeEventListener('load',done);image.removeEventListener('error',done)}
+  image.addEventListener('load',done);image.addEventListener('error',done)
+  image.src=cameraRefreshUrl(image.src)
+}
+setInterval(refreshNextSecurityCameraThumbnail,2500)
 $('#home-event-dialog')?.addEventListener('close',()=>{$('#home-event-dialog-image').removeAttribute('src')})
 function shortcutDevices(){const byId=new Map(currentDevices.map((device)=>[String(device.id),device]));return currentShortcuts.flatMap((group)=>(group.devices||[]).map((id)=>byId.get(String(id))).filter(Boolean))}
 function renderShortcutDevices(){
@@ -595,8 +608,8 @@ function renderSecurityDevices(devices) {
   }).join('')
   const scenarioCards = scenarios.map((device) => { const disarm = device.category === 'DISARM'; const partial = device.category === 'PARTIAL'; const active = String(device.id) === activeScenarioId; return `<button class="security-scenario ${disarm ? 'disarm' : partial ? 'partial' : 'arm'} ${active ? 'active' : ''}" data-security-scenario data-device-id="${esc(device.id)}" data-action="execute"><span class="mdi-mask" style="${mdiStyle(disarm ? 'mdi:shield-off-outline' : partial ? 'mdi:shield-half-full' : 'mdi:shield-lock-outline', 'shield-key-outline')}"></span><strong>${esc(device.name)}</strong></button>` }).join('')
   const cameraCards = currentSecurityCameras.map((camera) => {
-    const entity = /^camera\.[a-z0-9_]+$/.test(camera.url)
-    return entity ? `<button type="button" class="security-camera security-camera-preview" data-security-camera-entity="${esc(camera.url)}" data-camera-id="${esc(camera.id)}" data-camera-mode="${camera.mode==='video'?'video':'snapshot'}"><img src="${apiUrl(`api/security/cameras/${encodeURIComponent(camera.id)}/image?v=${Date.now()}`)}" alt="Anteprima ${esc(camera.name)}" onload="this.closest('.security-camera').classList.remove('unavailable')" onerror="this.closest('.security-camera').classList.add('unavailable')"><span><small>${camera.mode==='video'?'VIDEO LIVE':'E-CONTROL'}</small><strong>${esc(camera.name)}</strong></span></button>` : `<button type="button" class="security-camera" data-security-camera-url="${esc(camera.url)}"><span class="mdi-mask" style="${mdiStyle('mdi:cctv','cctv')}"></span><span><strong>${esc(camera.name)}</strong><small>APRI VIDEOCAMERA</small></span><i class="mdi-mask" style="${mdiStyle('mdi:open-in-new','open-in-new')}"></i></button>`
+    const entity = /^camera\.[a-z0-9_]+$/.test(camera.preview_url||camera.url)
+    return entity ? `<button type="button" class="security-camera security-camera-preview" data-security-camera-entity="${esc(camera.preview_url||camera.url)}" data-camera-id="${esc(camera.id)}" data-camera-mode="${camera.mode==='video'?'video':'snapshot'}"><img loading="lazy" decoding="async" src="${apiUrl(`api/security/cameras/${encodeURIComponent(camera.id)}/image?v=${Date.now()}`)}" alt="Anteprima ${esc(camera.name)}" onload="this.closest('.security-camera').classList.remove('unavailable')" onerror="this.closest('.security-camera').classList.add('unavailable')"><span><small>${camera.mode==='video'?'VIDEO LIVE':'E-CONTROL'}</small><strong>${esc(camera.name)}</strong></span></button>` : `<button type="button" class="security-camera" data-security-camera-url="${esc(camera.url)}"><span class="mdi-mask" style="${mdiStyle('mdi:cctv','cctv')}"></span><span><strong>${esc(camera.name)}</strong><small>APRI VIDEOCAMERA</small></span><i class="mdi-mask" style="${mdiStyle('mdi:open-in-new','open-in-new')}"></i></button>`
   }).join('')
   const section = (key, title, content, className) => `<section class="security-section security-collapsible"><button class="security-section-toggle" data-security-toggle="${key}" aria-expanded="${securitySections[key]}"><strong>${title}</strong><span class="mdi-mask" style="${mdiStyle(securitySections[key] ? 'mdi:chevron-up' : 'mdi:chevron-down', 'chevron-down')}"></span></button><div class="${className}" ${securitySections[key] ? '' : 'hidden'}>${content}</div></section>`
   const blocks = {

@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.21.173 — 2026-09-18
+
+- Le anteprime delle videocamere vengono aggiornate una alla volta e solo quando visibili, evitando di sovraccaricare Home Assistant e l'NVR.
+- Gli aggiornamenti delle miniature si fermano durante la visione live e le immagini fuori schermo usano il caricamento progressivo.
+- Separate per ogni telecamera l'entità snapshot dell'anteprima e l'entità RTSP/HLS del video live con audio.
+
 ## 2.21.172 — 2026-09-18
 
 - Playlist, segmenti video e tracce audio HLS vengono ora inoltrati da e-Face, evitando percorsi errati su accesso locale, Ingress e remoto.

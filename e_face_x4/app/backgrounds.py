@@ -70,7 +70,12 @@ def load_security_cameras() -> list[dict[str, str]]:
         if not isinstance(item, dict): continue
         camera_id, name, url = str(item.get("id") or "").strip(), str(item.get("name") or "").strip(), str(item.get("url") or "").strip()
         mode = "video" if item.get("mode") == "video" else "snapshot"
-        if camera_id and name and url: result.append({"id": camera_id[:80], "name": name[:100], "url": url[:2000], "mode": mode})
+        preview_url, video_url = str(item.get("preview_url") or "").strip(), str(item.get("video_url") or "").strip()
+        if camera_id and name and url:
+            camera = {"id": camera_id[:80], "name": name[:100], "url": url[:2000], "mode": mode}
+            if preview_url: camera["preview_url"] = preview_url[:2000]
+            if video_url: camera["video_url"] = video_url[:2000]
+            result.append(camera)
     return result
 
 def save_security_cameras(cameras: list[dict[str, str]]) -> None:
@@ -80,6 +85,7 @@ def save_security_cameras(cameras: list[dict[str, str]]) -> None:
         if not isinstance(item, dict): raise ValueError("Videocamera non valida")
         camera_id, name, url = str(item.get("id") or "").strip(), str(item.get("name") or "").strip(), str(item.get("url") or "").strip()
         mode = "video" if item.get("mode") == "video" else "snapshot"
+        preview_url, video_url = str(item.get("preview_url") or "").strip(), str(item.get("video_url") or "").strip()
         if not name or len(name) > 100: raise ValueError("Nome videocamera non valido")
         if not url or len(url) > 2000: raise ValueError("Link o entità videocamera non valido")
         if not re.fullmatch(r"[A-Za-z0-9_-]{8,80}", camera_id) or camera_id in ids:
@@ -88,7 +94,10 @@ def save_security_cameras(cameras: list[dict[str, str]]) -> None:
         is_entity = bool(re.fullmatch(r"camera\.[a-z0-9_]+", url))
         if not (is_entity or (parsed.scheme in {"http", "https"} and parsed.netloc) or (not parsed.scheme and url.startswith("/") and not url.startswith("//"))):
             raise ValueError("Inserisci un'entità camera.* oppure un link HTTP, HTTPS o locale")
-        ids.add(camera_id); clean.append({"id": camera_id, "name": name, "url": url, "mode": mode})
+        camera = {"id": camera_id, "name": name, "url": url, "mode": mode}
+        if preview_url: camera["preview_url"] = preview_url
+        if video_url: camera["video_url"] = video_url
+        ids.add(camera_id); clean.append(camera)
     raw = _config(); raw["security_cameras"] = clean; _write(raw)
 
 def load_shortcuts() -> list[dict[str, object]]:
