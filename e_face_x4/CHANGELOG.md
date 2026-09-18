@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.21.166 — 2026-09-18
+
+- Le miniature delle videocamere nella pagina Sicurezza si aggiornano ogni 8 secondi.
+- L'anteprima ingrandita aperta si aggiorna ogni secondo e interrompe le richieste alla chiusura.
+
 ## 2.21.165 — 2026-09-18
 
 - Corregge il salvataggio delle videocamere create da browser che fornivano un identificatore interno non valido.
