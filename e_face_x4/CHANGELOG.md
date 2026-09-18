@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.21.184 — 2026-09-18
+
+- I rami Ambienti, Sicurezza e Scorciatoie aprono correttamente i rispettivi editor.
+- Aggiunte maniglie di trascinamento e ordine persistente per dispositivi e categorie della UI.
+- Il ramo Intercom elenca postazioni esterne, tablet interni e dispositivi personali abilitati.
+
 ## 2.21.183 — 2026-09-18
 
 - Unite Sfondo e Colore card in una sola scheda di aspetto.

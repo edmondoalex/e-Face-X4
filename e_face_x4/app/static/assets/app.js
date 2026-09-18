@@ -65,6 +65,9 @@ function deviceInCategory(device, category) {
   const configured = currentDeviceOrganization[String(device.id)]?.categories
   return (configured?.length ? configured : [defaultDeviceCategory(device)]).includes(category)
 }
+function organizedDevices(category, devices) {
+  return [...devices].sort((a,b)=>(currentDeviceOrganization[String(a.id)]?.orders?.[category]??Number.MAX_SAFE_INTEGER)-(currentDeviceOrganization[String(b.id)]?.orders?.[category]??Number.MAX_SAFE_INTEGER)||String(a.name||'').localeCompare(String(b.name||''),'it'))
+}
 const mediaTransportOverrides = new Map()
 let mediaVolumeDragging = false
 let mediaVolumeCommands = 0
@@ -1917,7 +1920,7 @@ async function loadScenarios() {
   try {
     const response = await fetch(apiUrl('api/scenarios'), { cache: 'no-store' })
     if (!response.ok) throw new Error(`HTTP ${response.status}`)
-    currentScenarios = (await response.json()).items || []
+    currentScenarios = organizedDevices('scenarios',((await response.json()).items || []).filter((scenario)=>currentDeviceOrganization[String(scenario.id)]?.visible!==false))
     configureLightFilters(currentScenarios)
     renderScenarios()
   } catch (error) { fail(error) }
@@ -2271,13 +2274,13 @@ document.querySelectorAll('.rail button').forEach((button) => button.addEventLis
   if (button.dataset.view === 'watch') openDevices('Guarda', currentDevices.filter((device) => ['camera', 'doorbell'].includes(device.kind) || (device.kind === 'media_player' && device.experiences?.includes('watch'))), { av: true, experience: 'watch' })
   if (button.dataset.view === 'listen') openDevices('Ascolta', currentDevices.filter((device) => ['media_player', 'media'].includes(device.kind) && (device.experiences?.includes('listen') || device.tts_enabled)), { av: true, experience: 'listen' })
   if (button.dataset.view === 'intercom') openIntercom()
-  if (button.dataset.view === 'lights') openDevices('Luci', currentDevices.filter((device) => deviceInCategory(device, 'lights')), { lights: true, filters: true })
-  if (button.dataset.view === 'extra') openDevices('Extra', currentDevices.filter((device) => deviceInCategory(device, 'extra')), { filters: true })
+  if (button.dataset.view === 'lights') openDevices('Luci', organizedDevices('lights',currentDevices.filter((device) => deviceInCategory(device, 'lights'))), { lights: true, filters: true })
+  if (button.dataset.view === 'extra') openDevices('Extra', organizedDevices('extra',currentDevices.filter((device) => deviceInCategory(device, 'extra'))), { filters: true })
   if (button.dataset.view === 'scenarios') openScenariosPage()
-  if (button.dataset.view === 'covers') openDevices('Oscuranti', currentDevices.filter((device) => deviceInCategory(device, 'covers')), { filters: true })
-  if (button.dataset.view === 'comfort') openDevices('Comfort', currentDevices.filter((device) => deviceInCategory(device, 'comfort')), { filters: true })
+  if (button.dataset.view === 'covers') openDevices('Oscuranti', organizedDevices('covers',currentDevices.filter((device) => deviceInCategory(device, 'covers'))), { filters: true })
+  if (button.dataset.view === 'comfort') openDevices('Comfort', organizedDevices('comfort',currentDevices.filter((device) => deviceInCategory(device, 'comfort'))), { filters: true })
   if (button.dataset.view === 'energy') openEnergy()
-  if (button.dataset.view === 'security') openDevices('Sicurezza', currentDevices.filter((device) => deviceInCategory(device, 'security')))
+  if (button.dataset.view === 'security') openDevices('Sicurezza', organizedDevices('security',currentDevices.filter((device) => deviceInCategory(device, 'security'))))
 }))
 $('#widgets').addEventListener('click', (event) => {
   const button = event.target.closest('[data-kind]')

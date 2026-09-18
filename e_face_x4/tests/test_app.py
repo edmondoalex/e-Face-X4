@@ -56,7 +56,7 @@ def test_health() -> None:
     response = TestClient(create_app()).get("/health")
     assert response.status_code == 200
     assert response.json()["ok"] is True
-    assert response.json()["version"] == "2.21.183"
+    assert response.json()["version"] == "2.21.184"
 
 
 def test_installed_app_starts_at_dashboard() -> None:
@@ -95,7 +95,7 @@ def test_intercom_is_in_sidebar_with_embedded_view() -> None:
     client_script = (static / "assets" / "intercom.js").read_text(encoding="utf-8")
     intercom_page = (static / "intercom.html").read_text(encoding="utf-8")
     assert "Tablet Control4 · interno 8291" in intercom_page
-    assert "const currentVersion = '2.21.183'" in client_script
+    assert "const currentVersion = '2.21.184'" in client_script
     assert 'id="call-ufficio" data-dial-extension="8291" data-video-capable="true"' in intercom_page
     assert "Postazione esterna · interno 8201" in intercom_page
     assert "Postazione esterna · interno ${station.sip_extension}" in client_script
@@ -303,8 +303,8 @@ def test_intercom_dashboard_stores_only_local_settings(monkeypatch, tmp_path) ->
     assert 'id="logout"' in page
     assert page.index('id="logout"') < page.index('id="tools-user-section"')
     assert "tools-dashboard.js?v=2.21.174" in page
-    assert "tools.js?v=2.21.183" in page
-    assert "organization-tools.js?v=2.21.183" in page
+    assert "tools.js?v=2.21.184" in page
+    assert "organization-tools.js?v=2.21.184" in page
     tools_js = client.get("/assets/tools.js").text
     assert "document.querySelector('.tools-shell').append(shortcutsPanel)" in tools_js
     assert "data-shortcut-drag=\"category\"" in tools_js
@@ -314,7 +314,7 @@ def test_intercom_dashboard_stores_only_local_settings(monkeypatch, tmp_path) ->
     assert '<b>Accesi</b>' not in home
     assert 'id="light-on-filter"' in home
     assert "backgrounds.css?v=2.21.43" in home
-    assert "app.js?v=2.21.183" in home
+    assert "app.js?v=2.21.184" in home
     app_js = client.get("/assets/app.js").text
     assert "event.type === 'doorbird_event'" in app_js
     assert "event.type === 'home_camera_event'" in app_js
@@ -732,7 +732,7 @@ def test_tools_page_starts_with_selected_background_and_card_theme(monkeypatch, 
     login = client.get("/login").text
     assert '<body class="app-theme" data-background="midnight" data-card-theme="slate">' in home
     assert 'ui-theme-contract.css?v=2.21.29' in home
-    assert 'app.js?v=2.21.183' in home
+    assert 'app.js?v=2.21.184' in home
     assert 'energy.css?v=2.21.30' in home
     assert 'home-comfort.css?v=2.21.31' in home
     assert '<body class="login-theme" data-background="midnight" data-card-theme="slate">' in login
@@ -759,7 +759,7 @@ def test_user_appearance_persists_room_order_and_glow(monkeypatch, tmp_path) -> 
     assert client.put("/api/user/appearance", json={"security_order": [{}, "zones", "areas", "scenarios", "cameras"]}).status_code == 400
     assert client.put("/api/user/appearance", json={"security_cameras": [{"id": "camera_bad", "name": "Non valida", "url": "javascript:alert(1)"}]}).status_code == 400
     assert client.put("/api/user/appearance", json={"shortcuts": [{"category": "lights", "devices": ["same"]}, {"category": "switches", "devices": ["same"]}]}).status_code == 400
-    organization = {"switch.cancello": {"visible": False, "categories": ["security", "extra"]}}
+    organization = {"switch.cancello": {"visible": False, "categories": ["security", "extra"], "orders": {"security": 0, "extra": 2}}}
     assert client.put("/api/user/appearance", json={"device_organization": organization}).json()["device_organization"] == organization
     assert client.put("/api/user/appearance", json={"device_organization": {"bad": {"visible": True, "categories": ["invalid"]}}}).status_code == 400
     assert client.put("/api/user/appearance", json={"home_widgets": home_widgets[:-1]}).status_code == 400

@@ -135,7 +135,9 @@ def load_device_organization() -> dict[str, dict[str, object]]:
         if not isinstance(device_id, str) or not device_id or len(device_id) > 200 or not isinstance(item, dict): continue
         categories = item.get("categories")
         clean_categories = [category for category in categories if category in DEVICE_ORGANIZATION_CATEGORIES] if isinstance(categories, list) else []
-        result[device_id] = {"visible": item.get("visible") is not False, "categories": list(dict.fromkeys(clean_categories))}
+        orders = item.get("orders") if isinstance(item.get("orders"), dict) else {}
+        clean_orders = {key: max(0, int(value)) for key, value in orders.items() if key in ["devices", *DEVICE_ORGANIZATION_CATEGORIES] and isinstance(value, int)}
+        result[device_id] = {"visible": item.get("visible") is not False, "categories": list(dict.fromkeys(clean_categories)), "orders": clean_orders}
     return result
 
 def save_device_organization(value: dict[str, dict[str, object]]) -> None:
@@ -145,7 +147,9 @@ def save_device_organization(value: dict[str, dict[str, object]]) -> None:
         if not isinstance(device_id, str) or not device_id or len(device_id) > 200 or not isinstance(item, dict): raise ValueError("Dispositivo organizzato non valido")
         categories = item.get("categories")
         if not isinstance(categories, list) or any(category not in DEVICE_ORGANIZATION_CATEGORIES for category in categories): raise ValueError("Categoria dispositivo non valida")
-        clean[device_id] = {"visible": item.get("visible") is not False, "categories": list(dict.fromkeys(categories))}
+        orders = item.get("orders") if isinstance(item.get("orders"), dict) else {}
+        if any(key not in ["devices", *DEVICE_ORGANIZATION_CATEGORIES] or not isinstance(order, int) or order < 0 for key, order in orders.items()): raise ValueError("Ordine dispositivo non valido")
+        clean[device_id] = {"visible": item.get("visible") is not False, "categories": list(dict.fromkeys(categories)), "orders": orders}
     raw = _config(); raw["device_organization"] = clean; _write(raw)
 
 def load_home_widgets(owner: str | None = None) -> list[dict[str, object]]:
