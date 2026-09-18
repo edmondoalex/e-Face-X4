@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.21.186 — 2026-09-18
+
+- Illumina schede è ora dentro Sfondo e colori card.
+- Corretta la navigazione gerarchica: i pannelli figli si aprono sopra il padre e Indietro torna alla sezione Sfondo e colori oppure ORDINA.
+
 ## 2.21.185 — 2026-09-18
 
 - Ambienti, Sicurezza e Scorciatoie aprono il relativo editor completo con un solo tocco sul ramo, senza il passaggio intermedio APRI CONFIGURAZIONE.
