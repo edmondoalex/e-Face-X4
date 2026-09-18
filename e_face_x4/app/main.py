@@ -21,7 +21,7 @@ import uvicorn
 import websockets
 from pyControl4.websocket import C4Websocket
 from fastapi import FastAPI, Header, HTTPException, Query, Request, Response, WebSocket
-from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, StreamingResponse
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, PlainTextResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.responses import RedirectResponse
 
@@ -72,7 +72,7 @@ from .connectors.supervisor import discover_addon_url, discover_host_url
 from .media_realtime import SharedMediaRealtime
 from .demo import dashboard as demo_dashboard
 
-VERSION = os.environ.get("EFACE_VERSION", "2.21.175")
+VERSION = os.environ.get("EFACE_VERSION", "2.21.176")
 STATIC = Path(__file__).parent / "static"
 logging.basicConfig(level=logging.WARNING, format="%(asctime)s %(levelname)s [e-face-x4] %(message)s")
 _reconnect_warning_at: dict[str, float] = {}
@@ -330,7 +330,7 @@ def create_app() -> FastAPI:
         origin = request.headers.get("origin")
         if request.method not in {"GET", "HEAD", "OPTIONS"} and origin and urlsplit(origin).netloc != request.headers.get("host"):
             return JSONResponse({"detail": "Origine non consentita"}, status_code=403)
-        if not user_auth.enabled() or path in {"/health", "/login", "/service-worker.js"} or path.startswith("/intercom/wake/") or path.startswith("/api/auth/") or path.startswith("/assets/") or path.startswith("/api/support/control4/artwork/"):
+        if not user_auth.enabled() or path in {"/health", "/login", "/service-worker.js"} or path.startswith("/intercom/wake/") or path.startswith("/api/doorbird/ring/") or path.startswith("/api/auth/") or path.startswith("/assets/") or path.startswith("/api/support/control4/artwork/"):
             return await call_next(request)
         username = user_auth.session_user(request.cookies.get(user_auth.COOKIE))
         if not username:
@@ -2280,6 +2280,34 @@ def create_app() -> FastAPI:
         if content is None: raise HTTPException(status_code=404, detail="Evento DoorBird non disponibile")
         return Response(content, media_type="image/jpeg", headers={"Cache-Control":"no-store, private"})
 
+    @app.get("/api/home/doorbird-last-call")
+    async def home_doorbird_last_call() -> Response:
+        path = Path(os.environ.get("EFACE_DOORBIRD_EVENT_DIR", "/data/doorbird-events")) / "last-call.json"
+        try: data = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError): data = {"button": "", "name": "Ultima chiamata", "at": ""}
+        return JSONResponse(data, headers={"Cache-Control":"no-store, private"})
+
+    @app.get("/api/doorbird/ring/{button}")
+    async def doorbird_ring_callback(button: str, token: str = "") -> Response:
+        names = {"101": "Piano Terra", "102": "Primo Piano", "103": "Mansarda"}
+        directory = Path(os.environ.get("EFACE_DOORBIRD_EVENT_DIR", "/data/doorbird-events"))
+        try: expected = (directory / "callback-token").read_text(encoding="utf-8").strip()
+        except OSError: expected = ""
+        if button not in names or not expected or not hmac.compare_digest(token, expected):
+            raise HTTPException(status_code=404, detail="Callback non disponibile")
+        station, account = external_access("ingresso")
+        try:
+            frame = await doorbird_api.live_image(station["host"], station["http_port"], account["username"], account["password"])
+            if frame: doorbird_api.save_event_image("doorbell", frame)
+        except (OSError, ValueError, PermissionError, ConnectionError, RuntimeError) as exc:
+            logging.warning("DoorBird button %s snapshot failed: %s", button, exc)
+        directory.mkdir(parents=True, exist_ok=True)
+        target = directory / "last-call.json"; temporary = directory / "last-call.tmp"
+        temporary.write_text(json.dumps({"button": button, "name": names[button], "at": datetime.now().astimezone().isoformat()}, ensure_ascii=False), encoding="utf-8")
+        os.chmod(temporary, 0o600); temporary.replace(target)
+        await broadcast_realtime({"type": "doorbird_event", "data": {"station_id": station["id"], "event": "doorbell", "button": button, "name": names[button]}})
+        return PlainTextResponse("OK", headers={"Cache-Control": "no-store"})
+
     @app.post("/api/intercom/external-stations/{station_id}/prepare-call")
     async def intercom_prepare_external_call(request: Request, station_id: str) -> dict:
         if not user_auth.session_user(request.cookies.get(user_auth.COOKIE)):
@@ -2539,7 +2567,7 @@ def create_app() -> FastAPI:
         page = page.replace("app.css?v=2.21.84", "app.css?v=2.21.174")
         page = page.replace("home-status.css?v=2.20.20", "home-status.css?v=2.21.174")
         page = page.replace("tools.js?v=2.21.1", "tools.js?v=2.21.174")
-        page = page.replace("tools-user.css?v=2.21.163", "tools-user.css?v=2.21.175")
+        page = page.replace("tools-user.css?v=2.21.163", "tools-user.css?v=2.21.176")
         page = page.replace("media-remote-colors.css?v=2.20.20", "media-remote-colors.css?v=2.21.148")
         page = page.replace("ui-theme-contract.css?v=2.21.27", "ui-theme-contract.css?v=2.21.29")
         page = page.replace("tools-dashboard.js?v=2.21.27", "tools-dashboard.js?v=2.21.33")

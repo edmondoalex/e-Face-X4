@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.21.176 — 2026-09-18
+
+- Il widget Ultima chiamata identifica i tre pulsanti DoorBird come Piano Terra, Primo Piano e Mansarda, salvando nome, ora e nuova immagine.
+- Aggiunte callback DoorBird protette che aggiornano immediatamente tutte le UI collegate senza rimuovere le automazioni esistenti.
+
 ## 2.21.175 — 2026-09-18
 
 - Nell'amministrazione videocamere le entità snapshot e video sono disposte una sopra l'altra, con campi più larghi e comandi non tagliati.

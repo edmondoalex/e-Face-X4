@@ -303,6 +303,33 @@ async def make_call(host: str, port: int, username: str, password: str, sip_url:
         raise RuntimeError(f"Chiamata DoorBird rifiutata (HTTP {response.status_code})")
 
 
+async def save_http_favorite(host: str, port: int, username: str, password: str,
+                             title: str, value: str) -> str:
+    """Create a DoorBird HTTP favorite and return its assigned id."""
+    async with httpx.AsyncClient(timeout=8, follow_redirects=False, trust_env=False) as client:
+        response = await client.get(
+            f"http://{host}:{port}/bha-api/favorites.cgi",
+            params={"action": "save", "type": "http", "title": title, "value": value},
+            auth=httpx.DigestAuth(username, password),
+        )
+    if response.status_code == 401: raise PermissionError("Credenziale DoorBird rifiutata")
+    if response.status_code != 200: raise RuntimeError(f"Preferito DoorBird rifiutato (HTTP {response.status_code})")
+    favorite_id = str(response.headers.get("favoriteid") or "").strip()
+    if not favorite_id.isdigit(): raise RuntimeError("DoorBird non ha restituito l'identificativo del preferito")
+    return favorite_id
+
+
+async def save_schedule(host: str, port: int, username: str, password: str, schedule: dict) -> None:
+    """Replace one DoorBird input schedule with the supplied complete definition."""
+    async with httpx.AsyncClient(timeout=8, follow_redirects=False, trust_env=False) as client:
+        response = await client.post(
+            f"http://{host}:{port}/bha-api/schedule.cgi", json=schedule,
+            auth=httpx.DigestAuth(username, password),
+        )
+    if response.status_code == 401: raise PermissionError("Credenziale DoorBird rifiutata")
+    if response.status_code != 200: raise RuntimeError(f"Programmazione DoorBird rifiutata (HTTP {response.status_code})")
+
+
 async def live_video(host: str, port: int, username: str, password: str):
     """Open DoorBird MJPEG; caller must close both the response and client."""
     if not username or not password:
