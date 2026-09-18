@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.21.170 — 2026-09-18
+
+- La view della videocamera si apre immediatamente anche mentre il flusso live è in preparazione.
+- Se HLS non parte, la finestra torna automaticamente ai fotogrammi aggiornati mostrando lo stato del fallback.
+
 ## 2.21.169 — 2026-09-18
 
 - Ogni videocamera può usare modalità Fotogrammi oppure Video live + audio.
