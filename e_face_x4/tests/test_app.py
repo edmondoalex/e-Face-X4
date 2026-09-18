@@ -56,7 +56,7 @@ def test_health() -> None:
     response = TestClient(create_app()).get("/health")
     assert response.status_code == 200
     assert response.json()["ok"] is True
-    assert response.json()["version"] == "2.21.161"
+    assert response.json()["version"] == "2.21.162"
 
 
 def test_installed_app_starts_at_dashboard() -> None:
@@ -95,7 +95,7 @@ def test_intercom_is_in_sidebar_with_embedded_view() -> None:
     client_script = (static / "assets" / "intercom.js").read_text(encoding="utf-8")
     intercom_page = (static / "intercom.html").read_text(encoding="utf-8")
     assert "Tablet Control4 · interno 8291" in intercom_page
-    assert "const currentVersion = '2.21.161'" in client_script
+    assert "const currentVersion = '2.21.162'" in client_script
     assert 'id="call-ufficio" data-dial-extension="8291" data-video-capable="true"' in intercom_page
     assert "Postazione esterna · interno 8201" in intercom_page
     assert "Postazione esterna · interno ${station.sip_extension}" in client_script
@@ -302,8 +302,8 @@ def test_intercom_dashboard_stores_only_local_settings(monkeypatch, tmp_path) ->
     assert 'id="users-tool"' in page
     assert 'id="logout"' in page
     assert page.index('id="logout"') < page.index('id="tools-user-section"')
-    assert "tools-dashboard.js?v=2.21.161" in page
-    assert "tools.js?v=2.21.161" in page
+    assert "tools-dashboard.js?v=2.21.162" in page
+    assert "tools.js?v=2.21.162" in page
     tools_js = client.get("/assets/tools.js").text
     assert "document.querySelector('.tools-shell').append(shortcutsPanel)" in tools_js
     assert "data-shortcut-drag=\"category\"" in tools_js
@@ -313,7 +313,7 @@ def test_intercom_dashboard_stores_only_local_settings(monkeypatch, tmp_path) ->
     assert '<b>Accesi</b>' not in home
     assert 'id="light-on-filter"' in home
     assert "backgrounds.css?v=2.21.43" in home
-    assert "app.js?v=2.21.161" in home
+    assert "app.js?v=2.21.162" in home
     app_js = client.get("/assets/app.js").text
     assert "event.type === 'doorbird_event'" in app_js
     assert "event.type === 'home_camera_event'" in app_js
@@ -731,7 +731,7 @@ def test_tools_page_starts_with_selected_background_and_card_theme(monkeypatch, 
     login = client.get("/login").text
     assert '<body class="app-theme" data-background="midnight" data-card-theme="slate">' in home
     assert 'ui-theme-contract.css?v=2.21.29' in home
-    assert 'app.js?v=2.21.161' in home
+    assert 'app.js?v=2.21.162' in home
     assert 'energy.css?v=2.21.30' in home
     assert 'home-comfort.css?v=2.21.31' in home
     assert '<body class="login-theme" data-background="midnight" data-card-theme="slate">' in login
@@ -742,19 +742,21 @@ def test_user_appearance_persists_room_order_and_glow(monkeypatch, tmp_path) -> 
     monkeypatch.setenv("EFACE_BACKGROUNDS", str(tmp_path / "backgrounds"))
     client = TestClient(create_app())
     appearance = client.get("/api/user/appearance").json()
-    assert {key: appearance[key] for key in ("card_glow", "room_order", "security_order", "shortcuts")} == {"card_glow": True, "room_order": [], "security_order": ["scenarios", "areas", "zones", "locks"], "shortcuts": []}
+    assert {key: appearance[key] for key in ("card_glow", "room_order", "security_order", "security_cameras", "shortcuts")} == {"card_glow": True, "room_order": [], "security_order": ["scenarios", "areas", "zones", "locks", "cameras"], "security_cameras": [], "shortcuts": []}
     assert [item["id"] for item in appearance["home_widgets"]] == ["overview", "weather", "camera_event", "doorbell", "motion", "states", "rooms", "live"]
     assert appearance["home_camera_entity"] == "camera.nvr_32ch_ext_ultimo_evento"
     assert appearance["home_weather_location"] == ""
     shortcuts = [{"category": "lights", "devices": ["buspro:1", "buspro:2"]}, {"category": "climate", "devices": ["therm:1"]}]
     home_widgets = [{"id": item, "visible": item != "states", "size": "wide" if item in {"live", "rooms"} else "standard", "height": "standard"} for item in ["live", "overview", "weather", "camera_event", "doorbell", "motion", "states", "rooms"]]
-    response = client.put("/api/user/appearance", json={"card_glow": False, "room_order": ["Sala", "Ufficio Alex"], "security_order": ["locks", "zones", "areas", "scenarios"], "shortcuts": shortcuts, "home_widgets": home_widgets, "home_camera_entity": "camera.nvr_32ch_ext_ultimo_evento", "home_weather_location": "Torino"})
+    cameras = [{"id": "camera_ingresso", "name": "Ingresso", "url": "https://camera.local/live"}]
+    response = client.put("/api/user/appearance", json={"card_glow": False, "room_order": ["Sala", "Ufficio Alex"], "security_order": ["locks", "zones", "areas", "scenarios", "cameras"], "security_cameras": cameras, "shortcuts": shortcuts, "home_widgets": home_widgets, "home_camera_entity": "camera.nvr_32ch_ext_ultimo_evento", "home_weather_location": "Torino"})
     assert response.status_code == 200
-    assert client.get("/api/user/appearance").json() == {"card_glow": False, "room_order": ["Sala", "Ufficio Alex"], "security_order": ["locks", "zones", "areas", "scenarios"], "shortcuts": shortcuts, "home_widgets": home_widgets, "home_camera_entity": "camera.nvr_32ch_ext_ultimo_evento", "home_weather_location": "Torino"}
+    assert client.get("/api/user/appearance").json() == {"card_glow": False, "room_order": ["Sala", "Ufficio Alex"], "security_order": ["locks", "zones", "areas", "scenarios", "cameras"], "security_cameras": cameras, "shortcuts": shortcuts, "home_widgets": home_widgets, "home_camera_entity": "camera.nvr_32ch_ext_ultimo_evento", "home_weather_location": "Torino"}
     assert client.put("/api/user/appearance", json={"room_order": ["Sala", "sala"]}).status_code == 400
     assert client.put("/api/user/appearance", json={"card_glow": "false"}).status_code == 400
-    assert client.put("/api/user/appearance", json={"security_order": ["locks", "zones", "zones", "scenarios"]}).status_code == 400
-    assert client.put("/api/user/appearance", json={"security_order": [{}, "zones", "areas", "scenarios"]}).status_code == 400
+    assert client.put("/api/user/appearance", json={"security_order": ["locks", "zones", "zones", "scenarios", "cameras"]}).status_code == 400
+    assert client.put("/api/user/appearance", json={"security_order": [{}, "zones", "areas", "scenarios", "cameras"]}).status_code == 400
+    assert client.put("/api/user/appearance", json={"security_cameras": [{"id": "camera_bad", "name": "Non valida", "url": "javascript:alert(1)"}]}).status_code == 400
     assert client.put("/api/user/appearance", json={"shortcuts": [{"category": "lights", "devices": ["same"]}, {"category": "switches", "devices": ["same"]}]}).status_code == 400
     assert client.put("/api/user/appearance", json={"home_widgets": home_widgets[:-1]}).status_code == 400
     assert client.put("/api/user/appearance", json={"home_camera_entity": "sensor.not_a_camera"}).status_code == 400

@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.21.162 — 2026-09-18
+
+- Sicurezza: aggiunta la sezione ordinabile Videocamere con elenco persistente modificabile, nome, link, aggiunta, eliminazione e trascinamento.
+- I collegamenti delle videocamere sono validati e apribili direttamente dalla pagina Sicurezza.
+- Home dinamica: aggiunta l'altezza “Uniforme alla riga” per allineare Meteo e card immagine affiancate.
+
 ## 2.21.161 — 2026-09-17
 
 - Le tessere delle app esposte in Guarda aprono ora direttamente la relativa app sul decoder Sky Q tramite il servizio LAN nativo.

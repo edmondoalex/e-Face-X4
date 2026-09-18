@@ -1,7 +1,7 @@
 const $ = (selector) => document.querySelector(selector)
 const deviceScope = (() => { const key='eface-device-scope-v1'; let value=localStorage.getItem(key); if(!/^[A-Za-z0-9_-]{16,64}$/.test(value||'')){value=(crypto.randomUUID?.()||`${Date.now()}-${Math.random()}`).replaceAll('-','');localStorage.setItem(key,value)} return value })()
 const deviceFetchOptions = (options={}) => ({...options,headers:{...(options.headers||{}),'X-Eface-Device':deviceScope}})
-document.head.insertAdjacentHTML('beforeend', '<link rel="stylesheet" href="assets/media-x4.css?v=2.21.161">')
+document.head.insertAdjacentHTML('beforeend', '<link rel="stylesheet" href="assets/media-x4.css?v=2.21.162">')
 const glyph = { light: '✦', climate: '❄', shield: '⬡', energy: 'ϟ', cover: '▤', sensor: '◌' }
 let refreshRunning = false
 let refreshQueued = false
@@ -42,8 +42,9 @@ let energyRefreshRunning = false
 let energyMasterInitialized = false
 let energyMasterColors = []
 let energyMasterPending = { signature:'', confirmations:0 }
-const securitySections = { areas: false, zones: false }
-let currentSecurityOrder = ['scenarios', 'areas', 'zones', 'locks']
+const securitySections = { areas: false, zones: false, cameras: true }
+let currentSecurityOrder = ['scenarios', 'areas', 'zones', 'locks', 'cameras']
+let currentSecurityCameras = []
 let currentShortcuts = []
 let currentHomeWidgets = []
 let shortcutViewOpen = false
@@ -221,6 +222,7 @@ function render(data) {
   document.body.dataset.cardTheme = data.appearance?.card_theme || 'graphite'
   document.body.dataset.cardGlow = data.appearance?.card_glow === false ? 'off' : 'on'
   currentSecurityOrder = data.appearance?.security_order || currentSecurityOrder
+  currentSecurityCameras = data.appearance?.security_cameras || currentSecurityCameras
   currentShortcuts = data.appearance?.shortcuts || currentShortcuts
   currentHomeWidgets = data.appearance?.home_widgets || currentHomeWidgets
   applyHomeWidgetLayout()
@@ -580,12 +582,14 @@ function renderSecurityDevices(devices) {
     return `<article class="security-lock security-lock-${stateClass}" data-device-id="${esc(device.id)}">${deviceGlyph(device)}<div class="security-lock-name"><strong>${esc(device.name)}</strong><small>${esc(device.room)}</small></div><b>${esc(stateLabel(device))}${batteryMarkup}</b>${deviceActions(device)}</article>`
   }).join('')
   const scenarioCards = scenarios.map((device) => { const disarm = device.category === 'DISARM'; const partial = device.category === 'PARTIAL'; const active = String(device.id) === activeScenarioId; return `<button class="security-scenario ${disarm ? 'disarm' : partial ? 'partial' : 'arm'} ${active ? 'active' : ''}" data-security-scenario data-device-id="${esc(device.id)}" data-action="execute"><span class="mdi-mask" style="${mdiStyle(disarm ? 'mdi:shield-off-outline' : partial ? 'mdi:shield-half-full' : 'mdi:shield-lock-outline', 'shield-key-outline')}"></span><strong>${esc(device.name)}</strong></button>` }).join('')
+  const cameraCards = currentSecurityCameras.map((camera) => `<button type="button" class="security-camera" data-security-camera-url="${esc(camera.url)}"><span class="mdi-mask" style="${mdiStyle('mdi:cctv','cctv')}"></span><span><strong>${esc(camera.name)}</strong><small>APRI VIDEOCAMERA</small></span><i class="mdi-mask" style="${mdiStyle('mdi:open-in-new','open-in-new')}"></i></button>`).join('')
   const section = (key, title, content, className) => `<section class="security-section security-collapsible"><button class="security-section-toggle" data-security-toggle="${key}" aria-expanded="${securitySections[key]}"><strong>${title}</strong><span class="mdi-mask" style="${mdiStyle(securitySections[key] ? 'mdi:chevron-up' : 'mdi:chevron-down', 'chevron-down')}"></span></button><div class="${className}" ${securitySections[key] ? '' : 'hidden'}>${content}</div></section>`
   const blocks = {
     scenarios: scenarios.length ? `<section class="security-section"><h3>Scenari di inserimento</h3><div class="security-scenario-grid">${scenarioCards}</div></section>` : '',
     areas: partitions.length ? section('areas', 'Stato aree', areaCards, 'security-area-grid') : '',
     zones: zones.length ? section('zones', 'Zone', zoneCards, 'security-zone-grid') : '',
-    locks: locks.length ? `<section class="security-section"><h3>Accessi e portoni</h3><div class="security-zone-grid">${lockCards}</div></section>` : ''
+    locks: locks.length ? `<section class="security-section"><h3>Accessi e portoni</h3><div class="security-zone-grid">${lockCards}</div></section>` : '',
+    cameras: currentSecurityCameras.length ? section('cameras', 'Videocamere', cameraCards, 'security-camera-grid') : ''
   }
   const container = $('#device-list')
   const desired = document.createElement('div')
@@ -1219,7 +1223,7 @@ function renderActiveDeviceList() {
     if (lightFilterActive) devices = devices.filter(deviceIsActiveForFilter)
   }
   if (!$('#av-filters').hidden && avRoom) devices = devices.filter((device) => device.room === avRoom)
-  const signature = JSON.stringify({devices, selectedMediaId, currentMediaExperience, activeMediaRoom, avRoom, lightFilterRoom, lightFilterActive, sectionFilterMode, securitySections, currentSecurityOrder, mediaSections})
+  const signature = JSON.stringify({devices, selectedMediaId, currentMediaExperience, activeMediaRoom, avRoom, lightFilterRoom, lightFilterActive, sectionFilterMode, securitySections, currentSecurityOrder, currentSecurityCameras, mediaSections})
   if (signature === lastDetailSignature && $('#device-list').childElementCount) return
   lastDetailSignature = signature
   if (shortcutViewOpen) renderShortcutDevices()
@@ -2609,6 +2613,13 @@ $('#device-list').addEventListener('click', (event) => {
   if (sectionToggle) {
     securitySections[sectionToggle.dataset.securityToggle] = sectionToggle.getAttribute('aria-expanded') !== 'true'
     renderActiveDeviceList()
+    return
+  }
+  const securityCamera = event.target.closest('[data-security-camera-url]')
+  if (securityCamera) {
+    const url = String(securityCamera.dataset.securityCameraUrl || '')
+    if (url.startsWith('/')) location.href = url
+    else window.open(url, '_blank', 'noopener,noreferrer')
     return
   }
   if (!button && card?.classList.contains('security-area')) return openSecurityArea(currentDevices.find((item) => String(item.id) === card.dataset.deviceId))

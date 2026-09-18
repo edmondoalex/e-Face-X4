@@ -2,10 +2,11 @@ from __future__ import annotations
 
 import base64, binascii, hashlib, json, os, re
 from pathlib import Path
+from urllib.parse import urlsplit
 
 PRESETS = {"teal", "midnight", "graphite", "ocean", "warm"}
 CARD_THEMES = {"graphite", "petrol", "midnight", "slate", "warm"}
-SECURITY_ORDER = ["scenarios", "areas", "zones", "locks"]
+SECURITY_ORDER = ["scenarios", "areas", "zones", "locks", "cameras"]
 SHORTCUT_CATEGORIES = ["lights", "switches", "covers", "climate", "security", "media", "sensors", "other"]
 HOME_WIDGETS = ["overview", "weather", "camera_event", "doorbell", "motion", "states", "rooms", "live"]
 MIME_SUFFIX = {"image/png": ".png", "image/jpeg": ".jpg", "image/webp": ".webp"}
@@ -50,12 +51,40 @@ def save_room_order(names: list[str]) -> None:
 
 def load_security_order() -> list[str]:
     value = _config().get("security_order")
-    return value if isinstance(value, list) and len(value) == len(SECURITY_ORDER) and all(isinstance(item, str) for item in value) and set(value) == set(SECURITY_ORDER) else SECURITY_ORDER.copy()
+    if isinstance(value, list) and all(isinstance(item, str) for item in value):
+        if len(value) == len(SECURITY_ORDER) and set(value) == set(SECURITY_ORDER): return value
+        previous = [item for item in SECURITY_ORDER if item != "cameras"]
+        if len(value) == len(previous) and set(value) == set(previous): return [*value, "cameras"]
+    return SECURITY_ORDER.copy()
 
 def save_security_order(order: list[str]) -> None:
     if not isinstance(order, list) or len(order) != len(SECURITY_ORDER) or not all(isinstance(item, str) for item in order) or set(order) != set(SECURITY_ORDER):
         raise ValueError("Ordine sicurezza non valido")
     raw = _config(); raw["security_order"] = order; _write(raw)
+
+def load_security_cameras() -> list[dict[str, str]]:
+    value = _config().get("security_cameras")
+    if not isinstance(value, list): return []
+    result = []
+    for item in value[:100]:
+        if not isinstance(item, dict): continue
+        camera_id, name, url = str(item.get("id") or "").strip(), str(item.get("name") or "").strip(), str(item.get("url") or "").strip()
+        if camera_id and name and url: result.append({"id": camera_id[:80], "name": name[:100], "url": url[:2000]})
+    return result
+
+def save_security_cameras(cameras: list[dict[str, str]]) -> None:
+    if not isinstance(cameras, list) or len(cameras) > 100: raise ValueError("Elenco videocamere non valido")
+    clean, ids = [], set()
+    for item in cameras:
+        if not isinstance(item, dict): raise ValueError("Videocamera non valida")
+        camera_id, name, url = str(item.get("id") or "").strip(), str(item.get("name") or "").strip(), str(item.get("url") or "").strip()
+        if not re.fullmatch(r"[A-Za-z0-9_-]{8,80}", camera_id) or camera_id in ids or not name or len(name) > 100 or not url or len(url) > 2000:
+            raise ValueError("Nome o link videocamera non valido")
+        parsed = urlsplit(url)
+        if not ((parsed.scheme in {"http", "https"} and parsed.netloc) or (not parsed.scheme and url.startswith("/") and not url.startswith("//"))):
+            raise ValueError("Il link videocamera deve essere HTTP, HTTPS o un percorso locale")
+        ids.add(camera_id); clean.append({"id": camera_id, "name": name, "url": url})
+    raw = _config(); raw["security_cameras"] = clean; _write(raw)
 
 def load_shortcuts() -> list[dict[str, object]]:
     value = _config().get("shortcuts")
@@ -98,7 +127,7 @@ def load_home_widgets(owner: str | None = None) -> list[dict[str, object]]:
         if not isinstance(item, dict) or item.get("id") not in HOME_WIDGETS or item["id"] in seen: continue
         seen.add(item["id"]); size = item.get("size")
         height = item.get("height")
-        clean.append({"id": item["id"], "visible": item.get("visible") is not False, "size": size if size in {"quarter", "compact", "standard", "large", "wide"} else "standard", "height": height if height in {"short", "standard", "tall"} else "standard"})
+        clean.append({"id": item["id"], "visible": item.get("visible") is not False, "size": size if size in {"quarter", "compact", "standard", "large", "wide"} else "standard", "height": height if height in {"uniform", "short", "standard", "tall"} else "standard"})
     for widget_id in HOME_WIDGETS:
         if widget_id not in seen: clean.append({"id": widget_id, "visible": True, "size": "standard", "height": "standard"})
     return clean
@@ -109,7 +138,7 @@ def save_home_widgets(items: list[dict[str, object]], owner: str | None = None) 
     if set(ids) != set(HOME_WIDGETS) or len(ids) != len(set(ids)): raise ValueError("Widget Home non validi")
     clean = []
     for item in items:
-        if not isinstance(item.get("visible"), bool) or item.get("size") not in {"quarter", "compact", "standard", "large", "wide"} or item.get("height", "standard") not in {"short", "standard", "tall"}: raise ValueError("Proprietà widget non valide")
+        if not isinstance(item.get("visible"), bool) or item.get("size") not in {"quarter", "compact", "standard", "large", "wide"} or item.get("height", "standard") not in {"uniform", "short", "standard", "tall"}: raise ValueError("Proprietà widget non valide")
         clean.append({"id": item["id"], "visible": item["visible"], "size": item["size"], "height": item.get("height", "standard")})
     raw = _config()
     if owner:
