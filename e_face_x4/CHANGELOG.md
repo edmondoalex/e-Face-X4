@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.21.163 — 2026-09-18
+
+- Le videocamere di Sicurezza accettano ora anche entità e-Control `camera.*` oltre ai link.
+- Le entità mostrano l'anteprima aggiornata nella UI Sicurezza e si aprono ingrandite al tocco, mantenendo l'ordine salvato in Strumenti.
+
 ## 2.21.162 — 2026-09-18
 
 - Sicurezza: aggiunta la sezione ordinabile Videocamere con elenco persistente modificabile, nome, link, aggiunta, eliminazione e trascinamento.

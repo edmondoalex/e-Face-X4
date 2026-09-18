@@ -81,8 +81,9 @@ def save_security_cameras(cameras: list[dict[str, str]]) -> None:
         if not re.fullmatch(r"[A-Za-z0-9_-]{8,80}", camera_id) or camera_id in ids or not name or len(name) > 100 or not url or len(url) > 2000:
             raise ValueError("Nome o link videocamera non valido")
         parsed = urlsplit(url)
-        if not ((parsed.scheme in {"http", "https"} and parsed.netloc) or (not parsed.scheme and url.startswith("/") and not url.startswith("//"))):
-            raise ValueError("Il link videocamera deve essere HTTP, HTTPS o un percorso locale")
+        is_entity = bool(re.fullmatch(r"camera\.[a-z0-9_]+", url))
+        if not (is_entity or (parsed.scheme in {"http", "https"} and parsed.netloc) or (not parsed.scheme and url.startswith("/") and not url.startswith("//"))):
+            raise ValueError("Inserisci un'entità camera.* oppure un link HTTP, HTTPS o locale")
         ids.add(camera_id); clean.append({"id": camera_id, "name": name, "url": url})
     raw = _config(); raw["security_cameras"] = clean; _write(raw)
 

@@ -72,7 +72,7 @@ from .connectors.supervisor import discover_addon_url, discover_host_url
 from .media_realtime import SharedMediaRealtime
 from .demo import dashboard as demo_dashboard
 
-VERSION = os.environ.get("EFACE_VERSION", "2.21.162")
+VERSION = os.environ.get("EFACE_VERSION", "2.21.163")
 STATIC = Path(__file__).parent / "static"
 logging.basicConfig(level=logging.WARNING, format="%(asctime)s %(levelname)s [e-face-x4] %(message)s")
 _reconnect_warning_at: dict[str, float] = {}
@@ -2200,6 +2200,18 @@ def create_app() -> FastAPI:
         response = await home_assistant_get(f"camera_proxy/{load_home_camera_entity(appearance_owner(request))}")
         return Response(response.content, media_type=response.headers.get("content-type", "image/jpeg"), headers={"Cache-Control":"no-store, private"})
 
+    @app.get("/api/security/cameras/{camera_id}/image")
+    async def security_camera_image(camera_id: str) -> Response:
+        camera = next((item for item in load_security_cameras() if item.get("id") == camera_id), None)
+        entity_id = str((camera or {}).get("url") or "")
+        if not re.fullmatch(r"camera\.[a-z0-9_]+", entity_id):
+            raise HTTPException(status_code=404, detail="Entità videocamera non configurata")
+        response = await home_assistant_get(f"camera_proxy/{entity_id}")
+        media_type = artwork_media_type(response.headers.get("content-type", ""), response.content)
+        if not media_type or len(response.content) > 5_000_000:
+            raise HTTPException(status_code=415, detail="Immagine videocamera non valida")
+        return Response(response.content, media_type=media_type, headers={"Cache-Control":"no-store, private", "X-Content-Type-Options":"nosniff"})
+
     @app.get("/api/home/doorbird/{event}")
     async def home_doorbird_event(event: str) -> Response:
         station, account = external_access("ingresso")
@@ -2464,9 +2476,9 @@ def create_app() -> FastAPI:
         page = page.replace('content="#263f48"', 'content="#181c1f"')
         page = page.replace("manifest.webmanifest?v=2.20.38", "manifest.webmanifest?v=2.21.59")
         page = page.replace("app.css?v=2.20.20", "app.css?v=2.21.73")
-        page = page.replace("app.css?v=2.21.84", "app.css?v=2.21.162")
-        page = page.replace("home-status.css?v=2.20.20", "home-status.css?v=2.21.162")
-        page = page.replace("tools.js?v=2.21.1", "tools.js?v=2.21.162")
+        page = page.replace("app.css?v=2.21.84", "app.css?v=2.21.163")
+        page = page.replace("home-status.css?v=2.20.20", "home-status.css?v=2.21.163")
+        page = page.replace("tools.js?v=2.21.1", "tools.js?v=2.21.163")
         page = page.replace("media-remote-colors.css?v=2.20.20", "media-remote-colors.css?v=2.21.148")
         page = page.replace("ui-theme-contract.css?v=2.21.27", "ui-theme-contract.css?v=2.21.29")
         page = page.replace("tools-dashboard.js?v=2.21.27", "tools-dashboard.js?v=2.21.33")
@@ -2475,8 +2487,8 @@ def create_app() -> FastAPI:
         page = page.replace("tools-dashboard.js?v=2.21.36", "tools-dashboard.js?v=2.21.38")
         page = page.replace("tools-dashboard.js?v=2.21.38", "tools-dashboard.js?v=2.21.41")
         page = page.replace("tools-dashboard.js?v=2.21.41", "tools-dashboard.js?v=2.21.42")
-        page = page.replace("tools-dashboard.js?v=2.21.42", "tools-dashboard.js?v=2.21.162")
-        page = page.replace("tools-dashboard.css?v=2.20.36", "tools-dashboard.css?v=2.21.162")
+        page = page.replace("tools-dashboard.js?v=2.21.42", "tools-dashboard.js?v=2.21.163")
+        page = page.replace("tools-dashboard.css?v=2.20.36", "tools-dashboard.css?v=2.21.163")
         page = page.replace("backgrounds.css?v=2.20.20", "backgrounds.css?v=2.21.43")
         page = page.replace("intercom.css?v=2.21.14", "intercom.css?v=2.21.46")
         page = page.replace("app.js?v=2.21.11", "app.js?v=2.21.29")
