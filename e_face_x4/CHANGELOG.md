@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.21.164 — 2026-09-18
+
+- Strumenti mostra l'anteprima delle entità `camera.*` prima del salvataggio.
+- Ogni videocamera ha il comando **SALVA E PROVA**, con conferma persistente e comparsa immediata nella pagina Sicurezza.
+- Il salvataggio generale resta disponibile per l'ordine dei gruppi e delle videocamere.
+
 ## 2.21.163 — 2026-09-18
 
 - Le videocamere di Sicurezza accettano ora anche entità e-Control `camera.*` oltre ai link.
