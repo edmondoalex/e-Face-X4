@@ -198,9 +198,9 @@ class BusproConnector(Connector):
             if entity_id:
                 domain = entity_id.split(".", 1)[0]
                 if domain == "switch" and kind == "lock" and action in {"lock", "unlock", "open"}:
-                    # This access relay is normally closed: OFF releases/opens it,
-                    # while ON closes it again.
-                    path, body = f"/api/control/ha/switch/{entity_id}", {"state": "ON" if action == "lock" else "OFF"}
+                    # Keep the access card presentation, but address the original
+                    # Home Assistant switch only: open/unlock=ON, close/lock=OFF.
+                    path, body = f"/api/control/ha/switch/{entity_id}", {"state": "OFF" if action == "lock" else "ON"}
                 elif domain in {"light", "switch"} and action in {"on", "off", "brightness"}:
                     body = {"state": "ON" if action == "brightness" else action.upper()}
                     if action == "brightness" and domain == "light":

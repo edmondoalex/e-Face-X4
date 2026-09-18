@@ -1,5 +1,9 @@
 # Changelog
 
+## 2.21.180 — 2026-09-18
+
+- Il comando APRI degli accessi basati su switch invia ON e CHIUDI invia OFF direttamente all'entità switch tramite e-HDL.
+
 ## 2.21.179 — 2026-09-18
 
 - I comandi da telefono e tablet attendono correttamente la conferma e-HDL/Home Assistant e mostrano uno stato touch distinto per invio, conferma ed errore.
