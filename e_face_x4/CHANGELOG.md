@@ -1,5 +1,9 @@
 # Changelog
 
+## 2.21.175 — 2026-09-18
+
+- Nell'amministrazione videocamere le entità snapshot e video sono disposte una sopra l'altra, con campi più larghi e comandi non tagliati.
+
 ## 2.21.174 — 2026-09-18
 
 - Gli snapshot NVR più lenti hanno ora tempo sufficiente per caricarsi e i timeout di Home Assistant vengono gestiti senza errori interni.
