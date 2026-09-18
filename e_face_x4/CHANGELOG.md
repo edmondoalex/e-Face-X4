@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.21.171 — 2026-09-18
+
+- Integrato localmente HLS.js per riprodurre il live delle videocamere anche nei browser privi di supporto HLS nativo.
+- Conservati audio, controlli, fallback a fotogrammi e rilascio del player alla chiusura.
+
 ## 2.21.170 — 2026-09-18
 
 - La view della videocamera si apre immediatamente anche mentre il flusso live è in preparazione.
