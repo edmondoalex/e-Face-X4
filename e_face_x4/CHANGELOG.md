@@ -1,5 +1,9 @@
 # Changelog
 
+## 2.21.181 — 2026-09-18
+
+- I pulsanti delle Scorciatoie intercettano direttamente il rilascio touch nelle app mobili, evitando sia i tap persi sia i doppi comandi.
+
 ## 2.21.180 — 2026-09-18
 
 - Il comando APRI degli accessi basati su switch invia ON e CHIUDI invia OFF direttamente all'entità switch tramite e-HDL.

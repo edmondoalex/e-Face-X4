@@ -2377,7 +2377,25 @@ $('#scenario-list').addEventListener('click', (event) => {
   const card = event.target.closest('[data-scenario-id]')
   if (button && card) sendScenarioCommand(card.dataset.scenarioId, button.dataset.scenarioAction, button)
 })
+// Home Assistant's mobile WebView can drop the synthetic click after a touch
+// pointer sequence. Dispatch shortcut action buttons directly on pointerup and
+// mark them so a compatibility click cannot send the command twice.
+$('#device-list').addEventListener('pointerup', (event) => {
+  if (event.pointerType === 'mouse') return
+  const button = event.target.closest('.shortcut-device [data-action]')
+  const card = button?.closest('[data-device-id]')
+  if (!button || !card || button.disabled) return
+  event.preventDefault()
+  event.stopPropagation()
+  button.dataset.touchCommandAt = String(Date.now())
+  sendDeviceCommand(card.dataset.deviceId, button.dataset.action, button)
+}, { capture: true })
 $('#device-list').addEventListener('click', (event) => {
+  const touchedAction = event.target.closest('.shortcut-device [data-action]')
+  if (touchedAction && Date.now() - Number(touchedAction.dataset.touchCommandAt || 0) < 800) {
+    event.preventDefault()
+    return
+  }
   const shortcutToggle = event.target.closest('[data-shortcut-group-toggle]')
   if (shortcutToggle) {
     const category = shortcutToggle.dataset.shortcutGroupToggle
