@@ -181,7 +181,9 @@ class BusproConnector(Connector):
                 brightness_value = max(1, min(255, int(value)))
             except (TypeError, ValueError):
                 raise ValueError("luminosità non valida")
-        async with httpx.AsyncClient(timeout=self.timeout_s, follow_redirects=False) as client:
+        # Commands may take longer than snapshots because e-HDL waits for Home
+        # Assistant to execute and confirm the requested service call.
+        async with httpx.AsyncClient(timeout=max(12.0, self.timeout_s), follow_redirects=False) as client:
             snapshot_response = await client.get(f"{self.config.base_url}/api/user/snapshot", headers=self._headers())
             snapshot_response.raise_for_status()
             snapshot = snapshot_response.json()
@@ -196,7 +198,9 @@ class BusproConnector(Connector):
             if entity_id:
                 domain = entity_id.split(".", 1)[0]
                 if domain == "switch" and kind == "lock" and action in {"lock", "unlock", "open"}:
-                    path, body = f"/api/control/ha/switch/{entity_id}", {"state": "OFF" if action == "lock" else "ON"}
+                    # This access relay is normally closed: OFF releases/opens it,
+                    # while ON closes it again.
+                    path, body = f"/api/control/ha/switch/{entity_id}", {"state": "ON" if action == "lock" else "OFF"}
                 elif domain in {"light", "switch"} and action in {"on", "off", "brightness"}:
                     body = {"state": "ON" if action == "brightness" else action.upper()}
                     if action == "brightness" and domain == "light":

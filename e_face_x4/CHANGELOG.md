@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.21.179 — 2026-09-18
+
+- I comandi da telefono e tablet attendono correttamente la conferma e-HDL/Home Assistant e mostrano uno stato touch distinto per invio, conferma ed errore.
+- Il relè switch del cancello usa OFF/aperto in verde e ON/chiuso in rosso; APRI invia OFF e CHIUDI invia ON tramite e-HDL.
+
 ## 2.21.178 — 2026-09-18
 
 - La posizione configurata di un dispositivo resta invariata, ma stato e comandi seguono il dominio Home Assistant originale; un cancello mostrato tra i lock usa realmente i servizi della propria entità switch.
