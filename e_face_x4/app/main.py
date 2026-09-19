@@ -44,6 +44,7 @@ from . import voip_phones
 from . import personal_devices
 from . import intercom_groups
 from . import push_notifications
+from . import routines
 from . import provisioner_client
 from . import installation
 from . import credential_inventory
@@ -72,7 +73,7 @@ from .connectors.supervisor import discover_addon_url, discover_host_url
 from .media_realtime import SharedMediaRealtime
 from .demo import dashboard as demo_dashboard
 
-VERSION = os.environ.get("EFACE_VERSION", "2.21.190")
+VERSION = os.environ.get("EFACE_VERSION", "2.21.191")
 STATIC = Path(__file__).parent / "static"
 logging.basicConfig(level=logging.WARNING, format="%(asctime)s %(levelname)s [e-face-x4] %(message)s")
 _reconnect_warning_at: dict[str, float] = {}
@@ -161,6 +162,7 @@ def create_app() -> FastAPI:
     app.state.realtime_clients = set()
     app.state.doorbird_monitor_tasks = []
     app.state.home_camera_monitor_task = None
+    app.state.routine_task = None
 
     @app.on_event("shutdown")
     async def close_shared_media_realtime() -> None:
@@ -169,6 +171,12 @@ def create_app() -> FastAPI:
             task.cancel()
         if app.state.home_camera_monitor_task:
             app.state.home_camera_monitor_task.cancel()
+        if app.state.routine_task:
+            app.state.routine_task.cancel()
+        for task in routine_engine.running.values():
+            task.cancel()
+        if routine_engine.running:
+            await asyncio.gather(*routine_engine.running.values(), return_exceptions=True)
     app.mount("/assets", AppAssets(directory=STATIC / "assets"), name="assets")
     login_failures: dict[tuple[str, str], list[float]] = {}
     reveal_failures: dict[str, list[float]] = {}
@@ -245,6 +253,7 @@ def create_app() -> FastAPI:
                         except (OSError, ValueError, PermissionError, ConnectionError, RuntimeError) as exc:
                             logging.warning("DoorBird %s ring snapshot failed: %s", station.get("id"), exc)
                     await broadcast_realtime({"type": "doorbird_event", "data": {"station_id": station["id"], "event": event}})
+                    asyncio.create_task(dispatch_routine_doorbird(event))
                     if event == "doorbell":
                         await broadcast_realtime({"type": "doorbird_incoming", "data": {"station_id": station["id"]}})
                         await push_intercom_group(intercom_settings.load()["ring_extension"], station.get("name") or "DoorBird")
@@ -2350,6 +2359,7 @@ def create_app() -> FastAPI:
         temporary.write_text(json.dumps({"button": button, "name": names[button], "at": datetime.now().astimezone().isoformat()}, ensure_ascii=False), encoding="utf-8")
         os.chmod(temporary, 0o600); temporary.replace(target)
         await broadcast_realtime({"type": "doorbird_event", "data": {"station_id": station["id"], "event": "doorbell", "button": button, "name": names[button]}})
+        asyncio.create_task(dispatch_routine_doorbird("doorbell"))
         return PlainTextResponse("OK", headers={"Cache-Control": "no-store"})
 
     @app.post("/api/intercom/external-stations/{station_id}/prepare-call")
@@ -2841,6 +2851,122 @@ def create_app() -> FastAPI:
             "dashboard": dashboard,
             "providers": providers,
         }
+
+    def routine_owner(request: Request) -> str:
+        if not user_auth.enabled():
+            return "local"
+        owner = user_auth.session_user(request.cookies.get(user_auth.COOKIE))
+        if not owner:
+            raise HTTPException(status_code=401, detail="Accedi per gestire le routine")
+        return owner
+
+    async def routine_devices(request: Request | None = None) -> list[dict]:
+        if request is None:
+            request = Request({"type": "http", "method": "GET", "path": "/api/bootstrap", "headers": [],
+                               "query_string": b"", "scheme": "http", "server": ("localhost", 8099)})
+        data = await bootstrap(request)
+        return data.get("dashboard", {}).get("devices", [])
+
+    async def routine_command(device_id: str, action: str, value: object) -> object:
+        return await device_command(device_id, {"action": action, "value": value})
+
+    routine_engine = routines.Engine(lambda: routine_devices(), routine_command)
+
+    async def dispatch_routine_doorbird(event: str) -> None:
+        try:
+            await routine_engine.doorbird_event(event)
+        except Exception as exc:
+            logging.warning("DoorBird routine event delayed: %s", exc)
+
+    @app.on_event("startup")
+    async def start_routine_engine() -> None:
+        async def loop() -> None:
+            while True:
+                try:
+                    if not load_settings().demo_mode:
+                        await routine_engine.tick()
+                except asyncio.CancelledError:
+                    raise
+                except Exception as exc:
+                    logging.warning("Routine engine delayed: %s", exc)
+                await asyncio.sleep(8)
+        app.state.routine_task = asyncio.create_task(loop())
+
+    @app.get("/api/user/routines")
+    async def user_routines(request: Request) -> dict:
+        return {"items": routines.list_routines(routine_owner(request))}
+
+    @app.get("/api/user/routines/catalog")
+    async def user_routine_catalog(request: Request) -> dict:
+        routine_owner(request)
+        devices = await routine_devices(request)
+        return {"devices": [{key: item.get(key) for key in ("id", "entity_id", "name", "room", "kind", "state", "capabilities")}
+                            for item in devices if item.get("id")], "demo": load_settings().demo_mode}
+
+    @app.post("/api/user/routines/validate")
+    async def user_validate_routine(request: Request, payload: dict) -> dict:
+        owner = routine_owner(request)
+        raw = payload.get("spec", payload)
+        if not isinstance(raw, dict):
+            raise HTTPException(status_code=400, detail="Routine non valida")
+        routine_id = str(payload.get("id") or "")
+        if routine_id and not routines.get_routine(routine_id, owner):
+            raise HTTPException(status_code=404, detail="Routine non trovata")
+        return routines.validate({**raw, "id": routine_id or None}, await routine_devices(request), routines.list_routines())
+
+    async def save_user_routine(request: Request, payload: dict, routine_id: str | None = None) -> dict:
+        owner = routine_owner(request)
+        if load_settings().demo_mode and payload.get("enabled"):
+            raise HTTPException(status_code=409, detail="Le routine non si attivano in modalità demo")
+        raw = payload.get("spec", payload)
+        if not isinstance(raw, dict):
+            raise HTTPException(status_code=400, detail="Routine non valida")
+        if len(json.dumps(raw, ensure_ascii=False)) > 32_000:
+            raise HTTPException(status_code=413, detail="Routine troppo grande")
+        raw = {**raw, "id": routine_id}
+        review = routines.validate(raw, await routine_devices(request), routines.list_routines())
+        if review["errors"]:
+            raise HTTPException(status_code=400, detail=review["errors"])
+        if payload.get("enabled") and review["warnings"] and not payload.get("confirm_warnings"):
+            raise HTTPException(status_code=409, detail={"warnings": review["warnings"], "message": "Conferma i rischi prima di attivare"})
+        revision = payload.get("expected_revision")
+        if revision is not None and (isinstance(revision, bool) or not isinstance(revision, int)):
+            raise HTTPException(status_code=400, detail="Versione routine non valida")
+        try:
+            saved = routines.save(owner, owner, routine_id, review["spec"], bool(payload.get("enabled")), revision)
+            if routine_id and (task := routine_engine.running.get(routine_id)) and not task.done():
+                task.cancel()
+            return {"item": saved, "review": review}
+        except PermissionError as exc:
+            raise HTTPException(status_code=403, detail=str(exc)) from exc
+        except LookupError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+        except RuntimeError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    @app.post("/api/user/routines")
+    async def user_create_routine(request: Request, payload: dict) -> dict:
+        return await save_user_routine(request, payload)
+
+    @app.put("/api/user/routines/{routine_id}")
+    async def user_update_routine(request: Request, routine_id: str, payload: dict) -> dict:
+        return await save_user_routine(request, payload, routine_id)
+
+    @app.delete("/api/user/routines/{routine_id}")
+    async def user_delete_routine(request: Request, routine_id: str) -> dict:
+        if not routines.delete(routine_owner(request), routine_id):
+            raise HTTPException(status_code=404, detail="Routine non trovata")
+        if (task := routine_engine.running.get(routine_id)) and not task.done():
+            task.cancel()
+        return {"ok": True}
+
+    @app.get("/api/admin/routines/log")
+    async def admin_routine_log(request: Request, device_id: str = "", routine_id: str = "", limit: int = 100) -> dict:
+        require_installer(request)
+        return {"items": routines.list_runs(device_id=device_id[:120], routine_id=routine_id[:80], limit=limit),
+                "retention_days": routines.LOG_DAYS, "max_database_mb": routines.MAX_DB_BYTES // (1024 * 1024)}
 
     def require_installer(request: Request) -> None:
         if user_auth.enabled():

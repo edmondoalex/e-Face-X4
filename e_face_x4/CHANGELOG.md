@@ -1,5 +1,12 @@
 # Changelog
 
+## 2.21.191 — 2026-09-19
+
+- Nuova sezione Routine negli Strumenti utente con attivazioni, condizioni, azioni, timer e verifiche intermedie riordinabili.
+- Analisi preventiva di comandi, dispositivi, cicli e interazioni con altre routine; descrizione degli effetti in casa prima dell'attivazione.
+- Motore locale con esecuzione per cambio stato o orario e registro Admin attribuibile per routine, versione, dispositivo, comando e stato osservato.
+- Registro conservato per 15 giorni, con limiti di righe e dimensione; nessuna routine viene attivata automaticamente.
+
 ## 2.21.190 — 2026-09-19
 
 - L'ora dell'ultimo movimento DoorBird viene salvata all'evento e aggiornata subito nel widget Home.
