@@ -34,7 +34,7 @@ panel.innerHTML = `<header><button type="button" data-routine-back aria-label="T
   <p>Crea automazioni comprensibili. Prima di attivarle, e-Face verifica dispositivi, comandi e possibili interazioni.</p>
   <section class="routine-wizard" aria-label="Creazione guidata routine"><div class="routine-wizard-steps"><b>1 · Descrivi</b><b>2 · Verifica la bozza</b><b>3 · Salva o attiva</b></div><label>Scrivi cosa vuoi che accada<textarea data-routine-description rows="3" maxlength="2000" placeholder="Quando Luce Ufficio Alex si accende, accendi Luce Corridoio poi aspetta 60 secondi poi spegni Luce Corridoio"></textarea></label><p>Usa il nome completo dei dispositivi. La bozza non viene salvata né attivata automaticamente; puoi sempre correggerla nei campi qui sotto.</p><button type="button" class="routine-primary" data-routine-generate>CREA BOZZA DA DESCRIZIONE</button><p data-routine-generate-status role="status" aria-live="polite"></p></section>
   <div class="routine-layout"><aside><button type="button" class="routine-primary" data-routine-new>+ NUOVA ROUTINE</button><div data-routine-list></div></aside>
-  <div class="routine-editor" hidden><label>Nome routine<input data-routine-name maxlength="80" placeholder="Es. Luci ingresso la sera"></label>
+  <div class="routine-editor" hidden><label>Nome routine<input data-routine-name maxlength="80" placeholder="Es. Luci ingresso la sera"></label><label>Modalità di esecuzione<select data-routine-mode><option value="single">Singola · ignora nuovi eventi mentre è in corso</option><option value="restart">Riavvia · nuovo evento fa ripartire il timer</option><option value="queued">In coda · massimo 5 attese</option><option value="parallel">Parallela · massimo 3 esecuzioni</option></select></label>
   <h3>Quando</h3><p>Una qualsiasi attivazione avvia la routine. Alba e tramonto usano la posizione di Home Assistant; minuti negativi anticipano, positivi ritardano.</p><div data-routine-triggers></div><button type="button" data-routine-add="trigger">+ Aggiungi attivazione</button>
   <h3>E se <small>(opzionale)</small></h3><p>Tutte queste condizioni devono essere vere all'inizio.</p><div data-routine-conditions></div><button type="button" data-routine-add="condition">+ Aggiungi condizione</button>
   <h3>Allora</h3><p>I blocchi sono eseguiti nell'ordine mostrato. Dopo un timer puoi ricontrollare uno stato.</p><div data-routine-steps></div>
@@ -113,6 +113,7 @@ const stateSelect = (deviceId, selected) => {
 function collect() {
   if (!draft) return
   draft.name = $('[data-routine-name]').value.trim()
+  draft.mode = $('[data-routine-mode]').value
   draft.triggers = [...$('[data-routine-triggers]').children].map(row => {
     const type = row.querySelector('[data-field="type"]').value
     return type === 'time' ? {type, at: row.querySelector('[data-field="at"]')?.value || ''}
@@ -140,6 +141,7 @@ function renderEditor() {
   $('.routine-editor').hidden = !draft
   if (!draft) return
   $('[data-routine-name]').value = draft.name || ''
+  $('[data-routine-mode]').value = draft.mode || 'single'
   $('[data-routine-triggers]').innerHTML = draft.triggers.map((item, index) => `<div class="routine-block" data-index="${index}"><select data-field="type"><option value="state" ${item.type === 'state' ? 'selected' : ''}>Quando cambia un dispositivo</option><option value="time" ${item.type === 'time' ? 'selected' : ''}>A un orario</option><option value="sun" ${item.type === 'sun' ? 'selected' : ''}>Alba / Tramonto</option><option value="remote" ${item.type === 'remote' ? 'selected' : ''}>Tasto telecomando e-Face</option><option value="doorbird" ${item.type === 'doorbird' ? 'selected' : ''}>Evento DoorBird</option></select>${item.type === 'time' ? `<input data-field="at" type="time" value="${escapeHtml(item.at || '')}">` : item.type === 'doorbird' ? `<select data-field="event"><option value="doorbell" ${item.event === 'doorbell' ? 'selected' : ''}>Chiamata</option><option value="motionsensor" ${item.event === 'motionsensor' ? 'selected' : ''}>Movimento</option></select>` : item.type === 'sun' ? solarFields(item) : item.type === 'remote' ? `${deviceField(item.device_id,'media')}${remoteFields(item.device_id,item.source_id,item.command)}` : `${deviceField(item.device_id)}${stateSelect(item.device_id, item.to)}`}<button type="button" data-routine-remove="trigger" aria-label="Rimuovi">×</button></div>`).join('')
   $('[data-routine-conditions]').innerHTML = draft.conditions.map((item, index) => conditionRow(item, index, 'condition')).join('')
   $('[data-routine-steps]').innerHTML = draft.steps.map((item, index) => {
@@ -165,6 +167,7 @@ function solarFields(item, condition = false) { return `<select data-field="sun-
 function stepButtons() { return '<div class="routine-move"><button type="button" class="drag-handle routine-drag" data-routine-drag aria-label="Trascina per cambiare ordine; usa freccia su e giù da tastiera" title="Trascina per riordinare">☰</button><button type="button" data-routine-remove="step" aria-label="Rimuovi">×</button></div>' }
 function showReview(review) {
   $('[data-routine-review]').innerHTML = `<b>Effetti previsti in casa</b><p>${escapeHtml(review.description)}</p>${review.errors.length ? `<div class="routine-errors"><b>Da correggere</b>${review.errors.map(item => `<p>${escapeHtml(item)}</p>`).join('')}</div>` : '<p class="routine-ok">Controlli bloccanti superati.</p>'}${review.warnings.length ? `<div class="routine-warnings"><b>Da valutare</b>${review.warnings.map(item => `<p>${escapeHtml(item)}</p>`).join('')}</div>` : ''}`
+  if (review.risks?.length) $('[data-routine-review]').insertAdjacentHTML('beforeend', `<div class="routine-warnings"><b>Possibili conseguenze sull'impianto</b>${review.risks.map(item => `<p>${escapeHtml(item)}</p>`).join('')}</div>`)
 }
 async function load() {
   const [list, catalog] = await Promise.all([request('api/user/routines'), request('api/user/routines/catalog')])
@@ -375,7 +378,7 @@ logPanel.querySelector('[data-routine-filter]').addEventListener('click', () => 
 const professional = selector => professionalPanel.querySelector(selector)
 let professionalItems = []
 let professionalCurrent = null
-const professionalTemplate = () => ({name:'Nuova routine',triggers:[{type:'state',device_id:'',to:'on'}],conditions:[],steps:[{type:'action',device_id:'',action:'on'}]})
+const professionalTemplate = () => ({name:'Nuova routine',mode:'single',triggers:[{type:'state',device_id:'',to:'on'}],conditions:[],steps:[{type:'action',device_id:'',action:'on'}]})
 function renderProfessionalChoice() {
   professional('[data-professional-select]').innerHTML = `<option value="">Nuova routine</option>${professionalItems.map(item => `<option value="${escapeHtml(item.id)}" ${professionalCurrent?.id === item.id ? 'selected' : ''}>${escapeHtml(item.name)} · v${item.revision}</option>`).join('')}`
 }
@@ -400,6 +403,7 @@ function professionalSpec() {
 }
 function showProfessionalReview(review) {
   professional('[data-professional-review]').innerHTML = `<b>Effetti previsti in casa</b><p>${escapeHtml(review.description)}</p>${review.errors.length ? `<div class="routine-errors"><b>Da correggere</b>${review.errors.map(item => `<p>${escapeHtml(item)}</p>`).join('')}</div>` : '<p class="routine-ok">Controlli bloccanti superati.</p>'}${review.warnings.length ? `<div class="routine-warnings"><b>Da valutare</b>${review.warnings.map(item => `<p>${escapeHtml(item)}</p>`).join('')}</div>` : ''}`
+  if (review.risks?.length) professional('[data-professional-review]').insertAdjacentHTML('beforeend', `<div class="routine-warnings"><b>Possibili conseguenze sull'impianto</b>${review.risks.map(item => `<p>${escapeHtml(item)}</p>`).join('')}</div>`)
 }
 professionalCard.addEventListener('click', () => { professionalPanel.hidden = false; sessionStorage.setItem('eface-tools-panel', 'routine-professional'); document.body.style.overflow = 'hidden'; loadProfessional().catch(error => professional('[data-professional-review]').textContent = error.message) })
 professional('[data-professional-back]').addEventListener('click', () => { professionalPanel.hidden = true; sessionStorage.removeItem('eface-tools-panel'); document.body.style.overflow = '' })

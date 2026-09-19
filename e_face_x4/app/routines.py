@@ -19,6 +19,9 @@ MAX_WAIT_SECONDS = 3600
 LOG_DAYS = 15
 MAX_LOG_ROWS = 20_000
 MAX_DB_BYTES = 50 * 1024 * 1024
+RUN_MODES = {"single", "restart", "queued", "parallel"}
+MAX_QUEUED_RUNS = 5
+MAX_PARALLEL_RUNS = 3
 SAFE_ACTIONS = {
     "light_scenario": {"on", "off", "run", "stop"},
     "light": {"on", "off", "brightness"},
@@ -175,6 +178,13 @@ def validate(payload: dict, devices: list[dict], others: list[dict] = (), *, sol
     """Validate against the live installation; never trust client-provided capabilities."""
     errors: list[str] = []
     warnings: list[str] = []
+    mode = payload.get("mode", "single")
+    if not isinstance(mode, str) or mode not in RUN_MODES:
+        errors.append("Modalità routine non valida: usa single, restart, queued o parallel")
+        mode = "single"
+    unsupported = set(payload) - {"id", "name", "mode", "triggers", "conditions", "steps"}
+    if unsupported:
+        errors.append("Campi JSON non supportati: " + ", ".join(sorted(str(key) for key in unsupported)))
     catalog = {str(item.get("id")): item for item in devices if isinstance(item, dict) and item.get("id")}
     name = str(payload.get("name") or "").strip()[:80]
     if not 1 <= len(name) <= 80:
@@ -188,6 +198,12 @@ def validate(payload: dict, devices: list[dict], others: list[dict] = (), *, sol
         if not isinstance(raw, dict):
             errors.append("Attivazione non valida")
             continue
+        trigger_fields = {"time": {"type", "at"}, "doorbird": {"type", "event"}, "sun": {"type", "event", "offset_minutes"},
+                          "remote": {"type", "device_id", "source_id", "command"}, "state": {"type", "device_id", "to"}}
+        trigger_kind = raw.get("type") if isinstance(raw.get("type"), str) else ""
+        extra = set(raw) - trigger_fields.get(trigger_kind, set(raw))
+        if extra:
+            errors.append("Campi attivazione non supportati: " + ", ".join(sorted(str(key) for key in extra)))
         if raw.get("type") == "time":
             at = str(raw.get("at") or "")
             if not re.fullmatch(r"(?:[01]\d|2[0-3]):[0-5]\d", at):
@@ -225,6 +241,14 @@ def validate(payload: dict, devices: list[dict], others: list[dict] = (), *, sol
     if not isinstance(raw_conditions, list) or len(raw_conditions) > 8:
         errors.append("Massimo 8 condizioni iniziali")
         raw_conditions = []
+    for raw in raw_conditions:
+        if isinstance(raw, dict):
+            if raw.get("type") not in (None, "state", "sun"):
+                errors.append("Tipo di condizione non supportato")
+            allowed = {"type", "event", "offset_minutes", "relation"} if raw.get("type") == "sun" else {"type", "device_id", "operator", "value"}
+            extra = set(raw) - allowed
+            if extra:
+                errors.append("Campi condizione non supportati: " + ", ".join(sorted(str(key) for key in extra)))
     conditions = [item for raw in raw_conditions if (item := _solar_rule(raw, errors, condition=True) if isinstance(raw, dict) and raw.get("type") == "sun" else _condition(raw, catalog, errors))]
     if not solar_available and (any(item.get("type") == "sun" for item in triggers) or any(item.get("type") == "sun" for item in conditions)):
         errors.append("Alba/tramonto non disponibili: controlla posizione e fuso orario di Home Assistant")
@@ -240,6 +264,11 @@ def validate(payload: dict, devices: list[dict], others: list[dict] = (), *, sol
             errors.append("Blocco non valido")
             continue
         kind = raw.get("type")
+        step_fields = {"wait": {"type", "seconds"}, "check": {"type", "device_id", "operator", "value"},
+                       "action": {"type", "device_id", "action", "value"}}
+        extra = set(raw) - step_fields.get(kind if isinstance(kind, str) else "", set(raw))
+        if extra:
+            errors.append("Campi blocco non supportati: " + ", ".join(sorted(str(key) for key in extra)))
         if kind == "wait":
             seconds = raw.get("seconds")
             if isinstance(seconds, bool) or not isinstance(seconds, int) or not 1 <= seconds <= MAX_WAIT_SECONDS:
@@ -248,6 +277,8 @@ def validate(payload: dict, devices: list[dict], others: list[dict] = (), *, sol
             total_wait += seconds
             steps.append({"type": "wait", "seconds": seconds})
         elif kind == "check":
+            if raw.get("type") != "check":
+                errors.append("Tipo di verifica non supportato")
             condition = _condition(raw, catalog, errors)
             if condition:
                 steps.append({"type": "check", **condition})
@@ -314,6 +345,9 @@ def validate(payload: dict, devices: list[dict], others: list[dict] = (), *, sol
                 if not isinstance(value, dict):
                     errors.append(f"{device.get('name')}: tasto telecomando non valido")
                     continue
+                if set(value) - {"source_id", "command"}:
+                    errors.append(f"{device.get('name')}: campi telecomando non supportati")
+                    continue
                 source_id = value.get("source_id")
                 command = str(value.get("command") or "")
                 if isinstance(source_id, bool) or not isinstance(source_id, int) or source_id <= 0 or not _remote_allowed(device, source_id, command):
@@ -321,6 +355,9 @@ def validate(payload: dict, devices: list[dict], others: list[dict] = (), *, sol
                     continue
                 value = {"source_id": source_id, "command": command}
             else:
+                if value is not None:
+                    errors.append(f"{device.get('name')}: il comando {action} non accetta un valore")
+                    continue
                 value = None
             actions.append((device_id, action))
             steps.append({"type": "action", "device_id": device_id, "action": action, "value": value})
@@ -363,6 +400,42 @@ def validate(payload: dict, devices: list[dict], others: list[dict] = (), *, sol
             stack.extend((target, visited | {node}) for target in edges.get(node, ()) if target in edges)
         if any("ciclo tra routine" in error for error in errors):
             break
+    # A remote command can itself emit a remote trigger: include it in the
+    # dependency graph rather than treating only physical state changes.
+    event_edges: dict[tuple[str, ...], set[tuple[str, ...]]] = {}
+    for other in [*others, {"spec": {"triggers": triggers, "steps": steps}, "enabled": True, "id": payload.get("id"), "candidate": True}]:
+        if not other.get("enabled") or (other.get("id") == payload.get("id") and not other.get("candidate")):
+            continue
+        spec = other.get("spec") or {}
+        sources: list[tuple[str, ...]] = []
+        targets: set[tuple[str, ...]] = set()
+        for trigger in spec.get("triggers", []):
+            if trigger.get("type") == "state":
+                sources.append(("state", str(trigger.get("device_id")), str(trigger.get("to"))))
+            elif trigger.get("type") == "remote":
+                sources.append(("remote", str(trigger.get("device_id")), str(trigger.get("source_id")), str(trigger.get("command"))))
+        for step in spec.get("steps", []):
+            if step.get("type") != "action":
+                continue
+            target_id = str(step.get("device_id"))
+            for state in _action_targets(catalog.get(target_id), str(step.get("action"))):
+                targets.add(("state", target_id, state))
+            if step.get("action") == "remote_command" and isinstance(step.get("value"), dict):
+                value = step["value"]
+                targets.add(("remote", target_id, str(value.get("source_id")), str(value.get("command"))))
+        for source in sources:
+            event_edges.setdefault(source, set()).update(targets)
+    for source in event_edges:
+        stack = [(source, frozenset())]
+        while stack:
+            node, visited = stack.pop()
+            if node in visited:
+                errors.append("Possibile loop tra routine: un comando puo riattivare se stesso o un'altra routine")
+                stack.clear()
+                break
+            stack.extend((target, visited | {node}) for target in event_edges.get(node, ()) if target in event_edges)
+        if any("Possibile loop tra routine" in error for error in errors):
+            break
     for index, (device_id, action) in enumerate(actions[1:], 1):
         if device_id == actions[index - 1][0] and action != actions[index - 1][1]:
             warnings.append(f"{catalog[device_id].get('name')}: comandi diversi nella stessa routine; verifica i timer")
@@ -374,7 +447,23 @@ def validate(payload: dict, devices: list[dict], others: list[dict] = (), *, sol
             warnings.append(f"Interazione possibile con la routine «{other['name']}» sugli stessi dispositivi")
     if any(step["type"] == "check" for step in steps):
         warnings.append("Se una verifica intermedia non è soddisfatta, le azioni successive non verranno eseguite")
-    normalized = {"name": name, "triggers": triggers, "conditions": conditions, "steps": steps}
+    risks: list[str] = []
+    if mode == "restart":
+        risks.append("Un nuovo evento interrompe il timer e riparte dall'inizio; le azioni gia eseguite non vengono annullate. Dopo 20 avvii in un'ora nuovi eventi sono bloccati e l'esecuzione in corso termina normalmente.")
+    elif mode == "queued":
+        risks.append("Gli eventi si mettono in coda (massimo 5): un comando puo avvenire molto dopo l'evento che lo ha richiesto. La coda in corso non sopravvive al riavvio dell'add-on.")
+    elif mode == "parallel":
+        risks.append("Fino a 3 esecuzioni possono operare contemporaneamente: comandi sullo stesso dispositivo potrebbero sovrapporsi.")
+    if any(step["type"] == "wait" for step in steps) and any(action == "off" for _, action in actions):
+        risks.append("Uno spegnimento dopo un timer puo sovrascrivere un'accensione manuale avvenuta durante l'attesa.")
+    if any(catalog[device_id].get("kind") == "cover" and action in {"open", "close"} for device_id, action in actions):
+        risks.append("Oscuranti in movimento: e-Face non puo accertare la presenza di persone o ostacoli; verifica le protezioni fisiche dell'impianto.")
+    if any(catalog[device_id].get("kind") == "switch" for device_id, _ in actions):
+        risks.append("Gli switch possono alimentare carichi reali: verifica che un comando automatico non interrompa apparecchiature importanti.")
+    if mode == "parallel" and len({device_id for device_id, _ in actions}) < len(actions):
+        errors.append("Parallel non consentito: la stessa routine comanda piu volte lo stesso dispositivo e le esecuzioni potrebbero sovrapporsi")
+    warnings.extend(risks)
+    normalized = {"name": name, "mode": mode, "triggers": triggers, "conditions": conditions, "steps": steps}
     descriptions = []
     for trigger in triggers:
         if trigger["type"] == "time":
@@ -417,7 +506,7 @@ def validate(payload: dict, devices: list[dict], others: list[dict] = (), *, sol
     for device_id, action in actions:
         if action == "on" and not any(other_id == device_id and other_action == "off" for other_id, other_action in actions):
             narrative += f"{catalog[device_id].get('name')} resterà acceso finché non interviene un altro comando. "
-    return {"spec": normalized, "errors": list(dict.fromkeys(errors)), "warnings": list(dict.fromkeys(warnings)), "description": narrative.strip(), "can_enable": not errors}
+    return {"spec": normalized, "errors": list(dict.fromkeys(errors)), "warnings": list(dict.fromkeys(warnings)), "risks": risks, "description": narrative.strip(), "can_enable": not errors}
 
 
 def save(owner: str, actor: str, routine_id: str | None, spec: dict, enabled: bool, expected_revision: int | None,
@@ -522,6 +611,10 @@ class Engine:
         self.active_targets: dict[str, set[str]] = {}
         self.previous: dict[str, str] = {}
         self.running: dict[str, asyncio.Task] = {}
+        self.running_tasks: dict[str, set[asyncio.Task]] = {}
+        self.pending: dict[str, list[tuple[dict, str, dict[str, dict], str | None]]] = {}
+        self.cancel_reasons: dict[asyncio.Task, str] = {}
+        self.recent_starts: dict[str, list[datetime]] = {}
         self.external_cooldowns: dict[tuple[str, str], float] = {}
         self.last_prune = 0.0
         self.buspro_by_state_key: dict[str, str] = {}
@@ -655,7 +748,7 @@ class Engine:
                 pass
         for routine in routines:
             identifier = routine["id"]
-            if identifier in self.running and not self.running[identifier].done():
+            if routine["spec"].get("mode", "single") == "single" and identifier in self.running and not self.running[identifier].done():
                 continue
             matched = ""
             matched_type = ""
@@ -714,7 +807,13 @@ class Engine:
 
     def _start(self, routine: dict, matched: str, trigger_key: str, devices: dict[str, dict], received_at: str | None = None) -> None:
         identifier = routine["id"]
-        if identifier in self.running and not self.running[identifier].done():
+        mode = routine["spec"].get("mode", "single")
+        active = {task for task in self.running_tasks.get(identifier, set()) if not task.done()}
+        if active and mode == "single":
+            return
+        if active and mode == "parallel" and len(active) >= MAX_PARALLEL_RUNS:
+            return
+        if active and mode == "queued" and len(self.pending.get(identifier, [])) >= MAX_QUEUED_RUNS:
             return
         if routine["last_trigger_key"] == trigger_key:
             return
@@ -723,17 +822,68 @@ class Engine:
                                  (trigger_key, identifier, trigger_key)).rowcount
         if not changed:
             return
-        cutoff = (datetime.now(timezone.utc) - timedelta(hours=1)).isoformat()
-        with _connect() as db:
-            count = db.execute("SELECT COUNT(*) FROM routine_runs WHERE routine_id = ? AND started_at >= ?", (identifier, cutoff)).fetchone()[0]
-        if count >= 20:
+        now = datetime.now(timezone.utc)
+        cutoff = now - timedelta(hours=1)
+        if identifier not in self.recent_starts:
+            with _connect() as db:
+                rows = db.execute("SELECT started_at FROM routine_runs WHERE routine_id = ? AND started_at >= ?", (identifier, cutoff.isoformat())).fetchall()
+            self.recent_starts[identifier] = [datetime.fromisoformat(row[0]) for row in rows]
+        recent = self.recent_starts[identifier]
+        recent[:] = [started for started in recent if started >= cutoff]
+        if len(recent) >= 20:
             run_id = str(uuid.uuid4())
             with _connect() as db:
                 db.execute("INSERT INTO routine_runs(id,routine_id,owner,name,revision,trigger_detail,started_at,ended_at,status) VALUES(?,?,?,?,?,?,?,?,?)",
                            (run_id, identifier, routine["owner"], routine["name"], routine["revision"], matched, _now(), _now(), "blocked"))
             record_event(run_id, "rate_limit", detail="Più di 20 attivazioni in un'ora: blocco di sicurezza")
         else:
-            self.running[identifier] = asyncio.create_task(self._run(routine, matched, devices, received_at))
+            recent.append(now)
+            if active and mode == "restart":
+                for task in active:
+                    self.cancel_reasons[task] = "Nuovo evento: timer riavviato (mode restart)"
+                    task.cancel()
+                self.pending.pop(identifier, None)
+            if active and mode == "queued":
+                self.pending.setdefault(identifier, []).append((routine, matched, devices, received_at))
+                return
+            self._launch(routine, matched, devices, received_at)
+
+    def _launch(self, routine: dict, matched: str, devices: dict[str, dict], received_at: str | None) -> None:
+        identifier = routine["id"]
+        task = asyncio.create_task(self._run(routine, matched, devices, received_at))
+        self.running[identifier] = task
+        self.running_tasks.setdefault(identifier, set()).add(task)
+        task.add_done_callback(lambda done: self._finished(identifier, done))
+
+    def _finished(self, identifier: str, task: asyncio.Task) -> None:
+        active = self.running_tasks.get(identifier)
+        if active is None:
+            return
+        active.discard(task)
+        self.cancel_reasons.pop(task, None)
+        if active:
+            if self.running.get(identifier) is task:
+                self.running[identifier] = next(iter(active))
+            return
+        self.running_tasks.pop(identifier, None)
+        if self.running.get(identifier) is task:
+            self.running.pop(identifier, None)
+        waiting = self.pending.get(identifier)
+        while waiting:
+            routine, matched, devices, received_at = waiting.pop(0)
+            latest = get_routine(identifier)
+            if latest and latest["enabled"] and latest["revision"] == routine["revision"]:
+                self._launch(routine, matched, devices, received_at)
+                break
+        if not waiting:
+            self.pending.pop(identifier, None)
+
+    def cancel_routine(self, identifier: str) -> None:
+        self.pending.pop(identifier, None)
+        for task in self.running_tasks.get(identifier, set()):
+            if not task.done():
+                self.cancel_reasons[task] = "Routine modificata o disattivata"
+                task.cancel()
 
     async def _run(self, routine: dict, trigger_detail: str, starting_devices: dict[str, dict], received_at: str | None = None) -> None:
         run_id = str(uuid.uuid4())
@@ -745,7 +895,7 @@ class Engine:
         record_event(run_id, "trigger", detail=trigger_detail)
         status = "completed"
         try:
-            self.active_targets[routine["id"]] = {str(step["device_id"]) for step in routine["spec"]["steps"] if step["type"] == "action"}
+            self.active_targets[run_id] = {str(step["device_id"]) for step in routine["spec"]["steps"] if step["type"] == "action"}
             await self._notify_activity()
             devices = starting_devices
             for condition in routine["spec"]["conditions"]:
@@ -811,13 +961,13 @@ class Engine:
                     record_event(run_id, "observed", device_id=device_id, device_name=str(device.get("name") or ""), action=step["action"], before_state=before, after_state=after, result="changed" if after != before else "unchanged")
         except asyncio.CancelledError:
             status = "cancelled"
-            record_event(run_id, "cancel", detail="Add-on arrestato")
+            record_event(run_id, "cancel", detail=self.cancel_reasons.get(asyncio.current_task(), "Add-on arrestato"))
             raise
         except Exception as exc:
             status = "failed"
             record_event(run_id, "error", detail=str(exc))
         finally:
-            self.active_targets.pop(routine["id"], None)
+            self.active_targets.pop(run_id, None)
             await self._notify_activity()
             with _connect() as db:
                 db.execute("UPDATE routine_runs SET ended_at = ?, status = ? WHERE id = ?", (_now(), status, run_id))

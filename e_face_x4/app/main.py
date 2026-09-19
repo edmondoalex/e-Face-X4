@@ -76,7 +76,7 @@ from .connectors.supervisor import discover_addon_url, discover_host_url
 from .media_realtime import SharedMediaRealtime
 from .demo import dashboard as demo_dashboard
 
-VERSION = os.environ.get("EFACE_VERSION", "2.21.204")
+VERSION = os.environ.get("EFACE_VERSION", "2.21.205")
 STATIC = Path(__file__).parent / "static"
 logging.basicConfig(level=logging.WARNING, format="%(asctime)s %(levelname)s [e-face-x4] %(message)s")
 _reconnect_warning_at: dict[str, float] = {}
@@ -200,10 +200,11 @@ def create_app() -> FastAPI:
             app.state.routine_buspro_task.cancel()
         if app.state.routine_ksenia_task:
             app.state.routine_ksenia_task.cancel()
-        for task in routine_engine.running.values():
+        all_routine_tasks = {task for tasks in routine_engine.running_tasks.values() for task in tasks}
+        for task in all_routine_tasks:
             task.cancel()
-        if routine_engine.running:
-            await asyncio.gather(*routine_engine.running.values(), return_exceptions=True)
+        if all_routine_tasks:
+            await asyncio.gather(*all_routine_tasks, return_exceptions=True)
     app.mount("/assets", AppAssets(directory=STATIC / "assets"), name="assets")
     login_failures: dict[tuple[str, str], list[float]] = {}
     reveal_failures: dict[str, list[float]] = {}
@@ -3139,8 +3140,8 @@ def create_app() -> FastAPI:
             saved = routines.save(owner, owner, routine_id, existing["spec"], enabled, existing["revision"], shared=True)
         except RuntimeError as exc:
             raise HTTPException(status_code=409, detail=str(exc)) from exc
-        if not enabled and (task := routine_engine.running.get(routine_id)) and not task.done():
-            task.cancel()
+        if not enabled:
+            routine_engine.cancel_routine(routine_id)
         return {"item": saved}
 
     @app.post("/api/user/routines/validate")
@@ -3174,8 +3175,8 @@ def create_app() -> FastAPI:
             raise HTTPException(status_code=400, detail="Versione routine non valida")
         try:
             saved = routines.save(owner, owner, routine_id, review["spec"], bool(payload.get("enabled")), revision, shared=True)
-            if routine_id and (task := routine_engine.running.get(routine_id)) and not task.done():
-                task.cancel()
+            if routine_id:
+                routine_engine.cancel_routine(routine_id)
             return {"item": saved, "review": review}
         except PermissionError as exc:
             raise HTTPException(status_code=403, detail=str(exc)) from exc
@@ -3198,8 +3199,7 @@ def create_app() -> FastAPI:
     async def user_delete_routine(request: Request, routine_id: str) -> dict:
         if not routines.delete(routine_owner(request), routine_id, shared=True):
             raise HTTPException(status_code=404, detail="Routine non trovata")
-        if (task := routine_engine.running.get(routine_id)) and not task.done():
-            task.cancel()
+        routine_engine.cancel_routine(routine_id)
         return {"ok": True}
 
     @app.get("/api/admin/routines/professional")

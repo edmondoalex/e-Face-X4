@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.21.205 — 2026-09-19
+
+- Routine Professional: modalità `single`, `restart`, `queued` e `parallel` persistenti e disponibili anche nell'editor visuale. Limiti su coda, parallelismo e attivazioni rapide; annullamento delle esecuzioni quando la routine cambia o viene disattivata.
+- Validazione JSON più severa: campi sconosciuti rifiutati, controllo dei cicli anche nei comandi telecomando e riepilogo dei possibili effetti su persone, carichi e dispositivi prima dell'attivazione.
+
 ## 2.21.204 — 2026-09-19
 
 - Amministrazione → Routine Professional: editor JSON dello stesso `spec` persistente delle routine globali, con controllo dell'impianto, salvataggio revisionato, stato attivo/disattivo esplicito e apertura nell'editor visuale. Accesso riservato all'amministratore.

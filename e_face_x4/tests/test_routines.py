@@ -109,6 +109,23 @@ def test_media_remote_commands_follow_source_capabilities():
     assert routines.validate(spec, catalog() + [player])["errors"]
 
 
+def test_professional_json_rejects_ignored_fields_and_remote_feedback_loop():
+    spec = sample()
+    spec["conditions"] = [{"type": "unsupported", "device_id": "light.hall", "operator": "is", "value": "off"}]
+    assert not routines.validate(spec, catalog())["can_enable"]
+    spec["conditions"] = []
+    spec["steps"][0]["value"] = "off"
+    assert not routines.validate(spec, catalog())["can_enable"]
+    player = {"id": "c4media:1", "kind": "media_player", "name": "Sala", "state": "idle",
+              "source_options": [{"key": "watch:42", "label": "Sky Q", "source_id": 42,
+                                  "experience": "watch", "remote_actions": ["menu"]}]}
+    spec["triggers"] = [{"type": "remote", "device_id": "c4media:1", "source_id": 42, "command": "menu"}]
+    spec["steps"] = [{"type": "action", "device_id": "c4media:1", "action": "remote_command",
+                      "value": {"source_id": 42, "command": "menu"}}]
+    review = routines.validate(spec, catalog() + [player])
+    assert any("loop" in error.lower() for error in review["errors"])
+
+
 def test_legacy_control4_source_label_is_normalized_to_key():
     player = {"id": "c4media:1", "kind": "media_player", "name": "Sala", "state": "off", "provider": "control4",
               "capabilities": {"select_source": True}, "source_options": [{"key": "watch:42", "label": "Sky Q", "source_id": 42,
@@ -423,6 +440,144 @@ def test_ksenia_zone_closed_active_closed_active_triggers_twice():
 
     asyncio.run(run())
     assert commands == [("light.hall", "on"), ("light.hall", "on")]
+
+
+def test_restart_mode_resets_motion_timer_and_does_not_send_old_off():
+    zone = {"id": "ksenia-zone:5", "kind": "alarm_zone", "name": "IR Ufficio", "state": "closed"}
+    state = {"light.hall": "off"}
+    commands = []
+
+    async def snapshot():
+        return [zone, *[{**item, "state": state.get(item["id"], item["state"])} for item in catalog()]]
+
+    async def command(device_id, action, value):
+        commands.append(action)
+        state[device_id] = action
+
+    spec = sample()
+    spec["mode"] = "restart"
+    spec["triggers"] = [{"type": "state", "device_id": zone["id"], "to": "active"}]
+    spec["steps"] += [{"type": "wait", "seconds": 1}, {"type": "action", "device_id": "light.hall", "action": "off"}]
+    review = routines.validate(spec, [zone, *catalog()])
+    assert not review["errors"]
+    assert review["spec"]["mode"] == "restart"
+    saved = routines.save("alice", "alice", None, review["spec"], True, None)
+    engine = routines.Engine(snapshot, command)
+
+    async def run():
+        await engine.ksenia_event([{**zone, "state": "closed"}])
+        await engine.ksenia_event([{**zone, "state": "active"}])
+        await asyncio.sleep(0.2)
+        await engine.ksenia_event([{**zone, "state": "closed"}])
+        await engine.ksenia_event([{**zone, "state": "active"}])
+        await asyncio.sleep(0.1)
+        assert commands == ["on", "on"]
+        assert state["light.hall"] == "on"
+        await engine.running[saved["id"]]
+        await asyncio.sleep(0)
+
+    asyncio.run(run())
+    assert commands == ["on", "on", "off"]
+    assert sorted(item["status"] for item in routines.list_runs()) == ["cancelled", "completed"]
+
+
+def test_unknown_professional_fields_and_modes_are_blocked():
+    spec = sample()
+    spec["mode"] = "restart"
+    assert not routines.validate(spec, catalog())["errors"]
+    assert routines.validate({**spec, "mode": "unknown"}, catalog())["errors"]
+    assert routines.validate({**spec, "unsupported": True}, catalog())["errors"]
+    assert routines.validate({**spec, "steps": [{**spec["steps"][0], "service": "dangerous"}]}, catalog())["errors"]
+
+
+def test_queued_mode_runs_events_in_order_with_bounded_backlog():
+    commands = []
+
+    async def snapshot():
+        return catalog()
+
+    async def command(device_id, action, value):
+        commands.append(action)
+
+    spec = sample()
+    spec["mode"] = "queued"
+    spec["steps"] = [{"type": "action", "device_id": "light.hall", "action": "on"}, {"type": "wait", "seconds": 1}]
+    saved = routines.save("alice", "alice", None, routines.validate(spec, catalog())["spec"], True, None)
+    engine = routines.Engine(snapshot, command)
+    devices = {item["id"]: item for item in catalog()}
+
+    async def run():
+        for index in range(3):
+            engine._start(saved, f"event {index}", f"queue:{index}", devices)
+        assert len(engine.pending[saved["id"]]) == 2
+        await asyncio.wait_for(_wait_for_runs(3), 5)
+
+    async def _wait_for_runs(count):
+        while len([item for item in routines.list_runs() if item["status"] == "completed"]) < count:
+            await asyncio.sleep(0.05)
+
+    asyncio.run(run())
+    assert commands == ["on", "on", "on"]
+
+
+def test_restart_rate_limit_counts_events_before_tasks_write_logs():
+    async def snapshot():
+        return catalog()
+
+    async def command(device_id, action, value):
+        pass
+
+    spec = sample()
+    spec["mode"] = "restart"
+    spec["steps"].append({"type": "wait", "seconds": 1})
+    saved = routines.save("alice", "alice", None, routines.validate(spec, catalog())["spec"], True, None)
+    engine = routines.Engine(snapshot, command)
+    devices = {item["id"]: item for item in catalog()}
+
+    async def run():
+        for index in range(22):
+            engine._start(saved, f"event {index}", f"restart:{index}", devices)
+        assert len(engine.recent_starts[saved["id"]]) == 20
+        assert len([item for item in routines.list_runs() if item["status"] == "blocked"]) == 2
+        engine.cancel_routine(saved["id"])
+        await asyncio.gather(*engine.running_tasks[saved["id"]], return_exceptions=True)
+
+    asyncio.run(run())
+
+
+def test_parallel_mode_keeps_activity_until_last_run_finishes():
+    activity = []
+
+    async def snapshot():
+        return catalog()
+
+    async def command(device_id, action, value):
+        pass
+
+    async def changed(device_ids):
+        activity.append(set(device_ids))
+
+    spec = sample()
+    spec["mode"] = "parallel"
+    spec["steps"].append({"type": "wait", "seconds": 1})
+    saved = routines.save("alice", "alice", None, routines.validate(spec, catalog())["spec"], True, None)
+    engine = routines.Engine(snapshot, command, activity_changed=changed)
+    devices = {item["id"]: item for item in catalog()}
+
+    async def run():
+        engine._start(saved, "first", "parallel:1", devices)
+        await asyncio.sleep(0.2)
+        engine._start(saved, "second", "parallel:2", devices)
+        await asyncio.sleep(0.1)
+        assert len(engine.running_tasks[saved["id"]]) == 2
+        assert engine.active_device_ids() == {"light.hall"}
+        await asyncio.sleep(0.8)
+        assert engine.active_device_ids() == {"light.hall"}
+        await asyncio.gather(*engine.running_tasks[saved["id"]], return_exceptions=True)
+
+    asyncio.run(run())
+    assert activity[-1] == set()
+    assert len([item for item in routines.list_runs() if item["status"] == "completed"]) == 2
 
 
 def test_ksenia_event_fetches_only_referenced_devices():
