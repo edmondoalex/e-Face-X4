@@ -113,6 +113,59 @@ def test_engine_runs_only_on_state_transition_and_logs_device():
     assert runs[0]["modified_by"] == "alice"
 
 
+def test_state_trigger_can_run_twice_in_same_minute():
+    state = {"sensor.motion": "off", "light.hall": "off"}
+    commands = []
+
+    async def snapshot():
+        return [{**item, "state": state.get(item["id"], item["state"])} for item in catalog()]
+
+    async def command(device_id, action, value):
+        commands.append((device_id, action))
+
+    spec = routines.validate(sample(), catalog())["spec"]
+    saved = routines.save("alice", "alice", None, spec, True, None)
+    engine = routines.Engine(snapshot, command)
+
+    async def run():
+        await engine.tick()
+        for _ in range(2):
+            state["sensor.motion"] = "on"
+            await engine.tick()
+            await engine.running[saved["id"]]
+            state["sensor.motion"] = "off"
+            await engine.tick()
+
+    asyncio.run(run())
+    assert len(commands) == 2
+    assert len(routines.list_runs()) == 2
+
+
+def test_buspro_events_catch_short_on_off_on_sequence():
+    devices = [{**item, "state_key": "1.2.3" if item["id"] == "sensor.motion" else "1.2.4"} for item in catalog()]
+    commands = []
+
+    async def snapshot():
+        return devices
+
+    async def command(device_id, action, value):
+        commands.append((device_id, action))
+
+    saved = routines.save("alice", "alice", None, routines.validate(sample(), devices)["spec"], True, None)
+    engine = routines.Engine(snapshot, command)
+    engine.configure_buspro(devices)
+    engine.buspro_live = True
+
+    async def run():
+        for value in ("ON", "OFF", "ON"):
+            await engine.buspro_event({"type": "light_state", "data": {"subnet_id": 1, "device_id": 2, "channel": 3, "state": value}})
+            if saved["id"] in engine.running:
+                await engine.running[saved["id"]]
+
+    asyncio.run(run())
+    assert commands == [("light.hall", "on"), ("light.hall", "on")]
+
+
 def test_engine_rechecks_after_timer_before_action():
     state = {"sensor.motion": "off", "light.hall": "off"}
     commands = []

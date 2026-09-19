@@ -7,6 +7,7 @@ let refreshRunning = false
 let refreshQueued = false
 let lastInteraction = { label: '', at: 0 }
 let currentDevices = []
+const recentRealtimeDeviceStates = new Map()
 let appVersion = '0'
 let loggedUser = ''
 let activeDetailIds = null
@@ -253,6 +254,15 @@ function render(data) {
   currentMediaGroups = providers.filter((provider) => ['control4','evoice'].includes(provider.id)).flatMap((provider) => provider.groups || [])
   const navIcons = data.nav_icons || {}
   currentDevices = (Array.isArray(dashboard.devices) ? dashboard.devices : []).filter((device) => currentDeviceOrganization[String(device.id)]?.visible !== false)
+  for (const device of currentDevices) {
+    const recent = recentRealtimeDeviceStates.get(String(device.id))
+    if (!recent) continue
+    if (String(device.state).toLowerCase() === String(recent.state).toLowerCase() || Date.now() - recent.at > 5000) {
+      recentRealtimeDeviceStates.delete(String(device.id))
+    } else {
+      device.state = recent.state
+    }
+  }
   currentDevices.forEach((device) => {
     const override = mediaTransportOverrides.get(String(device.id))
     if (!override || device.kind !== 'media_player') return
@@ -2268,6 +2278,7 @@ function applyRealtimeEvent(event) {
   if (!device) return
   if (data.state !== undefined) device.state = data.state
   if (data.value !== undefined) device.state = data.value
+  if (data.state !== undefined || data.value !== undefined) recentRealtimeDeviceStates.set(String(device.id), {state:device.state, at:Date.now()})
   if (data.position !== undefined) device.position = data.position
   if (data.brightness !== undefined) device.brightness = data.brightness
   renderHomeStatusCounters()

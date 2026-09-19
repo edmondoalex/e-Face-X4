@@ -406,6 +406,42 @@ class Engine:
         self.running: dict[str, asyncio.Task] = {}
         self.external_cooldowns: dict[tuple[str, str], float] = {}
         self.last_prune = 0.0
+        self.buspro_by_state_key: dict[str, str] = {}
+        self.buspro_live = False
+
+    def configure_buspro(self, devices: list[dict]) -> None:
+        self.buspro_by_state_key = {str(item["state_key"]).casefold(): str(item["id"])
+                                     for item in devices if item.get("state_key") and item.get("id") is not None}
+        for item in devices:
+            if str(item.get("id")) in self.buspro_by_state_key.values():
+                self.previous[str(item["id"])] = _state(item)
+
+    async def buspro_event(self, event: dict) -> None:
+        data = event.get("data")
+        if not isinstance(data, dict):
+            return
+        key = str(data.get("entity_id") or "").casefold() or ".".join(
+            str(data.get(part)) for part in ("subnet_id", "device_id", "channel"))
+        identifier = self.buspro_by_state_key.get(key)
+        value = data.get("state", data.get("value"))
+        if not identifier or value is None:
+            return
+        state = str(value).casefold()
+        prior = self.previous.get(identifier)
+        self.previous[identifier] = state
+        if prior is None or prior == state:
+            return
+        matching = [routine for routine in list_routines(enabled_only=True) if any(
+            trigger["type"] == "state" and trigger["device_id"] == identifier and trigger["to"] == state
+            for trigger in routine["spec"]["triggers"])]
+        if not matching:
+            return
+        devices = {str(item.get("id")): item for item in await self.snapshot() if item.get("id") is not None}
+        if identifier in devices:
+            devices[identifier] = {**devices[identifier], "state": state}
+        for routine in matching:
+            self._start(routine, f"{devices.get(identifier, {}).get('name') or identifier} → {state}",
+                        f"state:{identifier}:{uuid.uuid4()}", devices)
 
     async def tick(self) -> None:
         if time.monotonic() - self.last_prune > 3600:
@@ -423,16 +459,21 @@ class Engine:
             if identifier in self.running and not self.running[identifier].done():
                 continue
             matched = ""
+            matched_type = ""
             for trigger in routine["spec"]["triggers"]:
                 if trigger["type"] == "state":
                     device_id = trigger["device_id"]
+                    if self.buspro_live and device_id in self.buspro_by_state_key.values():
+                        continue
                     if device_id in self.previous and self.previous[device_id] != current.get(device_id) and current.get(device_id) == trigger["to"]:
                         matched = f"{devices[device_id].get('name')} → {trigger['to']}"
+                        matched_type = "state"
                 elif trigger["type"] == "time" and local.strftime("%H:%M") == trigger["at"]:
                     matched = f"Orario {trigger['at']}"
+                    matched_type = "time"
             if not matched:
                 continue
-            trigger_key = local.strftime("%Y-%m-%d %H:%M") + ":" + matched
+            trigger_key = local.strftime("%Y-%m-%d %H:%M") + ":" + matched if matched_type == "time" else f"state:{uuid.uuid4()}"
             self._start(routine, matched, trigger_key, devices)
         self.previous = current
 

@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.21.193 — 2026-09-19
+
+- Routine: eliminato il blocco involontario delle riattivazioni entro lo stesso minuto; le variazioni BusPro sono ora ascoltate in tempo reale, con verifica dello stato di sicurezza prima del comando.
+- Routine: il controllo periodico usa lo snapshot leggero BusPro quando i dispositivi coinvolti sono BusPro, evitando un caricamento completo della Home ogni 8 secondi.
+- UI: i cambi di stato in tempo reale restano visibili mentre un eventuale snapshot precedente termina di caricarsi, evitando il rimbalzo on/off/on.
+
 ## 2.21.192 — 2026-09-19
 
 - Routine: ricerca per stanza, nome o ID nei selettori dei dispositivi, con elenco filtrato anche da cellulare.

@@ -73,7 +73,7 @@ from .connectors.supervisor import discover_addon_url, discover_host_url
 from .media_realtime import SharedMediaRealtime
 from .demo import dashboard as demo_dashboard
 
-VERSION = os.environ.get("EFACE_VERSION", "2.21.192")
+VERSION = os.environ.get("EFACE_VERSION", "2.21.193")
 STATIC = Path(__file__).parent / "static"
 logging.basicConfig(level=logging.WARNING, format="%(asctime)s %(levelname)s [e-face-x4] %(message)s")
 _reconnect_warning_at: dict[str, float] = {}
@@ -163,6 +163,7 @@ def create_app() -> FastAPI:
     app.state.doorbird_monitor_tasks = []
     app.state.home_camera_monitor_task = None
     app.state.routine_task = None
+    app.state.routine_buspro_task = None
 
     @app.on_event("shutdown")
     async def close_shared_media_realtime() -> None:
@@ -173,6 +174,8 @@ def create_app() -> FastAPI:
             app.state.home_camera_monitor_task.cancel()
         if app.state.routine_task:
             app.state.routine_task.cancel()
+        if app.state.routine_buspro_task:
+            app.state.routine_buspro_task.cancel()
         for task in routine_engine.running.values():
             task.cancel()
         if routine_engine.running:
@@ -2862,6 +2865,16 @@ def create_app() -> FastAPI:
 
     async def routine_devices(request: Request | None = None) -> list[dict]:
         if request is None:
+            settings = load_settings()
+            config = await resolved_provider(settings.buspro, "e_hdl_buspro_mqtt", 8124, settings.request_timeout_s)
+            buspro = await BusproConnector(config, settings.request_timeout_s).snapshot()
+            items = buspro.get("items", []) if buspro.get("status") == "online" else []
+            referenced = {str(step.get("device_id")) for routine in routines.list_routines(enabled_only=True)
+                          for group in (routine["spec"].get("triggers", []), routine["spec"].get("conditions", []), routine["spec"].get("steps", []))
+                          for step in group if step.get("device_id") is not None}
+            if items and referenced.issubset({str(item.get("id")) for item in items}):
+                return items
+        if request is None:
             request = Request({"type": "http", "method": "GET", "path": "/api/bootstrap", "headers": [],
                                "query_string": b"", "scheme": "http", "server": ("localhost", 8099)})
         data = await bootstrap(request)
@@ -2891,6 +2904,40 @@ def create_app() -> FastAPI:
                     logging.warning("Routine engine delayed: %s", exc)
                 await asyncio.sleep(8)
         app.state.routine_task = asyncio.create_task(loop())
+
+        async def buspro_events() -> None:
+            while True:
+                try:
+                    settings = load_settings()
+                    config = await resolved_provider(settings.buspro, "e_hdl_buspro_mqtt", 8124, settings.request_timeout_s)
+                    if not config.enabled or not config.base_url:
+                        await asyncio.sleep(10)
+                        continue
+                    snapshot = await BusproConnector(config, settings.request_timeout_s).snapshot()
+                    if snapshot.get("status") != "online":
+                        await asyncio.sleep(3)
+                        continue
+                    routine_engine.configure_buspro(snapshot.get("items", []))
+                    ws_url = re.sub(r"^http", "ws", config.base_url.rstrip("/"), count=1) + "/ws"
+                    headers = {"Authorization": f"Bearer {config.token}"} if config.token else None
+                    async with websockets.connect(ws_url, additional_headers=headers, open_timeout=settings.request_timeout_s) as upstream:
+                        routine_engine.buspro_live = True
+                        async for message in upstream:
+                            try:
+                                event = json.loads(message)
+                            except (TypeError, json.JSONDecodeError):
+                                continue
+                            if isinstance(event, dict) and event.get("type") in {"light_state", "cover_state", "pir_state", "dry_contact_state", "ha_light_state", "ha_switch_state", "ha_cover_state"}:
+                                await routine_engine.buspro_event(event)
+                except asyncio.CancelledError:
+                    raise
+                except Exception as exc:
+                    logging.warning("Routine BusPro events delayed: %s", exc)
+                finally:
+                    routine_engine.buspro_live = False
+                await asyncio.sleep(2)
+
+        app.state.routine_buspro_task = asyncio.create_task(buspro_events())
 
     @app.get("/api/user/routines")
     async def user_routines(request: Request) -> dict:
