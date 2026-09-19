@@ -69,16 +69,17 @@ const deviceOptions = (selected, allowed = devices, query = '') => {
 const deviceField = (selected, scope = 'all') => `<div class="routine-device-field"><input data-device-search type="search" autocomplete="off" placeholder="Cerca stanza o dispositivo, es. ufficio" aria-label="Cerca dispositivo"><select data-field="device" data-device-scope="${scope}">${deviceOptions(selected, scope === 'safe' ? safeDevices() : devices)}</select></div>`
 const valuesFor = deviceId => {
   const device = devices.find(item => item.id === deviceId)
-  const byKind = {light:['on','off'], switch:['on','off'], binary_sensor:['on','off'], cover:['open','closed','opening','closing'], media_player:['playing','paused','idle','off'], lock:['locked','unlocked'], climate:['heat','cool','auto','off'], alarm_system:['armed','disarmed']}
+  const byKind = {light:['on','off'], switch:['on','off'], binary_sensor:['on','off'], cover:['open','closed','opening','closing'], media_player:['playing','paused','idle','off'], lock:['locked','unlocked'], climate:['heat','cool','auto','off'], alarm_zone:['closed','active','tamper','masked','bypassed'], alarm_partition:['disarmed','armed','alarm','tamper']}
   return [...new Set([...(byKind[device?.kind] || []), String(device?.state ?? '').toLowerCase()].filter(Boolean))]
 }
+const stateLabels = {closed:'Chiuso', active:'Attivo / rilevato', tamper:'Sabotaggio', masked:'Mascherato', bypassed:'Escluso', disarmed:'Disinserito', armed:'Inserito', alarm:'Allarme'}
 const stateSelect = (deviceId, selected) => {
   const values = valuesFor(deviceId)
-  if (!values.length || !['light','switch','binary_sensor','cover','media_player','lock','climate','alarm_system'].includes(devices.find(item => item.id === deviceId)?.kind)) {
+  if (!values.length || !['light','switch','binary_sensor','cover','media_player','lock','climate','alarm_zone','alarm_partition'].includes(devices.find(item => item.id === deviceId)?.kind)) {
     return `<input data-field="value" value="${escapeHtml(selected || '')}" placeholder="${values.length ? `Stato attuale: ${escapeHtml(values[0])}` : 'Stato del dispositivo'}" aria-label="Stato del dispositivo">`
   }
   if (selected && !values.includes(selected)) values.push(selected)
-  return `<select data-field="value" aria-label="Stato possibile"><option value="">Scegli stato</option>${values.map(value => `<option value="${escapeHtml(value)}" ${value === selected ? 'selected' : ''}>${escapeHtml(value)}</option>`).join('')}</select>`
+  return `<select data-field="value" aria-label="Stato possibile"><option value="">Scegli stato</option>${values.map(value => `<option value="${escapeHtml(value)}" ${value === selected ? 'selected' : ''}>${escapeHtml(stateLabels[value] ? `${stateLabels[value]} (${value})` : value)}</option>`).join('')}</select>`
 }
 function collect() {
   if (!draft) return

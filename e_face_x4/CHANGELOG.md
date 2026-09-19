@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.21.194 — 2026-09-19
+
+- Routine: le zone e le aree Ksenia mostrano nel selettore gli stati reali possibili, con etichette leggibili.
+- Routine: le variazioni delle zone Ksenia attivano le routine direttamente dal flusso eventi, anche se sono brevi.
+- UI: corretto l'inoltro degli aggiornamenti Ksenia in tempo reale, precedentemente ritardato fino alla chiusura dello stream.
+
 ## 2.21.193 — 2026-09-19
 
 - Routine: eliminato il blocco involontario delle riattivazioni entro lo stesso minuto; le variazioni BusPro sono ora ascoltate in tempo reale, con verifica dello stato di sicurezza prima del comando.

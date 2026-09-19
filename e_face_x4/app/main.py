@@ -73,7 +73,7 @@ from .connectors.supervisor import discover_addon_url, discover_host_url
 from .media_realtime import SharedMediaRealtime
 from .demo import dashboard as demo_dashboard
 
-VERSION = os.environ.get("EFACE_VERSION", "2.21.193")
+VERSION = os.environ.get("EFACE_VERSION", "2.21.194")
 STATIC = Path(__file__).parent / "static"
 logging.basicConfig(level=logging.WARNING, format="%(asctime)s %(levelname)s [e-face-x4] %(message)s")
 _reconnect_warning_at: dict[str, float] = {}
@@ -164,6 +164,7 @@ def create_app() -> FastAPI:
     app.state.home_camera_monitor_task = None
     app.state.routine_task = None
     app.state.routine_buspro_task = None
+    app.state.routine_ksenia_task = None
 
     @app.on_event("shutdown")
     async def close_shared_media_realtime() -> None:
@@ -176,6 +177,8 @@ def create_app() -> FastAPI:
             app.state.routine_task.cancel()
         if app.state.routine_buspro_task:
             app.state.routine_buspro_task.cancel()
+        if app.state.routine_ksenia_task:
+            app.state.routine_ksenia_task.cancel()
         for task in routine_engine.running.values():
             task.cancel()
         if routine_engine.running:
@@ -2939,6 +2942,37 @@ def create_app() -> FastAPI:
 
         app.state.routine_buspro_task = asyncio.create_task(buspro_events())
 
+        async def ksenia_events() -> None:
+            while True:
+                try:
+                    settings = load_settings()
+                    config = await resolved_provider(settings.ksenia, "ksenia_lares_addon", 8080, settings.request_timeout_s)
+                    if not config.enabled or not config.base_url:
+                        await asyncio.sleep(10)
+                        continue
+                    async with httpx.AsyncClient(timeout=None, follow_redirects=False) as client:
+                        async with client.stream("GET", f"{config.base_url}/api/stream") as response:
+                            response.raise_for_status()
+                            async for line in response.aiter_lines():
+                                if not line.startswith("data:"):
+                                    continue
+                                try:
+                                    payload = json.loads(line[5:].strip())
+                                except (TypeError, json.JSONDecodeError):
+                                    continue
+                                items = normalize_ksenia(payload)
+                                routine_engine.ksenia_live = True
+                                await routine_engine.ksenia_event(items)
+                except asyncio.CancelledError:
+                    raise
+                except Exception as exc:
+                    logging.warning("Routine Ksenia events delayed: %s", exc)
+                finally:
+                    routine_engine.ksenia_live = False
+                await asyncio.sleep(2)
+
+        app.state.routine_ksenia_task = asyncio.create_task(ksenia_events())
+
     @app.get("/api/user/routines")
     async def user_routines(request: Request) -> dict:
         return {"items": routines.list_routines(routine_owner(request))}
@@ -3712,9 +3746,9 @@ def create_app() -> FastAPI:
                                 except (TypeError, json.JSONDecodeError):
                                     continue
                                 items = normalize_ksenia(payload)
-                            if items:
-                                await queue.put({"type": "ksenia_state", "data": {"items": items}})
-                                retry_delay = 1
+                                if items:
+                                    await queue.put({"type": "ksenia_state", "data": {"items": items}})
+                                    retry_delay = 1
                 except asyncio.CancelledError:
                     raise
                 except Exception:

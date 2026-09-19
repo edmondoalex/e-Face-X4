@@ -408,6 +408,30 @@ class Engine:
         self.last_prune = 0.0
         self.buspro_by_state_key: dict[str, str] = {}
         self.buspro_live = False
+        self.ksenia_live = False
+
+    async def ksenia_event(self, items: list[dict]) -> None:
+        changed: list[tuple[str, str]] = []
+        by_id = {str(item["id"]): item for item in items if item.get("id") is not None}
+        for identifier, item in by_id.items():
+            state = _state(item)
+            prior = self.previous.get(identifier)
+            self.previous[identifier] = state
+            if prior is not None and prior != state:
+                changed.append((identifier, state))
+        if not changed:
+            return
+        matching = [(routine, identifier, state) for routine in list_routines(enabled_only=True)
+                    for identifier, state in changed if any(
+                        trigger["type"] == "state" and trigger["device_id"] == identifier and trigger["to"] == state
+                        for trigger in routine["spec"]["triggers"])]
+        if not matching:
+            return
+        devices = {str(item.get("id")): item for item in await self.snapshot() if item.get("id") is not None}
+        devices.update(by_id)
+        for routine, identifier, state in matching:
+            self._start(routine, f"{by_id[identifier].get('name') or identifier} → {state}",
+                        f"ksenia:{identifier}:{uuid.uuid4()}", devices)
 
     def configure_buspro(self, devices: list[dict]) -> None:
         self.buspro_by_state_key = {str(item["state_key"]).casefold(): str(item["id"])
@@ -464,6 +488,8 @@ class Engine:
                 if trigger["type"] == "state":
                     device_id = trigger["device_id"]
                     if self.buspro_live and device_id in self.buspro_by_state_key.values():
+                        continue
+                    if self.ksenia_live and device_id.startswith("ksenia-"):
                         continue
                     if device_id in self.previous and self.previous[device_id] != current.get(device_id) and current.get(device_id) == trigger["to"]:
                         matched = f"{devices[device_id].get('name')} → {trigger['to']}"

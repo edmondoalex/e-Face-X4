@@ -166,6 +166,32 @@ def test_buspro_events_catch_short_on_off_on_sequence():
     assert commands == [("light.hall", "on"), ("light.hall", "on")]
 
 
+def test_ksenia_zone_closed_active_closed_active_triggers_twice():
+    zone = {"id": "ksenia-zone:5", "kind": "alarm_zone", "name": "IR Ufficio", "state": "CLOSED"}
+    commands = []
+
+    async def snapshot():
+        return [zone, *catalog()]
+
+    async def command(device_id, action, value):
+        commands.append((device_id, action))
+
+    spec = sample()
+    spec["triggers"] = [{"type": "state", "device_id": zone["id"], "to": "active"}]
+    saved = routines.save("alice", "alice", None, routines.validate(spec, [zone, *catalog()])["spec"], True, None)
+    engine = routines.Engine(snapshot, command)
+    engine.ksenia_live = True
+
+    async def run():
+        for state in ("CLOSED", "ACTIVE", "CLOSED", "ACTIVE"):
+            await engine.ksenia_event([{**zone, "state": state}])
+            if saved["id"] in engine.running:
+                await engine.running[saved["id"]]
+
+    asyncio.run(run())
+    assert commands == [("light.hall", "on"), ("light.hall", "on")]
+
+
 def test_engine_rechecks_after_timer_before_action():
     state = {"sensor.motion": "off", "light.hall": "off"}
     commands = []
@@ -231,6 +257,7 @@ def test_user_routes_and_admin_log_are_separated(monkeypatch):
         script = client.get("/assets/routine-tools.js").text
         assert 'data-device-search' in script
         assert 'binary_sensor:[\'on\',\'off\']' in script
+        assert "alarm_zone:['closed','active','tamper','masked','bypassed']" in script
         assert 'matches.slice(0, 80)' in script
         invalid = client.post("/api/user/routines", json={"spec": sample(), "enabled": False})
         assert invalid.status_code == 400  # Devices missing from the live catalog.
