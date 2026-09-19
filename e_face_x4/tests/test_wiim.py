@@ -61,6 +61,22 @@ async def test_native_wiim_snapshot() -> None:
 
 
 @pytest.mark.asyncio
+async def test_idle_wiim_without_metadata_remains_online() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        command = request.url.params["command"]
+        if command == "getMetaInfo":
+            return httpx.Response(200, text="Failed")
+        if command == "getPlayerStatus":
+            return httpx.Response(200, json={"status": "none", "vol": "100", "totlen": "0"})
+        return httpx.Response(200, json={"uuid": "device-1", "DeviceName": "WiiM Pro"})
+
+    data = await WiiMClient("192.168.3.52", transport=httpx.MockTransport(handler)).snapshot()
+    assert data["name"] == "WiiM Pro"
+    assert data["state"] == "none"
+    assert data["title"] == ""
+
+
+@pytest.mark.asyncio
 async def test_native_wiim_actions_and_presets() -> None:
     commands = []
 

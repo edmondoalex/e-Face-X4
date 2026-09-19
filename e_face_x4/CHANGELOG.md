@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.21.187 — 2026-09-19
+
+- Il WiiM inattivo resta online anche quando `getMetaInfo` restituisce `Failed` invece di JSON.
+- Gli avvisi dei provider mostrano il nome corretto anziché `undefined`.
+
 ## 2.21.186 — 2026-09-18
 
 - Illumina schede è ora dentro Sfondo e colori card.

@@ -299,7 +299,7 @@ function render(data) {
     const notice = $('#notice')
     notice.textContent = failedProvider.id === 'evoice'
       ? `${failedProvider.label}: servizio Home Assistant temporaneamente non disponibile (${failedProvider.reason || 'connessione non riuscita'}). Nuovo tentativo automatico in corso.`
-      : `${failedProvider.label}: ${failedProvider.reason || 'connettore non disponibile'}. Controlla indirizzo, porta e autenticazione.`
+      : `${failedProvider.label || failedProvider.name || failedProvider.id || 'Servizio'}: ${failedProvider.reason || 'connettore non disponibile'}. Controlla indirizzo, porta e autenticazione.`
     notice.hidden = false
   }
   renderHomeStatusCounters()

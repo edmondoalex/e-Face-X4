@@ -276,8 +276,14 @@ class WiiMClient:
 
     async def snapshot(self) -> dict[str, Any]:
         status, player, metadata = await asyncio.gather(
-            self.command("getStatusEx"), self.command("getPlayerStatus"), self.command("getMetaInfo")
+            self.command("getStatusEx"), self.command("getPlayerStatus"), self.command("getMetaInfo"),
+            return_exceptions=True,
         )
+        if isinstance(status, BaseException): raise status
+        if isinstance(player, BaseException): raise player
+        # Idle WiiM firmware returns plain text "Failed" for getMetaInfo even
+        # while status and player endpoints are healthy.
+        if isinstance(metadata, BaseException): metadata = {}
         status = status if isinstance(status, dict) else {}
         player = player if isinstance(player, dict) else {}
         metadata = metadata.get("metaData", {}) if isinstance(metadata, dict) else {}
