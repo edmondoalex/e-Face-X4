@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.21.188 — 2026-09-19
+
+- Le immagini delle videocamere e degli eventi, anche nei widget, mostrano l'intero fotogramma senza ritagli.
+- Nel widget LIVE della Home, l'altoparlante comanda il mute e il nuovo pulsante spegne soltanto la stanza indicata.
+- I tre widget evento mostrano data e ora fornite dalla sorgente, quando disponibili.
+
 ## 2.21.187 — 2026-09-19
 
 - Il WiiM inattivo resta online anche quando `getMetaInfo` restituisce `Failed` invece di JSON.

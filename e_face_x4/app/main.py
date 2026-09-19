@@ -72,7 +72,7 @@ from .connectors.supervisor import discover_addon_url, discover_host_url
 from .media_realtime import SharedMediaRealtime
 from .demo import dashboard as demo_dashboard
 
-VERSION = os.environ.get("EFACE_VERSION", "2.21.187")
+VERSION = os.environ.get("EFACE_VERSION", "2.21.188")
 STATIC = Path(__file__).parent / "static"
 logging.basicConfig(level=logging.WARNING, format="%(asctime)s %(levelname)s [e-face-x4] %(message)s")
 _reconnect_warning_at: dict[str, float] = {}
@@ -2292,6 +2292,29 @@ def create_app() -> FastAPI:
         except (OSError, json.JSONDecodeError): data = {"button": "", "name": "Ultima chiamata", "at": ""}
         return JSONResponse(data, headers={"Cache-Control":"no-store, private"})
 
+    @app.get("/api/home/event-times")
+    async def home_event_times(request: Request) -> Response:
+        directory = Path(os.environ.get("EFACE_DOORBIRD_EVENT_DIR", "/data/doorbird-events"))
+        result = {"camera": "", "doorbell": "", "motion": ""}
+        try:
+            entity = load_home_camera_entity(appearance_owner(request))
+            state = (await home_assistant_get(f"states/{entity}")).json()
+            result["camera"] = str(state.get("last_changed") or "")
+        except (HTTPException, ValueError, AttributeError, TypeError):
+            pass
+        for kind, filename in (("doorbell", "doorbell.jpg"), ("motion", "motionsensor.jpg")):
+            try:
+                result[kind] = datetime.fromtimestamp((directory / filename).stat().st_mtime, timezone.utc).isoformat()
+            except OSError:
+                pass
+        try:
+            call = json.loads((directory / "last-call.json").read_text(encoding="utf-8"))
+            if call.get("at"):
+                result["doorbell"] = str(call["at"])
+        except (OSError, ValueError, AttributeError):
+            pass
+        return JSONResponse(result, headers={"Cache-Control": "no-store, private"})
+
     @app.get("/api/doorbird/ring/{button}")
     async def doorbird_ring_callback(button: str, token: str = "") -> Response:
         names = {"101": "Piano Terra", "102": "Primo Piano", "103": "Mansarda"}
@@ -2569,7 +2592,9 @@ def create_app() -> FastAPI:
         page = page.replace('content="#263f48"', 'content="#181c1f"')
         page = page.replace("manifest.webmanifest?v=2.20.38", "manifest.webmanifest?v=2.21.59")
         page = page.replace("app.css?v=2.20.20", "app.css?v=2.21.73")
-        page = page.replace("app.css?v=2.21.84", "app.css?v=2.21.174")
+        page = page.replace("app.css?v=2.21.84", f"app.css?v={VERSION}")
+        page = page.replace("home-live-media.css?v=2.21.143", f"home-live-media.css?v={VERSION}")
+        page = page.replace("alarm-state.css?v=2.21.163", f"alarm-state.css?v={VERSION}")
         page = page.replace("home-status.css?v=2.20.20", "home-status.css?v=2.21.174")
         page = re.sub(r"tools\.js\?v=[0-9.]+", f"tools.js?v={VERSION}", page)
         page = page.replace("tools-user.css?v=2.21.163", "tools-user.css?v=2.21.186")
