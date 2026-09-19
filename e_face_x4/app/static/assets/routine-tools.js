@@ -41,7 +41,7 @@ logPanel.className = 'media-config routine-panel'
 logPanel.hidden = true
 logPanel.innerHTML = `<header><button type="button" data-routine-log-back aria-label="Torna ad Amministrazione">‹</button><div><small>AMMINISTRAZIONE</small><h2>Registro routine</h2></div></header>
   <p>Comando richiesto, risposta del connettore e stato osservato sono registrati separatamente. Conservazione massima: 15 giorni e 50 MB.</p>
-  <div class="routine-filters"><label>Dispositivo<input data-routine-filter-device placeholder="Nome o ID dispositivo"></label><label>Routine<input data-routine-filter-routine placeholder="ID routine"></label><button type="button" data-routine-filter>FILTRA</button></div>
+  <div class="routine-filters"><label>Dispositivo<input data-routine-filter-device placeholder="Nome dispositivo"></label><label>Routine<input data-routine-filter-routine type="search" list="routine-log-names" placeholder="Nome routine"><datalist id="routine-log-names"></datalist></label><button type="button" data-routine-filter>FILTRA</button></div>
   <div data-routine-log-list></div>`
 root.append(logPanel)
 const $ = selector => panel.querySelector(selector)
@@ -335,7 +335,7 @@ $('[data-routine-delete]').addEventListener('click', async () => {
     current = null; draft = null; renderEditor(); await load()
   } catch(error) { $('[data-routine-review]').textContent = error.message }
 })
-adminCard.addEventListener('click', () => { logPanel.hidden = false; sessionStorage.setItem('eface-tools-panel', 'routine-log'); document.body.style.overflow = 'hidden'; loadLogs() })
+adminCard.addEventListener('click', () => { logPanel.hidden = false; sessionStorage.setItem('eface-tools-panel', 'routine-log'); document.body.style.overflow = 'hidden'; loadLogs(); loadRoutineNames() })
 logPanel.querySelector('[data-routine-log-back]').addEventListener('click', () => { logPanel.hidden = true; sessionStorage.removeItem('eface-tools-panel'); document.body.style.overflow = '' })
 logPanel.querySelector('[data-routine-filter]').addEventListener('click', () => loadLogs())
 setTimeout(() => {
@@ -349,6 +349,12 @@ setTimeout(() => {
 setInterval(() => { if (!logPanel.hidden && !document.hidden) loadLogs(true) }, 3000)
 let logsLoading = false
 let lastLogSignature = ''
+async function loadRoutineNames() {
+  try {
+    const data = await request('api/user/routines')
+    logPanel.querySelector('#routine-log-names').innerHTML = [...new Set((data.items || []).map(item => item.name).filter(Boolean))].sort((a,b) => a.localeCompare(b, 'it')).map(name => `<option value="${escapeHtml(name)}"></option>`).join('')
+  } catch { /* Il filtro per nome funziona anche senza suggerimenti. */ }
+}
 async function loadLogs(background = false) {
   if (logsLoading) return
   logsLoading = true
@@ -357,7 +363,7 @@ async function loadLogs(background = false) {
   const opened = new Set([...target.querySelectorAll('.routine-log-run[open] p')].map(item => item.textContent.match(/esecuzione\s+([\w-]+)/)?.[1]).filter(Boolean))
   if (!background) target.textContent = 'Caricamento…'
   try {
-    const params = new URLSearchParams({device_id:logPanel.querySelector('[data-routine-filter-device]').value.trim(), routine_id:logPanel.querySelector('[data-routine-filter-routine]').value.trim(), limit:'100'})
+    const params = new URLSearchParams({device_id:logPanel.querySelector('[data-routine-filter-device]').value.trim(), routine_name:logPanel.querySelector('[data-routine-filter-routine]').value.trim(), limit:'100'})
     const data = await request(`api/admin/routines/log?${params}`)
     const signature = JSON.stringify({filter:params.toString(),items:data.items || []})
     if (background && signature === lastLogSignature) return

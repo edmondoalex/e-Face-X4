@@ -464,11 +464,14 @@ def record_event(run_id: str, stage: str, *, device_id: str = "", device_name: s
                    (run_id, at or _now(), stage, device_id, device_name, action, SECRET_TEXT.sub("[dato nascosto]", detail)[:400], before_state[:100], after_state[:100], result[:100]))
 
 
-def list_runs(*, device_id: str = "", routine_id: str = "", limit: int = 100) -> list[dict]:
+def list_runs(*, device_id: str = "", routine_id: str = "", routine_name: str = "", limit: int = 100) -> list[dict]:
     clauses, args = [], []
     if routine_id:
         clauses.append("r.routine_id = ?")
         args.append(routine_id)
+    if routine_name:
+        clauses.append("lower(r.name) LIKE lower(?) ESCAPE '\\'")
+        args.append("%" + routine_name.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_") + "%")
     if device_id:
         clauses.append("EXISTS (SELECT 1 FROM routine_events e WHERE e.run_id = r.id AND (e.device_id = ? OR lower(e.device_name) LIKE lower(?) ESCAPE '\\'))")
         args.extend((device_id, "%" + device_id.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_") + "%"))

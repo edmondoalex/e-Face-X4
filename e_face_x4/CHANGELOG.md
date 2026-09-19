@@ -1,5 +1,9 @@
 # Changelog
 
+## 2.21.201 — 2026-09-19
+
+- Il registro routine si filtra per nome (anche parziale), con suggerimenti delle routine esistenti: non occorre conoscere l'ID. La ricerca funziona anche per i registri di routine eliminate.
+
 ## 2.21.200 — 2026-09-19
 
 - WiiM associato a una sorgente Control4: non compare più come stanza o sessione autonoma dopo che l'ultima stanza cambia sorgente. Resta utilizzabile come sorgente e tramite controllo WiiM dedicato.

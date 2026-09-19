@@ -76,7 +76,7 @@ from .connectors.supervisor import discover_addon_url, discover_host_url
 from .media_realtime import SharedMediaRealtime
 from .demo import dashboard as demo_dashboard
 
-VERSION = os.environ.get("EFACE_VERSION", "2.21.200")
+VERSION = os.environ.get("EFACE_VERSION", "2.21.201")
 STATIC = Path(__file__).parent / "static"
 logging.basicConfig(level=logging.WARNING, format="%(asctime)s %(levelname)s [e-face-x4] %(message)s")
 _reconnect_warning_at: dict[str, float] = {}
@@ -3181,9 +3181,9 @@ def create_app() -> FastAPI:
         return {"ok": True}
 
     @app.get("/api/admin/routines/log")
-    async def admin_routine_log(request: Request, device_id: str = "", routine_id: str = "", limit: int = 100) -> dict:
+    async def admin_routine_log(request: Request, device_id: str = "", routine_id: str = "", routine_name: str = "", limit: int = 100) -> dict:
         require_installer(request)
-        return {"items": routines.list_runs(device_id=device_id[:120], routine_id=routine_id[:80], limit=limit),
+        return {"items": routines.list_runs(device_id=device_id[:120], routine_id=routine_id[:80], routine_name=routine_name[:80].strip(), limit=limit),
                 "retention_days": routines.LOG_DAYS, "max_database_mb": routines.MAX_DB_BYTES // (1024 * 1024)}
 
     def require_installer(request: Request) -> None:

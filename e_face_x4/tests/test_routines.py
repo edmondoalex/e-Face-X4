@@ -281,6 +281,10 @@ def test_engine_runs_only_on_state_transition_and_logs_device():
     assert commands == [("light.hall", "on", None)]
     runs = routines.list_runs(device_id="light.hall")
     assert len(routines.list_runs(device_id="ingresso")) == 1
+    assert len(routines.list_runs(routine_name="LUCE INGRESSO")) == 1
+    assert len(routines.list_runs(routine_name="Luce")) == 1
+    assert routines.list_runs(routine_name="Non esiste") == []
+    assert routines.list_runs(routine_name="Luce%") == []
     assert len(runs) == 1
     assert runs[0]["status"] == "completed"
     assert any(event["result"] == "accepted" for event in runs[0]["events"])
@@ -465,6 +469,9 @@ def test_user_routes_and_admin_log_are_separated(monkeypatch):
         assert client.get("/assets/routine-tools.js").status_code == 200
         assert "routine-tools.js" in client.get("/tools").text
         script = client.get("/assets/routine-tools.js").text
+        assert 'placeholder="Nome routine"' in script
+        assert "routine_name:logPanel.querySelector" in script
+        assert 'placeholder="ID routine"' not in script
         assert 'data-device-search' in script
         assert 'binary_sensor:[\'on\',\'off\']' in script
         assert "alarm_zone:['closed','active','tamper','masked','bypassed']" in script
