@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.21.198 — 2026-09-19
+
+- Routine persistenti e condivise a livello d'impianto: l'elenco non dipende più dall'account con cui si entra dopo un aggiornamento o da un altro dispositivo. Restano registrati autore originale, ultimo utente che modifica, revisioni e registri.
+- Tutte le operazioni utente su una routine condivisa usano la stessa validazione e il controllo di versione; il database in `/data` non viene ricreato durante gli aggiornamenti.
+
 ## 2.21.197 — 2026-09-19
 
 - Routine: riordino allineato allo standard già usato in Strumenti, con maniglia ☰ a sinistra, spostamento visibile durante il trascinamento e frecce da tastiera per accessibilità.

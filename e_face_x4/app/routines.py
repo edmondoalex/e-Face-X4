@@ -420,17 +420,19 @@ def validate(payload: dict, devices: list[dict], others: list[dict] = (), *, sol
     return {"spec": normalized, "errors": list(dict.fromkeys(errors)), "warnings": list(dict.fromkeys(warnings)), "description": narrative.strip(), "can_enable": not errors}
 
 
-def save(owner: str, actor: str, routine_id: str | None, spec: dict, enabled: bool, expected_revision: int | None) -> dict:
+def save(owner: str, actor: str, routine_id: str | None, spec: dict, enabled: bool, expected_revision: int | None,
+         *, shared: bool = False) -> dict:
     with _connect() as db:
         old = db.execute("SELECT owner, revision, enabled FROM routines WHERE id = ?", (routine_id,)).fetchone() if routine_id else None
-        if old and old["owner"] != owner:
+        if old and old["owner"] != owner and not shared:
             raise PermissionError("Routine di un altro utente")
         if old and expected_revision != old["revision"]:
             raise RuntimeError("Routine modificata da un'altra sessione: ricarica prima di salvare")
         if routine_id and not old:
             raise LookupError("Routine non trovata")
-        if not old and db.execute("SELECT COUNT(*) FROM routines WHERE owner = ?", (owner,)).fetchone()[0] >= 100:
-            raise ValueError("Massimo 100 routine per utente")
+        if not old and db.execute("SELECT COUNT(*) FROM routines" if shared else "SELECT COUNT(*) FROM routines WHERE owner = ?",
+                                  () if shared else (owner,)).fetchone()[0] >= 100:
+            raise ValueError("Massimo 100 routine per impianto" if shared else "Massimo 100 routine per utente")
         identifier = routine_id or str(uuid.uuid4())
         revision = old["revision"] + 1 if old else 1
         db.execute("""INSERT INTO routines(id, owner, name, enabled, revision, spec, updated_by, updated_at)
@@ -447,12 +449,13 @@ def save(owner: str, actor: str, routine_id: str | None, spec: dict, enabled: bo
                     db.execute("UPDATE routines SET last_trigger_key = ? WHERE id = ?",
                                (local.strftime("%Y-%m-%d %H:%M") + f":Orario {trigger['at']}", identifier))
                     break
-    return get_routine(identifier, owner)
+    return get_routine(identifier, None if shared else owner)
 
 
-def delete(owner: str, routine_id: str) -> bool:
+def delete(owner: str, routine_id: str, *, shared: bool = False) -> bool:
     with _connect() as db:
-        return bool(db.execute("DELETE FROM routines WHERE id = ? AND owner = ?", (routine_id, owner)).rowcount)
+        return bool(db.execute("DELETE FROM routines WHERE id = ?" if shared else "DELETE FROM routines WHERE id = ? AND owner = ?",
+                               (routine_id,) if shared else (routine_id, owner)).rowcount)
 
 
 def record_event(run_id: str, stage: str, *, device_id: str = "", device_name: str = "", action: str = "", detail: str = "", before_state: str = "", after_state: str = "", result: str = "", at: str | None = None) -> None:

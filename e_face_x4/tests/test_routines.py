@@ -180,6 +180,18 @@ def test_revision_and_ownership_preserve_attribution():
     assert second["enabled"]
 
 
+def test_installation_shared_routines_keep_original_owner_and_record_editor():
+    spec = routines.validate(sample(), catalog())["spec"]
+    first = routines.save("nuc", "nuc", None, spec, False, None)
+    assert [item["name"] for item in routines.list_routines()] == ["Luce ingresso"]
+    changed = routines.save("alex", "alex", first["id"], {**spec, "name": "Luce condivisa"}, False,
+                            first["revision"], shared=True)
+    assert changed["owner"] == "nuc"
+    assert changed["updated_by"] == "alex"
+    assert changed["name"] == "Luce condivisa"
+    assert routines.delete("alex", first["id"], shared=True)
+
+
 def test_scenarios_and_echo_commands_follow_real_capabilities():
     devices = catalog() + [
         {"id": "light-scenario:film", "kind": "light_scenario", "name": "Sala Film", "room": "Soggiorno",

@@ -76,7 +76,7 @@ from .connectors.supervisor import discover_addon_url, discover_host_url
 from .media_realtime import SharedMediaRealtime
 from .demo import dashboard as demo_dashboard
 
-VERSION = os.environ.get("EFACE_VERSION", "2.21.197")
+VERSION = os.environ.get("EFACE_VERSION", "2.21.198")
 STATIC = Path(__file__).parent / "static"
 logging.basicConfig(level=logging.WARNING, format="%(asctime)s %(levelname)s [e-face-x4] %(message)s")
 _reconnect_warning_at: dict[str, float] = {}
@@ -3069,7 +3069,8 @@ def create_app() -> FastAPI:
 
     @app.get("/api/user/routines")
     async def user_routines(request: Request) -> dict:
-        return {"items": routines.list_routines(routine_owner(request))}
+        routine_owner(request)
+        return {"items": routines.list_routines()}
 
     @app.get("/api/user/routines/active")
     async def user_active_routines(request: Request) -> dict:
@@ -3087,7 +3088,7 @@ def create_app() -> FastAPI:
     @app.post("/api/user/routines/{routine_id}/enabled")
     async def user_set_routine_enabled(request: Request, routine_id: str, payload: dict) -> dict:
         owner = routine_owner(request)
-        existing = routines.get_routine(routine_id, owner)
+        existing = routines.get_routine(routine_id)
         if not existing:
             raise HTTPException(status_code=404, detail="Routine non trovata")
         enabled = payload.get("enabled")
@@ -3104,7 +3105,7 @@ def create_app() -> FastAPI:
         if existing["enabled"] == enabled:
             return {"item": existing}
         try:
-            saved = routines.save(owner, owner, routine_id, existing["spec"], enabled, existing["revision"])
+            saved = routines.save(owner, owner, routine_id, existing["spec"], enabled, existing["revision"], shared=True)
         except RuntimeError as exc:
             raise HTTPException(status_code=409, detail=str(exc)) from exc
         if not enabled and (task := routine_engine.running.get(routine_id)) and not task.done():
@@ -3118,7 +3119,7 @@ def create_app() -> FastAPI:
         if not isinstance(raw, dict):
             raise HTTPException(status_code=400, detail="Routine non valida")
         routine_id = str(payload.get("id") or "")
-        if routine_id and not routines.get_routine(routine_id, owner):
+        if routine_id and not routines.get_routine(routine_id):
             raise HTTPException(status_code=404, detail="Routine non trovata")
         return routines.validate({**raw, "id": routine_id or None}, await routine_devices(request), routines.list_routines(), solar_available=await routine_solar_ready(raw))
 
@@ -3141,7 +3142,7 @@ def create_app() -> FastAPI:
         if revision is not None and (isinstance(revision, bool) or not isinstance(revision, int)):
             raise HTTPException(status_code=400, detail="Versione routine non valida")
         try:
-            saved = routines.save(owner, owner, routine_id, review["spec"], bool(payload.get("enabled")), revision)
+            saved = routines.save(owner, owner, routine_id, review["spec"], bool(payload.get("enabled")), revision, shared=True)
             if routine_id and (task := routine_engine.running.get(routine_id)) and not task.done():
                 task.cancel()
             return {"item": saved, "review": review}
@@ -3164,7 +3165,7 @@ def create_app() -> FastAPI:
 
     @app.delete("/api/user/routines/{routine_id}")
     async def user_delete_routine(request: Request, routine_id: str) -> dict:
-        if not routines.delete(routine_owner(request), routine_id):
+        if not routines.delete(routine_owner(request), routine_id, shared=True):
             raise HTTPException(status_code=404, detail="Routine non trovata")
         if (task := routine_engine.running.get(routine_id)) and not task.done():
             task.cancel()
