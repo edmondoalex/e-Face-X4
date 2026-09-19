@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.21.192 — 2026-09-19
+
+- Routine: ricerca per stanza, nome o ID nei selettori dei dispositivi, con elenco filtrato anche da cellulare.
+- Routine: stati suggeriti in base al tipo e allo stato reale del dispositivo; gli stati non standard restano inseribili manualmente.
+
 ## 2.21.191 — 2026-09-19
 
 - Nuova sezione Routine negli Strumenti utente con attivazioni, condizioni, azioni, timer e verifiche intermedie riordinabili.

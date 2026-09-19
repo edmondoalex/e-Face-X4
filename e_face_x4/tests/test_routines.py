@@ -175,5 +175,9 @@ def test_user_routes_and_admin_log_are_separated(monkeypatch):
         assert client.get("/api/admin/routines/log").status_code == 401
         assert client.get("/assets/routine-tools.js").status_code == 200
         assert "routine-tools.js" in client.get("/tools").text
+        script = client.get("/assets/routine-tools.js").text
+        assert 'data-device-search' in script
+        assert 'binary_sensor:[\'on\',\'off\']' in script
+        assert 'matches.slice(0, 80)' in script
         invalid = client.post("/api/user/routines", json={"spec": sample(), "enabled": False})
         assert invalid.status_code == 400  # Devices missing from the live catalog.

@@ -1,5 +1,5 @@
 const root = document.querySelector('.tools-shell')
-const escapeHtml = value => { const node = document.createElement('span'); node.textContent = String(value ?? ''); return node.innerHTML }
+const escapeHtml = value => { const node = document.createElement('span'); node.textContent = String(value ?? ''); return node.innerHTML.replaceAll('"', '&quot;').replaceAll("'", '&#39;') }
 const endpoint = path => new URL(`../${path}`, location.href.endsWith('/') ? location.href : `${location.href}/`).toString()
 async function request(path, options = {}) {
   const response = await fetch(endpoint(path), {cache: 'no-store', ...options})
@@ -35,7 +35,6 @@ panel.innerHTML = `<header><button type="button" data-routine-back aria-label="T
   <div class="routine-add"><button type="button" data-routine-add="action">+ Azione</button><button type="button" data-routine-add="wait">+ Timer</button><button type="button" data-routine-add="check">+ Verifica</button></div>
   <div class="routine-review" data-routine-review aria-live="polite">Premi «Controlla» per leggere gli effetti della routine.</div>
   <div class="routine-actions"><button type="button" data-routine-validate>CONTROLLA</button><button type="button" data-routine-save="draft">SALVA DISATTIVATA</button><button type="button" class="routine-primary" data-routine-save="active">SALVA E ATTIVA</button><button type="button" data-routine-delete hidden>ELIMINA</button></div></div></div>`
-panel.insertAdjacentHTML('beforeend', '<datalist id="routine-state-values"><option value="on"><option value="off"><option value="open"><option value="closed"><option value="locked"><option value="unlocked"><option value="playing"><option value="paused"><option value="motion"><option value="detected"><option value="clear"><option value="0"><option value="1"></datalist>')
 root.append(panel)
 const logPanel = document.createElement('section')
 logPanel.className = 'media-config routine-panel'
@@ -59,15 +58,28 @@ const actions = {
 }
 const sensitive = /porta|portone|cancello|garage|serratura|allarme|alarm|gate|door|lock/i
 const safeDevices = () => devices.filter(item => actions[item.kind] && !sensitive.test([item.id, item.entity_id, item.name, item.room].join(' ')))
-const deviceOptions = (selected, allowed = devices) => `<option value="">Scegli dispositivo</option>${allowed.map(item => `<option value="${escapeHtml(item.id)}" ${item.id === selected ? 'selected' : ''}>${escapeHtml([item.room, item.name].filter(Boolean).join(' · '))}</option>`).join('')}`
-const valuesFor = deviceId => {
-  const kind = devices.find(item => item.id === deviceId)?.kind
-  if (['light', 'switch'].includes(kind)) return ['on', 'off']
-  if (kind === 'cover') return ['open', 'closed', 'opening', 'closing']
-  if (kind === 'media_player') return ['playing', 'paused', 'off', 'idle']
-  return ['on', 'off', 'detected', 'clear', 'open', 'closed', 'motion']
+const deviceOptions = (selected, allowed = devices, query = '') => {
+  const words = query.trim().toLocaleLowerCase('it-IT').split(/\s+/).filter(Boolean)
+  const matches = allowed.filter(item => words.every(word => [item.room, item.name, item.id, item.entity_id].some(part => String(part || '').toLocaleLowerCase('it-IT').includes(word))))
+  const shown = matches.slice(0, 80)
+  const selectedItem = allowed.find(item => item.id === selected)
+  if (selectedItem && !shown.some(item => item.id === selected)) shown.unshift(selectedItem)
+  return `<option value="">${matches.length > 80 ? `${matches.length} risultati: affina la ricerca` : matches.length ? `Scegli dispositivo (${matches.length})` : 'Nessun dispositivo trovato'}</option>${shown.map(item => `<option value="${escapeHtml(item.id)}" ${item.id === selected ? 'selected' : ''}>${escapeHtml([item.room, item.name, item.id].filter(Boolean).join(' · '))}</option>`).join('')}`
 }
-const stateSelect = (deviceId, selected) => `<input data-field="value" list="routine-state-values" value="${escapeHtml(selected || '')}" placeholder="Stato, es. ${escapeHtml(valuesFor(deviceId)[0])}">`
+const deviceField = (selected, scope = 'all') => `<div class="routine-device-field"><input data-device-search type="search" autocomplete="off" placeholder="Cerca stanza o dispositivo, es. ufficio" aria-label="Cerca dispositivo"><select data-field="device" data-device-scope="${scope}">${deviceOptions(selected, scope === 'safe' ? safeDevices() : devices)}</select></div>`
+const valuesFor = deviceId => {
+  const device = devices.find(item => item.id === deviceId)
+  const byKind = {light:['on','off'], switch:['on','off'], binary_sensor:['on','off'], cover:['open','closed','opening','closing'], media_player:['playing','paused','idle','off'], lock:['locked','unlocked'], climate:['heat','cool','auto','off'], alarm_system:['armed','disarmed']}
+  return [...new Set([...(byKind[device?.kind] || []), String(device?.state ?? '').toLowerCase()].filter(Boolean))]
+}
+const stateSelect = (deviceId, selected) => {
+  const values = valuesFor(deviceId)
+  if (!values.length || !['light','switch','binary_sensor','cover','media_player','lock','climate','alarm_system'].includes(devices.find(item => item.id === deviceId)?.kind)) {
+    return `<input data-field="value" value="${escapeHtml(selected || '')}" placeholder="${values.length ? `Stato attuale: ${escapeHtml(values[0])}` : 'Stato del dispositivo'}" aria-label="Stato del dispositivo">`
+  }
+  if (selected && !values.includes(selected)) values.push(selected)
+  return `<select data-field="value" aria-label="Stato possibile"><option value="">Scegli stato</option>${values.map(value => `<option value="${escapeHtml(value)}" ${value === selected ? 'selected' : ''}>${escapeHtml(value)}</option>`).join('')}</select>`
+}
 function collect() {
   if (!draft) return
   draft.name = $('[data-routine-name]').value.trim()
@@ -94,7 +106,7 @@ function renderEditor() {
   $('.routine-editor').hidden = !draft
   if (!draft) return
   $('[data-routine-name]').value = draft.name || ''
-  $('[data-routine-triggers]').innerHTML = draft.triggers.map((item, index) => `<div class="routine-block" data-index="${index}"><select data-field="type"><option value="state" ${item.type === 'state' ? 'selected' : ''}>Quando cambia un dispositivo</option><option value="time" ${item.type === 'time' ? 'selected' : ''}>A un orario</option><option value="doorbird" ${item.type === 'doorbird' ? 'selected' : ''}>Evento DoorBird</option></select>${item.type === 'time' ? `<input data-field="at" type="time" value="${escapeHtml(item.at || '')}">` : item.type === 'doorbird' ? `<select data-field="event"><option value="doorbell" ${item.event === 'doorbell' ? 'selected' : ''}>Chiamata</option><option value="motionsensor" ${item.event === 'motionsensor' ? 'selected' : ''}>Movimento</option></select>` : `<select data-field="device">${deviceOptions(item.device_id)}</select>${stateSelect(item.device_id, item.to)}`}<button type="button" data-routine-remove="trigger" aria-label="Rimuovi">×</button></div>`).join('')
+  $('[data-routine-triggers]').innerHTML = draft.triggers.map((item, index) => `<div class="routine-block" data-index="${index}"><select data-field="type"><option value="state" ${item.type === 'state' ? 'selected' : ''}>Quando cambia un dispositivo</option><option value="time" ${item.type === 'time' ? 'selected' : ''}>A un orario</option><option value="doorbird" ${item.type === 'doorbird' ? 'selected' : ''}>Evento DoorBird</option></select>${item.type === 'time' ? `<input data-field="at" type="time" value="${escapeHtml(item.at || '')}">` : item.type === 'doorbird' ? `<select data-field="event"><option value="doorbell" ${item.event === 'doorbell' ? 'selected' : ''}>Chiamata</option><option value="motionsensor" ${item.event === 'motionsensor' ? 'selected' : ''}>Movimento</option></select>` : `${deviceField(item.device_id)}${stateSelect(item.device_id, item.to)}`}<button type="button" data-routine-remove="trigger" aria-label="Rimuovi">×</button></div>`).join('')
   $('[data-routine-conditions]').innerHTML = draft.conditions.map((item, index) => conditionRow(item, index, 'condition')).join('')
   $('[data-routine-steps]').innerHTML = draft.steps.map((item, index) => {
     if (item.type === 'wait') return `<div class="routine-block" data-index="${index}" data-type="wait"><b>Timer</b><label>Secondi<input data-field="seconds" type="number" min="1" max="3600" value="${Number(item.seconds) || 60}"></label>${stepButtons(index)}</div>`
@@ -103,14 +115,14 @@ function renderEditor() {
     const choices = actions[device?.kind] || []
     const actionChoices = choices.filter(([key]) => !device?.capabilities || !({media_play:'play',media_pause:'pause',media_stop:'stop',turn_off:'turn_off',set_volume:'set_volume',volume_mute:'mute',volume_unmute:'mute'}[key]) || device.capabilities[{media_play:'play',media_pause:'pause',media_stop:'stop',turn_off:'turn_off',set_volume:'set_volume',volume_mute:'mute',volume_unmute:'mute'}[key]])
     const value = ['brightness', 'set_volume', 'set_target'].includes(item.action) ? `<label>Valore<input data-field="action-value" type="number" min="${item.action === 'set_target' ? 5 : 0}" max="${item.action === 'set_target' ? 35 : 100}" value="${item.value ?? ''}"></label>` : ''
-    return `<div class="routine-block" data-index="${index}" data-type="action"><b>Azione</b><select data-field="device">${deviceOptions(item.device_id, safeDevices())}</select><select data-field="action"><option value="">Comando...</option>${actionChoices.map(([key, label]) => `<option value="${key}" ${key === item.action ? 'selected' : ''}>${label}</option>`).join('')}</select>${value}${stepButtons(index)}</div>`
+    return `<div class="routine-block" data-index="${index}" data-type="action"><b>Azione</b>${deviceField(item.device_id, 'safe')}<select data-field="action"><option value="">Comando...</option>${actionChoices.map(([key, label]) => `<option value="${key}" ${key === item.action ? 'selected' : ''}>${label}</option>`).join('')}</select>${value}${stepButtons(index)}</div>`
   }).join('')
   $('[data-routine-delete]').hidden = !current
   $('[data-routine-review]').textContent = 'Premi «Controlla» per leggere gli effetti della routine.'
   renderList()
 }
 function conditionRow(item, index, type) {
-  return `<div class="routine-block" data-index="${index}" ${type === 'check' ? 'data-type="check"' : ''}><b>${type === 'check' ? 'Verifica e interrompi se falsa' : 'Condizione iniziale'}</b><select data-field="device">${deviceOptions(item.device_id)}</select><select data-field="operator"><option value="is" ${item.operator === 'is' ? 'selected' : ''}>è</option><option value="is_not" ${item.operator === 'is_not' ? 'selected' : ''}>non è</option></select>${stateSelect(item.device_id, item.value)}${type === 'check' ? stepButtons(index) : '<button type="button" data-routine-remove="condition" aria-label="Rimuovi">×</button>'}</div>`
+  return `<div class="routine-block" data-index="${index}" ${type === 'check' ? 'data-type="check"' : ''}><b>${type === 'check' ? 'Verifica e interrompi se falsa' : 'Condizione iniziale'}</b>${deviceField(item.device_id)}<select data-field="operator"><option value="is" ${item.operator === 'is' ? 'selected' : ''}>è</option><option value="is_not" ${item.operator === 'is_not' ? 'selected' : ''}>non è</option></select>${stateSelect(item.device_id, item.value)}${type === 'check' ? stepButtons(index) : '<button type="button" data-routine-remove="condition" aria-label="Rimuovi">×</button>'}</div>`
 }
 function stepButtons() { return '<div class="routine-move"><button type="button" data-routine-up aria-label="Sposta su">↑</button><button type="button" data-routine-down aria-label="Sposta giù">↓</button><button type="button" data-routine-remove="step" aria-label="Rimuovi">×</button></div>' }
 function showReview(review) {
@@ -168,6 +180,12 @@ panel.addEventListener('click', event => {
     ;[draft.steps[index], draft.steps[next]] = [draft.steps[next], draft.steps[index]]
     renderEditor()
   }
+})
+panel.addEventListener('input', event => {
+  if (!event.target.matches('[data-device-search]')) return
+  const select = event.target.parentElement.querySelector('[data-field="device"]')
+  const allowed = select.dataset.deviceScope === 'safe' ? safeDevices() : devices
+  select.innerHTML = deviceOptions(select.value, allowed, event.target.value)
 })
 panel.addEventListener('change', event => {
   const field = event.target
