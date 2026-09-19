@@ -2320,6 +2320,7 @@ function applyRealtimeEvent(event) {
 }
 
 document.querySelectorAll('.rail button').forEach((button) => button.addEventListener('click', () => {
+  if (button.dataset.view) sessionStorage.setItem('eface-home-view', button.dataset.view)
   document.querySelectorAll('.rail button').forEach((item) => item.classList.remove('active'))
   button.classList.add('active')
   document.querySelector('main').classList.remove('app-view')
@@ -3131,6 +3132,8 @@ Promise.all([
   fetch(apiUrl('api/auth/status'), {cache:'no-store', credentials:'same-origin'}).then(response => response.ok ? response.json() : {}).catch(() => ({})),
   refresh(),
 ]).then(([identity]) => {
+  const savedView = sessionStorage.getItem('eface-home-view')
+  if (savedView && savedView !== 'home') document.querySelector(`.rail [data-view="${CSS.escape(savedView)}"]`)?.click()
   loggedUser = identity.name || identity.user || ''
   const mode = $('#mode')
   if (mode && loggedUser && !mode.textContent.includes(loggedUser)) mode.textContent += ` · ${loggedUser}`

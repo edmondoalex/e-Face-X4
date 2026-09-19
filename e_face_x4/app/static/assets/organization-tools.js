@@ -4,12 +4,15 @@ const esc = (value) => { const node=document.createElement('span');node.textCont
 const notice = (message) => { const node=$('#tools-notice');node.textContent=message;node.hidden=false;clearTimeout(notice.timer);notice.timer=setTimeout(()=>{node.hidden=true},5000) }
 const grid = $('#tools-user-section .tools-grid')
 const appearanceTool = document.createElement('button')
+appearanceTool.id = 'appearance-tool'
 appearanceTool.type='button';appearanceTool.className='tool-card';appearanceTool.innerHTML='<span>▧</span><div><b>Sfondo e colori card</b><small>Aspetto globale e per ambiente</small></div><i>›</i>'
 const orderTool = document.createElement('button')
+orderTool.id = 'organization-tool'
 orderTool.type='button';orderTool.className='tool-card';orderTool.innerHTML='<span>☷</span><div><b>ORDINA</b><small>Ambienti, dispositivi, categorie e sicurezza</small></div><i>›</i>'
 grid.prepend(orderTool);grid.prepend(appearanceTool)
 for(const item of [$('#background-tool'),$('#card-theme-tool'),$('#card-glow-tool'),$('#room-order-tool'),$('#security-order-tool'),$('#shortcuts-tool')])if(item)item.hidden=true
 const appearancePanel=document.createElement('section')
+appearancePanel.id='appearance-config'
 appearancePanel.className='media-config organization-config';appearancePanel.hidden=true
 appearancePanel.innerHTML='<header><button type="button" data-appearance-back>‹</button><div><h2>Sfondo e colori card</h2></div></header><div class="organization-tree"><button type="button" data-appearance-open="background"><span><b>Sfondo</b><small>Globale o diverso per ogni stanza</small></span><i>›</i></button><button type="button" data-appearance-open="cards"><span><b>Colore card</b><small>Scegli lo stile delle schede</small></span><i>›</i></button><button type="button" data-appearance-open="glow"><span><b>Illumina schede</b><small>Attiva o disattiva il bagliore di stato</small></span><i>›</i></button></div>'
 document.querySelector('.tools-shell').append(appearancePanel)
@@ -20,6 +23,7 @@ for(const selector of ['#background-back','#card-theme-back','#card-glow-back'])
 const categories={lights:'Luci',extra:'Extra',covers:'Oscuranti',comfort:'Comfort',security:'Tutta la sicurezza',scenarios:'Scenari',intercom:'Intercom',media:'Audio e video'}
 const defaultCategory=(device)=>device.kind==='intercom'?'intercom':device.kind==='light'?'lights':device.kind==='switch'?'extra':device.kind==='cover'?'covers':['climate','temp','temperature','humidity','air','air_quality'].includes(device.kind)?'comfort':device.kind==='alarm_scenario'?'scenarios':['lock','alarm_partition','alarm_zone','alarm_system'].includes(device.kind)||/garage|portone/i.test(`${device.icon||''} ${device.name||''}`)?'security':['media','media_player','camera','doorbell'].includes(device.kind)?'media':'extra'
 const panel=document.createElement('section')
+panel.id='organization-config'
 panel.className='media-config organization-config';panel.hidden=true
 panel.innerHTML='<header><button type="button" data-organization-back>‹</button><div><h2>ORDINA</h2></div></header><p>Apri solo il ramo che vuoi configurare. Le scelte restano persistenti su tutte le UI.</p><div id="organization-tree" class="organization-tree"></div><footer><button type="button" id="organization-save" class="user-save">SALVA ORGANIZZAZIONE</button></footer>'
 document.querySelector('.tools-shell').append(panel)

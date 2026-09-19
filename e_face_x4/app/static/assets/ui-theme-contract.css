@@ -1,6 +1,7 @@
 /* Final palette contract: structural surfaces follow UI choices. Semantic
    colours (alarm, online, provider and active-media states) remain distinct. */
 :root{--ui-page-background:var(--initial-background,linear-gradient(145deg,#596066,#181c1f 65%));--ui-surface:var(--user-card,rgba(30,30,30,.96));--ui-surface-soft:var(--user-card-soft,rgba(38,38,38,.97));--ui-cell:var(--user-card-cell,rgba(255,255,255,.055));--ui-field:var(--user-card-field,rgba(14,14,14,.58));--ui-accent:var(--user-card-accent,#b9c2c6)}
+body{--ui-surface:var(--user-card,rgba(30,30,30,.96));--ui-surface-soft:var(--user-card-soft,rgba(38,38,38,.97));--ui-cell:var(--user-card-cell,rgba(255,255,255,.055));--ui-field:var(--user-card-field,rgba(14,14,14,.58));--ui-accent:var(--user-card-accent,#b9c2c6)}
 body.app-theme{background-color:#181c1f!important}
 @media(max-width:700px){body.app-theme .rail{background:var(--ui-surface)!important}}
 .media-player-card input[data-media-volume]{--media-color:#20df6b;-webkit-appearance:none;appearance:none;width:100%;height:6px;border:0;border-radius:999px;outline:0;background:linear-gradient(90deg,var(--media-color) 0 var(--volume,0%),#d9dddd var(--volume,0%) 100%);accent-color:var(--media-color)}
@@ -24,3 +25,5 @@ body.intercom-theme{background-color:#181c1f!important;background-image:var(--in
 .embedded body.intercom-theme{background:transparent!important;background-image:none!important}
 body.login-theme{background-color:#181c1f!important;background-image:var(--initial-background,var(--ui-page-background))!important;background-position:center!important;background-size:cover!important}
 .login-theme main{background:var(--ui-surface)!important}.login-theme input{background:var(--ui-field)!important}.login-theme button{background:var(--ui-accent)!important;color:#15191b!important}
+body.wiim-theme,body.soundcloud-theme{background-color:#181c1f!important;background-image:var(--initial-background,var(--ui-page-background))!important;background-position:center!important;background-size:cover!important;background-attachment:fixed!important}
+.wiim-heading,.sc-head,.sc-player,.sc-discover{background:var(--ui-surface)!important}

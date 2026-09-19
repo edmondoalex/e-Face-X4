@@ -15,10 +15,13 @@ from html import escape
 from pathlib import Path
 from dataclasses import replace
 from urllib.parse import quote, urlsplit
+from zoneinfo import ZoneInfo
 
 import httpx
 import uvicorn
 import websockets
+from astral import Observer
+from astral.sun import sunrise, sunset
 from pyControl4.websocket import C4Websocket
 from fastapi import FastAPI, Header, HTTPException, Query, Request, Response, WebSocket
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, PlainTextResponse, StreamingResponse
@@ -73,7 +76,7 @@ from .connectors.supervisor import discover_addon_url, discover_host_url
 from .media_realtime import SharedMediaRealtime
 from .demo import dashboard as demo_dashboard
 
-VERSION = os.environ.get("EFACE_VERSION", "2.21.196")
+VERSION = os.environ.get("EFACE_VERSION", "2.21.197")
 STATIC = Path(__file__).parent / "static"
 logging.basicConfig(level=logging.WARNING, format="%(asctime)s %(levelname)s [e-face-x4] %(message)s")
 _reconnect_warning_at: dict[str, float] = {}
@@ -2633,7 +2636,7 @@ def create_app() -> FastAPI:
         page = re.sub(r"tools\.js\?v=[0-9.]+", f"tools.js?v={VERSION}", page)
         page = page.replace("tools-user.css?v=2.21.163", "tools-user.css?v=2.21.186")
         page = page.replace("media-remote-colors.css?v=2.20.20", "media-remote-colors.css?v=2.21.148")
-        page = page.replace("ui-theme-contract.css?v=2.21.27", "ui-theme-contract.css?v=2.21.29")
+        page = re.sub(r"ui-theme-contract\.css\?v=[0-9.]+", f"ui-theme-contract.css?v={VERSION}", page)
         page = page.replace("tools-dashboard.js?v=2.21.27", "tools-dashboard.js?v=2.21.33")
         page = page.replace("tools-dashboard.js?v=2.21.33", "tools-dashboard.js?v=2.21.34")
         page = page.replace("tools-dashboard.js?v=2.21.34", "tools-dashboard.js?v=2.21.36")
@@ -2641,6 +2644,8 @@ def create_app() -> FastAPI:
         page = page.replace("tools-dashboard.js?v=2.21.38", "tools-dashboard.js?v=2.21.41")
         page = page.replace("tools-dashboard.js?v=2.21.41", "tools-dashboard.js?v=2.21.42")
         page = page.replace("tools-dashboard.js?v=2.21.42", "tools-dashboard.js?v=2.21.174")
+        page = re.sub(r"tools-dashboard\.js\?v=[0-9.]+", f"tools-dashboard.js?v={VERSION}", page)
+        page = re.sub(r"organization-tools\.js\?v=[0-9.]+", f"organization-tools.js?v={VERSION}", page)
         page = page.replace("tools-dashboard.css?v=2.20.36", "tools-dashboard.css?v=2.21.174")
         page = page.replace("backgrounds.css?v=2.20.20", "backgrounds.css?v=2.21.43")
         page = page.replace("intercom.css?v=2.21.14", "intercom.css?v=2.21.46")
@@ -2869,6 +2874,45 @@ def create_app() -> FastAPI:
             raise HTTPException(status_code=401, detail="Accedi per gestire le routine")
         return owner
 
+    solar_location_cache: dict[str, object] = {"expires": 0.0}
+
+    async def routine_solar_times() -> dict[str, datetime]:
+        if time.monotonic() >= float(solar_location_cache["expires"]):
+            token = str(os.environ.get("SUPERVISOR_TOKEN") or "").strip()
+            if not token:
+                raise RuntimeError("Posizione Home Assistant non disponibile")
+            try:
+                async with httpx.AsyncClient(timeout=load_settings().request_timeout_s, follow_redirects=False, trust_env=False) as client:
+                    response = await client.get("http://supervisor/core/api/config", headers={"Authorization": f"Bearer {token}"})
+                    response.raise_for_status()
+                    config = response.json()
+                latitude = float(config["latitude"])
+                longitude = float(config["longitude"])
+                zone = ZoneInfo(str(config["time_zone"]))
+                if not -90 <= latitude <= 90 or not -180 <= longitude <= 180:
+                    raise ValueError("Coordinate non valide")
+            except (httpx.HTTPError, KeyError, TypeError, ValueError) as exc:
+                raise RuntimeError("Posizione Home Assistant non disponibile") from exc
+            solar_location_cache.update({"latitude": latitude, "longitude": longitude, "zone": zone, "expires": time.monotonic() + 21600})
+        zone = solar_location_cache["zone"]
+        day = datetime.now(zone).date()
+        observer = Observer(float(solar_location_cache["latitude"]), float(solar_location_cache["longitude"]))
+        try:
+            return {"sunrise": sunrise(observer, day, tzinfo=zone), "sunset": sunset(observer, day, tzinfo=zone)}
+        except ValueError as exc:
+            raise RuntimeError("Alba/tramonto non calcolabili per questa posizione") from exc
+
+    async def routine_solar_ready(spec: dict) -> bool:
+        rules = [*(spec.get("triggers") if isinstance(spec.get("triggers"), list) else []),
+                 *(spec.get("conditions") if isinstance(spec.get("conditions"), list) else [])]
+        if not any(isinstance(rule, dict) and rule.get("type") == "sun" for rule in rules):
+            return True
+        try:
+            await routine_solar_times()
+            return True
+        except (RuntimeError, OSError):
+            return False
+
     async def routine_scenario_items() -> list[dict]:
         try:
             listing = await scenarios()
@@ -2918,21 +2962,29 @@ def create_app() -> FastAPI:
     async def routine_command(device_id: str, action: str, value: object) -> object:
         if device_id.startswith("light-scenario:"):
             return await scenario_command(device_id.split(":", 1)[1], {"action": action})
+        if action == "remote_command":
+            return await device_command_impl(device_id, {"action": "video_remote", "value": value})
         if action in {"dnd_on", "dnd_off"}:
-            return await device_command(device_id, {"action": "set_dnd", "value": action == "dnd_on"})
-        return await device_command(device_id, {"action": action, "value": value})
+            return await device_command_impl(device_id, {"action": "set_dnd", "value": action == "dnd_on"})
+        return await device_command_impl(device_id, {"action": action, "value": value})
 
     async def routine_activity_changed(device_ids: set[str]) -> None:
         await broadcast_realtime({"type": "routine_activity", "data": {"device_ids": sorted(device_ids)}})
 
     routine_engine = routines.Engine(lambda: routine_devices(), routine_command,
-                                     lambda referenced: routine_devices(referenced=referenced), routine_activity_changed)
+                                     lambda referenced: routine_devices(referenced=referenced), routine_activity_changed, routine_solar_times)
 
     async def dispatch_routine_doorbird(event: str) -> None:
         try:
             await routine_engine.doorbird_event(event)
         except Exception as exc:
             logging.warning("DoorBird routine event delayed: %s", exc)
+
+    async def dispatch_routine_remote(device_id: str, source_id: int, command: str) -> None:
+        try:
+            await routine_engine.remote_event(device_id, source_id, command)
+        except Exception as exc:
+            logging.warning("Media remote routine event delayed: %s", exc)
 
     @app.on_event("startup")
     async def start_routine_engine() -> None:
@@ -2970,7 +3022,7 @@ def create_app() -> FastAPI:
                                 event = json.loads(message)
                             except (TypeError, json.JSONDecodeError):
                                 continue
-                            if isinstance(event, dict) and event.get("type") in {"light_state", "cover_state", "pir_state", "dry_contact_state", "ha_light_state", "ha_switch_state", "ha_cover_state", "light_scenario_state", "light_scenario_running"}:
+                            if isinstance(event, dict) and event.get("type") in {"light_state", "cover_state", "pir_state", "dry_contact_state", "ha_light_state", "ha_switch_state", "ha_cover_state", "light_scenario_state", "light_scenario_running", "light_scenario_command"}:
                                 await routine_engine.buspro_event(event)
                 except asyncio.CancelledError:
                     raise
@@ -3028,8 +3080,9 @@ def create_app() -> FastAPI:
     async def user_routine_catalog(request: Request) -> dict:
         routine_owner(request)
         devices = await routine_devices(request)
-        return {"devices": [{key: item.get(key) for key in ("id", "entity_id", "name", "room", "kind", "state", "capabilities", "tts_enabled", "dnd_available", "source_list")}
-                            for item in devices if item.get("id")], "demo": load_settings().demo_mode}
+        return {"devices": [{key: item.get(key) for key in ("id", "entity_id", "name", "room", "kind", "state", "capabilities", "tts_enabled", "dnd_available", "source_list", "source_options", "provider")}
+                            for item in devices if item.get("id")], "demo": load_settings().demo_mode,
+                "solar_available": bool(os.environ.get("SUPERVISOR_TOKEN"))}
 
     @app.post("/api/user/routines/{routine_id}/enabled")
     async def user_set_routine_enabled(request: Request, routine_id: str, payload: dict) -> dict:
@@ -3043,7 +3096,7 @@ def create_app() -> FastAPI:
         if enabled and load_settings().demo_mode:
             raise HTTPException(status_code=409, detail="Le routine non si attivano in modalità demo")
         if enabled:
-            review = routines.validate({**existing["spec"], "id": routine_id}, await routine_devices(request), routines.list_routines())
+            review = routines.validate({**existing["spec"], "id": routine_id}, await routine_devices(request), routines.list_routines(), solar_available=await routine_solar_ready(existing["spec"]))
             if review["errors"]:
                 raise HTTPException(status_code=409, detail=review["errors"])
             if review["warnings"] and not payload.get("confirm_warnings"):
@@ -3067,7 +3120,7 @@ def create_app() -> FastAPI:
         routine_id = str(payload.get("id") or "")
         if routine_id and not routines.get_routine(routine_id, owner):
             raise HTTPException(status_code=404, detail="Routine non trovata")
-        return routines.validate({**raw, "id": routine_id or None}, await routine_devices(request), routines.list_routines())
+        return routines.validate({**raw, "id": routine_id or None}, await routine_devices(request), routines.list_routines(), solar_available=await routine_solar_ready(raw))
 
     async def save_user_routine(request: Request, payload: dict, routine_id: str | None = None) -> dict:
         owner = routine_owner(request)
@@ -3079,7 +3132,7 @@ def create_app() -> FastAPI:
         if len(json.dumps(raw, ensure_ascii=False)) > 32_000:
             raise HTTPException(status_code=413, detail="Routine troppo grande")
         raw = {**raw, "id": routine_id}
-        review = routines.validate(raw, await routine_devices(request), routines.list_routines())
+        review = routines.validate(raw, await routine_devices(request), routines.list_routines(), solar_available=await routine_solar_ready(raw))
         if review["errors"]:
             raise HTTPException(status_code=400, detail=review["errors"])
         if payload.get("enabled") and review["warnings"] and not payload.get("confirm_warnings"):
@@ -3404,8 +3457,7 @@ def create_app() -> FastAPI:
         except (httpx.HTTPError, OSError, ValueError):
             return Response(fallback, media_type="image/svg+xml")
 
-    @app.post("/api/devices/{device_id}/command")
-    async def device_command(device_id: str, payload: dict) -> dict:
+    async def device_command_impl(device_id: str, payload: dict) -> dict:
         settings = load_settings()
         operation = str(payload.get("action") or "")
         wiim_actions = {
@@ -3565,6 +3617,21 @@ def create_app() -> FastAPI:
             raise HTTPException(status_code=502, detail="e-HDL non raggiungibile")
         except ValueError as exc:
             raise HTTPException(status_code=400, detail=str(exc))
+
+    @app.post("/api/devices/{device_id}/command")
+    async def device_command(device_id: str, payload: dict) -> dict:
+        result = await device_command_impl(device_id, payload)
+        operation = str(payload.get("action") or "")
+        if device_id.startswith(("media:", "c4media:", "wiim:")):
+            if operation == "video_remote" and isinstance(payload.get("value"), dict):
+                value = payload["value"]
+                source_id = value.get("source_id")
+                command = str(value.get("command") or "")
+                if isinstance(source_id, int) and not isinstance(source_id, bool) and command:
+                    asyncio.create_task(dispatch_routine_remote(device_id, source_id, command))
+            elif operation in routines.REMOTE_PLAYER_COMMANDS:
+                asyncio.create_task(dispatch_routine_remote(device_id, 0, operation))
+        return result
 
     @app.get("/api/media/{registry_id}/artwork")
     async def media_artwork(registry_id: str, fingerprint: str = Query(..., min_length=8, max_length=256), if_none_match: str | None = Header(None)) -> Response:

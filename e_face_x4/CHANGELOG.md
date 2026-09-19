@@ -1,5 +1,17 @@
 # Changelog
 
+## 2.21.197 — 2026-09-19
+
+- Routine: riordino allineato allo standard già usato in Strumenti, con maniglia ☰ a sinistra, spostamento visibile durante il trascinamento e frecce da tastiera per accessibilità.
+- Trigger e condizioni alba/tramonto con offset da -180 a +180 minuti, calcolati dalla posizione e dal fuso orario di Home Assistant.
+- Registri routine: condizioni con stato letto, confronto richiesto ed esito esplicito.
+- Tasto Duplica accanto a ogni routine: la copia viene salvata disattivata.
+- Telecomando multimediale: trigger sui comandi impartiti tramite e-Face e azioni sui tasti disponibili della sorgente video Control4/Sky Q; trasporto audio/video selezionabile in trigger e azioni.
+- Tema sfondo/card applicato coerentemente anche alle pagine Strumenti e Routine, con versione CSS aggiornata per svuotare la cache.
+- Trigger scenario: opzione "Avvio scenario" sull'evento di esecuzione, distinta dallo stato ON che richiede tutti i dispositivi conformi; corretto il comando Control4 di scelta sorgente anche nelle routine già salvate con il nome anziché la chiave tecnica.
+- Scenari: trigger distinti per stato ON/OFF e per comando Accendi/Spegni emesso dal connettore; controllo anti-ciclo esteso anche ai trigger di comando. La normalizzazione dei nomi sorgente Control4 è ora nel connettore condiviso, non solo nelle routine.
+- Registro Admin aggiornato automaticamente ogni 3 secondi senza chiudere le esecuzioni aperte; refresh della Home e delle pagine Routine/Registro mantiene la sezione corrente.
+
 ## 2.21.196 — 2026-09-19
 
 - Routine: trascinamento touch/mouse dei blocchi Azione, Timer e Verifica nell'ordine reale di esecuzione.

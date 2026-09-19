@@ -1,4 +1,4 @@
-self.EFACE_SERVICE_WORKER_VERSION = '2.21.196'
+self.EFACE_SERVICE_WORKER_VERSION = '2.21.197'
 self.addEventListener('install', () => self.skipWaiting())
 self.addEventListener('activate', event => event.waitUntil(clients.claim()))
 self.addEventListener('push', event => {

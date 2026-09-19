@@ -23,7 +23,7 @@ SAFE_ACTIONS = {
     "light_scenario": {"on", "off", "run", "stop"},
     "light": {"on", "off", "brightness"},
     "switch": {"on", "off"},
-    "media_player": {"media_play", "media_pause", "media_stop", "media_next", "media_previous", "turn_off", "set_volume", "volume_mute", "volume_unmute", "select_source", "dnd_on", "dnd_off", "tts"},
+    "media_player": {"media_play", "media_pause", "media_stop", "media_next", "media_previous", "turn_off", "set_volume", "volume_mute", "volume_unmute", "select_source", "remote_command", "dnd_on", "dnd_off", "tts"},
     "climate": {"set_target"},
     "cover": {"open", "close", "stop"},
 }
@@ -35,7 +35,9 @@ ACTION_LABELS = {"on": "accendere", "off": "spegnere", "brightness": "regolare l
                  "turn_off": "spegnere la stanza", "set_volume": "regolare il volume",
                  "volume_mute": "silenziare", "volume_unmute": "riattivare l'audio", "set_target": "impostare la temperatura",
                  "media_next": "passare al brano successivo", "media_previous": "tornare al brano precedente", "tts": "pronunciare un messaggio su",
-                 "select_source": "selezionare una sorgente su", "dnd_on": "attivare Non disturbare su", "dnd_off": "disattivare Non disturbare su"}
+                 "select_source": "selezionare una sorgente su", "remote_command": "premere un tasto telecomando su",
+                 "dnd_on": "attivare Non disturbare su", "dnd_off": "disattivare Non disturbare su"}
+REMOTE_PLAYER_COMMANDS = {"media_play": "play", "media_pause": "pause", "media_stop": "stop", "media_next": "next", "media_previous": "previous", "turn_off": "turn_off", "volume_mute": "mute", "volume_unmute": "mute"}
 SENSITIVE_WORDS = re.compile(r"porta|portone|cancello|garage|serratura|allarme|alarm|gate|door|lock", re.I)
 SECRET_TEXT = re.compile(r"(?i)(password|token|secret|authorization)\s*[:=]\s*\S+|https?://\S+")
 
@@ -137,7 +139,39 @@ def _condition(raw: object, devices: dict[str, dict], errors: list[str]) -> dict
     return {"device_id": device_id, "operator": operator, "value": value}
 
 
-def validate(payload: dict, devices: list[dict], others: list[dict] = ()) -> dict:
+def _solar_rule(raw: dict, errors: list[str], *, condition: bool = False) -> dict | None:
+    event = str(raw.get("event") or "")
+    offset = raw.get("offset_minutes", 0)
+    relation = str(raw.get("relation") or "after")
+    if event not in {"sunrise", "sunset"} or isinstance(offset, bool) or not isinstance(offset, int) or not -180 <= offset <= 180 or (condition and relation not in {"before", "after"}):
+        errors.append("Alba/tramonto: scegli evento e anticipo/ritardo tra -180 e +180 minuti")
+        return None
+    rule = {"type": "sun", "event": event, "offset_minutes": offset}
+    if condition:
+        rule["relation"] = relation
+    return rule
+
+
+def _remote_allowed(device: dict | None, source_id: int, command: str) -> bool:
+    if not device or device.get("kind") != "media_player":
+        return False
+    if source_id == 0:
+        cap = REMOTE_PLAYER_COMMANDS.get(command)
+        return bool(cap and (device.get("capabilities") or {}).get(cap))
+    return any(isinstance(source, dict) and source.get("experience") == "watch" and str(source.get("source_id")) == str(source_id) and command in (source.get("remote_actions") or [])
+               for source in (device.get("source_options") or []))
+
+
+def _action_targets(device: dict | None, action: str) -> set[str]:
+    targets = {ACTION_STATES[action]} if action in ACTION_STATES else set()
+    if device and device.get("kind") == "light_scenario" and action in {"on", "off", "run", "stop"}:
+        targets.add(f"command_{action}")
+        if action in {"on", "off", "run"}:
+            targets.add("running")
+    return targets
+
+
+def validate(payload: dict, devices: list[dict], others: list[dict] = (), *, solar_available: bool = True) -> dict:
     """Validate against the live installation; never trust client-provided capabilities."""
     errors: list[str] = []
     warnings: list[str] = []
@@ -166,6 +200,18 @@ def validate(payload: dict, devices: list[dict], others: list[dict] = ()) -> dic
                 errors.append("Evento DoorBird non valido")
             else:
                 triggers.append({"type": "doorbird", "event": event})
+        elif raw.get("type") == "sun":
+            rule = _solar_rule(raw, errors)
+            if rule:
+                triggers.append(rule)
+        elif raw.get("type") == "remote":
+            device_id = str(raw.get("device_id") or "")
+            source_id = raw.get("source_id", 0)
+            command = str(raw.get("command") or "")
+            if isinstance(source_id, bool) or not isinstance(source_id, int) or source_id < 0 or not _remote_allowed(catalog.get(device_id), source_id, command):
+                errors.append(f"Telecomando: tasto non disponibile per {device_id or 'player mancante'}")
+            else:
+                triggers.append({"type": "remote", "device_id": device_id, "source_id": source_id, "command": command})
         elif raw.get("type") == "state":
             device_id = str(raw.get("device_id") or "")
             target = str(raw.get("to") or "").strip().casefold()[:80]
@@ -179,7 +225,9 @@ def validate(payload: dict, devices: list[dict], others: list[dict] = ()) -> dic
     if not isinstance(raw_conditions, list) or len(raw_conditions) > 8:
         errors.append("Massimo 8 condizioni iniziali")
         raw_conditions = []
-    conditions = [item for raw in raw_conditions if (item := _condition(raw, catalog, errors))]
+    conditions = [item for raw in raw_conditions if (item := _solar_rule(raw, errors, condition=True) if isinstance(raw, dict) and raw.get("type") == "sun" else _condition(raw, catalog, errors))]
+    if not solar_available and (any(item.get("type") == "sun" for item in triggers) or any(item.get("type") == "sun" for item in conditions)):
+        errors.append("Alba/tramonto non disponibili: controlla posizione e fuso orario di Home Assistant")
     raw_steps = payload.get("steps")
     if not isinstance(raw_steps, list) or not 1 <= len(raw_steps) <= MAX_STEPS:
         errors.append(f"Servono da 1 a {MAX_STEPS} blocchi in Allora")
@@ -252,9 +300,26 @@ def validate(payload: dict, devices: list[dict], others: list[dict] = ()) -> dic
                     continue
             elif action == "select_source":
                 value = str(value or "").strip()
-                if not caps.get("select_source") or value not in (device.get("source_list") or []):
+                if device.get("provider") == "control4":
+                    legacy_matches = [str(source.get("key")) for source in (device.get("source_options") or [])
+                                      if isinstance(source, dict) and str(source.get("label") or "").casefold() == value.casefold()]
+                    if len(legacy_matches) == 1 and ":" not in value:
+                        value = legacy_matches[0]
+                sources = ([str(source.get("key")) for source in (device.get("source_options") or []) if isinstance(source, dict)]
+                           if device.get("provider") == "control4" else device.get("source_list") or [])
+                if not caps.get("select_source") or value not in sources:
                     errors.append(f"{device.get('name')}: sorgente non disponibile")
                     continue
+            elif action == "remote_command":
+                if not isinstance(value, dict):
+                    errors.append(f"{device.get('name')}: tasto telecomando non valido")
+                    continue
+                source_id = value.get("source_id")
+                command = str(value.get("command") or "")
+                if isinstance(source_id, bool) or not isinstance(source_id, int) or source_id <= 0 or not _remote_allowed(device, source_id, command):
+                    errors.append(f"{device.get('name')}: tasto telecomando non disponibile sulla sorgente")
+                    continue
+                value = {"source_id": source_id, "command": command}
             else:
                 value = None
             actions.append((device_id, action))
@@ -267,6 +332,8 @@ def validate(payload: dict, devices: list[dict], others: list[dict] = ()) -> dic
                 warnings.append(f"{device.get('name')}: volume elevato ({value}%) percepibile dalle persone presenti")
             if action == "tts":
                 warnings.append(f"{device.get('name')}: il messaggio vocale potrebbe essere sentito dalle persone presenti")
+            if action == "remote_command":
+                warnings.append(f"{device.get('name')}: il telecomando richiede che la sorgente video selezionata sia attiva al momento dell'esecuzione")
         else:
             errors.append("Tipo di blocco non supportato")
     if total_wait > MAX_WAIT_SECONDS:
@@ -274,14 +341,15 @@ def validate(payload: dict, devices: list[dict], others: list[dict] = ()) -> dic
     if not actions:
         errors.append("Aggiungi almeno un'azione")
     for trigger in triggers:
-        if trigger["type"] == "state" and any(device_id == trigger["device_id"] and ACTION_STATES.get(action) == trigger["to"] for device_id, action in actions):
+        if trigger["type"] == "state" and any(device_id == trigger["device_id"] and trigger["to"] in _action_targets(catalog.get(device_id), action) for device_id, action in actions):
             errors.append("La routine potrebbe riattivare sé stessa sullo stesso dispositivo")
     edges: dict[tuple[str, str], set[tuple[str, str]]] = {}
     for other in [*others, {"spec": {"triggers": triggers, "steps": steps}, "enabled": True, "id": payload.get("id"), "candidate": True}]:
         if not other.get("enabled") or (other.get("id") == payload.get("id") and not other.get("candidate")):
             continue
         state_sources = [(item.get("device_id"), item.get("to")) for item in other.get("spec", {}).get("triggers", []) if item.get("type") == "state"]
-        action_targets = [(item.get("device_id"), ACTION_STATES[item["action"]]) for item in other.get("spec", {}).get("steps", []) if item.get("type") == "action" and item.get("action") in ACTION_STATES]
+        action_targets = [(item.get("device_id"), state) for item in other.get("spec", {}).get("steps", []) if item.get("type") == "action"
+                          for state in _action_targets(catalog.get(item.get("device_id")), item.get("action"))]
         for source in state_sources:
             edges.setdefault(source, set()).update(action_targets)
     for source in edges:
@@ -313,11 +381,19 @@ def validate(payload: dict, devices: list[dict], others: list[dict] = ()) -> dic
             descriptions.append(f"alle {trigger['at']}")
         elif trigger["type"] == "doorbird":
             descriptions.append("quando suona DoorBird" if trigger["event"] == "doorbell" else "quando DoorBird rileva movimento")
+        elif trigger["type"] == "sun":
+            descriptions.append(f"a {'alba' if trigger['event'] == 'sunrise' else 'tramonto'} {trigger['offset_minutes']:+d} minuti")
+        elif trigger["type"] == "remote":
+            descriptions.append(f"quando e-Face invia il tasto {trigger['command']} a {catalog[trigger['device_id']].get('name')}")
         else:
             descriptions.append(f"quando {catalog[trigger['device_id']].get('name')} diventa {trigger['to']}")
     narrative = "La casa avvierà la routine " + (" oppure ".join(descriptions) if descriptions else "solo dopo una configurazione valida") + ". "
     if conditions:
-        narrative += "Prima controllerà " + ", ".join(f"{catalog[item['device_id']].get('name')} {item['operator'].replace('is_not', 'non è').replace('is', 'è')} {item['value']}" for item in conditions) + ". "
+        narrative += "Prima controllerà " + ", ".join(
+            f"se è {'prima' if item['relation'] == 'before' else 'dopo'} di {'alba' if item['event'] == 'sunrise' else 'tramonto'} {item['offset_minutes']:+d} minuti"
+            if item.get("type") == "sun" else
+            f"{catalog[item['device_id']].get('name')} {item['operator'].replace('is_not', 'non è').replace('is', 'è')} {item['value']}"
+            for item in conditions) + ". "
     for step in steps:
         if step["type"] == "wait":
             narrative += f"Poi attenderà {step['seconds']} secondi. "
@@ -325,6 +401,7 @@ def validate(payload: dict, devices: list[dict], others: list[dict] = ()) -> dic
             narrative += f"Ricontrollerà {catalog[step['device_id']].get('name')}: se non è {step['value']}, interromperà il resto. "
         else:
             amount = (" con un messaggio vocale" if step["action"] == "tts" else
+                      f" ({step['value']['command']})" if step["action"] == "remote_command" else
                       f" ({step['value']})" if step["action"] == "select_source" else
                       f" a {step['value']}{' °C' if step['action'] == 'set_target' else '%'}" if step.get("value") is not None else "")
             narrative += f"Farà {ACTION_LABELS.get(step['action'], step['action'])} {catalog[step['device_id']].get('name')}{amount}. "
@@ -429,11 +506,13 @@ def prune() -> None:
 class Engine:
     def __init__(self, snapshot: Callable[[], Awaitable[list[dict]]], command: Callable[[str, str, object], Awaitable[object]],
                  snapshot_selected: Callable[[set[str]], Awaitable[list[dict]]] | None = None,
-                 activity_changed: Callable[[set[str]], Awaitable[None]] | None = None):
+                 activity_changed: Callable[[set[str]], Awaitable[None]] | None = None,
+                 solar_times: Callable[[], Awaitable[dict[str, datetime]]] | None = None):
         self.snapshot = snapshot
         self.snapshot_selected = snapshot_selected
         self.command = command
         self.activity_changed = activity_changed
+        self.solar_times = solar_times
         self.active_targets: dict[str, set[str]] = {}
         self.previous: dict[str, str] = {}
         self.running: dict[str, asyncio.Task] = {}
@@ -499,11 +578,35 @@ class Engine:
         data = event.get("data")
         if not isinstance(data, dict):
             return
-        scenario_event = event.get("type") in {"light_scenario_state", "light_scenario_running"}
+        scenario_event = event.get("type") in {"light_scenario_state", "light_scenario_running", "light_scenario_command"}
         key = f"scenario:{data.get('id')}" if scenario_event else str(data.get("entity_id") or "").casefold() or ".".join(
             str(data.get(part)) for part in ("subnet_id", "device_id", "channel"))
         identifier = self.buspro_by_state_key.get(key)
+        if scenario_event and event.get("type") == "light_scenario_command":
+            action = str(data.get("action") or "").casefold()
+            if not identifier or action not in {"on", "off", "run", "stop"}:
+                return
+            state = f"command_{action}"
+            matching = [routine for routine in list_routines(enabled_only=True) if any(
+                trigger["type"] == "state" and trigger["device_id"] == identifier and trigger["to"] == state
+                for trigger in routine["spec"]["triggers"])]
+            if matching:
+                devices = await self._snapshot_for(matching)
+                for routine in matching:
+                    self._start(routine, f"{devices.get(identifier, {}).get('name') or identifier} → comando {action}",
+                                f"scenario-command:{identifier}:{uuid.uuid4()}", devices, received_at)
+            return
         if scenario_event and event.get("type") == "light_scenario_running" and identifier not in self.scenario_running_only:
+            if not identifier or not data.get("running"):
+                return
+            matching = [routine for routine in list_routines(enabled_only=True) if any(
+                trigger["type"] == "state" and trigger["device_id"] == identifier and trigger["to"] == "running"
+                for trigger in routine["spec"]["triggers"])]
+            if matching:
+                devices = await self._snapshot_for(matching)
+                for routine in matching:
+                    self._start(routine, f"{devices.get(identifier, {}).get('name') or identifier} → avvio scenario",
+                                f"scenario-run:{identifier}:{uuid.uuid4()}", devices, received_at)
             return
         if scenario_event and event.get("type") == "light_scenario_state" and identifier in self.scenario_running_only:
             return
@@ -538,6 +641,12 @@ class Engine:
         devices = {str(item.get("id")): item for item in await self.snapshot() if item.get("id") is not None}
         current = {identifier: _state(item) for identifier, item in devices.items()}
         local = datetime.now(ZoneInfo("Europe/Rome"))
+        sun = {}
+        if self.solar_times and any(trigger.get("type") == "sun" for routine in routines for trigger in routine["spec"]["triggers"]):
+            try:
+                sun = await self.solar_times()
+            except (OSError, RuntimeError, ValueError):
+                pass
         for routine in routines:
             identifier = routine["id"]
             if identifier in self.running and not self.running[identifier].done():
@@ -557,9 +666,15 @@ class Engine:
                 elif trigger["type"] == "time" and local.strftime("%H:%M") == trigger["at"]:
                     matched = f"Orario {trigger['at']}"
                     matched_type = "time"
+                elif trigger["type"] == "sun" and trigger["event"] in sun:
+                    target = sun[trigger["event"]] + timedelta(minutes=trigger["offset_minutes"])
+                    now = datetime.now(target.tzinfo)
+                    if target <= now < target + timedelta(minutes=1):
+                        matched = f"{'Alba' if trigger['event'] == 'sunrise' else 'Tramonto'} {trigger['offset_minutes']:+d} minuti"
+                        matched_type = "sun"
             if not matched:
                 continue
-            trigger_key = local.strftime("%Y-%m-%d %H:%M") + ":" + matched if matched_type == "time" else f"state:{uuid.uuid4()}"
+            trigger_key = local.strftime("%Y-%m-%d") + ":" + matched if matched_type == "sun" else local.strftime("%Y-%m-%d %H:%M") + ":" + matched if matched_type == "time" else f"state:{uuid.uuid4()}"
             self._start(routine, matched, trigger_key, devices)
         self.previous = current
 
@@ -579,6 +694,17 @@ class Engine:
             self.external_cooldowns[key] = now
             self._start(routine, "DoorBird: chiamata" if event == "doorbell" else "DoorBird: movimento",
                         f"doorbird:{event}:{_now()}", devices)
+
+    async def remote_event(self, device_id: str, source_id: int, command: str) -> None:
+        matching = [routine for routine in list_routines(enabled_only=True) if any(
+            trigger.get("type") == "remote" and trigger["device_id"] == device_id and trigger["source_id"] == source_id and trigger["command"] == command
+            for trigger in routine["spec"]["triggers"])]
+        if not matching:
+            return
+        devices = await self._snapshot_for(matching)
+        name = devices.get(device_id, {}).get("name") or device_id
+        for routine in matching:
+            self._start(routine, f"Telecomando e-Face: {name} · {command}", f"remote:{uuid.uuid4()}", devices)
 
     def _start(self, routine: dict, matched: str, trigger_key: str, devices: dict[str, dict], received_at: str | None = None) -> None:
         identifier = routine["id"]
@@ -617,10 +743,25 @@ class Engine:
             await self._notify_activity()
             devices = starting_devices
             for condition in routine["spec"]["conditions"]:
+                if condition.get("type") == "sun":
+                    if not self.solar_times:
+                        raise RuntimeError("Orari di alba/tramonto non disponibili")
+                    schedule = await self.solar_times()
+                    boundary = schedule[condition["event"]] + timedelta(minutes=condition["offset_minutes"])
+                    checked_at = datetime.now(boundary.tzinfo)
+                    passed = (checked_at < boundary) if condition["relation"] == "before" else (checked_at >= boundary)
+                    record_event(run_id, "condition", detail=f"{'Prima' if condition['relation'] == 'before' else 'Dopo'} {'alba' if condition['event'] == 'sunrise' else 'tramonto'} {condition['offset_minutes']:+d} minuti; soglia {boundary:%H:%M}, ora {checked_at:%H:%M}", result="pass" if passed else "skip")
+                    if not passed:
+                        status = "skipped"
+                        return
+                    continue
                 device = devices.get(condition["device_id"])
                 actual = _state(device)
                 passed = (actual == condition["value"]) == (condition["operator"] == "is")
-                record_event(run_id, "condition", device_id=condition["device_id"], device_name=str((device or {}).get("name") or ""), detail=f"{actual} {condition['operator']} {condition['value']}", result="pass" if passed else "skip")
+                comparison = "uguale a" if condition["operator"] == "is" else "diverso da"
+                record_event(run_id, "condition", device_id=condition["device_id"], device_name=str((device or {}).get("name") or ""),
+                             detail=f"Stato letto: {actual or 'non disponibile'}; richiesto: {comparison} {condition['value']}",
+                             before_state=actual, result="pass" if passed else "skip")
                 if not passed:
                     status = "skipped"
                     return
@@ -654,7 +795,7 @@ class Engine:
                     before = _state(device)
                     record_event(run_id, "command", device_id=device_id, device_name=str(device.get("name") or ""), action=step["action"], detail="Comando richiesto", before_state=before, result="sent")
                     try:
-                        await self.command(device_id, step["action"], step.get("value"))
+                        await self.command(device_id, step["action"], fresh["spec"]["steps"][0].get("value"))
                     except Exception as exc:
                         record_event(run_id, "command", device_id=device_id, device_name=str(device.get("name") or ""), action=step["action"], detail=str(exc), before_state=before, result="failed")
                         raise

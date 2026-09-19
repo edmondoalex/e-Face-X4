@@ -33,6 +33,7 @@ async function loadToolsBackground() {
 function notice(message) { $('#tools-notice').textContent = message; $('#tools-notice').hidden = false; setTimeout(() => { $('#tools-notice').hidden = true }, 3500) }
 
 const musicAccountsCard = document.createElement('button')
+musicAccountsCard.id = 'music-accounts-tool'
 musicAccountsCard.type = 'button'
 musicAccountsCard.className = 'tool-card'
 musicAccountsCard.innerHTML = '<span>♫</span><div><b>Account musicali</b><small>Collega e gestisci le sorgenti</small></div><i>›</i>'
@@ -445,6 +446,8 @@ function renderHomeWidgetAdmin(){ $('#home-widget-list').innerHTML=homeWidgets.m
 function syncHomeWidgets(){homeWidgets=[...$('#home-widget-list').querySelectorAll('[data-home-widget-admin]')].map((row)=>({id:row.dataset.homeWidgetAdmin,visible:row.querySelector('input').checked,size:row.querySelector('[data-widget-size]').value,height:row.querySelector('[data-widget-height]')?.value||'standard'}));renderHomeWidgetPreview()}
 homeWidgetCard.addEventListener('click',async()=>{try{const response=await fetch(apiUrl('../api/user/appearance'),appearanceOptions({cache:'no-store'}));if(!response.ok)throw new Error(`HTTP ${response.status}`);const appearance=await response.json();homeWidgets=appearance.home_widgets||[];$('#home-camera-entity').value=appearance.home_camera_entity||'camera.nvr_32ch_ext_ultimo_evento';$('#home-weather-location').value=appearance.home_weather_location||'';renderHomeWidgetAdmin();homeWidgetPanel.hidden=false}catch(error){notice(error.message)}})
 homeWidgetPanel.querySelector('[data-home-widget-back]').addEventListener('click',()=>{homeWidgetPanel.hidden=true})
+homeWidgetCard.id='home-widget-tool'
+homeWidgetPanel.id='home-widget-config'
 $('#home-widget-list').addEventListener('change',syncHomeWidgets)
 let draggedHomeWidget=null
 $('#home-widget-list').addEventListener('pointerdown',(event)=>{const handle=event.target.closest('[data-home-widget-drag]');if(!handle)return;draggedHomeWidget=handle.closest('[data-home-widget-admin]');draggedHomeWidget.classList.add('dragging');handle.setPointerCapture(event.pointerId);event.preventDefault()})

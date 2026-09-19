@@ -1,4 +1,6 @@
 import asyncio
+from datetime import datetime, timedelta
+from zoneinfo import ZoneInfo
 
 import pytest
 from fastapi.testclient import TestClient
@@ -24,6 +26,104 @@ def catalog():
 def sample():
     return {"name": "Luce ingresso", "triggers": [{"type": "state", "device_id": "sensor.motion", "to": "on"}],
             "conditions": [], "steps": [{"type": "action", "device_id": "light.hall", "action": "on"}]}
+
+
+def test_solar_trigger_condition_and_location_guard():
+    spec = sample()
+    spec["triggers"] = [{"type": "sun", "event": "sunset", "offset_minutes": -15}]
+    spec["conditions"] = [{"type": "sun", "event": "sunrise", "offset_minutes": 30, "relation": "after"}]
+    review = routines.validate(spec, catalog())
+    assert not review["errors"]
+    assert review["spec"]["triggers"][0]["offset_minutes"] == -15
+    assert not routines.validate(spec, catalog(), solar_available=False)["can_enable"]
+    spec["triggers"][0]["offset_minutes"] = 181
+    assert routines.validate(spec, catalog())["errors"]
+
+
+def test_media_remote_commands_follow_source_capabilities():
+    player = {"id": "c4media:1", "kind": "media_player", "name": "Sala", "state": "idle",
+              "capabilities": {"play": True}, "source_options": [{"key": "watch:42", "label": "Sky Q", "source_id": 42,
+              "experience": "watch", "remote_actions": ["menu", "enter"]}]}
+    spec = sample()
+    spec["triggers"] = [{"type": "remote", "device_id": "c4media:1", "source_id": 42, "command": "menu"}]
+    spec["steps"] = [{"type": "action", "device_id": "c4media:1", "action": "remote_command",
+                      "value": {"source_id": 42, "command": "enter"}}]
+    assert not routines.validate(spec, catalog() + [player])["errors"]
+    spec["steps"][0]["value"]["command"] = "record"
+    assert routines.validate(spec, catalog() + [player])["errors"]
+    spec["steps"] = [{"type": "action", "device_id": "light.hall", "action": "on"}]
+    spec["triggers"] = [{"type": "remote", "device_id": "c4media:1", "source_id": 0, "command": "media_play"}]
+    assert not routines.validate(spec, catalog() + [player])["errors"]
+    spec["triggers"][0]["command"] = "media_next"
+    assert routines.validate(spec, catalog() + [player])["errors"]
+
+
+def test_legacy_control4_source_label_is_normalized_to_key():
+    player = {"id": "c4media:1", "kind": "media_player", "name": "Sala", "state": "off", "provider": "control4",
+              "capabilities": {"select_source": True}, "source_options": [{"key": "watch:42", "label": "Sky Q", "source_id": 42,
+              "experience": "watch", "remote_actions": ["menu"]}]}
+    spec = sample()
+    spec["steps"] = [{"type": "action", "device_id": "c4media:1", "action": "select_source", "value": "Sky Q"}]
+    review = routines.validate(spec, catalog() + [player])
+    assert not review["errors"]
+    assert review["spec"]["steps"][0]["value"] == "watch:42"
+
+
+def test_scenario_start_event_triggers_running_even_with_onoff_state():
+    scenario = {"id": "light-scenario:film", "state_key": "scenario:film", "kind": "light_scenario",
+                "name": "Sala Film", "state": "off", "capabilities": {"onoff": True, "run": True}}
+    devices = catalog() + [scenario]
+    commands = []
+
+    async def snapshot():
+        return devices
+
+    async def command(device_id, action, value):
+        commands.append((device_id, action))
+
+    spec = sample()
+    spec["triggers"] = [{"type": "state", "device_id": scenario["id"], "to": "running"}]
+    saved = routines.save("alice", "alice", None, routines.validate(spec, devices)["spec"], True, None)
+    engine = routines.Engine(snapshot, command)
+    engine.configure_buspro(devices)
+
+    async def run():
+        await engine.buspro_event({"type": "light_scenario_running", "data": {"id": "film", "running": True}})
+        await engine.running[saved["id"]]
+
+    asyncio.run(run())
+    assert commands == [("light.hall", "on")]
+
+
+def test_scenario_command_trigger_distinguishes_on_from_off_and_blocks_feedback():
+    scenario = {"id": "light-scenario:film", "state_key": "scenario:film", "kind": "light_scenario",
+                "name": "Sala Film", "state": "off", "capabilities": {"onoff": True, "run": True}}
+    devices = catalog() + [scenario]
+    spec = sample()
+    spec["triggers"] = [{"type": "state", "device_id": scenario["id"], "to": "command_on"}]
+    assert not routines.validate(spec, devices)["errors"]
+    recursive = {**spec, "steps": [{"type": "action", "device_id": scenario["id"], "action": "on"}]}
+    assert "riattivare" in " ".join(routines.validate(recursive, devices)["errors"])
+    calls = []
+
+    async def snapshot():
+        return devices
+
+    async def command(device_id, action, value):
+        calls.append(action)
+
+    saved = routines.save("alice", "alice", None, routines.validate(spec, devices)["spec"], True, None)
+    engine = routines.Engine(snapshot, command)
+    engine.configure_buspro(devices)
+
+    async def run():
+        await engine.buspro_event({"type": "light_scenario_command", "data": {"id": "film", "action": "off"}})
+        assert saved["id"] not in engine.running
+        await engine.buspro_event({"type": "light_scenario_command", "data": {"id": "film", "action": "on"}})
+        await engine.running[saved["id"]]
+
+    asyncio.run(run())
+    assert calls == ["on"]
 
 
 def test_validation_blocks_access_commands_and_cycles():

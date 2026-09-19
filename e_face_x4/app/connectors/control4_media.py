@@ -162,7 +162,16 @@ class Control4MediaConnector(Connector):
                 raise ValueError("La stanza principale non può essere rimossa dalla propria sessione")
             await director.send_post_request("/api/v1/items/100002/commands", "REMOVE_ROOMS_FROM_SESSION", {"ROOM_ID": owner, "ROOM_ID_LIST": str(room_id)})
         elif operation == "select_source":
-            experience, source_id = str(value).split(":", 1)
+            selected = str(value or "").strip()
+            if not re.fullmatch(r"(?:watch|listen):[1-9]\d*", selected):
+                current = await self.snapshot()
+                player = next((item for item in current.get("items", []) if item.get("registry_id") == registry_id), None)
+                matches = [str(source.get("key")) for source in (player or {}).get("source_options", [])
+                           if str(source.get("label") or "").casefold() == selected.casefold()]
+                if len(matches) != 1:
+                    raise ValueError("Sorgente Control4 non valida o ambigua")
+                selected = matches[0]
+            experience, source_id = selected.split(":", 1)
             if experience == "watch": await room.set_video_and_audio_source(int(source_id))
             elif experience == "listen": await room.set_audio_source(int(source_id))
             else: raise ValueError("Sorgente Control4 non valida")

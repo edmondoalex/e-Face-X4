@@ -1101,4 +1101,20 @@ $('#wiim-form').addEventListener('submit', async (event) => {
   } catch (error) { $('#wiim-result').textContent = error.message }
 })
 
-initialize().catch((error) => message(error.message))
+window.addEventListener('beforeunload', () => {
+  const visible = [...document.querySelectorAll('.media-config:not([hidden])')].at(-1)
+  if (visible?.id) sessionStorage.setItem('eface-tools-restore', JSON.stringify({id:visible.id, scroll:visible.scrollTop}))
+  else sessionStorage.removeItem('eface-tools-restore')
+})
+initialize().then(() => {
+  let saved
+  try { saved = JSON.parse(sessionStorage.getItem('eface-tools-restore') || 'null') } catch { return }
+  if (!saved?.id || !/^[a-z0-9-]+$/.test(saved.id)) return
+  const panel = document.getElementById(saved.id)
+  const opener = document.getElementById(saved.id.replace(/-config$/, '-tool'))
+  if (!panel || !opener) return
+  const admin = panel.closest('#admin-tools') || panel.classList.contains('admin-dashboard-panel')
+  if (admin && !$('#tools-admin-nav').hidden) view('admin')
+  opener.click()
+  setTimeout(() => { if (!panel.hidden) panel.scrollTop = Number(saved.scroll) || 0 }, 700)
+}).catch((error) => message(error.message))
