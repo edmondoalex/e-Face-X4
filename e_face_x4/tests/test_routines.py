@@ -164,6 +164,9 @@ def test_buspro_events_catch_short_on_off_on_sequence():
 
     asyncio.run(run())
     assert commands == [("light.hall", "on"), ("light.hall", "on")]
+    for item in routines.list_runs():
+        stages = [event["stage"] for event in item["events"]]
+        assert stages.index("received") < stages.index("trigger") < stages.index("command")
 
 
 def test_ksenia_zone_closed_active_closed_active_triggers_twice():
@@ -190,6 +193,38 @@ def test_ksenia_zone_closed_active_closed_active_triggers_twice():
 
     asyncio.run(run())
     assert commands == [("light.hall", "on"), ("light.hall", "on")]
+
+
+def test_ksenia_event_fetches_only_referenced_devices():
+    zone = {"id": "ksenia-zone:5", "kind": "alarm_zone", "name": "IR Ufficio", "state": "CLOSED"}
+    selected_calls = []
+    commands = []
+
+    async def full_snapshot():
+        raise AssertionError("Lo snapshot completo non deve essere letto per questo evento")
+
+    async def selected_snapshot(references):
+        selected_calls.append(references)
+        return [zone, catalog()[0]]
+
+    async def command(device_id, action, value):
+        commands.append((device_id, action))
+
+    spec = sample()
+    spec["triggers"] = [{"type": "state", "device_id": zone["id"], "to": "active"}]
+    saved = routines.save("alice", "alice", None, routines.validate(spec, [zone, *catalog()])["spec"], True, None)
+    engine = routines.Engine(full_snapshot, command, selected_snapshot)
+    engine.ksenia_live = True
+
+    async def run():
+        await engine.ksenia_event([zone])
+        await engine.ksenia_event([{**zone, "state": "ACTIVE"}])
+        await engine.running[saved["id"]]
+
+    asyncio.run(run())
+    assert commands == [("light.hall", "on")]
+    assert selected_calls
+    assert all(call == {"ksenia-zone:5", "light.hall"} for call in selected_calls)
 
 
 def test_engine_rechecks_after_timer_before_action():

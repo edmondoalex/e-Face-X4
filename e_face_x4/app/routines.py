@@ -350,10 +350,10 @@ def delete(owner: str, routine_id: str) -> bool:
         return bool(db.execute("DELETE FROM routines WHERE id = ? AND owner = ?", (routine_id, owner)).rowcount)
 
 
-def record_event(run_id: str, stage: str, *, device_id: str = "", device_name: str = "", action: str = "", detail: str = "", before_state: str = "", after_state: str = "", result: str = "") -> None:
+def record_event(run_id: str, stage: str, *, device_id: str = "", device_name: str = "", action: str = "", detail: str = "", before_state: str = "", after_state: str = "", result: str = "", at: str | None = None) -> None:
     with _connect() as db:
         db.execute("INSERT INTO routine_events(run_id,at,stage,device_id,device_name,action,detail,before_state,after_state,result) VALUES(?,?,?,?,?,?,?,?,?,?)",
-                   (run_id, _now(), stage, device_id, device_name, action, SECRET_TEXT.sub("[dato nascosto]", detail)[:400], before_state[:100], after_state[:100], result[:100]))
+                   (run_id, at or _now(), stage, device_id, device_name, action, SECRET_TEXT.sub("[dato nascosto]", detail)[:400], before_state[:100], after_state[:100], result[:100]))
 
 
 def list_runs(*, device_id: str = "", routine_id: str = "", limit: int = 100) -> list[dict]:
@@ -399,8 +399,10 @@ def prune() -> None:
 
 
 class Engine:
-    def __init__(self, snapshot: Callable[[], Awaitable[list[dict]]], command: Callable[[str, str, object], Awaitable[object]]):
+    def __init__(self, snapshot: Callable[[], Awaitable[list[dict]]], command: Callable[[str, str, object], Awaitable[object]],
+                 snapshot_selected: Callable[[set[str]], Awaitable[list[dict]]] | None = None):
         self.snapshot = snapshot
+        self.snapshot_selected = snapshot_selected
         self.command = command
         self.previous: dict[str, str] = {}
         self.running: dict[str, asyncio.Task] = {}
@@ -410,7 +412,19 @@ class Engine:
         self.buspro_live = False
         self.ksenia_live = False
 
+    @staticmethod
+    def _references(routine: dict) -> set[str]:
+        spec = routine["spec"]
+        return {str(item["device_id"]) for group in (spec.get("triggers", []), spec.get("conditions", []), spec.get("steps", []))
+                for item in group if item.get("device_id") is not None}
+
+    async def _snapshot_for(self, matching: list[dict]) -> dict[str, dict]:
+        references = set().union(*(self._references(routine) for routine in matching))
+        items = await self.snapshot_selected(references) if self.snapshot_selected else await self.snapshot()
+        return {str(item["id"]): item for item in items if item.get("id") is not None}
+
     async def ksenia_event(self, items: list[dict]) -> None:
+        received_at = _now()
         changed: list[tuple[str, str]] = []
         by_id = {str(item["id"]): item for item in items if item.get("id") is not None}
         for identifier, item in by_id.items():
@@ -427,11 +441,11 @@ class Engine:
                         for trigger in routine["spec"]["triggers"])]
         if not matching:
             return
-        devices = {str(item.get("id")): item for item in await self.snapshot() if item.get("id") is not None}
+        devices = await self._snapshot_for([routine for routine, _, _ in matching])
         devices.update(by_id)
         for routine, identifier, state in matching:
             self._start(routine, f"{by_id[identifier].get('name') or identifier} → {state}",
-                        f"ksenia:{identifier}:{uuid.uuid4()}", devices)
+                        f"ksenia:{identifier}:{uuid.uuid4()}", devices, received_at)
 
     def configure_buspro(self, devices: list[dict]) -> None:
         self.buspro_by_state_key = {str(item["state_key"]).casefold(): str(item["id"])
@@ -441,6 +455,7 @@ class Engine:
                 self.previous[str(item["id"])] = _state(item)
 
     async def buspro_event(self, event: dict) -> None:
+        received_at = _now()
         data = event.get("data")
         if not isinstance(data, dict):
             return
@@ -460,12 +475,12 @@ class Engine:
             for trigger in routine["spec"]["triggers"])]
         if not matching:
             return
-        devices = {str(item.get("id")): item for item in await self.snapshot() if item.get("id") is not None}
+        devices = await self._snapshot_for(matching)
         if identifier in devices:
             devices[identifier] = {**devices[identifier], "state": state}
         for routine in matching:
             self._start(routine, f"{devices.get(identifier, {}).get('name') or identifier} → {state}",
-                        f"state:{identifier}:{uuid.uuid4()}", devices)
+                        f"state:{identifier}:{uuid.uuid4()}", devices, received_at)
 
     async def tick(self) -> None:
         if time.monotonic() - self.last_prune > 3600:
@@ -475,7 +490,7 @@ class Engine:
         if not routines:
             self.previous = {}
             return
-        devices = {str(item.get("id")): item for item in await self.snapshot() if item.get("id")}
+        devices = {str(item.get("id")): item for item in await self.snapshot() if item.get("id") is not None}
         current = {identifier: _state(item) for identifier, item in devices.items()}
         local = datetime.now(ZoneInfo("Europe/Rome"))
         for routine in routines:
@@ -510,7 +525,7 @@ class Engine:
             trigger["type"] == "doorbird" and trigger["event"] == event for trigger in routine["spec"]["triggers"])]
         if not matching:
             return
-        devices = {str(item.get("id")): item for item in await self.snapshot() if item.get("id")}
+        devices = await self._snapshot_for(matching)
         now = time.monotonic()
         for routine in matching:
             key = (routine["id"], event)
@@ -520,7 +535,7 @@ class Engine:
             self._start(routine, "DoorBird: chiamata" if event == "doorbell" else "DoorBird: movimento",
                         f"doorbird:{event}:{_now()}", devices)
 
-    def _start(self, routine: dict, matched: str, trigger_key: str, devices: dict[str, dict]) -> None:
+    def _start(self, routine: dict, matched: str, trigger_key: str, devices: dict[str, dict], received_at: str | None = None) -> None:
         identifier = routine["id"]
         if identifier in self.running and not self.running[identifier].done():
             return
@@ -541,13 +556,15 @@ class Engine:
                            (run_id, identifier, routine["owner"], routine["name"], routine["revision"], matched, _now(), _now(), "blocked"))
             record_event(run_id, "rate_limit", detail="Più di 20 attivazioni in un'ora: blocco di sicurezza")
         else:
-            self.running[identifier] = asyncio.create_task(self._run(routine, matched, devices))
+            self.running[identifier] = asyncio.create_task(self._run(routine, matched, devices, received_at))
 
-    async def _run(self, routine: dict, trigger_detail: str, starting_devices: dict[str, dict]) -> None:
+    async def _run(self, routine: dict, trigger_detail: str, starting_devices: dict[str, dict], received_at: str | None = None) -> None:
         run_id = str(uuid.uuid4())
         with _connect() as db:
             db.execute("INSERT INTO routine_runs(id,routine_id,owner,name,revision,trigger_detail,started_at,status) VALUES(?,?,?,?,?,?,?,?)",
                        (run_id, routine["id"], routine["owner"], routine["name"], routine["revision"], trigger_detail, _now(), "running"))
+        if received_at:
+            record_event(run_id, "received", detail="Evento ricevuto dal connettore", at=received_at)
         record_event(run_id, "trigger", detail=trigger_detail)
         status = "completed"
         try:
@@ -569,9 +586,9 @@ class Engine:
                 if step["type"] == "wait":
                     record_event(run_id, "timer", detail=f"Attesa {step['seconds']} secondi")
                     await asyncio.sleep(step["seconds"])
-                    devices = {str(item.get("id")): item for item in await self.snapshot() if item.get("id")}
+                    devices = await self._snapshot_for([routine])
                 elif step["type"] == "check":
-                    devices = {str(item.get("id")): item for item in await self.snapshot() if item.get("id")}
+                    devices = await self._snapshot_for([routine])
                     device = devices.get(step["device_id"])
                     actual = _state(device)
                     passed = (actual == step["value"]) == (step["operator"] == "is")
@@ -595,7 +612,7 @@ class Engine:
                         record_event(run_id, "command", device_id=device_id, device_name=str(device.get("name") or ""), action=step["action"], detail=str(exc), before_state=before, result="failed")
                         raise
                     record_event(run_id, "command", device_id=device_id, device_name=str(device.get("name") or ""), action=step["action"], detail="Confermato dal connettore; stato da verificare", before_state=before, result="accepted")
-                    devices = {str(item.get("id")): item for item in await self.snapshot() if item.get("id")}
+                    devices = await self._snapshot_for([routine])
                     after = _state(devices.get(device_id))
                     record_event(run_id, "observed", device_id=device_id, device_name=str(device.get("name") or ""), action=step["action"], before_state=before, after_state=after, result="changed" if after != before else "unchanged")
         except asyncio.CancelledError:

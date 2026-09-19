@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.21.195 — 2026-09-19
+
+- Routine: l'evento Ksenia usa gli stati appena ricevuti dalla centrale e richiede solo lo snapshot BusPro per verificare condizioni e comandi, senza attendere il caricamento completo della Home.
+- Se lo stato Ksenia non è recente, il controllo legge direttamente la centrale prima di eseguire azioni.
+
 ## 2.21.194 — 2026-09-19
 
 - Routine: le zone e le aree Ksenia mostrano nel selettore gli stati reali possibili, con etichette leggibili.

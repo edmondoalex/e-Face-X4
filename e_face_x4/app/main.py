@@ -73,7 +73,7 @@ from .connectors.supervisor import discover_addon_url, discover_host_url
 from .media_realtime import SharedMediaRealtime
 from .demo import dashboard as demo_dashboard
 
-VERSION = os.environ.get("EFACE_VERSION", "2.21.194")
+VERSION = os.environ.get("EFACE_VERSION", "2.21.195")
 STATIC = Path(__file__).parent / "static"
 logging.basicConfig(level=logging.WARNING, format="%(asctime)s %(levelname)s [e-face-x4] %(message)s")
 _reconnect_warning_at: dict[str, float] = {}
@@ -165,6 +165,8 @@ def create_app() -> FastAPI:
     app.state.routine_task = None
     app.state.routine_buspro_task = None
     app.state.routine_ksenia_task = None
+    app.state.routine_ksenia_snapshot = None
+    app.state.routine_ksenia_snapshot_at = 0.0
 
     @app.on_event("shutdown")
     async def close_shared_media_realtime() -> None:
@@ -2866,16 +2868,29 @@ def create_app() -> FastAPI:
             raise HTTPException(status_code=401, detail="Accedi per gestire le routine")
         return owner
 
-    async def routine_devices(request: Request | None = None) -> list[dict]:
+    async def routine_devices(request: Request | None = None, referenced: set[str] | None = None) -> list[dict]:
         if request is None:
             settings = load_settings()
             config = await resolved_provider(settings.buspro, "e_hdl_buspro_mqtt", 8124, settings.request_timeout_s)
             buspro = await BusproConnector(config, settings.request_timeout_s).snapshot()
             items = buspro.get("items", []) if buspro.get("status") == "online" else []
-            referenced = {str(step.get("device_id")) for routine in routines.list_routines(enabled_only=True)
-                          for group in (routine["spec"].get("triggers", []), routine["spec"].get("conditions", []), routine["spec"].get("steps", []))
-                          for step in group if step.get("device_id") is not None}
-            if items and referenced.issubset({str(item.get("id")) for item in items}):
+            if referenced is None:
+                referenced = {str(step.get("device_id")) for routine in routines.list_routines(enabled_only=True)
+                              for group in (routine["spec"].get("triggers", []), routine["spec"].get("conditions", []), routine["spec"].get("steps", []))
+                              for step in group if step.get("device_id") is not None}
+            known = {str(item.get("id")) for item in items}
+            missing_ksenia = {identifier for identifier in referenced - known if identifier.startswith("ksenia-")}
+            if missing_ksenia:
+                cached = app.state.routine_ksenia_snapshot
+                if cached and time.monotonic() - app.state.routine_ksenia_snapshot_at < 2 and missing_ksenia.issubset({str(item.get("id")) for item in cached}):
+                    ksenia_items = cached
+                else:
+                    ksenia_config = await resolved_provider(settings.ksenia, "ksenia_lares_addon", 8080, settings.request_timeout_s)
+                    ksenia = await KseniaConnector(ksenia_config, settings.request_timeout_s).snapshot()
+                    ksenia_items = ksenia.get("items", []) if ksenia.get("status") == "online" else []
+                items.extend(ksenia_items)
+                known.update(str(item.get("id")) for item in ksenia_items)
+            if items and referenced.issubset(known):
                 return items
         if request is None:
             request = Request({"type": "http", "method": "GET", "path": "/api/bootstrap", "headers": [],
@@ -2886,7 +2901,8 @@ def create_app() -> FastAPI:
     async def routine_command(device_id: str, action: str, value: object) -> object:
         return await device_command(device_id, {"action": action, "value": value})
 
-    routine_engine = routines.Engine(lambda: routine_devices(), routine_command)
+    routine_engine = routines.Engine(lambda: routine_devices(), routine_command,
+                                     lambda referenced: routine_devices(referenced=referenced))
 
     async def dispatch_routine_doorbird(event: str) -> None:
         try:
@@ -2961,6 +2977,8 @@ def create_app() -> FastAPI:
                                 except (TypeError, json.JSONDecodeError):
                                     continue
                                 items = normalize_ksenia(payload)
+                                app.state.routine_ksenia_snapshot = items
+                                app.state.routine_ksenia_snapshot_at = time.monotonic()
                                 routine_engine.ksenia_live = True
                                 await routine_engine.ksenia_event(items)
                 except asyncio.CancelledError:
