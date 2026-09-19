@@ -55,6 +55,30 @@ def test_guided_text_rejects_ambiguous_or_unsupported_instructions():
         routine_nl.from_text("Alle 18:30, accendi Luce Corridoio lentamente", devices + [{"id": "light.corridor", "kind": "light", "name": "Luce Corridoio", "room": "Corridoio", "state": "off"}])
 
 
+def test_professional_json_is_shared_persistent_and_admin_only(monkeypatch, tmp_path):
+    monkeypatch.setenv("EFACE_AUTH_DIR", str(tmp_path / "auth"))
+    user_auth.create_admin("password-admin-lunga")
+    user_auth.create_account("cliente", "Cliente", "password-cliente-lunga")
+    spec = routines.validate(sample(), catalog())["spec"]
+    saved = routines.save("cliente", "cliente", None, spec, False, None, shared=True)
+    admin = TestClient(create_app())
+    customer = TestClient(create_app())
+    assert admin.post("/api/auth/login", json={"username": "admin", "password": "password-admin-lunga"}).status_code == 200
+    assert customer.post("/api/auth/login", json={"username": "cliente", "password": "password-cliente-lunga"}).status_code == 200
+    path = "/api/admin/routines/professional"
+    assert customer.get(path).status_code == 403
+    assert customer.post(path + "/validate", json={"spec": spec}).status_code == 403
+    assert customer.post(path, json={"spec": spec, "enabled": False}).status_code == 403
+    assert admin.get(path).json()["items"][0]["spec"] == spec
+    assert admin.get(path).json()["items"][0]["id"] == saved["id"]
+    assert customer.get("/api/user/routines").json()["items"][0]["id"] == saved["id"]
+    updated = routines.save("cliente", "admin", saved["id"], {**spec, "name": "Luce ingresso evoluta"}, False, saved["revision"], shared=True)
+    assert routines.get_routine(saved["id"])["spec"]["name"] == "Luce ingresso evoluta"
+    assert updated["revision"] == saved["revision"] + 1
+    with pytest.raises(RuntimeError, match="modificata"):
+        routines.save("cliente", "admin", saved["id"], spec, False, saved["revision"], shared=True)
+
+
 def test_solar_trigger_condition_and_location_guard():
     spec = sample()
     spec["triggers"] = [{"type": "sun", "event": "sunset", "offset_minutes": -15}]

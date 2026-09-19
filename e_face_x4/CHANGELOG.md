@@ -1,5 +1,9 @@
 # Changelog
 
+## 2.21.204 — 2026-09-19
+
+- Amministrazione → Routine Professional: editor JSON dello stesso `spec` persistente delle routine globali, con controllo dell'impianto, salvataggio revisionato, stato attivo/disattivo esplicito e apertura nell'editor visuale. Accesso riservato all'amministratore.
+
 ## 2.21.203 — 2026-09-19
 
 - Procedura guidata Routine: descrizione in italiano → bozza disattivata → controllo effetti e correzione nell'editor → salvataggio o attivazione esplicita. Il traduttore accetta solo frasi e dispositivi non ambigui e non esegue comandi durante la creazione.

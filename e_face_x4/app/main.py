@@ -76,7 +76,7 @@ from .connectors.supervisor import discover_addon_url, discover_host_url
 from .media_realtime import SharedMediaRealtime
 from .demo import dashboard as demo_dashboard
 
-VERSION = os.environ.get("EFACE_VERSION", "2.21.203")
+VERSION = os.environ.get("EFACE_VERSION", "2.21.204")
 STATIC = Path(__file__).parent / "static"
 logging.basicConfig(level=logging.WARNING, format="%(asctime)s %(levelname)s [e-face-x4] %(message)s")
 _reconnect_warning_at: dict[str, float] = {}
@@ -3201,6 +3201,26 @@ def create_app() -> FastAPI:
         if (task := routine_engine.running.get(routine_id)) and not task.done():
             task.cancel()
         return {"ok": True}
+
+    @app.get("/api/admin/routines/professional")
+    async def admin_professional_routines(request: Request) -> dict:
+        require_admin(request)
+        return {"items": routines.list_routines()}
+
+    @app.post("/api/admin/routines/professional/validate")
+    async def admin_validate_professional_routine(request: Request, payload: dict) -> dict:
+        require_admin(request)
+        return await user_validate_routine(request, payload)
+
+    @app.post("/api/admin/routines/professional")
+    async def admin_create_professional_routine(request: Request, payload: dict) -> dict:
+        require_admin(request)
+        return await save_user_routine(request, payload)
+
+    @app.put("/api/admin/routines/professional/{routine_id}")
+    async def admin_update_professional_routine(request: Request, routine_id: str, payload: dict) -> dict:
+        require_admin(request)
+        return await save_user_routine(request, payload, routine_id)
 
     @app.get("/api/admin/routines/log")
     async def admin_routine_log(request: Request, device_id: str = "", routine_id: str = "", routine_name: str = "", limit: int = 100) -> dict:

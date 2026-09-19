@@ -21,6 +21,11 @@ adminCard.type = 'button'
 adminCard.className = 'tool-card'
 adminCard.innerHTML = '<span>☷</span><div><b>Registro routine</b><small>Eventi, comandi e dispositivi coinvolti</small></div><i>›</i>'
 document.querySelector('#admin-tools .tools-grid').append(adminCard)
+const professionalCard = document.createElement('button')
+professionalCard.type = 'button'
+professionalCard.className = 'tool-card'
+professionalCard.innerHTML = '<span>{ }</span><div><b>Routine Professional</b><small>Modifica JSON e verifica prima di salvare</small></div><i>›</i>'
+document.querySelector('#admin-tools .tools-grid').append(professionalCard)
 
 const panel = document.createElement('section')
 panel.className = 'media-config routine-panel'
@@ -45,6 +50,17 @@ logPanel.innerHTML = `<header><button type="button" data-routine-log-back aria-l
   <div class="routine-filters"><label>Dispositivo<input data-routine-filter-device placeholder="Nome dispositivo"></label><label>Routine<input data-routine-filter-routine type="search" list="routine-log-names" placeholder="Nome routine"><datalist id="routine-log-names"></datalist></label><button type="button" data-routine-filter>FILTRA</button></div>
   <div data-routine-log-list></div>`
 root.append(logPanel)
+const professionalPanel = document.createElement('section')
+professionalPanel.className = 'media-config routine-panel'
+professionalPanel.hidden = true
+professionalPanel.innerHTML = `<header><button type="button" data-professional-back aria-label="Torna ad Amministrazione">‹</button><div><small>AMMINISTRAZIONE</small><h2>Routine Professional</h2></div></header>
+  <p>Il campo <code>spec</code> delle routine è JSON salvato in SQLite, non un file YAML. Qui modifichi lo stesso schema dell'editor visuale. Nessun comando viene eseguito durante controllo o salvataggio.</p>
+  <div class="routine-professional-actions"><label>Routine<select data-professional-select aria-label="Scegli routine"><option value="">Nuova routine</option></select></label><button type="button" data-professional-new>NUOVA</button><button type="button" data-professional-copy-catalog>COPIA CATALOGO DISPOSITIVI</button></div>
+  <label class="routine-professional-code">Definizione JSON<textarea data-professional-json spellcheck="false" autocapitalize="off" autocomplete="off" rows="20" aria-label="JSON della routine"></textarea></label>
+  <label class="routine-professional-enabled"><input type="checkbox" data-professional-enabled> Mantieni o rendi attiva dopo il salvataggio</label>
+  <div class="routine-professional-actions"><button type="button" data-professional-check>CONTROLLA JSON</button><button type="button" data-professional-save>SALVA JSON</button><button type="button" data-professional-open-visual disabled>APRI NELL'EDITOR VISUALE</button></div>
+  <div class="routine-review" data-professional-review role="status" aria-live="polite">Seleziona una routine o incolla un JSON. Il controllo usa i dispositivi attuali dell'impianto.</div>`
+root.append(professionalPanel)
 const $ = selector => panel.querySelector(selector)
 let routines = []
 let devices = []
@@ -356,12 +372,87 @@ $('[data-routine-delete]').addEventListener('click', async () => {
 adminCard.addEventListener('click', () => { logPanel.hidden = false; sessionStorage.setItem('eface-tools-panel', 'routine-log'); document.body.style.overflow = 'hidden'; loadLogs(); loadRoutineNames() })
 logPanel.querySelector('[data-routine-log-back]').addEventListener('click', () => { logPanel.hidden = true; sessionStorage.removeItem('eface-tools-panel'); document.body.style.overflow = '' })
 logPanel.querySelector('[data-routine-filter]').addEventListener('click', () => loadLogs())
+const professional = selector => professionalPanel.querySelector(selector)
+let professionalItems = []
+let professionalCurrent = null
+const professionalTemplate = () => ({name:'Nuova routine',triggers:[{type:'state',device_id:'',to:'on'}],conditions:[],steps:[{type:'action',device_id:'',action:'on'}]})
+function renderProfessionalChoice() {
+  professional('[data-professional-select]').innerHTML = `<option value="">Nuova routine</option>${professionalItems.map(item => `<option value="${escapeHtml(item.id)}" ${professionalCurrent?.id === item.id ? 'selected' : ''}>${escapeHtml(item.name)} · v${item.revision}</option>`).join('')}`
+}
+function selectProfessional(item) {
+  professionalCurrent = item || null
+  professional('[data-professional-json]').value = JSON.stringify(item?.spec || professionalTemplate(), null, 2)
+  professional('[data-professional-enabled]').checked = Boolean(item?.enabled)
+  professional('[data-professional-open-visual]').disabled = !item
+  professional('[data-professional-review]').textContent = item ? `Versione ${item.revision} · creata da ${item.owner} · ${item.enabled ? 'attiva' : 'disattivata'}. Modifica il JSON e premi CONTROLLA JSON.` : 'Nuova routine: sostituisci gli ID vuoti con quelli del catalogo. Non sarà attivata automaticamente.'
+  renderProfessionalChoice()
+}
+async function loadProfessional() {
+  const data = await request('api/admin/routines/professional')
+  professionalItems = data.items || []
+  selectProfessional(professionalItems.find(item => item.id === professionalCurrent?.id) || null)
+}
+function professionalSpec() {
+  let spec
+  try { spec = JSON.parse(professional('[data-professional-json]').value) } catch(error) { throw new Error(`JSON non valido: ${error.message}`) }
+  if (!spec || typeof spec !== 'object' || Array.isArray(spec)) throw new Error('La definizione deve essere un oggetto JSON.')
+  return spec
+}
+function showProfessionalReview(review) {
+  professional('[data-professional-review]').innerHTML = `<b>Effetti previsti in casa</b><p>${escapeHtml(review.description)}</p>${review.errors.length ? `<div class="routine-errors"><b>Da correggere</b>${review.errors.map(item => `<p>${escapeHtml(item)}</p>`).join('')}</div>` : '<p class="routine-ok">Controlli bloccanti superati.</p>'}${review.warnings.length ? `<div class="routine-warnings"><b>Da valutare</b>${review.warnings.map(item => `<p>${escapeHtml(item)}</p>`).join('')}</div>` : ''}`
+}
+professionalCard.addEventListener('click', () => { professionalPanel.hidden = false; sessionStorage.setItem('eface-tools-panel', 'routine-professional'); document.body.style.overflow = 'hidden'; loadProfessional().catch(error => professional('[data-professional-review]').textContent = error.message) })
+professional('[data-professional-back]').addEventListener('click', () => { professionalPanel.hidden = true; sessionStorage.removeItem('eface-tools-panel'); document.body.style.overflow = '' })
+professional('[data-professional-select]').addEventListener('change', event => selectProfessional(professionalItems.find(item => item.id === event.target.value)))
+professional('[data-professional-new]').addEventListener('click', () => selectProfessional(null))
+professional('[data-professional-copy-catalog]').addEventListener('click', async () => {
+  try {
+    const data = await request('api/user/routines/catalog')
+    await navigator.clipboard.writeText(JSON.stringify(data.devices || [], null, 2))
+    professional('[data-professional-review]').textContent = 'Catalogo copiato: nomi, ID, tipi e comandi disponibili. Non contiene password.'
+  } catch(error) { professional('[data-professional-review]').textContent = `Copia non riuscita: ${error.message}` }
+})
+professional('[data-professional-check]').addEventListener('click', async event => {
+  const button = event.currentTarget; button.disabled = true
+  try { showProfessionalReview(await request('api/admin/routines/professional/validate', jsonOptions('POST', {spec:professionalSpec(),id:professionalCurrent?.id || null}))) }
+  catch(error) { professional('[data-professional-review]').textContent = error.message }
+  finally { button.disabled = false }
+})
+professional('[data-professional-save]').addEventListener('click', async event => {
+  const button = event.currentTarget; button.disabled = true
+  try {
+    const spec = professionalSpec()
+    const review = await request('api/admin/routines/professional/validate', jsonOptions('POST', {spec,id:professionalCurrent?.id || null}))
+    showProfessionalReview(review)
+    if (review.errors.length) return
+    const enabled = professional('[data-professional-enabled]').checked
+    const confirm_warnings = enabled && review.warnings.length ? window.confirm(`Controlla prima di attivare:\n\n${review.warnings.join('\n')}\n\nConfermi?`) : false
+    if (enabled && review.warnings.length && !confirm_warnings) return
+    const id = professionalCurrent?.id
+    const result = await request(id ? `api/admin/routines/professional/${encodeURIComponent(id)}` : 'api/admin/routines/professional', jsonOptions(id ? 'PUT' : 'POST', {spec,enabled,confirm_warnings,expected_revision:professionalCurrent?.revision ?? null}))
+    professionalCurrent = result.item
+    await loadProfessional()
+    showProfessionalReview(result.review)
+    professional('[data-professional-review]').insertAdjacentHTML('afterbegin', `<p class="routine-ok">${escapeHtml(result.item.name)} salvata · versione ${result.item.revision} · ${result.item.enabled ? 'attiva' : 'disattivata'}.</p>`)
+  } catch(error) { professional('[data-professional-review]').textContent = error.message }
+  finally { button.disabled = false }
+})
+professional('[data-professional-open-visual]').addEventListener('click', () => {
+  if (!professionalCurrent) return
+  sessionStorage.setItem('eface-routine-id', professionalCurrent.id)
+  professionalPanel.hidden = true
+  userCard.click()
+})
 setTimeout(() => {
   const saved = sessionStorage.getItem('eface-tools-panel')
   if (saved === 'routine') userCard.click()
   if (saved === 'routine-log') {
     document.querySelector('[data-tools-view="admin"]:not([hidden])')?.click()
     adminCard.click()
+  }
+  if (saved === 'routine-professional') {
+    document.querySelector('[data-tools-view="admin"]:not([hidden])')?.click()
+    professionalCard.click()
   }
 }, 900)
 setInterval(() => { if (!logPanel.hidden && !document.hidden) loadLogs(true) }, 3000)
