@@ -7,6 +7,23 @@ let refreshRunning = false
 let refreshQueued = false
 let lastInteraction = { label: '', at: 0 }
 let currentDevices = []
+let routineActiveDeviceIds = new Set()
+function syncRoutineActivity() {
+  document.querySelectorAll('#device-list [data-device-id]').forEach(card => {
+    if (!card.matches('article, button.security-scenario')) return
+    const active = routineActiveDeviceIds.has(String(card.dataset.deviceId))
+    let badge = card.querySelector(':scope > .routine-active-badge')
+    if (active && !badge) {
+      badge = document.createElement('img')
+      badge.className = 'routine-active-badge'
+      badge.src = apiUrl('assets/routine-active.png')
+      badge.alt = ''
+      badge.title = 'Routine in esecuzione: questo dispositivo può cambiare stato'
+      badge.setAttribute('aria-label', badge.title)
+      card.append(badge)
+    } else if (!active && badge) badge.remove()
+  })
+}
 const recentRealtimeDeviceStates = new Map()
 let appVersion = '0'
 let loggedUser = ''
@@ -249,6 +266,7 @@ function render(data) {
   applyHomeWidgetLayout()
   applyBackground()
   const dashboard = data.dashboard || {}
+  routineActiveDeviceIds = new Set((data.routine_active_device_ids || []).map(String))
   const home = dashboard.home || {}
   const providers = data.providers || []
   currentMediaGroups = providers.filter((provider) => ['control4','evoice'].includes(provider.id)).flatMap((provider) => provider.groups || [])
@@ -1302,6 +1320,7 @@ function renderActiveDeviceList() {
   lastDetailSignature = signature
   if (shortcutViewOpen) renderShortcutDevices()
   else renderDeviceList(devices)
+  syncRoutineActivity()
 }
 
 function deviceIsActiveForFilter(device) {
@@ -2196,6 +2215,7 @@ function connectRealtime() {
   realtimeSocket.onmessage = (message) => {
     try { applyRealtimeEvent(JSON.parse(message.data)) } catch (_) {}
   }
+  realtimeSocket.onopen = () => fetch(apiUrl('api/user/routines/active'), {cache:'no-store'}).then(response => response.ok ? response.json() : null).then(data => {if(data){routineActiveDeviceIds = new Set((data.device_ids || []).map(String)); syncRoutineActivity()}}).catch(() => {})
   realtimeSocket.onclose = () => {
     realtimeSocket = null
     clearTimeout(realtimeRetry)
@@ -2205,6 +2225,11 @@ function connectRealtime() {
 }
 
 function applyRealtimeEvent(event) {
+  if (event.type === 'routine_activity') {
+    routineActiveDeviceIds = new Set((event.data?.device_ids || []).map(String))
+    syncRoutineActivity()
+    return
+  }
   if (event.type === 'home_camera_event') {
     refreshHomeEventNow('camera')
     return

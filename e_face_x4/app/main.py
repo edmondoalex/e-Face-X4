@@ -73,7 +73,7 @@ from .connectors.supervisor import discover_addon_url, discover_host_url
 from .media_realtime import SharedMediaRealtime
 from .demo import dashboard as demo_dashboard
 
-VERSION = os.environ.get("EFACE_VERSION", "2.21.195")
+VERSION = os.environ.get("EFACE_VERSION", "2.21.196")
 STATIC = Path(__file__).parent / "static"
 logging.basicConfig(level=logging.WARNING, format="%(asctime)s %(levelname)s [e-face-x4] %(message)s")
 _reconnect_warning_at: dict[str, float] = {}
@@ -2852,6 +2852,7 @@ def create_app() -> FastAPI:
             ]
         return {
             "version": VERSION,
+            "routine_active_device_ids": sorted(routine_engine.active_device_ids()),
             "backgrounds": load_backgrounds(),
             "appearance": {"card_theme": load_card_theme(), "card_glow": load_card_glow(), "room_order": load_room_order(), "security_order": load_security_order(), "security_cameras": load_security_cameras(), "shortcuts": load_shortcuts(), "device_organization": load_device_organization(), "home_widgets": load_home_widgets(owner), "home_camera_entity": load_home_camera_entity(owner), "home_weather_location": load_home_weather_location(owner)},
             "nav_icons": settings.nav_icons,
@@ -2868,7 +2869,23 @@ def create_app() -> FastAPI:
             raise HTTPException(status_code=401, detail="Accedi per gestire le routine")
         return owner
 
+    async def routine_scenario_items() -> list[dict]:
+        try:
+            listing = await scenarios()
+            return [{"id": f"light-scenario:{item['id']}", "name": item["name"], "room": item["room"],
+                     "kind": "light_scenario", "state": item["state"].lower() if item["onoff_enabled"] else "running" if item["running"] else "idle",
+                     "state_key": f"scenario:{item['id']}",
+                     "capabilities": {"onoff": item["onoff_enabled"], "run": item["run_enabled"]}}
+                    for item in listing["items"]]
+        except HTTPException:
+            logging.warning("Scenari luci non disponibili nel catalogo routine")
+            return []
+
     async def routine_devices(request: Request | None = None, referenced: set[str] | None = None) -> list[dict]:
+        async def with_scenarios(items: list[dict]) -> list[dict]:
+            if request is not None or (referenced and any(identifier.startswith("light-scenario:") for identifier in referenced)):
+                items.extend(await routine_scenario_items())
+            return items
         if request is None:
             settings = load_settings()
             config = await resolved_provider(settings.buspro, "e_hdl_buspro_mqtt", 8124, settings.request_timeout_s)
@@ -2890,19 +2907,26 @@ def create_app() -> FastAPI:
                     ksenia_items = ksenia.get("items", []) if ksenia.get("status") == "online" else []
                 items.extend(ksenia_items)
                 known.update(str(item.get("id")) for item in ksenia_items)
-            if items and referenced.issubset(known):
-                return items
+            if items and {identifier for identifier in referenced if not identifier.startswith("light-scenario:")}.issubset(known):
+                return await with_scenarios(items)
         if request is None:
             request = Request({"type": "http", "method": "GET", "path": "/api/bootstrap", "headers": [],
                                "query_string": b"", "scheme": "http", "server": ("localhost", 8099)})
         data = await bootstrap(request)
-        return data.get("dashboard", {}).get("devices", [])
+        return await with_scenarios(data.get("dashboard", {}).get("devices", []))
 
     async def routine_command(device_id: str, action: str, value: object) -> object:
+        if device_id.startswith("light-scenario:"):
+            return await scenario_command(device_id.split(":", 1)[1], {"action": action})
+        if action in {"dnd_on", "dnd_off"}:
+            return await device_command(device_id, {"action": "set_dnd", "value": action == "dnd_on"})
         return await device_command(device_id, {"action": action, "value": value})
 
+    async def routine_activity_changed(device_ids: set[str]) -> None:
+        await broadcast_realtime({"type": "routine_activity", "data": {"device_ids": sorted(device_ids)}})
+
     routine_engine = routines.Engine(lambda: routine_devices(), routine_command,
-                                     lambda referenced: routine_devices(referenced=referenced))
+                                     lambda referenced: routine_devices(referenced=referenced), routine_activity_changed)
 
     async def dispatch_routine_doorbird(event: str) -> None:
         try:
@@ -2936,7 +2960,7 @@ def create_app() -> FastAPI:
                     if snapshot.get("status") != "online":
                         await asyncio.sleep(3)
                         continue
-                    routine_engine.configure_buspro(snapshot.get("items", []))
+                    routine_engine.configure_buspro(snapshot.get("items", []) + await routine_scenario_items())
                     ws_url = re.sub(r"^http", "ws", config.base_url.rstrip("/"), count=1) + "/ws"
                     headers = {"Authorization": f"Bearer {config.token}"} if config.token else None
                     async with websockets.connect(ws_url, additional_headers=headers, open_timeout=settings.request_timeout_s) as upstream:
@@ -2946,7 +2970,7 @@ def create_app() -> FastAPI:
                                 event = json.loads(message)
                             except (TypeError, json.JSONDecodeError):
                                 continue
-                            if isinstance(event, dict) and event.get("type") in {"light_state", "cover_state", "pir_state", "dry_contact_state", "ha_light_state", "ha_switch_state", "ha_cover_state"}:
+                            if isinstance(event, dict) and event.get("type") in {"light_state", "cover_state", "pir_state", "dry_contact_state", "ha_light_state", "ha_switch_state", "ha_cover_state", "light_scenario_state", "light_scenario_running"}:
                                 await routine_engine.buspro_event(event)
                 except asyncio.CancelledError:
                     raise
@@ -2995,12 +3019,44 @@ def create_app() -> FastAPI:
     async def user_routines(request: Request) -> dict:
         return {"items": routines.list_routines(routine_owner(request))}
 
+    @app.get("/api/user/routines/active")
+    async def user_active_routines(request: Request) -> dict:
+        routine_owner(request)
+        return {"device_ids": sorted(routine_engine.active_device_ids())}
+
     @app.get("/api/user/routines/catalog")
     async def user_routine_catalog(request: Request) -> dict:
         routine_owner(request)
         devices = await routine_devices(request)
-        return {"devices": [{key: item.get(key) for key in ("id", "entity_id", "name", "room", "kind", "state", "capabilities")}
+        return {"devices": [{key: item.get(key) for key in ("id", "entity_id", "name", "room", "kind", "state", "capabilities", "tts_enabled", "dnd_available", "source_list")}
                             for item in devices if item.get("id")], "demo": load_settings().demo_mode}
+
+    @app.post("/api/user/routines/{routine_id}/enabled")
+    async def user_set_routine_enabled(request: Request, routine_id: str, payload: dict) -> dict:
+        owner = routine_owner(request)
+        existing = routines.get_routine(routine_id, owner)
+        if not existing:
+            raise HTTPException(status_code=404, detail="Routine non trovata")
+        enabled = payload.get("enabled")
+        if not isinstance(enabled, bool):
+            raise HTTPException(status_code=400, detail="Stato routine non valido")
+        if enabled and load_settings().demo_mode:
+            raise HTTPException(status_code=409, detail="Le routine non si attivano in modalità demo")
+        if enabled:
+            review = routines.validate({**existing["spec"], "id": routine_id}, await routine_devices(request), routines.list_routines())
+            if review["errors"]:
+                raise HTTPException(status_code=409, detail=review["errors"])
+            if review["warnings"] and not payload.get("confirm_warnings"):
+                raise HTTPException(status_code=409, detail={"warnings": review["warnings"], "message": "Conferma i rischi prima di attivare"})
+        if existing["enabled"] == enabled:
+            return {"item": existing}
+        try:
+            saved = routines.save(owner, owner, routine_id, existing["spec"], enabled, existing["revision"])
+        except RuntimeError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+        if not enabled and (task := routine_engine.running.get(routine_id)) and not task.done():
+            task.cancel()
+        return {"item": saved}
 
     @app.post("/api/user/routines/validate")
     async def user_validate_routine(request: Request, payload: dict) -> dict:

@@ -50,10 +50,11 @@ let devices = []
 let current = null
 let draft = null
 const actions = {
+  light_scenario: [['on', 'Attiva'], ['off', 'Disattiva'], ['run', 'Esegui'], ['stop', 'Ferma']],
   light: [['on', 'Accendi'], ['off', 'Spegni'], ['brightness', 'Luminosità %']],
   switch: [['on', 'Accendi'], ['off', 'Spegni']],
   cover: [['open', 'Apri'], ['close', 'Chiudi'], ['stop', 'Ferma']],
-  media_player: [['media_play', 'Riproduci'], ['media_pause', 'Pausa'], ['media_stop', 'Stop'], ['turn_off', 'Spegni stanza'], ['set_volume', 'Volume %'], ['volume_mute', 'Mute'], ['volume_unmute', 'Riattiva audio']],
+  media_player: [['media_play', 'Riproduci'], ['media_pause', 'Pausa'], ['media_stop', 'Stop'], ['media_next', 'Successivo'], ['media_previous', 'Precedente'], ['turn_off', 'Spegni stanza'], ['set_volume', 'Volume %'], ['volume_mute', 'Mute'], ['volume_unmute', 'Riattiva audio'], ['select_source', 'Seleziona sorgente'], ['dnd_on', 'Attiva Non disturbare'], ['dnd_off', 'Disattiva Non disturbare'], ['tts', 'Messaggio vocale (TTS)']],
   climate: [['set_target', 'Temperatura °C']]
 }
 const sensitive = /porta|portone|cancello|garage|serratura|allarme|alarm|gate|door|lock/i
@@ -69,13 +70,13 @@ const deviceOptions = (selected, allowed = devices, query = '') => {
 const deviceField = (selected, scope = 'all') => `<div class="routine-device-field"><input data-device-search type="search" autocomplete="off" placeholder="Cerca stanza o dispositivo, es. ufficio" aria-label="Cerca dispositivo"><select data-field="device" data-device-scope="${scope}">${deviceOptions(selected, scope === 'safe' ? safeDevices() : devices)}</select></div>`
 const valuesFor = deviceId => {
   const device = devices.find(item => item.id === deviceId)
-  const byKind = {light:['on','off'], switch:['on','off'], binary_sensor:['on','off'], cover:['open','closed','opening','closing'], media_player:['playing','paused','idle','off'], lock:['locked','unlocked'], climate:['heat','cool','auto','off'], alarm_zone:['closed','active','tamper','masked','bypassed'], alarm_partition:['disarmed','armed','alarm','tamper']}
+  const byKind = {light:['on','off'], light_scenario: device?.capabilities?.onoff ? ['on','off'] : ['running','idle'], switch:['on','off'], binary_sensor:['on','off'], cover:['open','closed','opening','closing'], media_player:['playing','paused','idle','off','standby','buffering','unavailable'], lock:['locked','unlocked'], climate:['heat','cool','auto','off'], alarm_zone:['closed','active','tamper','masked','bypassed'], alarm_partition:['disarmed','armed','alarm','tamper']}
   return [...new Set([...(byKind[device?.kind] || []), String(device?.state ?? '').toLowerCase()].filter(Boolean))]
 }
 const stateLabels = {closed:'Chiuso', active:'Attivo / rilevato', tamper:'Sabotaggio', masked:'Mascherato', bypassed:'Escluso', disarmed:'Disinserito', armed:'Inserito', alarm:'Allarme'}
 const stateSelect = (deviceId, selected) => {
   const values = valuesFor(deviceId)
-  if (!values.length || !['light','switch','binary_sensor','cover','media_player','lock','climate','alarm_zone','alarm_partition'].includes(devices.find(item => item.id === deviceId)?.kind)) {
+  if (!values.length || !['light','light_scenario','switch','binary_sensor','cover','media_player','lock','climate','alarm_zone','alarm_partition'].includes(devices.find(item => item.id === deviceId)?.kind)) {
     return `<input data-field="value" value="${escapeHtml(selected || '')}" placeholder="${values.length ? `Stato attuale: ${escapeHtml(values[0])}` : 'Stato del dispositivo'}" aria-label="Stato del dispositivo">`
   }
   if (selected && !values.includes(selected)) values.push(selected)
@@ -97,11 +98,11 @@ function collect() {
     if (type === 'check') return {type, device_id: row.querySelector('[data-field="device"]').value, operator: row.querySelector('[data-field="operator"]').value, value: row.querySelector('[data-field="value"]').value}
     const action = row.querySelector('[data-field="action"]').value
     const value = row.querySelector('[data-field="action-value"]')?.value
-    return {type, device_id: row.querySelector('[data-field="device"]').value, action, value: value === undefined || value === '' ? null : Number(value)}
+    return {type, device_id: row.querySelector('[data-field="device"]').value, action, value: value === undefined || value === '' ? null : ['tts','select_source'].includes(action) ? value : Number(value)}
   })
 }
 function renderList() {
-  $('[data-routine-list]').innerHTML = routines.map(item => `<button type="button" class="routine-list-item${current?.id === item.id ? ' selected' : ''}" data-routine-open="${escapeHtml(item.id)}"><b>${escapeHtml(item.name)}</b><small>${item.enabled ? 'ATTIVA' : 'DISATTIVATA'} · versione ${item.revision}</small></button>`).join('') || '<p>Nessuna routine creata.</p>'
+  $('[data-routine-list]').innerHTML = routines.map(item => `<div class="routine-list-row"><button type="button" class="routine-list-item${current?.id === item.id ? ' selected' : ''}" data-routine-open="${escapeHtml(item.id)}"><b>${escapeHtml(item.name)}</b><small>${item.enabled ? 'ATTIVA' : 'DISATTIVATA'} · versione ${item.revision}</small></button><label class="routine-enable" title="${item.enabled ? 'Sospendi' : 'Attiva'} routine"><input type="checkbox" data-routine-enabled="${escapeHtml(item.id)}" ${item.enabled ? 'checked' : ''} aria-label="${item.enabled ? 'Sospendi' : 'Attiva'} ${escapeHtml(item.name)}"><span></span></label></div>`).join('') || '<p>Nessuna routine creata.</p>'
 }
 function renderEditor() {
   $('.routine-editor').hidden = !draft
@@ -114,8 +115,9 @@ function renderEditor() {
     if (item.type === 'check') return conditionRow(item, index, 'check')
     const device = devices.find(entry => entry.id === item.device_id)
     const choices = actions[device?.kind] || []
-    const actionChoices = choices.filter(([key]) => !device?.capabilities || !({media_play:'play',media_pause:'pause',media_stop:'stop',turn_off:'turn_off',set_volume:'set_volume',volume_mute:'mute',volume_unmute:'mute'}[key]) || device.capabilities[{media_play:'play',media_pause:'pause',media_stop:'stop',turn_off:'turn_off',set_volume:'set_volume',volume_mute:'mute',volume_unmute:'mute'}[key]])
-    const value = ['brightness', 'set_volume', 'set_target'].includes(item.action) ? `<label>Valore<input data-field="action-value" type="number" min="${item.action === 'set_target' ? 5 : 0}" max="${item.action === 'set_target' ? 35 : 100}" value="${item.value ?? ''}"></label>` : ''
+    const capabilityFor = device?.kind === 'light_scenario' ? {on:'onoff',off:'onoff',run:'run',stop:'run'} : {media_play:'play',media_pause:'pause',media_stop:'stop',media_next:'next',media_previous:'previous',turn_off:'turn_off',set_volume:'set_volume',volume_mute:'mute',volume_unmute:'mute'}
+    const actionChoices = choices.filter(([key]) => key === 'tts' ? device?.tts_enabled : key.startsWith('dnd_') ? device?.dnd_available : key === 'select_source' ? device?.capabilities?.select_source && device?.source_list?.length : !capabilityFor[key] || device?.capabilities?.[capabilityFor[key]])
+    const value = item.action === 'tts' ? `<label class="routine-tts">Testo da pronunciare<textarea data-field="action-value" maxlength="500" rows="3">${escapeHtml(item.value || '')}</textarea></label>` : item.action === 'select_source' ? `<label class="routine-tts">Sorgente<select data-field="action-value"><option value="">Scegli sorgente</option>${(device?.source_list || []).map(source => `<option value="${escapeHtml(source)}" ${source === item.value ? 'selected' : ''}>${escapeHtml(source)}</option>`).join('')}</select></label>` : ['brightness', 'set_volume', 'set_target'].includes(item.action) ? `<label>Valore<input data-field="action-value" type="number" min="${item.action === 'set_target' ? 5 : 0}" max="${item.action === 'set_target' ? 35 : 100}" value="${item.value ?? ''}"></label>` : ''
     return `<div class="routine-block" data-index="${index}" data-type="action"><b>Azione</b>${deviceField(item.device_id, 'safe')}<select data-field="action"><option value="">Comando...</option>${actionChoices.map(([key, label]) => `<option value="${key}" ${key === item.action ? 'selected' : ''}>${label}</option>`).join('')}</select>${value}${stepButtons(index)}</div>`
   }).join('')
   $('[data-routine-delete]').hidden = !current
@@ -125,7 +127,7 @@ function renderEditor() {
 function conditionRow(item, index, type) {
   return `<div class="routine-block" data-index="${index}" ${type === 'check' ? 'data-type="check"' : ''}><b>${type === 'check' ? 'Verifica e interrompi se falsa' : 'Condizione iniziale'}</b>${deviceField(item.device_id)}<select data-field="operator"><option value="is" ${item.operator === 'is' ? 'selected' : ''}>è</option><option value="is_not" ${item.operator === 'is_not' ? 'selected' : ''}>non è</option></select>${stateSelect(item.device_id, item.value)}${type === 'check' ? stepButtons(index) : '<button type="button" data-routine-remove="condition" aria-label="Rimuovi">×</button>'}</div>`
 }
-function stepButtons() { return '<div class="routine-move"><button type="button" data-routine-up aria-label="Sposta su">↑</button><button type="button" data-routine-down aria-label="Sposta giù">↓</button><button type="button" data-routine-remove="step" aria-label="Rimuovi">×</button></div>' }
+function stepButtons() { return '<div class="routine-move"><button type="button" class="routine-drag" data-routine-drag aria-label="Trascina per cambiare ordine" title="Trascina per cambiare ordine">⠿</button><button type="button" data-routine-up aria-label="Sposta su">↑</button><button type="button" data-routine-down aria-label="Sposta giù">↓</button><button type="button" data-routine-remove="step" aria-label="Rimuovi">×</button></div>' }
 function showReview(review) {
   $('[data-routine-review]').innerHTML = `<b>Effetti previsti in casa</b><p>${escapeHtml(review.description)}</p>${review.errors.length ? `<div class="routine-errors"><b>Da correggere</b>${review.errors.map(item => `<p>${escapeHtml(item)}</p>`).join('')}</div>` : '<p class="routine-ok">Controlli bloccanti superati.</p>'}${review.warnings.length ? `<div class="routine-warnings"><b>Da valutare</b>${review.warnings.map(item => `<p>${escapeHtml(item)}</p>`).join('')}</div>` : ''}`
 }
@@ -151,6 +153,31 @@ $('[data-routine-list]').addEventListener('click', event => {
   current = routines.find(item => item.id === button.dataset.routineOpen)
   draft = structuredClone(current.spec)
   renderEditor()
+})
+$('[data-routine-list]').addEventListener('change', async event => {
+  const toggle = event.target.closest('[data-routine-enabled]')
+  if (!toggle) return
+  const item = routines.find(entry => entry.id === toggle.dataset.routineEnabled)
+  if (!item) return
+  toggle.disabled = true
+  try {
+    let confirm_warnings = false
+    if (toggle.checked) {
+      const review = await request('api/user/routines/validate', jsonOptions('POST', {spec:item.spec, id:item.id}))
+      if (review.errors.length) throw new Error(review.errors.join(' · '))
+      if (review.warnings.length) {
+        confirm_warnings = window.confirm(`Verifica prima di attivare:\n\n${review.warnings.join('\n')}\n\nConfermi?`)
+        if (!confirm_warnings) { toggle.checked = false; return }
+      }
+    }
+    const result = await request(`api/user/routines/${encodeURIComponent(item.id)}/enabled`, jsonOptions('POST', {enabled:toggle.checked, confirm_warnings}))
+    routines = routines.map(entry => entry.id === item.id ? result.item : entry)
+    if (current?.id === item.id) current = result.item
+    renderList()
+  } catch (error) {
+    toggle.checked = item.enabled
+    window.alert(error.message)
+  } finally { toggle.disabled = false }
 })
 panel.addEventListener('click', event => {
   const add = event.target.closest('[data-routine-add]')
@@ -182,6 +209,37 @@ panel.addEventListener('click', event => {
     renderEditor()
   }
 })
+let draggedStep = null
+panel.addEventListener('pointerdown', event => {
+  const handle = event.target.closest('[data-routine-drag]')
+  if (!handle || event.button !== 0) return
+  const block = handle.closest('[data-routine-steps] > .routine-block')
+  if (!block) return
+  collect()
+  draggedStep = {pointerId: event.pointerId, from: Number(block.dataset.index), to: Number(block.dataset.index), handle, block}
+  handle.setPointerCapture(event.pointerId)
+  block.classList.add('routine-dragging')
+  event.preventDefault()
+})
+panel.addEventListener('pointermove', event => {
+  if (!draggedStep || event.pointerId !== draggedStep.pointerId) return
+  const blocks = [...$('[data-routine-steps]').children]
+  const position = blocks.findIndex(block => event.clientY < block.getBoundingClientRect().bottom)
+  draggedStep.to = position < 0 ? blocks.length - 1 : position
+  blocks.forEach((block, index) => block.classList.toggle('routine-drop-target', index === draggedStep.to))
+})
+const finishDrag = event => {
+  if (!draggedStep || event.pointerId !== draggedStep.pointerId) return
+  const {from, to, block} = draggedStep
+  draggedStep = null
+  block.classList.remove('routine-dragging')
+  $('[data-routine-steps]').querySelectorAll('.routine-drop-target').forEach(item => item.classList.remove('routine-drop-target'))
+  if (event.type === 'pointercancel' || from === to) return
+  draft.steps.splice(to, 0, draft.steps.splice(from, 1)[0])
+  renderEditor()
+}
+panel.addEventListener('pointerup', finishDrag)
+panel.addEventListener('pointercancel', finishDrag)
 panel.addEventListener('input', event => {
   if (!event.target.matches('[data-device-search]')) return
   const select = event.target.parentElement.querySelector('[data-field="device"]')

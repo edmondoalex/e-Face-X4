@@ -20,9 +20,10 @@ LOG_DAYS = 15
 MAX_LOG_ROWS = 20_000
 MAX_DB_BYTES = 50 * 1024 * 1024
 SAFE_ACTIONS = {
+    "light_scenario": {"on", "off", "run", "stop"},
     "light": {"on", "off", "brightness"},
     "switch": {"on", "off"},
-    "media_player": {"media_play", "media_pause", "media_stop", "turn_off", "set_volume", "volume_mute", "volume_unmute"},
+    "media_player": {"media_play", "media_pause", "media_stop", "media_next", "media_previous", "turn_off", "set_volume", "volume_mute", "volume_unmute", "select_source", "dnd_on", "dnd_off", "tts"},
     "climate": {"set_target"},
     "cover": {"open", "close", "stop"},
 }
@@ -32,7 +33,9 @@ ACTION_LABELS = {"on": "accendere", "off": "spegnere", "brightness": "regolare l
                  "close": "chiudere", "stop": "fermare", "media_play": "avviare la riproduzione",
                  "media_pause": "mettere in pausa", "media_stop": "fermare la riproduzione",
                  "turn_off": "spegnere la stanza", "set_volume": "regolare il volume",
-                 "volume_mute": "silenziare", "volume_unmute": "riattivare l'audio", "set_target": "impostare la temperatura"}
+                 "volume_mute": "silenziare", "volume_unmute": "riattivare l'audio", "set_target": "impostare la temperatura",
+                 "media_next": "passare al brano successivo", "media_previous": "tornare al brano precedente", "tts": "pronunciare un messaggio su",
+                 "select_source": "selezionare una sorgente su", "dnd_on": "attivare Non disturbare su", "dnd_off": "disattivare Non disturbare su"}
 SENSITIVE_WORDS = re.compile(r"porta|portone|cancello|garage|serratura|allarme|alarm|gate|door|lock", re.I)
 SECRET_TEXT = re.compile(r"(?i)(password|token|secret|authorization)\s*[:=]\s*\S+|https?://\S+")
 
@@ -216,7 +219,18 @@ def validate(payload: dict, devices: list[dict], others: list[dict] = ()) -> dic
                 errors.append(f"{device.get('name')}: comando {action or 'mancante'} non consentito")
                 continue
             caps = device.get("capabilities") or {}
+            if device_kind == "light_scenario" and not caps.get("onoff" if action in {"on", "off"} else "run"):
+                errors.append(f"{device.get('name')}: comando {action} non esposto dallo scenario")
+                continue
             required_cap = {"media_play": "play", "media_pause": "pause", "media_stop": "stop", "turn_off": "turn_off", "set_volume": "set_volume", "volume_mute": "mute", "volume_unmute": "mute"}.get(action)
+            if action in {"media_next", "media_previous"}:
+                required_cap = "next" if action == "media_next" else "previous"
+            if action == "tts" and not device.get("tts_enabled"):
+                errors.append(f"{device.get('name')}: TTS non abilitato per questo player")
+                continue
+            if action in {"dnd_on", "dnd_off"} and not device.get("dnd_available"):
+                errors.append(f"{device.get('name')}: Non disturbare non disponibile")
+                continue
             if required_cap and not caps.get(required_cap):
                 errors.append(f"{device.get('name')}: comando {action} non esposto dal dispositivo")
                 continue
@@ -231,6 +245,16 @@ def validate(payload: dict, devices: list[dict], others: list[dict] = ()) -> dic
                     errors.append(f"{device.get('name')}: temperatura fuori dai limiti 5–35 °C")
                     continue
                 value = round(float(value), 1)
+            elif action == "tts":
+                value = str(value or "").strip()
+                if not value or len(value) > 500:
+                    errors.append(f"{device.get('name')}: messaggio TTS mancante o troppo lungo")
+                    continue
+            elif action == "select_source":
+                value = str(value or "").strip()
+                if not caps.get("select_source") or value not in (device.get("source_list") or []):
+                    errors.append(f"{device.get('name')}: sorgente non disponibile")
+                    continue
             else:
                 value = None
             actions.append((device_id, action))
@@ -241,6 +265,8 @@ def validate(payload: dict, devices: list[dict], others: list[dict] = ()) -> dic
                 warnings.append(f"{device.get('name')}: verifica che lo switch non alimenti un dispositivo critico")
             if action == "set_volume" and value is not None and value > 70:
                 warnings.append(f"{device.get('name')}: volume elevato ({value}%) percepibile dalle persone presenti")
+            if action == "tts":
+                warnings.append(f"{device.get('name')}: il messaggio vocale potrebbe essere sentito dalle persone presenti")
         else:
             errors.append("Tipo di blocco non supportato")
     if total_wait > MAX_WAIT_SECONDS:
@@ -298,12 +324,14 @@ def validate(payload: dict, devices: list[dict], others: list[dict] = ()) -> dic
         elif step["type"] == "check":
             narrative += f"Ricontrollerà {catalog[step['device_id']].get('name')}: se non è {step['value']}, interromperà il resto. "
         else:
-            amount = f" a {step['value']}{' °C' if step['action'] == 'set_target' else '%'}" if step.get("value") is not None else ""
+            amount = (" con un messaggio vocale" if step["action"] == "tts" else
+                      f" ({step['value']})" if step["action"] == "select_source" else
+                      f" a {step['value']}{' °C' if step['action'] == 'set_target' else '%'}" if step.get("value") is not None else "")
             narrative += f"Farà {ACTION_LABELS.get(step['action'], step['action'])} {catalog[step['device_id']].get('name')}{amount}. "
             device_kind = catalog[step["device_id"]].get("kind")
             if device_kind == "light" and step["action"] == "on":
                 narrative += "Chi è nella stanza vedrà accendersi la luce. "
-            elif device_kind == "media_player" and step["action"] in {"media_play", "set_volume", "volume_unmute"}:
+            elif device_kind == "media_player" and step["action"] in {"media_play", "set_volume", "volume_unmute", "tts"}:
                 narrative += "Chi è nella stanza potrebbe sentire l'audio. "
             elif device_kind == "cover" and step["action"] in {"open", "close"}:
                 narrative += "La tenda/tapparella si muoverà fisicamente. "
@@ -400,15 +428,19 @@ def prune() -> None:
 
 class Engine:
     def __init__(self, snapshot: Callable[[], Awaitable[list[dict]]], command: Callable[[str, str, object], Awaitable[object]],
-                 snapshot_selected: Callable[[set[str]], Awaitable[list[dict]]] | None = None):
+                 snapshot_selected: Callable[[set[str]], Awaitable[list[dict]]] | None = None,
+                 activity_changed: Callable[[set[str]], Awaitable[None]] | None = None):
         self.snapshot = snapshot
         self.snapshot_selected = snapshot_selected
         self.command = command
+        self.activity_changed = activity_changed
+        self.active_targets: dict[str, set[str]] = {}
         self.previous: dict[str, str] = {}
         self.running: dict[str, asyncio.Task] = {}
         self.external_cooldowns: dict[tuple[str, str], float] = {}
         self.last_prune = 0.0
         self.buspro_by_state_key: dict[str, str] = {}
+        self.scenario_running_only: set[str] = set()
         self.buspro_live = False
         self.ksenia_live = False
 
@@ -450,19 +482,32 @@ class Engine:
     def configure_buspro(self, devices: list[dict]) -> None:
         self.buspro_by_state_key = {str(item["state_key"]).casefold(): str(item["id"])
                                      for item in devices if item.get("state_key") and item.get("id") is not None}
+        self.scenario_running_only = {str(item["id"]) for item in devices if item.get("kind") == "light_scenario" and not (item.get("capabilities") or {}).get("onoff")}
         for item in devices:
             if str(item.get("id")) in self.buspro_by_state_key.values():
                 self.previous[str(item["id"])] = _state(item)
+
+    def active_device_ids(self) -> set[str]:
+        return set().union(*self.active_targets.values()) if self.active_targets else set()
+
+    async def _notify_activity(self) -> None:
+        if self.activity_changed:
+            await self.activity_changed(self.active_device_ids())
 
     async def buspro_event(self, event: dict) -> None:
         received_at = _now()
         data = event.get("data")
         if not isinstance(data, dict):
             return
-        key = str(data.get("entity_id") or "").casefold() or ".".join(
+        scenario_event = event.get("type") in {"light_scenario_state", "light_scenario_running"}
+        key = f"scenario:{data.get('id')}" if scenario_event else str(data.get("entity_id") or "").casefold() or ".".join(
             str(data.get(part)) for part in ("subnet_id", "device_id", "channel"))
         identifier = self.buspro_by_state_key.get(key)
-        value = data.get("state", data.get("value"))
+        if scenario_event and event.get("type") == "light_scenario_running" and identifier not in self.scenario_running_only:
+            return
+        if scenario_event and event.get("type") == "light_scenario_state" and identifier in self.scenario_running_only:
+            return
+        value = ("running" if data.get("running") else "idle") if event.get("type") == "light_scenario_running" else data.get("state", data.get("value"))
         if not identifier or value is None:
             return
         state = str(value).casefold()
@@ -568,6 +613,8 @@ class Engine:
         record_event(run_id, "trigger", detail=trigger_detail)
         status = "completed"
         try:
+            self.active_targets[routine["id"]] = {str(step["device_id"]) for step in routine["spec"]["steps"] if step["type"] == "action"}
+            await self._notify_activity()
             devices = starting_devices
             for condition in routine["spec"]["conditions"]:
                 device = devices.get(condition["device_id"])
@@ -623,5 +670,7 @@ class Engine:
             status = "failed"
             record_event(run_id, "error", detail=str(exc))
         finally:
+            self.active_targets.pop(routine["id"], None)
+            await self._notify_activity()
             with _connect() as db:
                 db.execute("UPDATE routine_runs SET ended_at = ?, status = ? WHERE id = ?", (_now(), status, run_id))

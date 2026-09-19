@@ -80,6 +80,69 @@ def test_revision_and_ownership_preserve_attribution():
     assert second["enabled"]
 
 
+def test_scenarios_and_echo_commands_follow_real_capabilities():
+    devices = catalog() + [
+        {"id": "light-scenario:film", "kind": "light_scenario", "name": "Sala Film", "room": "Soggiorno",
+         "state": "off", "capabilities": {"onoff": True, "run": False}},
+        {"id": "media:echo", "kind": "media_player", "name": "Echo Ufficio", "room": "Ufficio",
+         "state": "idle", "tts_enabled": True, "dnd_available": True, "source_list": ["Radio", "Spotify"],
+         "capabilities": {"play": True, "next": True, "previous": True, "select_source": True}},
+    ]
+    spec = {"name": "Cinema", "triggers": [{"type": "state", "device_id": "light-scenario:film", "to": "on"}],
+            "steps": [{"type": "action", "device_id": "media:echo", "action": "tts", "value": "Benvenuti"}]}
+    review = routines.validate(spec, devices)
+    assert not review["errors"]
+    assert review["spec"]["steps"][0]["value"] == "Benvenuti"
+    assert "messaggio vocale" in review["description"]
+    spec["steps"] = [{"type": "action", "device_id": "media:echo", "action": "select_source", "value": "Spotify"}]
+    assert not routines.validate(spec, devices)["errors"]
+    spec["steps"][0]["value"] = "sorgente inesistente"
+    assert "sorgente" in " ".join(routines.validate(spec, devices)["errors"])
+    spec["steps"] = [{"type": "action", "device_id": "media:echo", "action": "dnd_on"}]
+    assert not routines.validate(spec, devices)["errors"]
+    spec["steps"] = [{"type": "action", "device_id": "light-scenario:film", "action": "run"}]
+    assert "non esposto" in " ".join(routines.validate(spec, devices)["errors"])
+    spec["steps"] = [{"type": "action", "device_id": "light-scenario:film", "action": "on"}]
+    spec["triggers"] = [{"type": "state", "device_id": "sensor.motion", "to": "on"}]
+    assert not routines.validate(spec, devices)["errors"]
+
+
+def test_activity_indicator_covers_timer_and_clears_after_last_action():
+    state = {"sensor.motion": "off", "light.hall": "off"}
+    activity = []
+    first_action = asyncio.Event()
+
+    async def snapshot():
+        return [{**item, "state": state.get(item["id"], item["state"])} for item in catalog()]
+
+    async def command(device_id, action, value):
+        state[device_id] = action
+        if action == "on":
+            first_action.set()
+
+    async def changed(device_ids):
+        activity.append(set(device_ids))
+
+    spec = sample()
+    spec["steps"] += [{"type": "wait", "seconds": 1}, {"type": "action", "device_id": "light.hall", "action": "off"}]
+    saved = routines.save("alice", "alice", None, routines.validate(spec, catalog())["spec"], True, None)
+    engine = routines.Engine(snapshot, command, activity_changed=changed)
+
+    async def run():
+        await engine.tick()
+        state["sensor.motion"] = "on"
+        await engine.tick()
+        await first_action.wait()
+        assert engine.active_device_ids() == {"light.hall"}
+        await engine.running[saved["id"]]
+
+    asyncio.run(run())
+    assert activity[0] == {"light.hall"}
+    assert activity[-1] == set()
+    assert engine.active_device_ids() == set()
+    assert state["light.hall"] == "off"
+
+
 def test_engine_runs_only_on_state_transition_and_logs_device():
     state = {"sensor.motion": "off", "light.hall": "off"}
     commands = []

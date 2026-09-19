@@ -1,5 +1,13 @@
 # Changelog
 
+## 2.21.196 — 2026-09-19
+
+- Routine: trascinamento touch/mouse dei blocchi Azione, Timer e Verifica nell'ordine reale di esecuzione.
+- Indicatore sui dispositivi comandati da routine attive, visibile anche durante i timer e rimosso alla conclusione o annullamento.
+- Scenari luci e-HDL disponibili come attivazioni, condizioni e azioni, con stati e comandi filtrati dalle capacità effettive.
+- Interruttore rapido per sospendere e riattivare una routine senza eliminarla; verifica di sicurezza prima della riattivazione.
+- Media player ed Echo: trigger sugli stati, comandi di trasporto aggiuntivi, selezione sorgente, Non disturbare e TTS sui soli dispositivi abilitati.
+
 ## 2.21.195 — 2026-09-19
 
 - Routine: l'evento Ksenia usa gli stati appena ricevuti dalla centrale e richiede solo lo snapshot BusPro per verificare condizioni e comandi, senza attendere il caricamento completo della Home.
