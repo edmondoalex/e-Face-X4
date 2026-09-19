@@ -253,6 +253,17 @@ function tick() {
   $('#date').textContent = now.toLocaleDateString('it-IT', { day: '2-digit', month: 'short', year: 'numeric' })
 }
 
+function applyNavigationItems(items) {
+  const rail = document.querySelector('.rail')
+  if (!rail || !Array.isArray(items)) return
+  for (const item of items) {
+    const button = [...rail.querySelectorAll('[data-view]')].find(node => node.dataset.view === item.id)
+    if (!button) continue
+    button.hidden = item.visible === false
+    rail.append(button)
+  }
+}
+
 function render(data) {
   appVersion = data.version || appVersion
   currentBackgrounds = data.backgrounds || currentBackgrounds
@@ -263,6 +274,7 @@ function render(data) {
   currentShortcuts = data.appearance?.shortcuts || currentShortcuts
   currentHomeWidgets = data.appearance?.home_widgets || currentHomeWidgets
   currentDeviceOrganization = data.appearance?.device_organization || currentDeviceOrganization
+  applyNavigationItems(data.appearance?.navigation_items)
   applyHomeWidgetLayout()
   applyBackground()
   const dashboard = data.dashboard || {}

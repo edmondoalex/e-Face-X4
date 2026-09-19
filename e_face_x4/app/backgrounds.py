@@ -9,6 +9,7 @@ CARD_THEMES = {"graphite", "petrol", "midnight", "slate", "warm"}
 SECURITY_ORDER = ["scenarios", "areas", "zones", "locks", "cameras"]
 SHORTCUT_CATEGORIES = ["lights", "switches", "covers", "climate", "security", "media", "sensors", "other"]
 DEVICE_ORGANIZATION_CATEGORIES = ["lights", "extra", "covers", "comfort", "security", "scenarios", "intercom", "media"]
+NAVIGATION_ITEMS = ["watch", "listen", "intercom", "lights", "extra", "scenarios", "covers", "comfort", "energy", "security"]
 HOME_WIDGETS = ["overview", "weather", "camera_event", "doorbell", "motion", "states", "rooms", "live"]
 MIME_SUFFIX = {"image/png": ".png", "image/jpeg": ".jpg", "image/webp": ".webp"}
 
@@ -151,6 +152,21 @@ def save_device_organization(value: dict[str, dict[str, object]]) -> None:
         if any(key not in ["devices", *DEVICE_ORGANIZATION_CATEGORIES] or not isinstance(order, int) or order < 0 for key, order in orders.items()): raise ValueError("Ordine dispositivo non valido")
         clean[device_id] = {"visible": item.get("visible") is not False, "categories": list(dict.fromkeys(categories)), "orders": orders}
     raw = _config(); raw["device_organization"] = clean; _write(raw)
+
+def load_navigation_items() -> list[dict[str, object]]:
+    value = _config().get("navigation_items")
+    entries = value if isinstance(value, list) else []
+    clean = [{"id": item["id"], "visible": item.get("visible") is not False} for item in entries
+             if isinstance(item, dict) and item.get("id") in NAVIGATION_ITEMS]
+    seen = {item["id"] for item in clean}
+    return list(dict((item["id"], item) for item in clean).values()) + [{"id": key, "visible": True} for key in NAVIGATION_ITEMS if key not in seen]
+
+def save_navigation_items(value: list[dict[str, object]]) -> None:
+    if not isinstance(value, list) or len(value) != len(NAVIGATION_ITEMS) or any(
+        not isinstance(item, dict) or item.get("id") not in NAVIGATION_ITEMS or not isinstance(item.get("visible"), bool) for item in value
+    ) or len({item["id"] for item in value}) != len(NAVIGATION_ITEMS):
+        raise ValueError("Navigazione non valida")
+    raw = _config(); raw["navigation_items"] = [{"id": item["id"], "visible": item["visible"]} for item in value]; _write(raw)
 
 def load_home_widgets(owner: str | None = None) -> list[dict[str, object]]:
     raw = _config(); users = raw.get("user_appearance") if isinstance(raw.get("user_appearance"), dict) else {}

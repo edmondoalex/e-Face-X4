@@ -7,7 +7,7 @@ import json
 from pathlib import Path
 from urllib.parse import urljoin
 
-from app.main import artwork_media_type, create_app, wiim_is_standalone_room
+from app.main import artwork_media_type, camera_event_timestamp, create_app, wiim_is_standalone_room
 from app.connectors.buspro import BusproConnector, normalize_snapshot
 from app.connectors.etherm import normalize_thermostats
 from app.connectors.ksenia import normalize_ksenia
@@ -26,6 +26,13 @@ def test_linked_wiim_is_never_a_separate_room_after_source_switch():
     assert wiim_is_standalone_room(1667, False) is False
     assert wiim_is_standalone_room(1667, True) is False
     assert wiim_is_standalone_room(0, False) is True
+
+
+def test_nvr_event_uses_latest_photo_timestamp_not_stale_idle_state():
+    state = {"state": "idle", "last_changed": "2026-09-18T12:05:05Z", "last_updated": "2026-09-19T13:32:54Z", "attributes": {"Data ultima foto": 1789824773.9884489}}
+    assert camera_event_timestamp(state) == "2026-09-19T13:32:53.988449+00:00"
+    state["attributes"]["Data ultima foto"] = None
+    assert camera_event_timestamp(state) == state["last_updated"]
 
 
 def test_reconnect_warnings_are_rate_limited(monkeypatch) -> None:
@@ -64,7 +71,7 @@ def test_health() -> None:
     response = TestClient(create_app()).get("/health")
     assert response.status_code == 200
     assert response.json()["ok"] is True
-    assert response.json()["version"] == "2.21.201"
+    assert response.json()["version"] == "2.21.202"
 
 
 def test_home_event_times_reads_saved_doorbird_motion(monkeypatch, tmp_path) -> None:
@@ -111,7 +118,7 @@ def test_intercom_is_in_sidebar_with_embedded_view() -> None:
     client_script = (static / "assets" / "intercom.js").read_text(encoding="utf-8")
     intercom_page = (static / "intercom.html").read_text(encoding="utf-8")
     assert "Tablet Control4 · interno 8291" in intercom_page
-    assert "const currentVersion = '2.21.201'" in client_script
+    assert "const currentVersion = '2.21.202'" in client_script
     assert 'id="call-ufficio" data-dial-extension="8291" data-video-capable="true"' in intercom_page
     assert "Postazione esterna · interno 8201" in intercom_page
     assert "Postazione esterna · interno ${station.sip_extension}" in client_script
@@ -318,9 +325,9 @@ def test_intercom_dashboard_stores_only_local_settings(monkeypatch, tmp_path) ->
     assert 'id="users-tool"' in page
     assert 'id="logout"' in page
     assert page.index('id="logout"') < page.index('id="tools-user-section"')
-    assert "tools-dashboard.js?v=2.21.201" in page
-    assert "tools.js?v=2.21.201" in page
-    assert "organization-tools.js?v=2.21.201" in page
+    assert "tools-dashboard.js?v=2.21.202" in page
+    assert "tools.js?v=2.21.202" in page
+    assert "organization-tools.js?v=2.21.202" in page
     tools_js = client.get("/assets/tools.js").text
     assert "document.querySelector('.tools-shell').append(shortcutsPanel)" in tools_js
     assert "data-shortcut-drag=\"category\"" in tools_js
@@ -330,7 +337,7 @@ def test_intercom_dashboard_stores_only_local_settings(monkeypatch, tmp_path) ->
     assert '<b>Accesi</b>' not in home
     assert 'id="light-on-filter"' in home
     assert "backgrounds.css?v=2.21.43" in home
-    assert "app.js?v=2.21.201" in home
+    assert "app.js?v=2.21.202" in home
     app_js = client.get("/assets/app.js").text
     assert "event.type === 'doorbird_event'" in app_js
     assert "event.type === 'home_camera_event'" in app_js
@@ -751,8 +758,8 @@ def test_tools_page_starts_with_selected_background_and_card_theme(monkeypatch, 
     home = client.get("/").text
     login = client.get("/login").text
     assert '<body class="app-theme" data-background="midnight" data-card-theme="slate">' in home
-    assert 'ui-theme-contract.css?v=2.21.201' in home
-    assert 'app.js?v=2.21.201' in home
+    assert 'ui-theme-contract.css?v=2.21.202' in home
+    assert 'app.js?v=2.21.202' in home
     assert 'energy.css?v=2.21.30' in home
     assert 'home-comfort.css?v=2.21.31' in home
     assert '<body class="login-theme" data-background="midnight" data-card-theme="slate">' in login
@@ -776,7 +783,13 @@ def test_user_appearance_persists_room_order_and_glow(monkeypatch, tmp_path) -> 
     cameras = [{"id": "camera_ingresso", "name": "Ingresso", "url": "https://camera.local/live", "mode": "snapshot"}, {"id": "camera_giardino", "name": "Giardino", "url": "camera.giardino", "mode": "video"}]
     response = client.put("/api/user/appearance", json={"card_glow": False, "room_order": ["Sala", "Ufficio Alex"], "security_order": ["locks", "zones", "areas", "scenarios", "cameras"], "security_cameras": cameras, "shortcuts": shortcuts, "home_widgets": home_widgets, "home_camera_entity": "camera.nvr_32ch_ext_ultimo_evento", "home_weather_location": "Torino"})
     assert response.status_code == 200
-    assert client.get("/api/user/appearance").json() == {"card_glow": False, "room_order": ["Sala", "Ufficio Alex"], "security_order": ["locks", "zones", "areas", "scenarios", "cameras"], "security_cameras": cameras, "shortcuts": shortcuts, "device_organization": {}, "home_widgets": home_widgets, "home_camera_entity": "camera.nvr_32ch_ext_ultimo_evento", "home_weather_location": "Torino"}
+    navigation = [{"id": key, "visible": True} for key in ["watch", "listen", "intercom", "lights", "extra", "scenarios", "covers", "comfort", "energy", "security"]]
+    assert client.get("/api/user/appearance").json() == {"card_glow": False, "room_order": ["Sala", "Ufficio Alex"], "security_order": ["locks", "zones", "areas", "scenarios", "cameras"], "security_cameras": cameras, "shortcuts": shortcuts, "device_organization": {}, "navigation_items": navigation, "home_widgets": home_widgets, "home_camera_entity": "camera.nvr_32ch_ext_ultimo_evento", "home_weather_location": "Torino"}
+    navigation[0]["visible"] = False
+    navigation.reverse()
+    assert client.put("/api/user/appearance", json={"navigation_items": navigation}).json()["navigation_items"] == navigation
+    assert client.get("/api/user/appearance").json()["navigation_items"] == navigation
+    assert client.put("/api/user/appearance", json={"navigation_items": navigation[:-1]}).status_code == 400
     assert client.put("/api/user/appearance", json={"room_order": ["Sala", "sala"]}).status_code == 400
     assert client.put("/api/user/appearance", json={"card_glow": "false"}).status_code == 400
     assert client.put("/api/user/appearance", json={"security_order": ["locks", "zones", "zones", "scenarios", "cameras"]}).status_code == 400
@@ -1042,9 +1055,9 @@ def test_x4_shell_and_brand_assets_are_served() -> None:
     assert client.get("/tools").status_code == 200
     assert "Amministrazione" in client.get("/tools").text
     css = client.get("/assets/app.css").text
-    assert "app.css?v=2.21.201" in client.get("/").text
-    assert "home-live-media.css?v=2.21.201" in client.get("/").text
-    assert "alarm-state.css?v=2.21.201" in client.get("/").text
+    assert "app.css?v=2.21.202" in client.get("/").text
+    assert "home-live-media.css?v=2.21.202" in client.get("/").text
+    assert "alarm-state.css?v=2.21.202" in client.get("/").text
     assert ".home-event-dialog figure img{display:block;width:auto;height:auto;max-width:100%;max-height:100%" in css
     assert ".home-event-widget img{object-fit:contain" not in css
     assert "data-home-zone-mute" in app_js

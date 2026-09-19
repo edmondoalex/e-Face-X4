@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.21.202 — 2026-09-19
+
+- ORDINA gestisce anche ordine e visibilità delle sezioni della barra laterale; tutte visibili per impostazione iniziale.
+- L'ultimo evento NVR mostra la data dell'ultima foto fornita da Home Assistant, non l'ultimo cambio dello stato `idle`; l'immagine continua ad aggiornarsi a ogni evento e nel controllo periodico.
+
 ## 2.21.201 — 2026-09-19
 
 - Il registro routine si filtra per nome (anche parziale), con suggerimenti delle routine esistenti: non occorre conoscere l'ID. La ricerca funziona anche per i registri di routine eliminate.
