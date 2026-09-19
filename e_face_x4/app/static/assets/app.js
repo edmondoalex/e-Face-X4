@@ -69,6 +69,7 @@ function organizedDevices(category, devices) {
   return [...devices].sort((a,b)=>(currentDeviceOrganization[String(a.id)]?.orders?.[category]??Number.MAX_SAFE_INTEGER)-(currentDeviceOrganization[String(b.id)]?.orders?.[category]??Number.MAX_SAFE_INTEGER)||String(a.name||'').localeCompare(String(b.name||''),'it'))
 }
 const mediaTransportOverrides = new Map()
+const homeLiveMuteTargets = new Map()
 let mediaVolumeDragging = false
 let mediaVolumeCommands = 0
 const mediaVolumeUiLocked = () => mediaVolumeDragging || mediaVolumeCommands > 0
@@ -1236,7 +1237,10 @@ function renderHomeMediaSessions() {
     const zoneVolume = Number.isFinite(Number(player.volume)) ? Number(player.volume) : 0
     const levels = members.map((item) => Number(item.volume)).filter(Number.isFinite)
     const masterVolume = members.length > 1 && levels.length ? Math.max(...levels) : zoneVolume
-    const zoneMute = player.capabilities?.mute ? `<button type="button" class="home-live-mute${player.muted ? ' active' : ''}" data-home-zone-mute="${esc(player.id)}" aria-label="${player.muted ? 'Riattiva' : 'Silenzia'} ${esc(player.room||player.name)}" title="${player.muted ? 'Riattiva' : 'Silenzia'} ${esc(player.room||player.name)}"><span class="mdi-mask" style="${mdiStyle(player.muted ? 'mdi:volume-off' : 'mdi:volume-high', 'volume-high')}"></span></button>` : `<span class="mdi-mask" style="${mdiStyle('mdi:volume-high','volume-high')}"></span>`
+    const muteTarget = homeLiveMuteTargets.get(String(player.id))
+    if(muteTarget && Date.now() >= muteTarget.expires)homeLiveMuteTargets.delete(String(player.id))
+    const zoneMuted = muteTarget && Date.now() < muteTarget.expires ? muteTarget.muted : !!player.muted
+    const zoneMute = player.capabilities?.mute ? `<button type="button" class="home-live-mute${zoneMuted ? ' active' : ''}" data-home-zone-mute="${esc(player.id)}" data-muted="${zoneMuted}" aria-label="${zoneMuted ? 'Riattiva' : 'Silenzia'} ${esc(player.room||player.name)}" title="${zoneMuted ? 'Riattiva' : 'Silenzia'} ${esc(player.room||player.name)}"><span class="mdi-mask" style="${mdiStyle(zoneMuted ? 'mdi:volume-off' : 'mdi:volume-high', 'volume-high')}"></span></button>` : `<span class="mdi-mask" style="${mdiStyle('mdi:volume-high','volume-high')}"></span>`
     const zoneSlider = player.capabilities?.set_volume ? `<div class="home-live-volume zone">${zoneMute}<input type="range" min="0" max="100" value="${zoneVolume}" style="--volume:${zoneVolume}%" data-home-zone-volume="${esc(player.id)}" aria-label="Volume ${esc(player.room||player.name)}"><output>${zoneVolume}%</output></div>` : ''
     const masterSlider = members.length>1 ? `<label class="home-live-volume master"><span class="mdi-mask" style="${mdiStyle('mdi:home-group','home-group')}" title="Volume sessione"></span><input type="range" min="0" max="100" value="${masterVolume}" style="--volume:${masterVolume}%" data-session-volume="${esc(player.id)}" aria-label="Volume generale sessione"><output>${masterVolume}%</output></label>` : ''
     const action=(operation,icon,label,enabled)=>enabled?`<button type="button" data-home-media-action="${operation}" aria-label="${label}" title="${label}"><span class="mdi-mask" style="${mdiStyle(`mdi:${icon}`,icon)}"></span></button>`:''
@@ -2312,6 +2316,22 @@ $('#rooms').addEventListener('click', (event) => {
   if (!button) return
   openDevices(button.dataset.room, currentDevices.filter((device) => device.room.toLocaleLowerCase('it') === button.dataset.room.toLocaleLowerCase('it')), {room:button.dataset.room, filters:true})
 })
+async function toggleHomeLiveMute(button){
+  const id=String(button.dataset.homeZoneMute)
+  const player=currentDevices.find((item)=>String(item.id)===id)
+  if(!player||!player.capabilities?.mute)return
+  const wasMuted=button.dataset.muted==='true'
+  const muted=!wasMuted
+  button.disabled=true
+  try{
+    await postDeviceCommand(id,muted?'volume_mute':'volume_unmute')
+    homeLiveMuteTargets.set(id,{muted,expires:Date.now()+8000})
+    player.muted=muted
+    setMediaOverride(id,{muted})
+    renderHomeMediaSessions()
+    window.setTimeout(refresh,500)
+  }catch(error){button.disabled=false;fail(error)}
+}
 $('#home-live-media-list').addEventListener('click', (event) => {
   const card = event.target.closest('[data-home-session]')
   if (!card) return
@@ -2320,7 +2340,7 @@ $('#home-live-media-list').addEventListener('click', (event) => {
   const roomPower=event.target.closest('[data-home-room-power]')
   if(roomPower)return powerOffMediaSession(roomPower,[roomPower.dataset.homeRoomPower])
   const zoneMute=event.target.closest('[data-home-zone-mute]')
-  if(zoneMute)return sendDeviceCommand(zoneMute.dataset.homeZoneMute,player.muted?'volume_unmute':'volume_mute',zoneMute)
+  if(zoneMute)return toggleHomeLiveMute(zoneMute)
   const mediaAction=event.target.closest('[data-home-media-action]')
   if(mediaAction)return sendDeviceCommand(player.id,mediaAction.dataset.homeMediaAction,mediaAction)
   const videoChannel=event.target.closest('[data-home-video-channel]')

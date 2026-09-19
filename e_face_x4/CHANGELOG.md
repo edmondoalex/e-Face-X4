@@ -1,5 +1,9 @@
 # Changelog
 
+## 2.21.189 — 2026-09-19
+
+- Il pulsante mute nel widget LIVE alterna silenziamento e riattivazione senza dipendere da uno stato del player in ritardo.
+
 ## 2.21.188 — 2026-09-19
 
 - Le immagini delle videocamere e degli eventi, anche nei widget, mostrano l'intero fotogramma senza ritagli.
