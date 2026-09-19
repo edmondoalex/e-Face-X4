@@ -1,5 +1,9 @@
 # Changelog
 
+## 2.21.199 — 2026-09-19
+
+- Nell'elenco delle routine globali compare l'utente che le ha create; le modifiche successive restano attribuite separatamente nel registro revisioni.
+
 ## 2.21.198 — 2026-09-19
 
 - Routine persistenti e condivise a livello d'impianto: l'elenco non dipende più dall'account con cui si entra dopo un aggiornamento o da un altro dispositivo. Restano registrati autore originale, ultimo utente che modifica, revisioni e registri.
