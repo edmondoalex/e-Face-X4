@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.21.206 — 2026-09-19
+
+- Routine Professional: descrizione persistente, condizioni logiche `and`/`or`/`not`, azioni annidate `delay`, `wait_until`, `if`/`else`, `choose`, `repeat`, `parallel`, `variable` e `stop`. Restano disponibili trigger multipli e modalità `single`, `restart`, `queued`, `parallel`.
+- Validazione e registro estesi ai rami annidati: limiti su profondità, numero di blocchi, ripetizioni, comandi e attese; rilevamento dei loop tra routine anche per azioni nei rami. L'editor visuale lineare non può sovrascrivere blocchi avanzati.
+
 ## 2.21.205 — 2026-09-19
 
 - Routine Professional: modalità `single`, `restart`, `queued` e `parallel` persistenti e disponibili anche nell'editor visuale. Limiti su coda, parallelismo e attivazioni rapide; annullamento delle esecuzioni quando la routine cambia o viene disattivata.

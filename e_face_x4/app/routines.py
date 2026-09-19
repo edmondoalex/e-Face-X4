@@ -22,6 +22,9 @@ MAX_DB_BYTES = 50 * 1024 * 1024
 RUN_MODES = {"single", "restart", "queued", "parallel"}
 MAX_QUEUED_RUNS = 5
 MAX_PARALLEL_RUNS = 3
+MAX_FLOW_NODES = 60
+MAX_FLOW_DEPTH = 5
+MAX_REPEAT = 10
 SAFE_ACTIONS = {
     "light_scenario": {"on", "off", "run", "stop"},
     "light": {"on", "off", "brightness"},
@@ -165,6 +168,311 @@ def _remote_allowed(device: dict | None, source_id: int, command: str) -> bool:
                for source in (device.get("source_options") or []))
 
 
+def _flow_items(value: object):
+    """Yield nested dictionaries without assuming a specific flow shape."""
+    pending = [value]
+    inspected = 0
+    while pending and inspected <= 1000:
+        current = pending.pop()
+        inspected += 1
+        if isinstance(current, dict):
+            yield current
+            pending.extend(current.values())
+        elif isinstance(current, list):
+            pending.extend(current)
+
+
+def referenced_devices(spec: dict) -> set[str]:
+    return {str(item["device_id"]) for item in _flow_items(spec) if item.get("device_id") is not None}
+
+
+def uses_sun(spec: dict) -> bool:
+    return any(item.get("type") == "sun" for item in _flow_items(spec))
+
+
+def _action_steps(steps: object) -> list[dict]:
+    return [item for item in _flow_items(steps) if item.get("type") == "action"]
+
+
+def _compile_condition(raw: object, catalog: dict[str, dict], errors: list[str], depth: int = 0) -> dict | None:
+    if depth > MAX_FLOW_DEPTH or not isinstance(raw, dict):
+        errors.append("Condizione annidata non valida o troppo profonda")
+        return None
+    groups = set(raw) & {"and", "or", "not"}
+    if groups:
+        if len(groups) != 1 or len(raw) != 1:
+            errors.append("Condizione logica: usa soltanto AND, OR oppure NOT")
+            return None
+        key = next(iter(groups))
+        if key == "not":
+            item = _compile_condition(raw[key], catalog, errors, depth + 1)
+            return {"not": item} if item else None
+        children = raw[key]
+        if not isinstance(children, list) or not 2 <= len(children) <= 8:
+            errors.append(f"{key.upper()} richiede da 2 a 8 condizioni")
+            return None
+        result = [_compile_condition(child, catalog, errors, depth + 1) for child in children]
+        return {key: result} if all(result) else None
+    kind = raw.get("type", "state")
+    if kind == "sun":
+        extra = set(raw) - {"type", "event", "offset_minutes", "relation"}
+        if extra:
+            errors.append("Campi condizione solare non supportati: " + ", ".join(sorted(extra)))
+        return _solar_rule(raw, errors, condition=True)
+    if kind == "variable":
+        if set(raw) - {"type", "name", "operator", "value"}:
+            errors.append("Campi condizione variabile non supportati")
+        name = raw.get("name")
+        operator = raw.get("operator", "is")
+        value = raw.get("value")
+        if not isinstance(name, str) or not re.fullmatch(r"[A-Za-z][A-Za-z0-9_]{0,31}", name) or operator not in {"is", "is_not"} or not isinstance(value, (str, int, float, bool)) or len(str(value)) > 80:
+            errors.append("Condizione variabile non valida")
+            return None
+        return {"type": "variable", "name": name, "operator": operator, "value": value}
+    if kind != "state" or set(raw) - {"type", "device_id", "operator", "value"}:
+        errors.append("Condizione non supportata o con campi sconosciuti")
+        return None
+    return _condition(raw, catalog, errors)
+
+
+def _compile_flow(steps: object, catalog: dict[str, dict], errors: list[str], budget: dict, depth: int = 0) -> list[dict]:
+    if depth > MAX_FLOW_DEPTH or not isinstance(steps, list) or len(steps) > MAX_STEPS:
+        errors.append("Azioni: lista non valida, troppo lunga o troppo annidata")
+        return []
+    result = []
+    for raw in steps:
+        budget["nodes"] += 1
+        if budget["nodes"] > MAX_FLOW_NODES or not isinstance(raw, dict):
+            errors.append("Massimo 60 blocchi validi nell'automazione")
+            continue
+        kind = raw.get("type")
+        if kind in {"action", "wait", "check"}:
+            if kind == "action":
+                # The ordinary validator remains the sole authority for actuator permissions.
+                leaf = validate({"name": "Verifica comando", "triggers": [{"type": "time", "at": "00:00"}], "conditions": [], "steps": [raw]}, list(catalog.values()))
+                errors.extend(leaf["errors"])
+                if not leaf["errors"]:
+                    result.append(leaf["spec"]["steps"][0])
+            elif kind == "wait":
+                if set(raw) - {"type", "seconds"} or isinstance(raw.get("seconds"), bool) or not isinstance(raw.get("seconds"), int) or not 1 <= raw["seconds"] <= MAX_WAIT_SECONDS:
+                    errors.append("Timer non valido (1–3600 secondi)")
+                else:
+                    result.append(dict(raw))
+            else:
+                if set(raw) - {"type", "device_id", "operator", "value"}:
+                    errors.append("Verifica: campi non supportati")
+                condition = _compile_condition({"type": "state", **{k: v for k, v in raw.items() if k != "type"}}, catalog, errors)
+                if condition:
+                    result.append({"type": "check", **condition})
+            continue
+        if kind == "delay":
+            if set(raw) - {"type", "seconds"} or isinstance(raw.get("seconds"), bool) or not isinstance(raw.get("seconds"), int) or not 1 <= raw["seconds"] <= MAX_WAIT_SECONDS:
+                errors.append("Delay non valido (1–3600 secondi)")
+            else:
+                result.append({"type": "wait", "seconds": raw["seconds"]})
+        elif kind == "wait_until":
+            timeout = raw.get("timeout_seconds")
+            condition = _compile_condition(raw.get("condition"), catalog, errors)
+            if set(raw) - {"type", "condition", "timeout_seconds"} or isinstance(timeout, bool) or not isinstance(timeout, int) or not 1 <= timeout <= MAX_WAIT_SECONDS:
+                errors.append("Wait until richiede timeout_seconds tra 1 e 3600")
+            elif condition:
+                result.append({"type": kind, "condition": condition, "timeout_seconds": timeout})
+        elif kind == "if":
+            condition = _compile_condition(raw.get("condition"), catalog, errors)
+            then = _compile_flow(raw.get("then"), catalog, errors, budget, depth + 1)
+            otherwise = _compile_flow(raw.get("else", []), catalog, errors, budget, depth + 1)
+            if set(raw) - {"type", "condition", "then", "else"} or not then:
+                errors.append("If richiede un ramo then non vuoto e solo campi previsti")
+            if condition:
+                result.append({"type": kind, "condition": condition, "then": then, "else": otherwise})
+        elif kind == "choose":
+            choices = raw.get("choices")
+            if set(raw) - {"type", "choices", "default"} or not isinstance(choices, list) or not 1 <= len(choices) <= 8:
+                errors.append("Choose richiede da 1 a 8 scelte")
+                continue
+            compiled = []
+            for choice in choices:
+                if not isinstance(choice, dict) or set(choice) != {"condition", "steps"}:
+                    errors.append("Scelta non valida")
+                    continue
+                condition = _compile_condition(choice["condition"], catalog, errors)
+                branch = _compile_flow(choice["steps"], catalog, errors, budget, depth + 1)
+                if condition and branch:
+                    compiled.append({"condition": condition, "steps": branch})
+            default = _compile_flow(raw.get("default", []), catalog, errors, budget, depth + 1)
+            if compiled:
+                result.append({"type": kind, "choices": compiled, "default": default})
+        elif kind == "repeat":
+            count = raw.get("count")
+            branch = _compile_flow(raw.get("steps"), catalog, errors, budget, depth + 1)
+            if set(raw) - {"type", "count", "steps"} or isinstance(count, bool) or not isinstance(count, int) or not 1 <= count <= MAX_REPEAT or not branch:
+                errors.append("Repeat richiede 1–10 iterazioni e azioni valide")
+            else:
+                result.append({"type": kind, "count": count, "steps": branch})
+        elif kind == "parallel":
+            branches = raw.get("branches")
+            if set(raw) - {"type", "branches"} or not isinstance(branches, list) or not 2 <= len(branches) <= MAX_PARALLEL_RUNS:
+                errors.append("Parallel richiede 2–3 rami")
+                continue
+            compiled = [_compile_flow(branch, catalog, errors, budget, depth + 1) for branch in branches]
+            targets = [set(step["device_id"] for step in _action_steps(branch)) for branch in compiled]
+            if any(not branch for branch in compiled) or any(targets[i] & targets[j] for i in range(len(targets)) for j in range(i + 1, len(targets))):
+                errors.append("Rami paralleli vuoti o con comandi allo stesso dispositivo")
+            if any(item.get("type") == "variable" for branch in compiled for item in _flow_items(branch)):
+                errors.append("Variabili non consentite nei rami paralleli")
+            result.append({"type": kind, "branches": compiled})
+        elif kind == "variable":
+            name, value, source = raw.get("name"), raw.get("value"), raw.get("from_device_id")
+            if set(raw) - {"type", "name", "value", "from_device_id"} or not isinstance(name, str) or not re.fullmatch(r"[A-Za-z][A-Za-z0-9_]{0,31}", name) or (source is None) == (value is None) or (source is not None and str(source) not in catalog) or (value is not None and (not isinstance(value, (str, int, float, bool)) or len(str(value)) > 80)):
+                errors.append("Variable: indica nome e un solo valore o from_device_id valido")
+            else:
+                result.append({"type": kind, "name": name, **({"from_device_id": str(source)} if source is not None else {"value": value})})
+        elif kind == "stop":
+            reason = raw.get("reason", "Arresto richiesto dalla routine")
+            if set(raw) - {"type", "reason"} or not isinstance(reason, str) or len(reason) > 120:
+                errors.append("Stop: motivo non valido")
+            else:
+                result.append({"type": kind, "reason": reason})
+        else:
+            errors.append("Tipo di blocco non supportato")
+    return result
+
+
+def _flow_max_wait(steps: list[dict]) -> int:
+    total = 0
+    for step in steps:
+        kind = step["type"]
+        if kind == "wait":
+            total += step["seconds"]
+        elif kind == "wait_until":
+            total += step["timeout_seconds"]
+        elif kind == "if":
+            total += max(_flow_max_wait(step["then"]), _flow_max_wait(step["else"]))
+        elif kind == "choose":
+            total += max([_flow_max_wait(choice["steps"]) for choice in step["choices"]] + [_flow_max_wait(step["default"])])
+        elif kind == "repeat":
+            total += step["count"] * _flow_max_wait(step["steps"])
+        elif kind == "parallel":
+            total += max(_flow_max_wait(branch) for branch in step["branches"])
+    return total
+
+
+def _flow_max_commands(steps: list[dict]) -> int:
+    total = 0
+    for step in steps:
+        kind = step["type"]
+        if kind == "action":
+            total += 1
+        elif kind == "if":
+            total += max(_flow_max_commands(step["then"]), _flow_max_commands(step["else"]))
+        elif kind == "choose":
+            total += max([_flow_max_commands(choice["steps"]) for choice in step["choices"]] + [_flow_max_commands(step["default"])])
+        elif kind == "repeat":
+            total += step["count"] * _flow_max_commands(step["steps"])
+        elif kind == "parallel":
+            total += sum(_flow_max_commands(branch) for branch in step["branches"])
+    return total
+
+
+def _flow_validate_variables(steps: list[dict], known: set[str], errors: list[str]) -> set[str]:
+    available = set(known)
+    for step in steps:
+        kind = step["type"]
+        if kind in {"if", "wait_until"}:
+            missing = {item["name"] for item in _flow_items(step["condition"]) if item.get("type") == "variable"} - available
+            if missing:
+                errors.append("Variabili usate prima della definizione: " + ", ".join(sorted(missing)))
+        if kind == "variable":
+            available.add(step["name"])
+        elif kind == "if":
+            then_known = _flow_validate_variables(step["then"], available, errors)
+            else_known = _flow_validate_variables(step["else"], available, errors)
+            available = then_known & else_known
+        elif kind == "choose":
+            outcomes = []
+            for choice in step["choices"]:
+                missing = {item["name"] for item in _flow_items(choice["condition"]) if item.get("type") == "variable"} - available
+                if missing:
+                    errors.append("Variabili usate prima della definizione: " + ", ".join(sorted(missing)))
+                outcomes.append(_flow_validate_variables(choice["steps"], available, errors))
+            outcomes.append(_flow_validate_variables(step["default"], available, errors))
+            available = set.intersection(*outcomes)
+        elif kind == "repeat":
+            available = _flow_validate_variables(step["steps"], available, errors)
+        elif kind == "parallel":
+            for branch in step["branches"]:
+                _flow_validate_variables(branch, available, errors)
+    return available
+
+
+def _validate_advanced(payload: dict, devices: list[dict], others: list[dict], solar_available: bool) -> dict:
+    errors: list[str] = []
+    stack = [payload]
+    seen = 0
+    while stack:
+        value = stack.pop()
+        seen += 1
+        if seen > 400:
+            return {"spec": {}, "errors": ["JSON troppo complesso: massimo 400 elementi"], "warnings": [], "risks": [], "description": "", "can_enable": False}
+        if isinstance(value, dict):
+            stack.extend(value.values())
+        elif isinstance(value, list):
+            stack.extend(value)
+    catalog = {str(item.get("id")): item for item in devices if isinstance(item, dict) and item.get("id") is not None}
+    description = payload.get("description", "")
+    if not isinstance(description, str) or len(description) > 1000:
+        errors.append("Descrizione non valida (massimo 1000 caratteri)")
+        description = ""
+    conditions = payload.get("conditions", [])
+    if isinstance(conditions, list):
+        if len(conditions) > 8:
+            errors.append("Massimo 8 condizioni iniziali")
+        compiled_conditions = [_compile_condition(item, catalog, errors) for item in conditions]
+        compiled_conditions = [item for item in compiled_conditions if item]
+    else:
+        compiled_conditions = _compile_condition(conditions, catalog, errors)
+    if any(item.get("type") == "variable" for item in _flow_items(compiled_conditions)):
+        errors.append("Le condizioni iniziali non possono usare variabili: non sono ancora definite")
+    flow = _compile_flow(payload.get("steps"), catalog, errors, {"nodes": 0})
+    _flow_validate_variables(flow, set(), errors)
+    if not flow or _flow_max_wait(flow) > MAX_WAIT_SECONDS:
+        errors.append("Azioni mancanti o durata massima superiore a 60 minuti")
+    if _flow_max_commands(flow) > 40:
+        errors.append("Massimo 40 comandi possibili per esecuzione, inclusi repeat e rami paralleli")
+    if not solar_available and (uses_sun({"conditions": compiled_conditions, "steps": flow}) or uses_sun({"triggers": payload.get("triggers", [])})):
+        errors.append("Alba/tramonto non disponibili nell'impianto")
+    base = validate({key: value for key, value in payload.items() if key in {"id", "name", "mode", "triggers"}} | {"conditions": [], "steps": _action_steps(flow)}, devices, others, solar_available=solar_available)
+    errors.extend(base["errors"])
+    unknown = set(payload) - {"id", "name", "description", "mode", "triggers", "conditions", "steps"}
+    if unknown:
+        errors.append("Campi JSON non supportati: " + ", ".join(sorted(str(item) for item in unknown)))
+    base["spec"]["description"] = description.strip()
+    base["spec"]["conditions"] = compiled_conditions
+    base["spec"]["steps"] = flow
+    base["errors"] = list(dict.fromkeys(errors))
+    base["can_enable"] = not base["errors"]
+    possible = ", ".join(dict.fromkeys(
+        f"{ACTION_LABELS.get(step['action'], step['action'])} {catalog[step['device_id']].get('name') or step['device_id']}"
+        for step in _action_steps(flow) if step["device_id"] in catalog))
+    base["description"] = (f"Alla prima attivazione compatibile, la routine {base['spec']['name']} verifica le condizioni. "
+                           f"In base ai rami potrebbe: {possible or 'non eseguire comandi'}. "
+                           "Le verifiche e i timeout possono fermare le azioni successive; le azioni già inviate non vengono annullate.")
+    extra_risks = []
+    kinds = {item.get("type") for item in _flow_items(flow)}
+    if "repeat" in kinds:
+        extra_risks.append("Repeat può inviare più volte lo stesso comando: verifica che il dispositivo tolleri ripetizioni e che non generi nuovi trigger.")
+    if "parallel" in kinds:
+        extra_risks.append("Nei rami paralleli un ramo può completare comandi anche se un altro si ferma; non esiste annullamento fisico dei comandi già inviati.")
+    if "wait_until" in kinds:
+        extra_risks.append("Se wait_until raggiunge il timeout, le azioni successive vengono interrotte; i comandi precedenti restano applicati.")
+    if any(item.get("type") == "action" and item.get("action") == "off" for item in _flow_items(flow)) and kinds & {"wait", "wait_until"}:
+        extra_risks.append("Uno spegnimento dopo un'attesa può sovrascrivere un'accensione manuale fatta nel frattempo.")
+    base["risks"] = list(dict.fromkeys([*base["risks"], *extra_risks]))
+    base["warnings"] = list(dict.fromkeys([*base["warnings"], *extra_risks,
+                                           "I blocchi avanzati vanno modificati nell'editor JSON; l'editor visuale lineare non li rappresenta."]))
+    return base
+
+
 def _action_targets(device: dict | None, action: str) -> set[str]:
     targets = {ACTION_STATES[action]} if action in ACTION_STATES else set()
     if device and device.get("kind") == "light_scenario" and action in {"on", "off", "run", "stop"}:
@@ -176,6 +484,12 @@ def _action_targets(device: dict | None, action: str) -> set[str]:
 
 def validate(payload: dict, devices: list[dict], others: list[dict] = (), *, solar_available: bool = True) -> dict:
     """Validate against the live installation; never trust client-provided capabilities."""
+    if isinstance(payload, dict) and ("description" in payload or isinstance(payload.get("conditions"), dict) or any(
+        isinstance(item, dict) and (set(item) & {"and", "or", "not"} or item.get("type") == "variable")
+        for item in (payload.get("conditions") if isinstance(payload.get("conditions"), list) else [])) or any(
+        isinstance(item, dict) and item.get("type") not in {"action", "wait", "check"}
+        for item in (payload.get("steps") if isinstance(payload.get("steps"), list) else []))):
+        return _validate_advanced(payload, devices, list(others), solar_available)
     errors: list[str] = []
     warnings: list[str] = []
     mode = payload.get("mode", "single")
@@ -190,8 +504,8 @@ def validate(payload: dict, devices: list[dict], others: list[dict] = (), *, sol
     if not 1 <= len(name) <= 80:
         errors.append("Assegna un nome alla routine")
     raw_triggers = payload.get("triggers")
-    if not isinstance(raw_triggers, list) or not 1 <= len(raw_triggers) <= 4:
-        errors.append("Servono da 1 a 4 attivazioni")
+    if not isinstance(raw_triggers, list) or not 1 <= len(raw_triggers) <= 12:
+        errors.append("Servono da 1 a 12 attivazioni")
         raw_triggers = []
     triggers = []
     for raw in raw_triggers:
@@ -385,7 +699,7 @@ def validate(payload: dict, devices: list[dict], others: list[dict] = (), *, sol
         if not other.get("enabled") or (other.get("id") == payload.get("id") and not other.get("candidate")):
             continue
         state_sources = [(item.get("device_id"), item.get("to")) for item in other.get("spec", {}).get("triggers", []) if item.get("type") == "state"]
-        action_targets = [(item.get("device_id"), state) for item in other.get("spec", {}).get("steps", []) if item.get("type") == "action"
+        action_targets = [(item.get("device_id"), state) for item in _action_steps(other.get("spec", {}).get("steps", []))
                           for state in _action_targets(catalog.get(item.get("device_id")), item.get("action"))]
         for source in state_sources:
             edges.setdefault(source, set()).update(action_targets)
@@ -414,7 +728,7 @@ def validate(payload: dict, devices: list[dict], others: list[dict] = (), *, sol
                 sources.append(("state", str(trigger.get("device_id")), str(trigger.get("to"))))
             elif trigger.get("type") == "remote":
                 sources.append(("remote", str(trigger.get("device_id")), str(trigger.get("source_id")), str(trigger.get("command"))))
-        for step in spec.get("steps", []):
+        for step in _action_steps(spec.get("steps", [])):
             if step.get("type") != "action":
                 continue
             target_id = str(step.get("device_id"))
@@ -442,7 +756,7 @@ def validate(payload: dict, devices: list[dict], others: list[dict] = (), *, sol
     for other in others:
         if not other.get("enabled") or other.get("id") == payload.get("id"):
             continue
-        other_targets = {step.get("device_id") for step in other.get("spec", {}).get("steps", []) if step.get("type") == "action"}
+        other_targets = {step.get("device_id") for step in _action_steps(other.get("spec", {}).get("steps", []))}
         if other_targets.intersection(device_id for device_id, _ in actions):
             warnings.append(f"Interazione possibile con la routine «{other['name']}» sugli stessi dispositivi")
     if any(step["type"] == "check" for step in steps):
@@ -624,9 +938,7 @@ class Engine:
 
     @staticmethod
     def _references(routine: dict) -> set[str]:
-        spec = routine["spec"]
-        return {str(item["device_id"]) for group in (spec.get("triggers", []), spec.get("conditions", []), spec.get("steps", []))
-                for item in group if item.get("device_id") is not None}
+        return referenced_devices(routine["spec"])
 
     async def _snapshot_for(self, matching: list[dict]) -> dict[str, dict]:
         references = set().union(*(self._references(routine) for routine in matching))
@@ -885,6 +1197,152 @@ class Engine:
                 self.cancel_reasons[task] = "Routine modificata o disattivata"
                 task.cancel()
 
+    async def _evaluate_condition(self, condition: dict, devices: dict[str, dict], variables: dict) -> bool:
+        if "and" in condition:
+            for item in condition["and"]:
+                if not await self._evaluate_condition(item, devices, variables):
+                    return False
+            return True
+        if "or" in condition:
+            for item in condition["or"]:
+                if await self._evaluate_condition(item, devices, variables):
+                    return True
+            return False
+        if "not" in condition:
+            return not await self._evaluate_condition(condition["not"], devices, variables)
+        if condition.get("type") == "sun":
+            if not self.solar_times:
+                raise RuntimeError("Orari di alba/tramonto non disponibili")
+            schedule = await self.solar_times()
+            boundary = schedule[condition["event"]] + timedelta(minutes=condition["offset_minutes"])
+            current = datetime.now(boundary.tzinfo)
+            return current < boundary if condition["relation"] == "before" else current >= boundary
+        if condition.get("type") == "variable" and condition["name"] not in variables:
+            raise RuntimeError(f"Variabile {condition['name']} non definita")
+        actual = variables[condition["name"]] if condition.get("type") == "variable" else _state(devices.get(condition["device_id"]))
+        equal = str(actual).casefold() == str(condition["value"]).casefold()
+        return equal if condition["operator"] == "is" else not equal
+
+    async def _run_flow(self, routine: dict, run_id: str, starting_devices: dict[str, dict]) -> str:
+        variables: dict = {}
+        conditions = routine["spec"].get("conditions", [])
+        initial = conditions if isinstance(conditions, list) else [conditions]
+        devices = starting_devices
+        for condition in initial:
+            passed = await self._evaluate_condition(condition, devices, variables)
+            device_id = str(condition.get("device_id") or "")
+            device = devices.get(device_id, {})
+            actual = _state(device) if device_id else ""
+            record_event(run_id, "condition", device_id=device_id, device_name=str(device.get("name") or ""),
+                         detail=f"Regola {json.dumps(condition, ensure_ascii=False)}; stato letto: {actual or 'non applicabile'}",
+                         before_state=actual, result="pass" if passed else "skip")
+            if not passed:
+                return "skipped"
+
+        async def execute(steps: list[dict], current: dict[str, dict], values: dict) -> tuple[str, dict[str, dict]]:
+            for step in steps:
+                latest = get_routine(routine["id"])
+                if not latest or not latest["enabled"] or latest["revision"] != routine["revision"]:
+                    record_event(run_id, "cancel", detail="Routine modificata o disattivata durante l'esecuzione")
+                    return "cancelled", current
+                kind = step["type"]
+                if kind == "wait":
+                    record_event(run_id, "timer", detail=f"Attesa {step['seconds']} secondi")
+                    await asyncio.sleep(step["seconds"])
+                    current = await self._snapshot_for([routine])
+                elif kind == "wait_until":
+                    deadline = time.monotonic() + step["timeout_seconds"]
+                    record_event(run_id, "wait_until", detail=f"Attesa condizione, massimo {step['timeout_seconds']} secondi")
+                    while True:
+                        current = await self._snapshot_for([routine])
+                        if await self._evaluate_condition(step["condition"], current, values):
+                            record_event(run_id, "wait_until", detail="Condizione soddisfatta", result="pass")
+                            break
+                        remaining = deadline - time.monotonic()
+                        if remaining <= 0:
+                            record_event(run_id, "wait_until", detail="Timeout: azioni successive non eseguite", result="stop")
+                            return "stopped", current
+                        await asyncio.sleep(min(1.0, remaining))
+                elif kind == "check":
+                    current = await self._snapshot_for([routine])
+                    passed = await self._evaluate_condition(step, current, values)
+                    actual = _state(current.get(step["device_id"]))
+                    record_event(run_id, "check", device_id=step["device_id"], device_name=str(current.get(step["device_id"], {}).get("name") or ""),
+                                 detail=f"Stato letto: {actual}; richiesto {step['operator']} {step['value']}", before_state=actual,
+                                 result="pass" if passed else "stop")
+                    if not passed:
+                        return "stopped", current
+                elif kind == "variable":
+                    if "from_device_id" in step:
+                        current = await self._snapshot_for([routine])
+                        values[step["name"]] = _state(current.get(step["from_device_id"]))
+                    else:
+                        values[step["name"]] = step["value"]
+                    record_event(run_id, "variable", detail=f"{step['name']} = {values[step['name']]}")
+                elif kind == "stop":
+                    record_event(run_id, "stop", detail=step["reason"], result="stop")
+                    return "stopped", current
+                elif kind == "if":
+                    current = await self._snapshot_for([routine])
+                    passed = await self._evaluate_condition(step["condition"], current, values)
+                    record_event(run_id, "if", detail="Ramo then" if passed else "Ramo else", result="pass" if passed else "skip")
+                    status, current = await execute(step["then"] if passed else step["else"], current, values)
+                    if status != "completed":
+                        return status, current
+                elif kind == "choose":
+                    current = await self._snapshot_for([routine])
+                    chosen = step["default"]
+                    label = "default"
+                    for index, choice in enumerate(step["choices"]):
+                        if await self._evaluate_condition(choice["condition"], current, values):
+                            chosen, label = choice["steps"], str(index + 1)
+                            break
+                    record_event(run_id, "choose", detail=f"Ramo {label}")
+                    status, current = await execute(chosen, current, values)
+                    if status != "completed":
+                        return status, current
+                elif kind == "repeat":
+                    for number in range(step["count"]):
+                        record_event(run_id, "repeat", detail=f"Iterazione {number + 1}/{step['count']}")
+                        status, current = await execute(step["steps"], current, values)
+                        if status != "completed":
+                            return status, current
+                elif kind == "parallel":
+                    tasks = []
+                    async with asyncio.TaskGroup() as group:
+                        for branch in step["branches"]:
+                            tasks.append(group.create_task(execute(branch, dict(current), dict(values))))
+                    results = [task.result() for task in tasks]
+                    if any(status != "completed" for status, _ in results):
+                        return next(status for status, _ in results if status != "completed"), current
+                    current = await self._snapshot_for([routine])
+                    record_event(run_id, "parallel", detail=f"Completati {len(tasks)} rami")
+                elif kind == "action":
+                    device_id = step["device_id"]
+                    device = current.get(device_id)
+                    if not device:
+                        raise RuntimeError(f"Dispositivo {device_id} non disponibile")
+                    fresh = validate({"name": routine["name"], "triggers": [{"type": "time", "at": "00:00"}], "steps": [step]}, list(current.values()))
+                    if fresh["errors"]:
+                        raise RuntimeError("Comando non più sicuro: " + fresh["errors"][0])
+                    before = _state(device)
+                    record_event(run_id, "command", device_id=device_id, device_name=str(device.get("name") or ""), action=step["action"], detail="Comando richiesto", before_state=before, result="sent")
+                    try:
+                        await self.command(device_id, step["action"], fresh["spec"]["steps"][0].get("value"))
+                    except Exception as exc:
+                        record_event(run_id, "command", device_id=device_id, device_name=str(device.get("name") or ""), action=step["action"], detail=str(exc), before_state=before, result="failed")
+                        raise
+                    record_event(run_id, "command", device_id=device_id, device_name=str(device.get("name") or ""), action=step["action"], detail="Confermato dal connettore; stato da verificare", before_state=before, result="accepted")
+                    current = await self._snapshot_for([routine])
+                    after = _state(current.get(device_id))
+                    record_event(run_id, "observed", device_id=device_id, device_name=str(device.get("name") or ""), action=step["action"], before_state=before, after_state=after, result="changed" if after != before else "unchanged")
+                else:
+                    raise RuntimeError(f"Blocco non eseguibile: {kind}")
+            return "completed", current
+
+        result, _ = await execute(routine["spec"]["steps"], devices, variables)
+        return result
+
     async def _run(self, routine: dict, trigger_detail: str, starting_devices: dict[str, dict], received_at: str | None = None) -> None:
         run_id = str(uuid.uuid4())
         with _connect() as db:
@@ -895,8 +1353,12 @@ class Engine:
         record_event(run_id, "trigger", detail=trigger_detail)
         status = "completed"
         try:
-            self.active_targets[run_id] = {str(step["device_id"]) for step in routine["spec"]["steps"] if step["type"] == "action"}
+            self.active_targets[run_id] = {str(step["device_id"]) for step in _action_steps(routine["spec"]["steps"])}
             await self._notify_activity()
+            if "description" in routine["spec"] or isinstance(routine["spec"].get("conditions"), dict) or any(
+                step.get("type") not in {"action", "wait", "check"} for step in routine["spec"]["steps"]):
+                status = await self._run_flow(routine, run_id, starting_devices)
+                return
             devices = starting_devices
             for condition in routine["spec"]["conditions"]:
                 if condition.get("type") == "sun":

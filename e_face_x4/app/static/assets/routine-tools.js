@@ -55,6 +55,21 @@ professionalPanel.className = 'media-config routine-panel'
 professionalPanel.hidden = true
 professionalPanel.innerHTML = `<header><button type="button" data-professional-back aria-label="Torna ad Amministrazione">‹</button><div><small>AMMINISTRAZIONE</small><h2>Routine Professional</h2></div></header>
   <p>Il campo <code>spec</code> delle routine è JSON salvato in SQLite, non un file YAML. Qui modifichi lo stesso schema dell'editor visuale. Nessun comando viene eseguito durante controllo o salvataggio.</p>
+  <details class="routine-professional-help"><summary>Schema dei blocchi avanzati</summary><p><code>enabled</code> si imposta con l'interruttore sotto il JSON. Uno qualsiasi dei trigger avvia la routine. Le condizioni supportano <code>and</code>, <code>or</code> e <code>not</code>.</p><pre>"conditions": {"and": [
+  {"device_id":"sensor.id","operator":"is","value":"on"},
+  {"not":{"device_id":"light.id","operator":"is","value":"on"}}
+]},
+"steps": [
+  {"type":"action","device_id":"light.id","action":"on"},
+  {"type":"delay","seconds":10},
+  {"type":"wait_until","condition":{"device_id":"sensor.id","value":"off"},"timeout_seconds":300},
+  {"type":"if","condition":{"device_id":"light.id","value":"on"},"then":[{"type":"action","device_id":"light.id","action":"off"}],"else":[]},
+  {"type":"choose","choices":[{"condition":{"device_id":"sensor.id","value":"on"},"steps":[{"type":"stop","reason":"Occupato"}]}],"default":[]},
+  {"type":"repeat","count":2,"steps":[{"type":"action","device_id":"light.id","action":"on"}]},
+  {"type":"parallel","branches":[[{"type":"action","device_id":"light.a","action":"on"}],[{"type":"action","device_id":"light.b","action":"on"}]]},
+  {"type":"variable","name":"presenza","from_device_id":"sensor.id"},
+  {"type":"stop","reason":"Fine"}
+]</pre><p>Sostituisci gli ID con quelli del catalogo. Una variabile può anche avere <code>value</code> fisso; per leggerla usa <code>{"type":"variable","name":"presenza","operator":"is","value":"on"}</code> come condizione.</p></details>
   <div class="routine-professional-actions"><label>Routine<select data-professional-select aria-label="Scegli routine"><option value="">Nuova routine</option></select></label><button type="button" data-professional-new>NUOVA</button><button type="button" data-professional-copy-catalog>COPIA CATALOGO DISPOSITIVI</button></div>
   <label class="routine-professional-code">Definizione JSON<textarea data-professional-json spellcheck="false" autocapitalize="off" autocomplete="off" rows="20" aria-label="JSON della routine"></textarea></label>
   <label class="routine-professional-enabled"><input type="checkbox" data-professional-enabled> Mantieni o rendi attiva dopo il salvataggio</label>
@@ -140,6 +155,11 @@ function renderList() {
 function renderEditor() {
   $('.routine-editor').hidden = !draft
   if (!draft) return
+  if (hasAdvancedFlow(draft)) {
+    $('.routine-editor').hidden = true
+    window.alert('Questa routine contiene blocchi avanzati. Modificala in Amministrazione → Routine Professional; l’editor lineare non può rappresentarli senza perdita di dati.')
+    return
+  }
   $('[data-routine-name]').value = draft.name || ''
   $('[data-routine-mode]').value = draft.mode || 'single'
   $('[data-routine-triggers]').innerHTML = draft.triggers.map((item, index) => `<div class="routine-block" data-index="${index}"><select data-field="type"><option value="state" ${item.type === 'state' ? 'selected' : ''}>Quando cambia un dispositivo</option><option value="time" ${item.type === 'time' ? 'selected' : ''}>A un orario</option><option value="sun" ${item.type === 'sun' ? 'selected' : ''}>Alba / Tramonto</option><option value="remote" ${item.type === 'remote' ? 'selected' : ''}>Tasto telecomando e-Face</option><option value="doorbird" ${item.type === 'doorbird' ? 'selected' : ''}>Evento DoorBird</option></select>${item.type === 'time' ? `<input data-field="at" type="time" value="${escapeHtml(item.at || '')}">` : item.type === 'doorbird' ? `<select data-field="event"><option value="doorbell" ${item.event === 'doorbell' ? 'selected' : ''}>Chiamata</option><option value="motionsensor" ${item.event === 'motionsensor' ? 'selected' : ''}>Movimento</option></select>` : item.type === 'sun' ? solarFields(item) : item.type === 'remote' ? `${deviceField(item.device_id,'media')}${remoteFields(item.device_id,item.source_id,item.command)}` : `${deviceField(item.device_id)}${stateSelect(item.device_id, item.to)}`}<button type="button" data-routine-remove="trigger" aria-label="Rimuovi">×</button></div>`).join('')
@@ -379,6 +399,7 @@ const professional = selector => professionalPanel.querySelector(selector)
 let professionalItems = []
 let professionalCurrent = null
 const professionalTemplate = () => ({name:'Nuova routine',mode:'single',triggers:[{type:'state',device_id:'',to:'on'}],conditions:[],steps:[{type:'action',device_id:'',action:'on'}]})
+const hasAdvancedFlow = spec => Boolean(spec && (spec.description || (typeof spec.conditions === 'object' && !Array.isArray(spec.conditions)) || (Array.isArray(spec.conditions) && spec.conditions.some(item => ![undefined,'state','sun'].includes(item.type))) || (spec.steps || []).some(step => !['action','wait','check'].includes(step.type))))
 function renderProfessionalChoice() {
   professional('[data-professional-select]').innerHTML = `<option value="">Nuova routine</option>${professionalItems.map(item => `<option value="${escapeHtml(item.id)}" ${professionalCurrent?.id === item.id ? 'selected' : ''}>${escapeHtml(item.name)} · v${item.revision}</option>`).join('')}`
 }
@@ -386,7 +407,7 @@ function selectProfessional(item) {
   professionalCurrent = item || null
   professional('[data-professional-json]').value = JSON.stringify(item?.spec || professionalTemplate(), null, 2)
   professional('[data-professional-enabled]').checked = Boolean(item?.enabled)
-  professional('[data-professional-open-visual]').disabled = !item
+  professional('[data-professional-open-visual]').disabled = !item || hasAdvancedFlow(item.spec)
   professional('[data-professional-review]').textContent = item ? `Versione ${item.revision} · creata da ${item.owner} · ${item.enabled ? 'attiva' : 'disattivata'}. Modifica il JSON e premi CONTROLLA JSON.` : 'Nuova routine: sostituisci gli ID vuoti con quelli del catalogo. Non sarà attivata automaticamente.'
   renderProfessionalChoice()
 }
@@ -443,6 +464,10 @@ professional('[data-professional-save]').addEventListener('click', async event =
 })
 professional('[data-professional-open-visual]').addEventListener('click', () => {
   if (!professionalCurrent) return
+  if (hasAdvancedFlow(professionalCurrent.spec)) {
+    professional('[data-professional-review]').textContent = 'Questa routine contiene blocchi avanzati: modificala qui nel JSON. L’editor visuale lineare non può rappresentarli senza perdita di dati.'
+    return
+  }
   sessionStorage.setItem('eface-routine-id', professionalCurrent.id)
   professionalPanel.hidden = true
   userCard.click()

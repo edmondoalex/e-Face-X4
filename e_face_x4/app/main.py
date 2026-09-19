@@ -76,7 +76,7 @@ from .connectors.supervisor import discover_addon_url, discover_host_url
 from .media_realtime import SharedMediaRealtime
 from .demo import dashboard as demo_dashboard
 
-VERSION = os.environ.get("EFACE_VERSION", "2.21.205")
+VERSION = os.environ.get("EFACE_VERSION", "2.21.206")
 STATIC = Path(__file__).parent / "static"
 logging.basicConfig(level=logging.WARNING, format="%(asctime)s %(levelname)s [e-face-x4] %(message)s")
 _reconnect_warning_at: dict[str, float] = {}
@@ -2922,9 +2922,7 @@ def create_app() -> FastAPI:
             raise RuntimeError("Alba/tramonto non calcolabili per questa posizione") from exc
 
     async def routine_solar_ready(spec: dict) -> bool:
-        rules = [*(spec.get("triggers") if isinstance(spec.get("triggers"), list) else []),
-                 *(spec.get("conditions") if isinstance(spec.get("conditions"), list) else [])]
-        if not any(isinstance(rule, dict) and rule.get("type") == "sun" for rule in rules):
+        if not routines.uses_sun(spec):
             return True
         try:
             await routine_solar_times()
@@ -2955,9 +2953,8 @@ def create_app() -> FastAPI:
             buspro = await BusproConnector(config, settings.request_timeout_s).snapshot()
             items = buspro.get("items", []) if buspro.get("status") == "online" else []
             if referenced is None:
-                referenced = {str(step.get("device_id")) for routine in routines.list_routines(enabled_only=True)
-                              for group in (routine["spec"].get("triggers", []), routine["spec"].get("conditions", []), routine["spec"].get("steps", []))
-                              for step in group if step.get("device_id") is not None}
+                referenced = set().union(*(routines.referenced_devices(routine["spec"])
+                                           for routine in routines.list_routines(enabled_only=True)))
             known = {str(item.get("id")) for item in items}
             missing_ksenia = {identifier for identifier in referenced - known if identifier.startswith("ksenia-")}
             if missing_ksenia:

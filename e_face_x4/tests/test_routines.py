@@ -126,6 +126,120 @@ def test_professional_json_rejects_ignored_fields_and_remote_feedback_loop():
     assert any("loop" in error.lower() for error in review["errors"])
 
 
+def test_advanced_flow_runs_boolean_conditions_branches_wait_repeat_parallel_and_stop():
+    state = {"sensor.motion": "on", "light.hall": "off", "light.other": "off", "light.third": "off"}
+    devices = catalog() + [
+        {"id": "light.other", "kind": "light", "name": "Luce seconda", "room": "Sala", "state": "off"},
+        {"id": "light.third", "kind": "light", "name": "Luce terza", "room": "Sala", "state": "off"},
+    ]
+    commands = []
+
+    async def snapshot():
+        return [{**item, "state": state.get(item["id"], item["state"])} for item in devices]
+
+    async def command(device_id, action, value):
+        commands.append((device_id, action))
+        state[device_id] = action
+
+    spec = sample()
+    spec["description"] = "Accendi e attendi che termini il movimento"
+    spec["conditions"] = {"and": [
+        {"type": "state", "device_id": "sensor.motion", "operator": "is", "value": "on"},
+        {"not": {"type": "state", "device_id": "sensor.motion", "operator": "is", "value": "off"}},
+    ]}
+    spec["steps"] = [
+        {"type": "variable", "name": "detected", "from_device_id": "sensor.motion"},
+        {"type": "if", "condition": {"type": "variable", "name": "detected", "operator": "is", "value": "on"},
+         "then": [{"type": "action", "device_id": "light.hall", "action": "on"}],
+         "else": [{"type": "stop", "reason": "Nessun movimento"}]},
+        {"type": "choose", "choices": [{"condition": {"device_id": "light.hall", "operator": "is", "value": "on"},
+                                           "steps": [{"type": "repeat", "count": 2, "steps": [
+                                               {"type": "action", "device_id": "light.other", "action": "on"}]}]}],
+         "default": [{"type": "stop", "reason": "Luce spenta"}]},
+        {"type": "parallel", "branches": [
+            [{"type": "action", "device_id": "light.hall", "action": "off"}],
+            [{"type": "action", "device_id": "light.third", "action": "on"}],
+        ]},
+        {"type": "wait_until", "condition": {"or": [
+            {"device_id": "sensor.motion", "operator": "is", "value": "off"},
+            {"device_id": "sensor.motion", "operator": "is", "value": "closed"},
+        ]}, "timeout_seconds": 2},
+        {"type": "stop", "reason": "Fine"},
+    ]
+    review = routines.validate(spec, devices)
+    assert not review["errors"]
+    assert review["spec"]["description"] == spec["description"]
+    saved = routines.save("alice", "alice", None, review["spec"], True, None)
+    assert routines.get_routine(saved["id"])["spec"]["description"] == spec["description"]
+    engine = routines.Engine(snapshot, command)
+
+    async def run():
+        engine._start(saved, "movimento", "advanced:1", {item["id"]: item for item in await snapshot()})
+        await asyncio.sleep(0.2)
+        state["sensor.motion"] = "off"
+        await asyncio.wait_for(engine.running[saved["id"]], 3)
+
+    asyncio.run(run())
+    assert commands == [("light.hall", "on"), ("light.other", "on"), ("light.other", "on"),
+                        ("light.hall", "off"), ("light.third", "on")]
+    assert routines.list_runs()[0]["status"] == "stopped"
+    assert {"if", "choose", "repeat", "parallel", "wait_until", "stop"}.issubset(
+        {event["stage"] for event in routines.list_runs()[0]["events"]})
+
+
+def test_advanced_flow_rejects_self_loop_parallel_collisions_and_excessive_repeat():
+    spec = sample()
+    spec["steps"] = [{"type": "if", "condition": {"device_id": "sensor.motion", "value": "on"},
+                      "then": [{"type": "action", "device_id": "sensor.motion", "action": "on"}], "else": []}]
+    assert not routines.validate(spec, catalog())["can_enable"]
+    spec["steps"] = [{"type": "parallel", "branches": [
+        [{"type": "action", "device_id": "light.hall", "action": "on"}],
+        [{"type": "action", "device_id": "light.hall", "action": "off"}],
+    ]}]
+    assert any("paralleli" in error.lower() for error in routines.validate(spec, catalog())["errors"])
+    spec["steps"] = [{"type": "repeat", "count": 10, "steps": [
+        {"type": "action", "device_id": "light.hall", "action": "on"} for _ in range(5)]}]
+    assert any("40 comandi" in error for error in routines.validate(spec, catalog())["errors"])
+
+
+def test_advanced_nested_action_is_included_in_cross_routine_loop_check():
+    devices = catalog() + [{"id": "light.other", "kind": "light", "name": "Seconda luce", "state": "off"}]
+    first = {"name": "Prima", "triggers": [{"type": "state", "device_id": "light.hall", "to": "on"}],
+             "conditions": [], "steps": [{"type": "action", "device_id": "light.other", "action": "on"}]}
+    stored = routines.save("alice", "alice", None, routines.validate(first, devices)["spec"], True, None)
+    second = {"name": "Seconda", "triggers": [{"type": "state", "device_id": "light.other", "to": "on"}],
+              "conditions": [], "steps": [{"type": "if", "condition": {"device_id": "sensor.motion", "value": "off"},
+                                          "then": [{"type": "action", "device_id": "light.hall", "action": "on"}], "else": []}]}
+    review = routines.validate(second, devices, [stored])
+    assert any("ciclo" in error.lower() or "loop" in error.lower() for error in review["errors"])
+
+
+def test_wait_until_timeout_stops_following_actions():
+    commands = []
+
+    async def snapshot():
+        return catalog()
+
+    async def command(device_id, action, value):
+        commands.append(action)
+
+    spec = sample()
+    spec["steps"] = [{"type": "wait_until", "condition": {"device_id": "sensor.motion", "value": "on"}, "timeout_seconds": 1},
+                     {"type": "action", "device_id": "light.hall", "action": "on"}]
+    review = routines.validate(spec, catalog())
+    assert not review["errors"]
+    saved = routines.save("alice", "alice", None, review["spec"], True, None)
+    engine = routines.Engine(snapshot, command)
+
+    async def run():
+        engine._start(saved, "timeout", "timeout:1", {item["id"]: item for item in catalog()})
+        await asyncio.wait_for(engine.running[saved["id"]], 2)
+
+    asyncio.run(run())
+    assert not commands
+    assert routines.list_runs()[0]["status"] == "stopped"
+
+
 def test_legacy_control4_source_label_is_normalized_to_key():
     player = {"id": "c4media:1", "kind": "media_player", "name": "Sala", "state": "off", "provider": "control4",
               "capabilities": {"select_source": True}, "source_options": [{"key": "watch:42", "label": "Sky Q", "source_id": 42,
