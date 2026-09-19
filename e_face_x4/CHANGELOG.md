@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.21.190 — 2026-09-19
+
+- L'ora dell'ultimo movimento DoorBird viene salvata all'evento e aggiornata subito nel widget Home.
+- Ripristinato il riempimento delle miniature dei widget senza bande nere; l'immagine aperta rimane interamente visibile.
+
 ## 2.21.189 — 2026-09-19
 
 - Il pulsante mute nel widget LIVE alterna silenziamento e riattivazione senza dipendere da uno stato del player in ritardo.

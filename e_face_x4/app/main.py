@@ -72,7 +72,7 @@ from .connectors.supervisor import discover_addon_url, discover_host_url
 from .media_realtime import SharedMediaRealtime
 from .demo import dashboard as demo_dashboard
 
-VERSION = os.environ.get("EFACE_VERSION", "2.21.189")
+VERSION = os.environ.get("EFACE_VERSION", "2.21.190")
 STATIC = Path(__file__).parent / "static"
 logging.basicConfig(level=logging.WARNING, format="%(asctime)s %(levelname)s [e-face-x4] %(message)s")
 _reconnect_warning_at: dict[str, float] = {}
@@ -228,6 +228,16 @@ def create_app() -> FastAPI:
                     station["host"], station["http_port"], account["username"], account["password"]
                 ):
                     delay = 2
+                    if event == "motionsensor":
+                        directory = Path(os.environ.get("EFACE_DOORBIRD_EVENT_DIR", "/data/doorbird-events"))
+                        try:
+                            directory.mkdir(parents=True, exist_ok=True)
+                            temporary = directory / "last-motion.tmp"
+                            temporary.write_text(json.dumps({"at": datetime.now(timezone.utc).isoformat()}), encoding="utf-8")
+                            os.chmod(temporary, 0o600)
+                            temporary.replace(directory / "last-motion.json")
+                        except OSError as exc:
+                            logging.warning("DoorBird motion timestamp could not be saved: %s", exc)
                     if event == "doorbell":
                         try:
                             frame = await doorbird_api.live_image(station["host"], station["http_port"], account["username"], account["password"])
@@ -2311,6 +2321,12 @@ def create_app() -> FastAPI:
             call = json.loads((directory / "last-call.json").read_text(encoding="utf-8"))
             if call.get("at"):
                 result["doorbell"] = str(call["at"])
+        except (OSError, ValueError, AttributeError):
+            pass
+        try:
+            motion = json.loads((directory / "last-motion.json").read_text(encoding="utf-8"))
+            if motion.get("at"):
+                result["motion"] = str(motion["at"])
         except (OSError, ValueError, AttributeError):
             pass
         return JSONResponse(result, headers={"Cache-Control": "no-store, private"})

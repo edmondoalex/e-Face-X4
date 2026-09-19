@@ -363,6 +363,9 @@ function renderWeather(data){const current=data.current||{},daily=data.daily||{}
   if(now-homeWeatherLoadedAt>=600000){homeWeatherLoadedAt=now;fetch(apiUrl('api/home/weather'),deviceFetchOptions({cache:'no-store'})).then(async(response)=>{if(!response.ok)throw new Error();renderWeather(await response.json())}).catch(()=>{$('#home-weather-state').textContent='Configura il meteo in Strumenti';$('#home-weather-temperature').textContent='--°';$('#home-weather-forecast').innerHTML=''})}
   if(now-homeImagesLoadedAt<15000)return;homeImagesLoadedAt=now
   ;['camera','doorbell','motion'].forEach(refreshHomeEventImage)
+  refreshHomeEventTimes()
+}
+function refreshHomeEventTimes(){
   fetch(apiUrl('api/home/event-times'),{cache:'no-store'}).then(response=>response.ok?response.json():Promise.reject()).then(data=>{
     for(const [kind,selector] of Object.entries({camera:'#home-camera-event',doorbell:'#home-doorbell-event',motion:'#home-motion-event'})){
       const element=$(selector)?.querySelector('time'),date=data[kind]?new Date(data[kind]):null
@@ -373,7 +376,7 @@ function renderWeather(data){const current=data.current||{},daily=data.daily||{}
   }).catch(()=>{})
 }
 function refreshHomeEventImage(kind){const map={camera:['#home-camera-event',`api/home/camera-event?device=${encodeURIComponent(deviceScope)}`],doorbell:['#home-doorbell-event','api/home/doorbird/doorbell'],motion:['#home-motion-event','api/home/doorbird/motionsensor']},entry=map[kind];if(!entry)return;const[selector,path]=entry,card=$(selector),image=card?.querySelector('img');if(!card||!image)return;const probe=new Image();probe.onload=()=>{image.src=probe.src;card.classList.remove('unavailable')};probe.onerror=()=>card.classList.add('unavailable');probe.src=`${apiUrl(path)}${path.includes('?')?'&':'?'}v=${Date.now()}`;if(kind==='doorbell')fetch(apiUrl('api/home/doorbird-last-call'),{cache:'no-store'}).then(response=>response.ok?response.json():Promise.reject()).then(data=>{card.querySelector('strong').textContent=data.name||'Ultima chiamata'}).catch(()=>{})}
-function refreshHomeEventNow(kind){for(const delay of [0,500,1500])setTimeout(()=>refreshHomeEventImage(kind),delay)}
+function refreshHomeEventNow(kind){for(const delay of [0,500,1500])setTimeout(()=>refreshHomeEventImage(kind),delay);setTimeout(refreshHomeEventTimes,250)}
 const collapsedShortcutCategories = new Set()
 let homeEventRefreshTimer=null
 let homeEventRefreshBusy=false
