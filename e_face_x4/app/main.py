@@ -47,7 +47,7 @@ from . import voip_phones
 from . import personal_devices
 from . import intercom_groups
 from . import push_notifications
-from . import routines
+from . import routines, routine_nl
 from . import provisioner_client
 from . import installation
 from . import credential_inventory
@@ -76,7 +76,7 @@ from .connectors.supervisor import discover_addon_url, discover_host_url
 from .media_realtime import SharedMediaRealtime
 from .demo import dashboard as demo_dashboard
 
-VERSION = os.environ.get("EFACE_VERSION", "2.21.202")
+VERSION = os.environ.get("EFACE_VERSION", "2.21.203")
 STATIC = Path(__file__).parent / "static"
 logging.basicConfig(level=logging.WARNING, format="%(asctime)s %(levelname)s [e-face-x4] %(message)s")
 _reconnect_warning_at: dict[str, float] = {}
@@ -3102,6 +3102,19 @@ def create_app() -> FastAPI:
         return {"devices": [{key: item.get(key) for key in ("id", "entity_id", "name", "room", "kind", "state", "capabilities", "tts_enabled", "dnd_available", "source_list", "source_options", "provider")}
                             for item in devices if item.get("id")], "demo": load_settings().demo_mode,
                 "solar_available": bool(os.environ.get("SUPERVISOR_TOKEN"))}
+
+    @app.post("/api/user/routines/from-text")
+    async def user_routine_from_text(request: Request, payload: dict) -> dict:
+        routine_owner(request)
+        devices = await routine_devices(request)
+        try:
+            spec = routine_nl.from_text(payload.get("text"), devices, str(payload.get("name") or ""))
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+        review = routines.validate(spec, devices, routines.list_routines(), solar_available=await routine_solar_ready(spec))
+        if review["errors"]:
+            raise HTTPException(status_code=422, detail=review["errors"])
+        return {"spec": review["spec"], "review": review, "enabled": False}
 
     @app.post("/api/user/routines/{routine_id}/enabled")
     async def user_set_routine_enabled(request: Request, routine_id: str, payload: dict) -> dict:

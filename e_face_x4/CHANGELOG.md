@@ -1,5 +1,9 @@
 # Changelog
 
+## 2.21.203 — 2026-09-19
+
+- Procedura guidata Routine: descrizione in italiano → bozza disattivata → controllo effetti e correzione nell'editor → salvataggio o attivazione esplicita. Il traduttore accetta solo frasi e dispositivi non ambigui e non esegue comandi durante la creazione.
+
 ## 2.21.202 — 2026-09-19
 
 - ORDINA gestisce anche ordine e visibilità delle sezioni della barra laterale; tutte visibili per impostazione iniziale.

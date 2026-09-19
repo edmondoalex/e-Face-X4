@@ -6,6 +6,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app import routines
+from app import routine_nl
 from app import user_auth
 from app.main import create_app
 
@@ -26,6 +27,32 @@ def catalog():
 def sample():
     return {"name": "Luce ingresso", "triggers": [{"type": "state", "device_id": "sensor.motion", "to": "on"}],
             "conditions": [], "steps": [{"type": "action", "device_id": "light.hall", "action": "on"}]}
+
+
+def test_guided_text_creates_reviewable_draft_without_actuation():
+    devices = catalog() + [{"id": "light.corridor", "kind": "light", "name": "Luce Corridoio", "room": "Corridoio", "state": "off"}]
+    spec = routine_nl.from_text("Quando Movimento rileva movimento, accendi Luce Corridoio poi aspetta 60 secondi poi spegni Luce Corridoio", devices)
+    assert spec["triggers"] == [{"type": "state", "device_id": "sensor.motion", "to": "active"}]
+    assert spec["steps"] == [{"type": "action", "device_id": "light.corridor", "action": "on"}, {"type": "wait", "seconds": 60}, {"type": "action", "device_id": "light.corridor", "action": "off"}]
+    assert not routines.validate(spec, devices)["errors"]
+    assert routines.list_routines() == []
+    timed = routine_nl.from_text("Alle 18:30, accendi Luce Corridoio per 1 minuto poi spegni Luce Corridoio", devices)
+    assert timed["steps"][1] == {"type": "wait", "seconds": 60}
+    scenario = {"id": "light-scenario:film", "kind": "light_scenario", "name": "Sala Film", "room": "Sala", "state": "off", "capabilities": {"onoff": True}}
+    scene_draft = routine_nl.from_text("Quando Sala Film si accende, accendi Luce Corridoio", devices + [scenario])
+    assert scene_draft["triggers"][0]["to"] == "command_on"
+
+
+def test_guided_text_rejects_ambiguous_or_unsupported_instructions():
+    devices = catalog() + [{"id": "light.other", "kind": "light", "name": "Luce ingresso", "room": "Garage", "state": "off"}]
+    with pytest.raises(ValueError, match="ambiguo"):
+        routine_nl.from_text("Alle 18:30, accendi Luce ingresso", devices)
+    with pytest.raises(ValueError, match="Azione non riconosciuta"):
+        routine_nl.from_text("Alle 18:30, sblocca Porta ingresso", devices)
+    with pytest.raises(ValueError, match="Attivazione non riconosciuta"):
+        routine_nl.from_text("Quando piove, accendi Luce ingresso", devices)
+    with pytest.raises(ValueError, match="Non capisco tutta"):
+        routine_nl.from_text("Alle 18:30, accendi Luce Corridoio lentamente", devices + [{"id": "light.corridor", "kind": "light", "name": "Luce Corridoio", "room": "Corridoio", "state": "off"}])
 
 
 def test_solar_trigger_condition_and_location_guard():
@@ -469,6 +496,9 @@ def test_user_routes_and_admin_log_are_separated(monkeypatch):
         assert client.get("/assets/routine-tools.js").status_code == 200
         assert "routine-tools.js" in client.get("/tools").text
         script = client.get("/assets/routine-tools.js").text
+        assert 'data-routine-description' in script
+        assert 'api/user/routines/from-text' in script
+        assert 'data-routine-generate-status' in script
         assert 'placeholder="Nome routine"' in script
         assert "routine_name:logPanel.querySelector" in script
         assert 'placeholder="ID routine"' not in script

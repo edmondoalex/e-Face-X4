@@ -27,6 +27,7 @@ panel.className = 'media-config routine-panel'
 panel.hidden = true
 panel.innerHTML = `<header><button type="button" data-routine-back aria-label="Torna a Strumenti">‹</button><div><small>STRUMENTI UTENTE</small><h2>Routine</h2></div></header>
   <p>Crea automazioni comprensibili. Prima di attivarle, e-Face verifica dispositivi, comandi e possibili interazioni.</p>
+  <section class="routine-wizard" aria-label="Creazione guidata routine"><div class="routine-wizard-steps"><b>1 · Descrivi</b><b>2 · Verifica la bozza</b><b>3 · Salva o attiva</b></div><label>Scrivi cosa vuoi che accada<textarea data-routine-description rows="3" maxlength="2000" placeholder="Quando Luce Ufficio Alex si accende, accendi Luce Corridoio poi aspetta 60 secondi poi spegni Luce Corridoio"></textarea></label><p>Usa il nome completo dei dispositivi. La bozza non viene salvata né attivata automaticamente; puoi sempre correggerla nei campi qui sotto.</p><button type="button" class="routine-primary" data-routine-generate>CREA BOZZA DA DESCRIZIONE</button><p data-routine-generate-status role="status" aria-live="polite"></p></section>
   <div class="routine-layout"><aside><button type="button" class="routine-primary" data-routine-new>+ NUOVA ROUTINE</button><div data-routine-list></div></aside>
   <div class="routine-editor" hidden><label>Nome routine<input data-routine-name maxlength="80" placeholder="Es. Luci ingresso la sera"></label>
   <h3>Quando</h3><p>Una qualsiasi attivazione avvia la routine. Alba e tramonto usano la posizione di Home Assistant; minuti negativi anticipano, positivi ritardano.</p><div data-routine-triggers></div><button type="button" data-routine-add="trigger">+ Aggiungi attivazione</button>
@@ -169,6 +170,23 @@ function close() { panel.hidden = true; sessionStorage.removeItem('eface-tools-p
 userCard.addEventListener('click', open)
 $('[data-routine-back]').addEventListener('click', close)
 $('[data-routine-new]').addEventListener('click', () => { sessionStorage.removeItem('eface-routine-id'); current = null; draft = {name: '', triggers: [{type: 'state', device_id: '', to: ''}], conditions: [], steps: [{type: 'action', device_id: '', action: ''}]}; renderEditor() })
+$('[data-routine-generate]').addEventListener('click', async event => {
+  const button = event.currentTarget
+  const status = $('[data-routine-generate-status]')
+  button.disabled = true
+  status.textContent = 'Verifico la descrizione con i dispositivi dell’impianto…'
+  try {
+    const result = await request('api/user/routines/from-text', jsonOptions('POST', {text:$('[data-routine-description]').value}))
+    sessionStorage.removeItem('eface-routine-id')
+    current = null
+    draft = result.spec
+    renderEditor()
+    showReview(result.review)
+    status.textContent = 'Bozza pronta e disattivata. Controlla ogni campo, poi salva o attiva.'
+    $('.routine-editor').scrollIntoView({behavior:'smooth',block:'start'})
+  } catch(error) { status.textContent = error.message }
+  finally { button.disabled = false }
+})
 $('[data-routine-list]').addEventListener('click', event => {
   const duplicate = event.target.closest('[data-routine-duplicate]')
   if (duplicate) {
