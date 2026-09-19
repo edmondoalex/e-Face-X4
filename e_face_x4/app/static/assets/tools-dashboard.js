@@ -1101,11 +1101,14 @@ $('#wiim-form').addEventListener('submit', async (event) => {
   } catch (error) { $('#wiim-result').textContent = error.message }
 })
 
-window.addEventListener('beforeunload', () => {
+function rememberToolsLocation() {
   const visible = [...document.querySelectorAll('.media-config:not([hidden])')].at(-1)
-  if (visible?.id) sessionStorage.setItem('eface-tools-restore', JSON.stringify({id:visible.id, scroll:visible.scrollTop}))
+  const branch = visible?.querySelector('.organization-branch-toggle[aria-expanded="true"]')?.closest('[data-organization-key]')?.dataset.organizationKey || ''
+  if (visible?.id) sessionStorage.setItem('eface-tools-restore', JSON.stringify({id:visible.id, scroll:visible.scrollTop, branch}))
   else sessionStorage.removeItem('eface-tools-restore')
-})
+}
+window.addEventListener('beforeunload', rememberToolsLocation)
+window.addEventListener('pagehide', rememberToolsLocation)
 initialize().then(() => {
   let saved
   try { saved = JSON.parse(sessionStorage.getItem('eface-tools-restore') || 'null') } catch { return }
@@ -1116,5 +1119,12 @@ initialize().then(() => {
   const admin = panel.closest('#admin-tools') || panel.classList.contains('admin-dashboard-panel')
   if (admin && !$('#tools-admin-nav').hidden) view('admin')
   opener.click()
-  setTimeout(() => { if (!panel.hidden) panel.scrollTop = Number(saved.scroll) || 0 }, 700)
+  const started = Date.now()
+  const restore = setInterval(() => {
+    if (panel.hidden && Date.now() - started < 5000) return
+    clearInterval(restore)
+    if (panel.hidden) return
+    if (/^[a-z_]+$/.test(saved.branch || '')) panel.querySelector(`[data-organization-key="${saved.branch}"] .organization-branch-toggle`)?.click()
+    panel.scrollTop = Number(saved.scroll) || 0
+  }, 100)
 }).catch((error) => message(error.message))

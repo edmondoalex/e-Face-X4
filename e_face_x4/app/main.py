@@ -76,7 +76,7 @@ from .connectors.supervisor import discover_addon_url, discover_host_url
 from .media_realtime import SharedMediaRealtime
 from .demo import dashboard as demo_dashboard
 
-VERSION = os.environ.get("EFACE_VERSION", "2.21.199")
+VERSION = os.environ.get("EFACE_VERSION", "2.21.200")
 STATIC = Path(__file__).parent / "static"
 logging.basicConfig(level=logging.WARNING, format="%(asctime)s %(levelname)s [e-face-x4] %(message)s")
 _reconnect_warning_at: dict[str, float] = {}
@@ -130,7 +130,14 @@ def native_wiim_media_item(snapshot: dict) -> dict:
     }
 
 
+def wiim_is_standalone_room(control4_source_id: int, linked_to_room: bool) -> bool:
+    """An associated WiiM is a source, even while no Control4 room selects it."""
+    return control4_source_id <= 0 and not linked_to_room
+
+
 def overlay_wiim_on_control4(providers: list[dict], snapshot: dict, source_id: int) -> bool:
+    if source_id <= 0:
+        return False
     linked = False
     for provider in providers:
         if provider.get("id") != "control4":
@@ -2795,8 +2802,10 @@ def create_app() -> FastAPI:
         if wiim_task:
             try:
                 native_snapshot = await wiim_task
-                linked = overlay_wiim_on_control4(providers, native_snapshot, int(wiim_config.get("control4_source_id") or 0))
-                providers.append({"id": "wiim", "name": "WiiM nativo", "status": "online", "items": [] if linked else [native_wiim_media_item(native_snapshot)]})
+                source_id = int(wiim_config.get("control4_source_id") or 0)
+                linked = overlay_wiim_on_control4(providers, native_snapshot, source_id)
+                standalone = wiim_is_standalone_room(source_id, linked)
+                providers.append({"id": "wiim", "name": "WiiM nativo", "status": "online", "items": [native_wiim_media_item(native_snapshot)] if standalone else []})
             except (httpx.HTTPError, RuntimeError, ValueError):
                 providers.append({"id": "wiim", "name": "WiiM nativo", "status": "offline", "items": [], "reason": "WiiM non raggiungibile"})
         if skyq_task:

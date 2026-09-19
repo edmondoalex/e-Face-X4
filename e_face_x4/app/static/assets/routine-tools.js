@@ -337,7 +337,7 @@ $('[data-routine-delete]').addEventListener('click', async () => {
 })
 adminCard.addEventListener('click', () => { logPanel.hidden = false; sessionStorage.setItem('eface-tools-panel', 'routine-log'); document.body.style.overflow = 'hidden'; loadLogs() })
 logPanel.querySelector('[data-routine-log-back]').addEventListener('click', () => { logPanel.hidden = true; sessionStorage.removeItem('eface-tools-panel'); document.body.style.overflow = '' })
-logPanel.querySelector('[data-routine-filter]').addEventListener('click', loadLogs)
+logPanel.querySelector('[data-routine-filter]').addEventListener('click', () => loadLogs())
 setTimeout(() => {
   const saved = sessionStorage.getItem('eface-tools-panel')
   if (saved === 'routine') userCard.click()
@@ -348,17 +348,23 @@ setTimeout(() => {
 }, 900)
 setInterval(() => { if (!logPanel.hidden && !document.hidden) loadLogs(true) }, 3000)
 let logsLoading = false
+let lastLogSignature = ''
 async function loadLogs(background = false) {
   if (logsLoading) return
   logsLoading = true
   const target = logPanel.querySelector('[data-routine-log-list]')
+  const scrollTop = logPanel.scrollTop
   const opened = new Set([...target.querySelectorAll('.routine-log-run[open] p')].map(item => item.textContent.match(/esecuzione\s+([\w-]+)/)?.[1]).filter(Boolean))
   if (!background) target.textContent = 'Caricamento…'
   try {
     const params = new URLSearchParams({device_id:logPanel.querySelector('[data-routine-filter-device]').value.trim(), routine_id:logPanel.querySelector('[data-routine-filter-routine]').value.trim(), limit:'100'})
     const data = await request(`api/admin/routines/log?${params}`)
+    const signature = JSON.stringify({filter:params.toString(),items:data.items || []})
+    if (background && signature === lastLogSignature) return
+    lastLogSignature = signature
     target.innerHTML = (data.items || []).map(run => `<details class="routine-log-run"><summary><b>${escapeHtml(run.name)}</b><span>${escapeHtml(new Date(run.started_at).toLocaleString('it-IT'))} · ${escapeHtml(run.status)}</span><small>${escapeHtml(run.trigger_detail)}</small></summary><p>Versione ${run.revision} · modificata da ${escapeHtml(run.modified_by || 'sconosciuto')} · esecuzione ${escapeHtml(run.id)}</p>${run.events.map(entry => `<div class="routine-log-event"><time>${escapeHtml(new Date(entry.at).toLocaleTimeString('it-IT'))}</time><b>${escapeHtml(entry.stage)}</b><span>${escapeHtml([entry.device_name, entry.detail].filter(Boolean).join(' · '))}</span><small>${escapeHtml([entry.action, entry.stage === 'condition' ? {pass:'Condizione soddisfatta',skip:'Condizione NON soddisfatta'}[entry.result] || entry.result : entry.result, entry.stage !== 'condition' && entry.before_state && `prima: ${entry.before_state}`, entry.after_state && `dopo: ${entry.after_state}`].filter(Boolean).join(' · '))}</small></div>`).join('')}</details>`).join('') || '<p>Nessuna esecuzione nel periodo conservato.</p>'
     target.querySelectorAll('.routine-log-run').forEach(item => { if (opened.has(item.querySelector('p')?.textContent.match(/esecuzione\s+([\w-]+)/)?.[1])) item.open = true })
+    if (background) logPanel.scrollTop = scrollTop
   } catch(error) { if (!background) target.textContent = error.message }
   finally { logsLoading = false }
 }

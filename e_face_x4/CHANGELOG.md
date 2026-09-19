@@ -1,5 +1,12 @@
 # Changelog
 
+## 2.21.200 — 2026-09-19
+
+- WiiM associato a una sorgente Control4: non compare più come stanza o sessione autonoma dopo che l'ultima stanza cambia sorgente. Resta utilizzabile come sorgente e tramite controllo WiiM dedicato.
+- Il refresh ripristina la sezione Home/ambienti/energia/intercom e le pagine Strumenti, incluso il ramo aperto di ORDINA quando disponibile.
+- Registro routine live: aggiorna solo quando i dati cambiano, mantenendo aperta l'esecuzione consultata e la posizione di scorrimento.
+- Le pagine WiiM e SoundCloud applicano il tema sfondo/card selezionato, come le altre sezioni.
+
 ## 2.21.199 — 2026-09-19
 
 - Nell'elenco delle routine globali compare l'utente che le ha create; le modifiche successive restano attribuite separatamente nel registro revisioni.

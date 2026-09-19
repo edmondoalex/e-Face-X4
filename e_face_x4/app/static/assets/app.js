@@ -1888,6 +1888,7 @@ function closeIntercom() {
 }
 
 function openIntercom() {
+  sessionStorage.setItem('eface-home-location', JSON.stringify({kind:'intercom'}))
   stopEnergyRefresh()
   applyBackground('')
   activeDetailIds = null
@@ -1901,6 +1902,7 @@ function openIntercom() {
 }
 
 function openDevices(title, devices, options = {}) {
+  sessionStorage.setItem('eface-home-location', JSON.stringify({kind:'devices',title,ids:devices.map(device=>String(device.id)),options}))
   closeIntercom()
   $('#energy-view').hidden = true
   const mediaOnly = devices.length > 0 && devices.every((device) => device.kind === 'media_player')
@@ -1937,6 +1939,7 @@ function openDevices(title, devices, options = {}) {
 }
 
 function openScenariosPage() {
+  sessionStorage.setItem('eface-home-location', JSON.stringify({kind:'scenarios'}))
   closeIntercom()
   $('#energy-view').hidden = true
   applyBackground('')
@@ -1996,6 +1999,7 @@ async function sendScenarioCommand(id, action, button) {
 }
 
 function showHome() {
+  sessionStorage.setItem('eface-home-location', JSON.stringify({kind:'home'}))
   closeIntercom()
   stopEnergyRefresh()
   applyBackground('')
@@ -2013,6 +2017,7 @@ function showHome() {
 }
 
 function openEnergy() {
+  sessionStorage.setItem('eface-home-location', JSON.stringify({kind:'energy'}))
   closeIntercom()
   applyBackground('')
   activeDetailIds = null
@@ -2126,6 +2131,7 @@ function paintEnergyMasterIcon() {
 }
 
 function openEnergyDashboard(id, name) {
+  sessionStorage.setItem('eface-home-location', JSON.stringify({kind:'energy-dashboard',id,name}))
   stopEnergyRefresh()
   activeEnergyDashboard = { id, name }
   $('#energy-title').textContent = name
@@ -2320,7 +2326,6 @@ function applyRealtimeEvent(event) {
 }
 
 document.querySelectorAll('.rail button').forEach((button) => button.addEventListener('click', () => {
-  if (button.dataset.view) sessionStorage.setItem('eface-home-view', button.dataset.view)
   document.querySelectorAll('.rail button').forEach((item) => item.classList.remove('active'))
   button.classList.add('active')
   document.querySelector('main').classList.remove('app-view')
@@ -3132,8 +3137,18 @@ Promise.all([
   fetch(apiUrl('api/auth/status'), {cache:'no-store', credentials:'same-origin'}).then(response => response.ok ? response.json() : {}).catch(() => ({})),
   refresh(),
 ]).then(([identity]) => {
-  const savedView = sessionStorage.getItem('eface-home-view')
-  if (savedView && savedView !== 'home') document.querySelector(`.rail [data-view="${CSS.escape(savedView)}"]`)?.click()
+  let savedLocation
+  try { savedLocation = JSON.parse(sessionStorage.getItem('eface-home-location') || 'null') } catch { savedLocation = null }
+  if (savedLocation?.kind === 'devices' && Array.isArray(savedLocation.ids)) {
+    const ids = new Set(savedLocation.ids.map(String))
+    const devices = currentDevices.filter(device => ids.has(String(device.id)))
+    if (devices.length) openDevices(savedLocation.title || 'Dispositivi', devices, savedLocation.options || {})
+  } else if (savedLocation?.kind === 'scenarios') openScenariosPage()
+  else if (savedLocation?.kind === 'intercom') openIntercom()
+  else if (savedLocation?.kind === 'energy' || savedLocation?.kind === 'energy-dashboard') {
+    openEnergy()
+    if (savedLocation.kind === 'energy-dashboard' && savedLocation.id) openEnergyDashboard(savedLocation.id, savedLocation.name || 'Dashboard energia')
+  }
   loggedUser = identity.name || identity.user || ''
   const mode = $('#mode')
   if (mode && loggedUser && !mode.textContent.includes(loggedUser)) mode.textContent += ` · ${loggedUser}`
