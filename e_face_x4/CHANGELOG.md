@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.21.217 — 2026-09-20
+
+- Ogni attivazione, condizione e blocco della routine visuale ha «Duplica»; anche le scelte e i blocchi dentro `choose` si duplicano senza condividere riferimenti. Il riordino usa ovunque la maniglia ☰ trascinabile, comprese le scelte e i blocchi annidati, senza frecce di movimento.
+- Verificata contro il catalogo live la routine 1°P Giorno/Notte: cover 17 e 21, gruppo no % 1°P e sequenza voluta chiudi gruppo → attesa 1 secondo → stop cover 21. Rimosso l'avviso obsoleto che imponeva l'editor JSON anche ai `choose` ora visuali.
+
 ## 2.21.216 — 2026-09-20
 
 - L'editor visuale delle routine apre e modifica `choose`: scelte con stato, alba/tramonto o intervallo solare/orario, azioni, timer, verifiche e ramo «Altrimenti». I blocchi in ciascun ramo si possono aggiungere, rimuovere e riordinare; il JSON persistente resta lo stesso schema di Routine Professional.

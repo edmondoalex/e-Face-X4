@@ -527,8 +527,7 @@ def _validate_advanced(payload: dict, devices: list[dict], others: list[dict], s
     if any(item.get("type") == "action" and item.get("action") == "off" for item in _flow_items(flow)) and kinds & {"wait", "wait_until"}:
         extra_risks.append("Uno spegnimento dopo un'attesa può sovrascrivere un'accensione manuale fatta nel frattempo.")
     base["risks"] = list(dict.fromkeys([*base["risks"], *extra_risks]))
-    base["warnings"] = list(dict.fromkeys([*base["warnings"], *extra_risks,
-                                           "I blocchi avanzati vanno modificati nell'editor JSON; l'editor visuale lineare non li rappresenta."]))
+    base["warnings"] = list(dict.fromkeys([*base["warnings"], *extra_risks]))
     return base
 
 

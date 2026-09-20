@@ -47,6 +47,16 @@ def test_visual_editor_exposes_choose_branches_without_dropping_advanced_routine
     assert "if (!canOpenVisual(draft))" in script
 
 
+def test_visual_editor_uses_drag_handles_and_duplicate_for_every_row():
+    script = (Path(__file__).resolve().parents[1] / "app/static/assets/routine-tools.js").read_text(encoding="utf-8")
+    for marker in ('data-routine-duplicate-row="trigger"', 'data-routine-duplicate-row="condition"',
+                   'data-routine-duplicate-row="step"', 'data-branch-duplicate-step',
+                   'data-choose-duplicate-choice', 'function dragCollection(container)',
+                   'data-routine-drag aria-label="Trascina per riordinare il blocco"'):
+        assert marker in script
+    assert 'data-branch-move=' not in script
+
+
 def test_sunrise_sunset_choose_routine_validates_and_round_trips():
     devices = catalog() + [{"id":"17", "kind":"cover", "name":"Finestra Cucina", "state":"closed"}]
     spec = {"name":"1°P TP Giorno/Notte", "mode":"single",
@@ -66,6 +76,22 @@ def test_sunrise_sunset_choose_routine_validates_and_round_trips():
     assert reopened["errors"] == []
     assert reopened["spec"]["steps"][0]["choices"][0]["steps"][1]["device_id"] == "17"
     assert reopened["spec"]["steps"][0]["choices"][1]["steps"] == [{"type":"wait", "seconds":900}]
+
+
+def test_sunset_group_close_then_one_second_stop_is_preserved():
+    devices = catalog() + [
+        {"id":"17", "kind":"cover", "name":"Finestra Cucina", "state":"closed"},
+        {"id":"21", "kind":"cover", "name":"Porta Sala CX", "state":"open"},
+        {"id":"cover-group-no-pct:gruppo_tapparelle_1p", "kind":"cover", "name":"Gruppo Tapparelle 1°P · no %", "state":"open"},
+    ]
+    spec = {"name":"1°P TP Giorno/Notte", "mode":"single", "triggers":[{"type":"sun","event":"sunrise","offset_minutes":0}, {"type":"sun","event":"sunset","offset_minutes":0}], "conditions":[], "steps":[{"type":"choose", "choices":[
+        {"condition":{"type":"time_window","start":{"kind":"sunrise","offset_minutes":0},"end":{"kind":"sunset","offset_minutes":0}},"steps":[{"type":"wait","seconds":900},{"type":"action","device_id":"17","action":"open","value":None},{"type":"action","device_id":"21","action":"open","value":None}]},
+        {"condition":{"type":"time_window","start":{"kind":"sunset","offset_minutes":0},"end":{"kind":"sunrise","offset_minutes":0}},"steps":[{"type":"wait","seconds":900},{"type":"action","device_id":"cover-group-no-pct:gruppo_tapparelle_1p","action":"close","value":None},{"type":"wait","seconds":1},{"type":"action","device_id":"21","action":"stop","value":None}]}
+    ], "default":[]}], "description":""}
+    review = routines.validate(spec, devices)
+    assert review["errors"] == []
+    assert [step.get("action", step.get("seconds")) for step in review["spec"]["steps"][0]["choices"][1]["steps"]] == [900, "close", 1, "stop"]
+    assert not any("editor JSON" in warning for warning in review["warnings"])
 
 
 def test_guided_text_creates_reviewable_draft_without_actuation():

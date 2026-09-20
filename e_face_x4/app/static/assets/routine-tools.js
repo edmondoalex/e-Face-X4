@@ -190,7 +190,7 @@ function renderEditor() {
   }
   $('[data-routine-name]').value = draft.name || ''
   $('[data-routine-mode]').value = draft.mode || 'single'
-  $('[data-routine-triggers]').innerHTML = draft.triggers.map((item, index) => `<div class="routine-block" data-index="${index}"><select data-field="type"><option value="state" ${item.type === 'state' ? 'selected' : ''}>Quando cambia un dispositivo</option><option value="time" ${item.type === 'time' ? 'selected' : ''}>A un orario</option><option value="sun" ${item.type === 'sun' ? 'selected' : ''}>Alba / Tramonto</option><option value="remote" ${item.type === 'remote' ? 'selected' : ''}>Tasto telecomando e-Face</option><option value="doorbird" ${item.type === 'doorbird' ? 'selected' : ''}>Evento DoorBird</option></select>${item.type === 'time' ? `<input data-field="at" type="time" value="${escapeHtml(item.at || '')}">` : item.type === 'doorbird' ? `<select data-field="event"><option value="doorbell" ${item.event === 'doorbell' ? 'selected' : ''}>Chiamata</option><option value="motionsensor" ${item.event === 'motionsensor' ? 'selected' : ''}>Movimento</option></select>` : item.type === 'sun' ? solarFields(item) : item.type === 'remote' ? `${deviceField(item.device_id,'media')}${remoteFields(item.device_id,item.source_id,item.command)}` : `${deviceField(item.device_id)}${stateSelect(item.device_id, item.to)}`}<button type="button" data-routine-remove="trigger" aria-label="Rimuovi">×</button></div>`).join('')
+  $('[data-routine-triggers]').innerHTML = draft.triggers.map((item, index) => `<div class="routine-block" data-index="${index}"><select data-field="type"><option value="state" ${item.type === 'state' ? 'selected' : ''}>Quando cambia un dispositivo</option><option value="time" ${item.type === 'time' ? 'selected' : ''}>A un orario</option><option value="sun" ${item.type === 'sun' ? 'selected' : ''}>Alba / Tramonto</option><option value="remote" ${item.type === 'remote' ? 'selected' : ''}>Tasto telecomando e-Face</option><option value="doorbird" ${item.type === 'doorbird' ? 'selected' : ''}>Evento DoorBird</option></select>${item.type === 'time' ? `<input data-field="at" type="time" value="${escapeHtml(item.at || '')}">` : item.type === 'doorbird' ? `<select data-field="event"><option value="doorbell" ${item.event === 'doorbell' ? 'selected' : ''}>Chiamata</option><option value="motionsensor" ${item.event === 'motionsensor' ? 'selected' : ''}>Movimento</option></select>` : item.type === 'sun' ? solarFields(item) : item.type === 'remote' ? `${deviceField(item.device_id,'media')}${remoteFields(item.device_id,item.source_id,item.command)}` : `${deviceField(item.device_id)}${stateSelect(item.device_id, item.to)}`}<div class="routine-move"><button type="button" class="drag-handle routine-drag" data-routine-drag aria-label="Trascina per riordinare l'attivazione" title="Trascina per riordinare">☰</button><button type="button" data-routine-duplicate-row="trigger" aria-label="Duplica attivazione" title="Duplica">⧉</button><button type="button" data-routine-remove="trigger" aria-label="Rimuovi">×</button></div></div>`).join('')
   $('[data-routine-conditions]').innerHTML = draft.conditions.map((item, index) => conditionRow(item, index, 'condition')).join('')
   $('[data-routine-steps]').innerHTML = draft.steps.map((item, index) => renderStepRow(item, index)).join('')
   $('[data-routine-delete]').hidden = !current
@@ -198,7 +198,7 @@ function renderEditor() {
   renderList()
 }
 function conditionRow(item, index, type) {
-  if (type === 'condition') return `<div class="routine-block" data-index="${index}"><select data-field="condition-type"><option value="state" ${!['sun','time_window'].includes(item.type) ? 'selected' : ''}>Stato dispositivo</option><option value="sun" ${item.type === 'sun' ? 'selected' : ''}>Alba / Tramonto</option><option value="time_window" ${item.type === 'time_window' ? 'selected' : ''}>Intervallo da… a…</option></select>${item.type === 'sun' ? solarFields(item, true) : item.type === 'time_window' ? windowFields(item) : `${deviceField(item.device_id)}<select data-field="operator"><option value="is" ${item.operator === 'is' ? 'selected' : ''}>è</option><option value="is_not" ${item.operator === 'is_not' ? 'selected' : ''}>non è</option></select>${stateSelect(item.device_id, item.value)}`}<button type="button" data-routine-remove="condition" aria-label="Rimuovi">×</button></div>`
+  if (type === 'condition') return `<div class="routine-block" data-index="${index}"><select data-field="condition-type"><option value="state" ${!['sun','time_window'].includes(item.type) ? 'selected' : ''}>Stato dispositivo</option><option value="sun" ${item.type === 'sun' ? 'selected' : ''}>Alba / Tramonto</option><option value="time_window" ${item.type === 'time_window' ? 'selected' : ''}>Intervallo da… a…</option></select>${item.type === 'sun' ? solarFields(item, true) : item.type === 'time_window' ? windowFields(item) : `${deviceField(item.device_id)}<select data-field="operator"><option value="is" ${item.operator === 'is' ? 'selected' : ''}>è</option><option value="is_not" ${item.operator === 'is_not' ? 'selected' : ''}>non è</option></select>${stateSelect(item.device_id, item.value)}`}<div class="routine-move"><button type="button" class="drag-handle routine-drag" data-routine-drag aria-label="Trascina per riordinare la condizione" title="Trascina per riordinare">☰</button><button type="button" data-routine-duplicate-row="condition" aria-label="Duplica condizione" title="Duplica">⧉</button><button type="button" data-routine-remove="condition" aria-label="Rimuovi">×</button></div></div>`
   return `<div class="routine-block" data-index="${index}" ${type === 'check' ? 'data-type="check"' : ''}><b>${type === 'check' ? 'Verifica e interrompi se falsa' : 'Condizione iniziale'}</b>${deviceField(item.device_id)}<select data-field="operator"><option value="is" ${item.operator === 'is' ? 'selected' : ''}>è</option><option value="is_not" ${item.operator === 'is_not' ? 'selected' : ''}>non è</option></select>${stateSelect(item.device_id, item.value)}${type === 'check' ? stepButtons(index) : '<button type="button" data-routine-remove="condition" aria-label="Rimuovi">×</button>'}</div>`
 }
 function chooseConditionFields(item) {
@@ -208,11 +208,11 @@ function chooseConditionFields(item) {
 function renderChooseBranch(choice, index) {
   const isDefault = index === 'default'
   const steps = isDefault ? choice : choice.steps
-  return `<section class="routine-choose-branch" data-choose-branch="${index}"><div class="routine-choose-title"><b>${isDefault ? 'Altrimenti' : `Scelta ${Number(index) + 1}`}</b>${isDefault ? '' : '<button type="button" data-choose-remove-choice aria-label="Rimuovi scelta">×</button>'}</div>${isDefault ? '' : `<div class="routine-choose-condition" data-choose-condition>${chooseConditionFields(choice.condition)}</div>`}<div class="routine-choose-steps" data-choose-steps>${steps.map((step, stepIndex) => renderStepRow(step, stepIndex, true)).join('')}</div><div class="routine-choose-add"><button type="button" data-choose-add-step="action">+ Azione</button><button type="button" data-choose-add-step="wait">+ Timer</button><button type="button" data-choose-add-step="check">+ Verifica</button></div></section>`
+  return `<section class="routine-choose-branch" data-choose-branch="${index}"><div class="routine-choose-title">${isDefault ? '' : '<button type="button" class="routine-choice-drag" data-routine-drag aria-label="Trascina per riordinare la scelta" title="Trascina per riordinare">☰</button>'}<b>${isDefault ? 'Altrimenti' : `Scelta ${Number(index) + 1}`}</b>${isDefault ? '' : '<span><button type="button" data-choose-duplicate-choice aria-label="Duplica scelta" title="Duplica">⧉</button><button type="button" data-choose-remove-choice aria-label="Rimuovi scelta">×</button></span>'}</div>${isDefault ? '' : `<div class="routine-choose-condition" data-choose-condition>${chooseConditionFields(choice.condition)}</div>`}<div class="routine-choose-steps" data-choose-steps>${steps.map((step, stepIndex) => renderStepRow(step, stepIndex, true)).join('')}</div><div class="routine-choose-add"><button type="button" data-choose-add-step="action">+ Azione</button><button type="button" data-choose-add-step="wait">+ Timer</button><button type="button" data-choose-add-step="check">+ Verifica</button></div></section>`
 }
 function renderStepRow(item, index, nested = false) {
   const marker = nested ? `data-branch-step="${index}"` : `data-index="${index}"`
-  const controls = nested ? '<div class="routine-move"><button type="button" data-branch-move="up" aria-label="Sposta su">↑</button><button type="button" data-branch-move="down" aria-label="Sposta giù">↓</button><button type="button" data-branch-remove-step aria-label="Rimuovi blocco">×</button></div>' : stepButtons()
+  const controls = nested ? '<div class="routine-move"><button type="button" class="drag-handle routine-drag" data-routine-drag aria-label="Trascina per riordinare il blocco" title="Trascina per riordinare">☰</button><button type="button" data-branch-duplicate-step aria-label="Duplica blocco" title="Duplica">⧉</button><button type="button" data-branch-remove-step aria-label="Rimuovi blocco">×</button></div>' : stepButtons()
   if (item.type === 'choose') return `<div class="routine-block routine-choose" ${marker} data-type="choose"><b>Scegli un ramo · il primo che risulta vero</b><div class="routine-choose-branches">${item.choices.map((choice, choiceIndex) => renderChooseBranch(choice, choiceIndex)).join('')}${renderChooseBranch(item.default || [], 'default')}</div><button type="button" data-choose-add-choice>+ Aggiungi scelta</button>${controls}</div>`
   if (item.type === 'wait' || item.type === 'delay') return `<div class="routine-block" ${marker} data-type="${item.type}"><b>Timer</b><label>Secondi<input data-field="seconds" type="number" min="1" max="3600" value="${Number(item.seconds) || 60}"></label>${controls}</div>`
   if (item.type === 'check') return `<div class="routine-block" ${marker} data-type="check"><b>Verifica e interrompi se falsa</b>${deviceField(item.device_id)}<select data-field="operator"><option value="is" ${item.operator !== 'is_not' ? 'selected' : ''}>è</option><option value="is_not" ${item.operator === 'is_not' ? 'selected' : ''}>non è</option></select>${stateSelect(item.device_id,item.value)}${controls}</div>`
@@ -233,7 +233,7 @@ function windowFields(item) {
   return `<div class="routine-window">${edge('Da','start','18:00')}${edge('A','end','23:00')}<small>Da incluso, A escluso. Se «A» precede «Da», l'intervallo continua oltre mezzanotte.</small></div>`
 }
 function solarFields(item, condition = false) { return `<select data-field="sun-event" aria-label="Evento solare"><option value="sunrise" ${item.event === 'sunrise' ? 'selected' : ''}>Alba</option><option value="sunset" ${item.event === 'sunset' ? 'selected' : ''}>Tramonto</option></select><label class="routine-sun-offset">Minuti prima (−) / dopo (+)<input data-field="sun-offset" type="number" min="-180" max="180" step="1" value="${Number(item.offset_minutes) || 0}"></label>${condition ? `<select data-field="sun-relation" aria-label="Confronto con alba o tramonto"><option value="after" ${item.relation === 'after' ? 'selected' : ''}>Dopo questo orario</option><option value="before" ${item.relation === 'before' ? 'selected' : ''}>Prima di questo orario</option></select>` : ''}` }
-function stepButtons() { return '<div class="routine-move"><button type="button" class="drag-handle routine-drag" data-routine-drag aria-label="Trascina per cambiare ordine; usa freccia su e giù da tastiera" title="Trascina per riordinare">☰</button><button type="button" data-routine-remove="step" aria-label="Rimuovi">×</button></div>' }
+function stepButtons() { return '<div class="routine-move"><button type="button" class="drag-handle routine-drag" data-routine-drag aria-label="Trascina per cambiare ordine; usa freccia su e giù da tastiera" title="Trascina per riordinare">☰</button><button type="button" data-routine-duplicate-row="step" aria-label="Duplica blocco" title="Duplica">⧉</button><button type="button" data-routine-remove="step" aria-label="Rimuovi">×</button></div>' }
 function showReview(review) {
   $('[data-routine-review]').innerHTML = `<b>Effetti previsti in casa</b><p>${escapeHtml(review.description)}</p>${review.errors.length ? `<div class="routine-errors"><b>Da correggere</b>${review.errors.map(item => `<p>${escapeHtml(item)}</p>`).join('')}</div>` : '<p class="routine-ok">Controlli bloccanti superati.</p>'}${review.warnings.length ? `<div class="routine-warnings"><b>Da valutare</b>${review.warnings.map(item => `<p>${escapeHtml(item)}</p>`).join('')}</div>` : ''}`
   if (review.risks?.length) $('[data-routine-review]').insertAdjacentHTML('beforeend', `<div class="routine-warnings"><b>Possibili conseguenze sull'impianto</b>${review.risks.map(item => `<p>${escapeHtml(item)}</p>`).join('')}</div>`)
@@ -326,7 +326,7 @@ $('[data-routine-list]').addEventListener('change', async event => {
   } finally { toggle.disabled = false }
 })
 panel.addEventListener('click', event => {
-  const choiceControl = event.target.closest('[data-choose-add-choice],[data-choose-remove-choice],[data-choose-add-step],[data-branch-remove-step],[data-branch-move]')
+  const choiceControl = event.target.closest('[data-choose-add-choice],[data-choose-remove-choice],[data-choose-duplicate-choice],[data-choose-add-step],[data-branch-remove-step],[data-branch-duplicate-step]')
   if (choiceControl) {
     collect()
     const outer = choiceControl.closest('[data-routine-steps] > .routine-block')
@@ -334,17 +334,26 @@ panel.addEventListener('click', event => {
     const branch = choiceControl.closest('[data-choose-branch]')
     const branchIndex = branch?.dataset.chooseBranch
     const steps = branchIndex === 'default' ? choose.default : choose.choices[Number(branchIndex)]?.steps
-    if (choiceControl.hasAttribute('data-choose-add-choice')) choose.choices.push({condition:newCondition('time_window'),steps:[{type:'action',device_id:'',action:''}]})
+    if (choiceControl.hasAttribute('data-choose-add-choice')) { if (choose.choices.length >= 8) return window.alert('Massimo 8 scelte.'); choose.choices.push({condition:newCondition('time_window'),steps:[{type:'action',device_id:'',action:''}]}) }
+    else if (choiceControl.hasAttribute('data-choose-duplicate-choice')) { if (choose.choices.length >= 8) return window.alert('Massimo 8 scelte.'); choose.choices.splice(Number(branchIndex) + 1, 0, structuredClone(choose.choices[Number(branchIndex)])) }
     else if (choiceControl.hasAttribute('data-choose-remove-choice')) choose.choices.splice(Number(branchIndex), 1)
-    else if (choiceControl.hasAttribute('data-choose-add-step')) steps.push(choiceControl.dataset.chooseAddStep === 'wait' ? {type:'wait',seconds:60} : choiceControl.dataset.chooseAddStep === 'check' ? {type:'check',device_id:'',operator:'is',value:''} : {type:'action',device_id:'',action:''})
+    else if (choiceControl.hasAttribute('data-choose-add-step')) { if (steps.length >= 20) return window.alert('Massimo 20 blocchi per ramo.'); steps.push(choiceControl.dataset.chooseAddStep === 'wait' ? {type:'wait',seconds:60} : choiceControl.dataset.chooseAddStep === 'check' ? {type:'check',device_id:'',operator:'is',value:''} : {type:'action',device_id:'',action:''}) }
     else {
       const stepIndex = Number(choiceControl.closest('[data-branch-step]').dataset.branchStep)
-      if (choiceControl.hasAttribute('data-branch-remove-step')) steps.splice(stepIndex, 1)
-      else {
-        const next = stepIndex + (choiceControl.dataset.branchMove === 'up' ? -1 : 1)
-        if (next >= 0 && next < steps.length) [steps[stepIndex],steps[next]] = [steps[next],steps[stepIndex]]
-      }
+      if (choiceControl.hasAttribute('data-branch-duplicate-step')) { if (steps.length >= 20) return window.alert('Massimo 20 blocchi per ramo.'); steps.splice(stepIndex + 1, 0, structuredClone(steps[stepIndex])) }
+      else if (choiceControl.hasAttribute('data-branch-remove-step')) steps.splice(stepIndex, 1)
     }
+    renderEditor()
+    return
+  }
+  const duplicate = event.target.closest('[data-routine-duplicate-row]')
+  if (duplicate) {
+    collect()
+    const index = Number(duplicate.closest('[data-index]').dataset.index)
+    const collection = duplicate.dataset.routineDuplicateRow === 'trigger' ? draft.triggers : duplicate.dataset.routineDuplicateRow === 'condition' ? draft.conditions : draft.steps
+    const limit = duplicate.dataset.routineDuplicateRow === 'trigger' ? 12 : duplicate.dataset.routineDuplicateRow === 'condition' ? 8 : 20
+    if (collection.length >= limit) return window.alert(`Massimo ${limit} voci in questa sezione.`)
+    collection.splice(index + 1, 0, structuredClone(collection[index]))
     renderEditor()
     return
   }
@@ -368,31 +377,61 @@ panel.addEventListener('click', event => {
     return
   }
 })
+function dragCollection(container) {
+  if (container.matches('[data-routine-triggers]')) return {items:draft.triggers,key:'index',kind:'trigger'}
+  if (container.matches('[data-routine-conditions]')) return {items:draft.conditions,key:'index',kind:'condition'}
+  if (container.matches('[data-routine-steps]')) return {items:draft.steps,key:'index',kind:'step'}
+  const outer = container.closest('[data-routine-steps] > .routine-block')
+  if (!outer || outer.dataset.type !== 'choose') return null
+  const topIndex = Number(outer.dataset.index)
+  const choose = draft.steps[topIndex]
+  if (container.matches('.routine-choose-branches')) return {items:choose.choices,key:'chooseBranch',kind:'choice',topIndex}
+  const branch = container.closest('[data-choose-branch]')?.dataset.chooseBranch
+  if (container.matches('[data-choose-steps]') && branch !== undefined) return {items:branch === 'default' ? choose.default : choose.choices[Number(branch)]?.steps,key:'branchStep',kind:'branchStep',topIndex,branch}
+  return null
+}
+function dragItems(container, info) {
+  return [...container.children].filter(item => info.kind !== 'choice' || item.dataset.chooseBranch !== 'default')
+}
+function dragContainer(info) {
+  if (info.kind === 'trigger') return $('[data-routine-triggers]')
+  if (info.kind === 'condition') return $('[data-routine-conditions]')
+  if (info.kind === 'step') return $('[data-routine-steps]')
+  const outer = $('[data-routine-steps]').children[info.topIndex]
+  if (info.kind === 'choice') return outer?.querySelector(':scope > .routine-choose-branches')
+  return outer?.querySelector(`:scope > .routine-choose-branches > [data-choose-branch="${info.branch}"] > [data-choose-steps]`)
+}
 let draggedStep = null
 panel.addEventListener('pointerdown', event => {
   const handle = event.target.closest('[data-routine-drag]')
   if (!handle || event.button !== 0) return
-  const block = handle.closest('[data-routine-steps] > .routine-block')
+  const block = handle.closest('.routine-choose-branch, .routine-block')
   if (!block) return
   collect()
-  draggedStep = {pointerId: event.pointerId, handle, block}
+  const container = block.parentElement
+  const info = dragCollection(container)
+  if (!info?.items) return
+  draggedStep = {pointerId:event.pointerId,handle,block,container,info}
   handle.setPointerCapture(event.pointerId)
   block.classList.add('dragging')
   event.preventDefault()
 })
 panel.addEventListener('pointermove', event => {
   if (!draggedStep || event.pointerId !== draggedStep.pointerId) return
-  const target = document.elementFromPoint(event.clientX, event.clientY)?.closest('[data-routine-steps] > .routine-block')
-  if (!target || target === draggedStep.block) return
+  const target = document.elementFromPoint(event.clientX, event.clientY)?.closest('.routine-choose-branch, .routine-block')
+  if (!target || target === draggedStep.block || target.parentElement !== draggedStep.container || target.dataset.chooseBranch === 'default') return
   const middle = target.getBoundingClientRect().top + target.getBoundingClientRect().height / 2
-  $('[data-routine-steps]').insertBefore(draggedStep.block, event.clientY < middle ? target : target.nextSibling)
+  draggedStep.container.insertBefore(draggedStep.block, event.clientY < middle ? target : target.nextSibling)
 })
 const finishDrag = event => {
   if (!draggedStep || event.pointerId !== draggedStep.pointerId) return
-  const {block} = draggedStep
+  const {block,container,info} = draggedStep
   draggedStep = null
   block.classList.remove('dragging')
-  if (event.type !== 'pointercancel') draft.steps = [...$('[data-routine-steps]').children].map(row => draft.steps[Number(row.dataset.index)])
+  if (event.type !== 'pointercancel') {
+    const ordered = dragItems(container,info).map(row => info.items[Number(row.dataset[info.key])])
+    info.items.splice(0,info.items.length,...ordered)
+  }
   renderEditor()
 }
 panel.addEventListener('pointerup', finishDrag)
@@ -401,12 +440,16 @@ panel.addEventListener('keydown', event => {
   if (!event.target.matches('[data-routine-drag]') || !['ArrowUp', 'ArrowDown'].includes(event.key)) return
   event.preventDefault()
   collect()
-  const index = Number(event.target.closest('[data-index]').dataset.index)
+  const block = event.target.closest('.routine-choose-branch, .routine-block')
+  const info = dragCollection(block.parentElement)
+  if (!info?.items) return
+  const index = Number(block.dataset[info.key])
   const next = index + (event.key === 'ArrowUp' ? -1 : 1)
-  if (next < 0 || next >= draft.steps.length) return
-  ;[draft.steps[index], draft.steps[next]] = [draft.steps[next], draft.steps[index]]
+  if (next < 0 || next >= info.items.length) return
+  ;[info.items[index], info.items[next]] = [info.items[next], info.items[index]]
   renderEditor()
-  $('[data-routine-steps]').querySelectorAll('[data-routine-drag]')[next]?.focus()
+  const moved = dragContainer(info)?.children[next]
+  moved?.querySelector(info.kind === 'choice' ? ':scope > .routine-choose-title [data-routine-drag]' : ':scope > .routine-move [data-routine-drag]')?.focus()
 })
 panel.addEventListener('input', event => {
   if (!event.target.matches('[data-device-search]')) return
