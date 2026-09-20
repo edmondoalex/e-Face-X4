@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.21.216 — 2026-09-20
+
+- L'editor visuale delle routine apre e modifica `choose`: scelte con stato, alba/tramonto o intervallo solare/orario, azioni, timer, verifiche e ramo «Altrimenti». I blocchi in ciascun ramo si possono aggiungere, rimuovere e riordinare; il JSON persistente resta lo stesso schema di Routine Professional.
+- Gli altri blocchi avanzati non rappresentabili restano protetti dal controllo anti-perdita. Aggiunto test di round-trip per la routine alba/tramonto con `choose`.
+
 ## 2.21.215 — 2026-09-20
 
 - Catalogo routine senza limite di 80 risultati: cover singole e gruppi disponibili come trigger, condizioni e azioni; le cover chiamate “Porta” non sono più confuse con accessi di sicurezza.

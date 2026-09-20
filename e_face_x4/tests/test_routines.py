@@ -38,6 +38,36 @@ def test_visual_editor_exposes_time_window_fields():
     assert "'time_window'].includes(item.type)" in script
 
 
+def test_visual_editor_exposes_choose_branches_without_dropping_advanced_routines():
+    script = (Path(__file__).resolve().parents[1] / "app/static/assets/routine-tools.js").read_text(encoding="utf-8")
+    for marker in ('data-routine-add="choose"', 'data-choose-add-choice', 'data-choose-add-step',
+                   'data-choose-condition', 'function collectStepRow', 'function renderStepRow',
+                   'const hasAdvancedFlow = spec => !canOpenVisual(spec)'):
+        assert marker in script
+    assert "if (!canOpenVisual(draft))" in script
+
+
+def test_sunrise_sunset_choose_routine_validates_and_round_trips():
+    devices = catalog() + [{"id":"17", "kind":"cover", "name":"Finestra Cucina", "state":"closed"}]
+    spec = {"name":"1°P TP Giorno/Notte", "mode":"single",
+            "triggers":[{"type":"sun", "event":"sunrise"}, {"type":"sun", "event":"sunset"}],
+            "conditions":[], "steps":[{"type":"choose", "choices":[
+                {"condition":{"type":"time_window", "start":{"kind":"sunrise", "offset_minutes":0},
+                              "end":{"kind":"sunset", "offset_minutes":0}},
+                 "steps":[{"type":"delay", "seconds":900}, {"type":"action", "device_id":"17", "action":"open"}]},
+                {"condition":{"type":"time_window", "start":{"kind":"sunset", "offset_minutes":0},
+                              "end":{"kind":"sunrise", "offset_minutes":0}},
+                 "steps":[{"type":"delay", "seconds":900}]}
+            ], "default":[]}]}
+    review = routines.validate(spec, devices)
+    assert review["errors"] == []
+    saved = routines.save("admin", "admin", None, review["spec"], False, None, shared=True)
+    reopened = routines.validate(saved["spec"], devices)
+    assert reopened["errors"] == []
+    assert reopened["spec"]["steps"][0]["choices"][0]["steps"][1]["device_id"] == "17"
+    assert reopened["spec"]["steps"][0]["choices"][1]["steps"] == [{"type":"wait", "seconds":900}]
+
+
 def test_guided_text_creates_reviewable_draft_without_actuation():
     devices = catalog() + [{"id": "light.corridor", "kind": "light", "name": "Luce Corridoio", "room": "Corridoio", "state": "off"}]
     spec = routine_nl.from_text("Quando Movimento rileva movimento, accendi Luce Corridoio poi aspetta 60 secondi poi spegni Luce Corridoio", devices)

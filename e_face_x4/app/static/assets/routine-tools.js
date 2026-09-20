@@ -38,7 +38,7 @@ panel.innerHTML = `<header><button type="button" data-routine-back aria-label="T
   <h3>Quando</h3><p>Una qualsiasi attivazione avvia la routine. Alba e tramonto usano la posizione di Home Assistant; minuti negativi anticipano, positivi ritardano.</p><div data-routine-triggers></div><button type="button" data-routine-add="trigger">+ Aggiungi attivazione</button>
   <h3>E se <small>(opzionale)</small></h3><p>Tutte queste condizioni devono essere vere all'inizio. Per una fascia oraria, scegli «Intervallo da… a…»: puoi combinare ora fissa, alba e tramonto, anche oltre la mezzanotte.</p><div data-routine-conditions></div><button type="button" data-routine-add="condition">+ Aggiungi condizione</button>
   <h3>Allora</h3><p>I blocchi sono eseguiti nell'ordine mostrato. Dopo un timer puoi ricontrollare uno stato.</p><div data-routine-steps></div>
-  <div class="routine-add"><button type="button" data-routine-add="action">+ Azione</button><button type="button" data-routine-add="wait">+ Timer</button><button type="button" data-routine-add="check">+ Verifica</button></div>
+  <div class="routine-add"><button type="button" data-routine-add="action">+ Azione</button><button type="button" data-routine-add="wait">+ Timer</button><button type="button" data-routine-add="check">+ Verifica</button><button type="button" data-routine-add="choose">+ Scegli ramo</button></div>
   <div class="routine-review" data-routine-review aria-live="polite">Premi «Controlla» per leggere gli effetti della routine.</div>
   <div class="routine-actions"><button type="button" data-routine-validate>CONTROLLA</button><button type="button" data-routine-save="draft">SALVA DISATTIVATA</button><button type="button" class="routine-primary" data-routine-save="active">SALVA E ATTIVA</button><button type="button" data-routine-delete hidden>ELIMINA</button></div></div></div>`
 root.append(panel)
@@ -129,6 +129,39 @@ const stateSelect = (deviceId, selected) => {
   const scenario = devices.find(item => item.id === deviceId)?.kind === 'light_scenario'
   return `<select data-field="value" aria-label="Stato possibile"><option value="">Scegli stato</option>${values.map(value => `<option value="${escapeHtml(value)}" ${value === selected ? 'selected' : ''}>${escapeHtml(scenario && ['on','off'].includes(value) ? `Stato ${value.toUpperCase()} (dispositivi conformi)` : stateLabels[value] ? `${stateLabels[value]} (${value})` : value)}</option>`).join('')}</select>`
 }
+const visualCondition = condition => Boolean(condition && !condition.and && !condition.or && !condition.not && [undefined, 'state', 'sun', 'time_window'].includes(condition.type))
+const visualSteps = (steps, depth = 0) => Array.isArray(steps) && depth <= 5 && steps.every(step => {
+  if (['action', 'wait', 'delay', 'check'].includes(step?.type)) return true
+  return depth === 0 && step?.type === 'choose' && Array.isArray(step.choices) && step.choices.every(choice => visualCondition(choice.condition) && visualSteps(choice.steps, depth + 1)) && visualSteps(step.default || [], depth + 1)
+})
+const canOpenVisual = spec => Boolean(spec && Array.isArray(spec.conditions) && spec.conditions.every(visualCondition) && visualSteps(spec.steps))
+const newChoose = () => ({type:'choose', choices:[{condition:{type:'time_window',start:{kind:'sunrise',offset_minutes:0},end:{kind:'sunset',offset_minutes:0}},steps:[{type:'action',device_id:'',action:''}]}],default:[]})
+const newCondition = type => type === 'sun' ? {type,event:'sunset',offset_minutes:0,relation:'after'} : type === 'time_window' ? {type,start:{kind:'sunrise',offset_minutes:0},end:{kind:'sunset',offset_minutes:0}} : {device_id:'',operator:'is',value:''}
+function collectCondition(row) {
+  const type = row.querySelector('[data-field="condition-type"]')?.value || 'state'
+  if (type === 'sun') return {type, event:row.querySelector('[data-field="sun-event"]')?.value || 'sunset', offset_minutes:Number(row.querySelector('[data-field="sun-offset"]')?.value ?? 0), relation:row.querySelector('[data-field="sun-relation"]')?.value || 'after'}
+  if (type === 'time_window') {
+    const boundary = edge => {
+      const kind = row.querySelector(`[data-field="window-${edge}-kind"]`)?.value || 'time'
+      return kind === 'time' ? {kind,at:row.querySelector(`[data-field="window-${edge}-at"]`)?.value || ''} : {kind,offset_minutes:Number(row.querySelector(`[data-field="window-${edge}-offset"]`)?.value ?? 0)}
+    }
+    return {type,start:boundary('start'),end:boundary('end')}
+  }
+  return {device_id:row.querySelector('[data-field="device"]')?.value || '',operator:row.querySelector('[data-field="operator"]')?.value || 'is',value:row.querySelector('[data-field="value"]')?.value || ''}
+}
+function collectStepRow(row) {
+  const type = row.dataset.type
+  if (type === 'choose') {
+    const branches = [...row.querySelectorAll(':scope > .routine-choose-branches > [data-choose-branch]')]
+    const readSteps = branch => [...branch.querySelector('[data-choose-steps]').children].map(collectStepRow)
+    return {type,choices:branches.filter(branch => branch.dataset.chooseBranch !== 'default').map(branch => ({condition:collectCondition(branch.querySelector('[data-choose-condition]')),steps:readSteps(branch)})),default:readSteps(branches.find(branch => branch.dataset.chooseBranch === 'default'))}
+  }
+  if (type === 'wait' || type === 'delay') return {type,seconds:Number(row.querySelector('[data-field="seconds"]').value)}
+  if (type === 'check') return {type,device_id:row.querySelector('[data-field="device"]').value,operator:row.querySelector('[data-field="operator"]').value,value:row.querySelector('[data-field="value"]').value}
+  const action = row.querySelector('[data-field="action"]').value
+  const value = row.querySelector('[data-field="action-value"]')?.value
+  return {type:'action',device_id:row.querySelector('[data-field="device"]').value,action,value:action === 'remote_command' ? {source_id:Number(row.querySelector('[data-field="remote-source"]')?.value || 0),command:row.querySelector('[data-field="remote-command"]')?.value || ''} : value === undefined || value === '' ? null : ['tts','select_source'].includes(action) ? value : Number(value)}
+}
 function collect() {
   if (!draft) return
   draft.name = $('[data-routine-name]').value.trim()
@@ -141,26 +174,8 @@ function collect() {
       : type === 'remote' ? {type, device_id:row.querySelector('[data-field="device"]')?.value || '', source_id:Number(row.querySelector('[data-field="remote-source"]')?.value || 0), command:row.querySelector('[data-field="remote-command"]')?.value || ''}
       : {type: 'state', device_id: row.querySelector('[data-field="device"]')?.value || '', to: row.querySelector('[data-field="value"]')?.value || ''}
   })
-  draft.conditions = [...$('[data-routine-conditions]').children].map(row => {
-    const type = row.querySelector('[data-field="condition-type"]')?.value
-    if (type === 'sun') return {type:'sun', event:row.querySelector('[data-field="sun-event"]')?.value || 'sunset', offset_minutes:Number(row.querySelector('[data-field="sun-offset"]')?.value ?? 0), relation:row.querySelector('[data-field="sun-relation"]')?.value || 'after'}
-    if (type === 'time_window') {
-      const boundary = edge => {
-        const kind = row.querySelector(`[data-field="window-${edge}-kind"]`)?.value || 'time'
-        return kind === 'time' ? {kind,at:row.querySelector(`[data-field="window-${edge}-at"]`)?.value || ''} : {kind,offset_minutes:Number(row.querySelector(`[data-field="window-${edge}-offset"]`)?.value ?? 0)}
-      }
-      return {type,start:boundary('start'),end:boundary('end')}
-    }
-    return {device_id: row.querySelector('[data-field="device"]')?.value || '', operator: row.querySelector('[data-field="operator"]')?.value || 'is', value: row.querySelector('[data-field="value"]')?.value || ''}
-  })
-  draft.steps = [...$('[data-routine-steps]').children].map(row => {
-    const type = row.dataset.type
-    if (type === 'wait') return {type, seconds: Number(row.querySelector('[data-field="seconds"]').value)}
-    if (type === 'check') return {type, device_id: row.querySelector('[data-field="device"]').value, operator: row.querySelector('[data-field="operator"]').value, value: row.querySelector('[data-field="value"]').value}
-    const action = row.querySelector('[data-field="action"]').value
-    const value = row.querySelector('[data-field="action-value"]')?.value
-    return {type, device_id: row.querySelector('[data-field="device"]').value, action, value: action === 'remote_command' ? {source_id:Number(row.querySelector('[data-field="remote-source"]')?.value || 0),command:row.querySelector('[data-field="remote-command"]')?.value || ''} : value === undefined || value === '' ? null : ['tts','select_source'].includes(action) ? value : Number(value)}
-  })
+  draft.conditions = [...$('[data-routine-conditions]').children].map(collectCondition)
+  draft.steps = [...$('[data-routine-steps]').children].map(collectStepRow)
 }
 function renderList() {
   $('[data-routine-list]').innerHTML = routines.map(item => `<div class="routine-list-row"><button type="button" class="routine-list-item${current?.id === item.id ? ' selected' : ''}" data-routine-open="${escapeHtml(item.id)}"><b>${escapeHtml(item.name)}</b><small>${item.enabled ? 'ATTIVA' : 'DISATTIVATA'} · versione ${item.revision} · creata da ${escapeHtml(item.owner || 'utente')}</small></button><button type="button" class="routine-duplicate" data-routine-duplicate="${escapeHtml(item.id)}" aria-label="Duplica ${escapeHtml(item.name)}" title="Duplica (copia disattivata)">⧉</button><label class="routine-enable" title="${item.enabled ? 'Sospendi' : 'Attiva'} routine"><input type="checkbox" data-routine-enabled="${escapeHtml(item.id)}" ${item.enabled ? 'checked' : ''} aria-label="${item.enabled ? 'Sospendi' : 'Attiva'} ${escapeHtml(item.name)}"><span></span></label></div>`).join('') || '<p>Nessuna routine creata.</p>'
@@ -168,7 +183,7 @@ function renderList() {
 function renderEditor() {
   $('.routine-editor').hidden = !draft
   if (!draft) return
-  if (hasAdvancedFlow(draft)) {
+  if (!canOpenVisual(draft)) {
     $('.routine-editor').hidden = true
     window.alert('Questa routine contiene blocchi avanzati. Modificala in Amministrazione → Routine Professional; l’editor lineare non può rappresentarli senza perdita di dati.')
     return
@@ -177,17 +192,7 @@ function renderEditor() {
   $('[data-routine-mode]').value = draft.mode || 'single'
   $('[data-routine-triggers]').innerHTML = draft.triggers.map((item, index) => `<div class="routine-block" data-index="${index}"><select data-field="type"><option value="state" ${item.type === 'state' ? 'selected' : ''}>Quando cambia un dispositivo</option><option value="time" ${item.type === 'time' ? 'selected' : ''}>A un orario</option><option value="sun" ${item.type === 'sun' ? 'selected' : ''}>Alba / Tramonto</option><option value="remote" ${item.type === 'remote' ? 'selected' : ''}>Tasto telecomando e-Face</option><option value="doorbird" ${item.type === 'doorbird' ? 'selected' : ''}>Evento DoorBird</option></select>${item.type === 'time' ? `<input data-field="at" type="time" value="${escapeHtml(item.at || '')}">` : item.type === 'doorbird' ? `<select data-field="event"><option value="doorbell" ${item.event === 'doorbell' ? 'selected' : ''}>Chiamata</option><option value="motionsensor" ${item.event === 'motionsensor' ? 'selected' : ''}>Movimento</option></select>` : item.type === 'sun' ? solarFields(item) : item.type === 'remote' ? `${deviceField(item.device_id,'media')}${remoteFields(item.device_id,item.source_id,item.command)}` : `${deviceField(item.device_id)}${stateSelect(item.device_id, item.to)}`}<button type="button" data-routine-remove="trigger" aria-label="Rimuovi">×</button></div>`).join('')
   $('[data-routine-conditions]').innerHTML = draft.conditions.map((item, index) => conditionRow(item, index, 'condition')).join('')
-  $('[data-routine-steps]').innerHTML = draft.steps.map((item, index) => {
-    if (item.type === 'wait') return `<div class="routine-block" data-index="${index}" data-type="wait"><b>Timer</b><label>Secondi<input data-field="seconds" type="number" min="1" max="3600" value="${Number(item.seconds) || 60}"></label>${stepButtons(index)}</div>`
-    if (item.type === 'check') return conditionRow(item, index, 'check')
-    const device = devices.find(entry => entry.id === item.device_id)
-    const choices = actions[device?.kind] || []
-    const capabilityFor = device?.kind === 'light_scenario' ? {on:'onoff',off:'onoff',run:'run',stop:'run'} : {media_play:'play',media_pause:'pause',media_stop:'stop',media_next:'next',media_previous:'previous',turn_off:'turn_off',set_volume:'set_volume',volume_mute:'mute',volume_unmute:'mute'}
-    const actionChoices = choices.filter(([key]) => key === 'tts' ? device?.tts_enabled : key.startsWith('dnd_') ? device?.dnd_available : key === 'remote_command' ? device?.source_options?.some(source => source.experience === 'watch' && source.remote_actions?.length) : key === 'select_source' ? device?.capabilities?.select_source && (device?.source_list?.length || device?.source_options?.length) : !capabilityFor[key] || device?.capabilities?.[capabilityFor[key]])
-    const sourceChoices = device?.provider === 'control4' ? (device.source_options || []).map(source => [source.key,source.label]) : (device?.source_list || []).map(source => [source,source])
-    const value = item.action === 'tts' ? `<label class="routine-tts">Testo da pronunciare<textarea data-field="action-value" maxlength="500" rows="3">${escapeHtml(item.value || '')}</textarea></label>` : item.action === 'remote_command' ? remoteFields(item.device_id,item.value?.source_id,item.value?.command,false) : item.action === 'select_source' ? `<label class="routine-tts">Sorgente<select data-field="action-value"><option value="">Scegli sorgente</option>${sourceChoices.map(([key,label]) => `<option value="${escapeHtml(key)}" ${key === item.value || label === item.value ? 'selected' : ''}>${escapeHtml(label)}</option>`).join('')}</select></label>` : ['brightness', 'set_volume', 'set_target'].includes(item.action) ? `<label>Valore<input data-field="action-value" type="number" min="${item.action === 'set_target' ? 5 : 0}" max="${item.action === 'set_target' ? 35 : 100}" value="${item.value ?? ''}"></label>` : ''
-    return `<div class="routine-block" data-index="${index}" data-type="action"><b>Azione</b>${deviceField(item.device_id, 'safe')}<select data-field="action"><option value="">Comando...</option>${actionChoices.map(([key, label]) => `<option value="${key}" ${key === item.action ? 'selected' : ''}>${label}</option>`).join('')}</select>${value}${stepButtons(index)}</div>`
-  }).join('')
+  $('[data-routine-steps]').innerHTML = draft.steps.map((item, index) => renderStepRow(item, index)).join('')
   $('[data-routine-delete]').hidden = !current
   $('[data-routine-review]').textContent = 'Premi «Controlla» per leggere gli effetti della routine.'
   renderList()
@@ -195,6 +200,29 @@ function renderEditor() {
 function conditionRow(item, index, type) {
   if (type === 'condition') return `<div class="routine-block" data-index="${index}"><select data-field="condition-type"><option value="state" ${!['sun','time_window'].includes(item.type) ? 'selected' : ''}>Stato dispositivo</option><option value="sun" ${item.type === 'sun' ? 'selected' : ''}>Alba / Tramonto</option><option value="time_window" ${item.type === 'time_window' ? 'selected' : ''}>Intervallo da… a…</option></select>${item.type === 'sun' ? solarFields(item, true) : item.type === 'time_window' ? windowFields(item) : `${deviceField(item.device_id)}<select data-field="operator"><option value="is" ${item.operator === 'is' ? 'selected' : ''}>è</option><option value="is_not" ${item.operator === 'is_not' ? 'selected' : ''}>non è</option></select>${stateSelect(item.device_id, item.value)}`}<button type="button" data-routine-remove="condition" aria-label="Rimuovi">×</button></div>`
   return `<div class="routine-block" data-index="${index}" ${type === 'check' ? 'data-type="check"' : ''}><b>${type === 'check' ? 'Verifica e interrompi se falsa' : 'Condizione iniziale'}</b>${deviceField(item.device_id)}<select data-field="operator"><option value="is" ${item.operator === 'is' ? 'selected' : ''}>è</option><option value="is_not" ${item.operator === 'is_not' ? 'selected' : ''}>non è</option></select>${stateSelect(item.device_id, item.value)}${type === 'check' ? stepButtons(index) : '<button type="button" data-routine-remove="condition" aria-label="Rimuovi">×</button>'}</div>`
+}
+function chooseConditionFields(item) {
+  const kind = item.type || 'state'
+  return `<select data-field="condition-type" aria-label="Tipo condizione del ramo"><option value="state" ${kind === 'state' ? 'selected' : ''}>Stato dispositivo</option><option value="sun" ${kind === 'sun' ? 'selected' : ''}>Alba / Tramonto</option><option value="time_window" ${kind === 'time_window' ? 'selected' : ''}>Intervallo da… a…</option></select>${kind === 'sun' ? solarFields(item, true) : kind === 'time_window' ? windowFields(item) : `${deviceField(item.device_id)}<select data-field="operator"><option value="is" ${item.operator !== 'is_not' ? 'selected' : ''}>è</option><option value="is_not" ${item.operator === 'is_not' ? 'selected' : ''}>non è</option></select>${stateSelect(item.device_id,item.value)}`}`
+}
+function renderChooseBranch(choice, index) {
+  const isDefault = index === 'default'
+  const steps = isDefault ? choice : choice.steps
+  return `<section class="routine-choose-branch" data-choose-branch="${index}"><div class="routine-choose-title"><b>${isDefault ? 'Altrimenti' : `Scelta ${Number(index) + 1}`}</b>${isDefault ? '' : '<button type="button" data-choose-remove-choice aria-label="Rimuovi scelta">×</button>'}</div>${isDefault ? '' : `<div class="routine-choose-condition" data-choose-condition>${chooseConditionFields(choice.condition)}</div>`}<div class="routine-choose-steps" data-choose-steps>${steps.map((step, stepIndex) => renderStepRow(step, stepIndex, true)).join('')}</div><div class="routine-choose-add"><button type="button" data-choose-add-step="action">+ Azione</button><button type="button" data-choose-add-step="wait">+ Timer</button><button type="button" data-choose-add-step="check">+ Verifica</button></div></section>`
+}
+function renderStepRow(item, index, nested = false) {
+  const marker = nested ? `data-branch-step="${index}"` : `data-index="${index}"`
+  const controls = nested ? '<div class="routine-move"><button type="button" data-branch-move="up" aria-label="Sposta su">↑</button><button type="button" data-branch-move="down" aria-label="Sposta giù">↓</button><button type="button" data-branch-remove-step aria-label="Rimuovi blocco">×</button></div>' : stepButtons()
+  if (item.type === 'choose') return `<div class="routine-block routine-choose" ${marker} data-type="choose"><b>Scegli un ramo · il primo che risulta vero</b><div class="routine-choose-branches">${item.choices.map((choice, choiceIndex) => renderChooseBranch(choice, choiceIndex)).join('')}${renderChooseBranch(item.default || [], 'default')}</div><button type="button" data-choose-add-choice>+ Aggiungi scelta</button>${controls}</div>`
+  if (item.type === 'wait' || item.type === 'delay') return `<div class="routine-block" ${marker} data-type="${item.type}"><b>Timer</b><label>Secondi<input data-field="seconds" type="number" min="1" max="3600" value="${Number(item.seconds) || 60}"></label>${controls}</div>`
+  if (item.type === 'check') return `<div class="routine-block" ${marker} data-type="check"><b>Verifica e interrompi se falsa</b>${deviceField(item.device_id)}<select data-field="operator"><option value="is" ${item.operator !== 'is_not' ? 'selected' : ''}>è</option><option value="is_not" ${item.operator === 'is_not' ? 'selected' : ''}>non è</option></select>${stateSelect(item.device_id,item.value)}${controls}</div>`
+  const device = devices.find(entry => entry.id === item.device_id)
+  const choices = actions[device?.kind] || []
+  const capabilityFor = device?.kind === 'light_scenario' ? {on:'onoff',off:'onoff',run:'run',stop:'run'} : {media_play:'play',media_pause:'pause',media_stop:'stop',media_next:'next',media_previous:'previous',turn_off:'turn_off',set_volume:'set_volume',volume_mute:'mute',volume_unmute:'mute'}
+  const actionChoices = choices.filter(([key]) => key === 'tts' ? device?.tts_enabled : key.startsWith('dnd_') ? device?.dnd_available : key === 'remote_command' ? device?.source_options?.some(source => source.experience === 'watch' && source.remote_actions?.length) : key === 'select_source' ? device?.capabilities?.select_source && (device?.source_list?.length || device?.source_options?.length) : !capabilityFor[key] || device?.capabilities?.[capabilityFor[key]])
+  const sourceChoices = device?.provider === 'control4' ? (device.source_options || []).map(source => [source.key,source.label]) : (device?.source_list || []).map(source => [source,source])
+  const value = item.action === 'tts' ? `<label class="routine-tts">Testo da pronunciare<textarea data-field="action-value" maxlength="500" rows="3">${escapeHtml(item.value || '')}</textarea></label>` : item.action === 'remote_command' ? remoteFields(item.device_id,item.value?.source_id,item.value?.command,false) : item.action === 'select_source' ? `<label class="routine-tts">Sorgente<select data-field="action-value"><option value="">Scegli sorgente</option>${sourceChoices.map(([key,label]) => `<option value="${escapeHtml(key)}" ${key === item.value || label === item.value ? 'selected' : ''}>${escapeHtml(label)}</option>`).join('')}</select></label>` : ['brightness', 'set_volume', 'set_target'].includes(item.action) ? `<label>Valore<input data-field="action-value" type="number" min="${item.action === 'set_target' ? 5 : 0}" max="${item.action === 'set_target' ? 35 : 100}" value="${item.value ?? ''}"></label>` : ''
+  return `<div class="routine-block" ${marker} data-type="action"><b>Azione</b>${deviceField(item.device_id,'safe')}<select data-field="action"><option value="">Comando...</option>${actionChoices.map(([key,label]) => `<option value="${key}" ${key === item.action ? 'selected' : ''}>${label}</option>`).join('')}</select>${value}${controls}</div>`
 }
 function windowFields(item) {
   const edge = (label,key,defaultTime) => {
@@ -298,13 +326,35 @@ $('[data-routine-list]').addEventListener('change', async event => {
   } finally { toggle.disabled = false }
 })
 panel.addEventListener('click', event => {
+  const choiceControl = event.target.closest('[data-choose-add-choice],[data-choose-remove-choice],[data-choose-add-step],[data-branch-remove-step],[data-branch-move]')
+  if (choiceControl) {
+    collect()
+    const outer = choiceControl.closest('[data-routine-steps] > .routine-block')
+    const choose = draft.steps[Number(outer.dataset.index)]
+    const branch = choiceControl.closest('[data-choose-branch]')
+    const branchIndex = branch?.dataset.chooseBranch
+    const steps = branchIndex === 'default' ? choose.default : choose.choices[Number(branchIndex)]?.steps
+    if (choiceControl.hasAttribute('data-choose-add-choice')) choose.choices.push({condition:newCondition('time_window'),steps:[{type:'action',device_id:'',action:''}]})
+    else if (choiceControl.hasAttribute('data-choose-remove-choice')) choose.choices.splice(Number(branchIndex), 1)
+    else if (choiceControl.hasAttribute('data-choose-add-step')) steps.push(choiceControl.dataset.chooseAddStep === 'wait' ? {type:'wait',seconds:60} : choiceControl.dataset.chooseAddStep === 'check' ? {type:'check',device_id:'',operator:'is',value:''} : {type:'action',device_id:'',action:''})
+    else {
+      const stepIndex = Number(choiceControl.closest('[data-branch-step]').dataset.branchStep)
+      if (choiceControl.hasAttribute('data-branch-remove-step')) steps.splice(stepIndex, 1)
+      else {
+        const next = stepIndex + (choiceControl.dataset.branchMove === 'up' ? -1 : 1)
+        if (next >= 0 && next < steps.length) [steps[stepIndex],steps[next]] = [steps[next],steps[stepIndex]]
+      }
+    }
+    renderEditor()
+    return
+  }
   const add = event.target.closest('[data-routine-add]')
   if (add) {
     collect()
     const kind = add.dataset.routineAdd
     if (kind === 'trigger') draft.triggers.push({type: 'state', device_id: '', to: ''})
     else if (kind === 'condition') draft.conditions.push({device_id: '', operator: 'is', value: ''})
-    else draft.steps.push(kind === 'wait' ? {type: 'wait', seconds: 60} : kind === 'check' ? {type: 'check', device_id: '', operator: 'is', value: ''} : {type: 'action', device_id: '', action: ''})
+    else draft.steps.push(kind === 'choose' ? newChoose() : kind === 'wait' ? {type: 'wait', seconds: 60} : kind === 'check' ? {type: 'check', device_id: '', operator: 'is', value: ''} : {type: 'action', device_id: '', action: ''})
     renderEditor()
     return
   }
@@ -368,6 +418,28 @@ panel.addEventListener('change', event => {
   const field = event.target
   if (!field.matches('[data-field="device"],[data-field="type"],[data-field="condition-type"],[data-field="window-start-kind"],[data-field="window-end-kind"],[data-field="action"],[data-field="remote-source"]')) return
   collect()
+  const branch = field.closest('[data-choose-branch]')
+  if (branch) {
+    const outer = branch.closest('[data-routine-steps] > .routine-block')
+    const choose = draft.steps[Number(outer.dataset.index)]
+    const branchIndex = branch.dataset.chooseBranch
+    const choice = branchIndex === 'default' ? null : choose.choices[Number(branchIndex)]
+    const stepRow = field.closest('[data-branch-step]')
+    if (stepRow) {
+      const step = (choice?.steps || choose.default)[Number(stepRow.dataset.branchStep)]
+      if (field.dataset.field === 'device') { if (step.type === 'action') { step.action = ''; step.value = null } else step.value = '' }
+      if (field.dataset.field === 'action') step.value = null
+      if (field.dataset.field === 'remote-source' && step.type === 'action') step.value = {source_id:Number(field.value || 0),command:''}
+    } else if (choice) {
+      if (field.dataset.field === 'condition-type') choice.condition = newCondition(field.value)
+      else if (field.dataset.field === 'window-start-kind' || field.dataset.field === 'window-end-kind') {
+        const edge = field.dataset.field === 'window-start-kind' ? 'start' : 'end'
+        choice.condition[edge] = field.value === 'time' ? {kind:'time',at:edge === 'start' ? '18:00' : '23:00'} : {kind:field.value,offset_minutes:0}
+      } else if (field.dataset.field === 'device') choice.condition.value = ''
+    }
+    renderEditor()
+    return
+  }
   const row = field.closest('[data-index]')
   const index = Number(row?.dataset.index)
   if (row?.parentElement.matches('[data-routine-triggers]')) {
@@ -424,7 +496,7 @@ const professional = selector => professionalPanel.querySelector(selector)
 let professionalItems = []
 let professionalCurrent = null
 const professionalTemplate = () => ({name:'Nuova routine',mode:'single',triggers:[{type:'state',device_id:'',to:'on'}],conditions:[],steps:[{type:'action',device_id:'',action:'on'}]})
-const hasAdvancedFlow = spec => Boolean(spec && (spec.description || (typeof spec.conditions === 'object' && !Array.isArray(spec.conditions)) || (Array.isArray(spec.conditions) && spec.conditions.some(item => ![undefined,'state','sun','time_window'].includes(item.type))) || (spec.steps || []).some(step => !['action','wait','check'].includes(step.type))))
+const hasAdvancedFlow = spec => !canOpenVisual(spec)
 function renderProfessionalChoice() {
   professional('[data-professional-select]').innerHTML = `<option value="">Nuova routine</option>${professionalItems.map(item => `<option value="${escapeHtml(item.id)}" ${professionalCurrent?.id === item.id ? 'selected' : ''}>${escapeHtml(item.name)} · v${item.revision}</option>`).join('')}`
 }
