@@ -65,6 +65,7 @@ def test_heating_api_sanitizes_config_and_sends_partial_updates(monkeypatch):
             "/api/setpoints": {"acs": {"setpoint_c": 72, "secret": "hidden"}, "security": {"user_pin": "1234"}},
             "/api/acs/force_puffer": {"active": False},
             "/api/volano/force_puffer": {"active": False},
+            "/api/actuators": {"r22_resistenza": {"state": "off", "entity_id": "switch.test", "attributes": {"friendly_name": "Resistenza 1", "secret": "hidden"}}},
         }
         return httpx.Response(200, json=data.get(path, {"ok": True}))
 
@@ -77,6 +78,7 @@ def test_heating_api_sanitizes_config_and_sends_partial_updates(monkeypatch):
     assert "token_source" not in snapshot.json()["status"]
     assert "security" not in snapshot.json()["setpoints"]
     assert "secret" not in snapshot.json()["setpoints"]["acs"]
+    assert snapshot.json()["actuators"]["r22_resistenza"] == {"state": "off", "name": "Resistenza 1"}
     response = client.post("/api/user/heating/command", json={"kind": "setpoint", "section": "acs", "key": "setpoint_c", "value": 73})
     assert response.status_code == 200
     assert requests[-1][0:2] == ("POST", "/api/setpoints")

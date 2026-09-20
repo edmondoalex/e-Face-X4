@@ -76,7 +76,7 @@ from .connectors.supervisor import discover_addon_url, discover_host_url
 from .media_realtime import SharedMediaRealtime
 from .demo import dashboard as demo_dashboard
 
-VERSION = os.environ.get("EFACE_VERSION", "2.21.208")
+VERSION = os.environ.get("EFACE_VERSION", "2.21.209")
 STATIC = Path(__file__).parent / "static"
 logging.basicConfig(level=logging.WARNING, format="%(asctime)s %(levelname)s [e-face-x4] %(message)s")
 _reconnect_warning_at: dict[str, float] = {}
@@ -2786,9 +2786,9 @@ def create_app() -> FastAPI:
     @app.get("/api/user/heating")
     async def heating_snapshot(request: Request) -> dict:
         base_url = await thermomind_url()
-        status, decision, modules, setpoints, acs_force, volano_force = await asyncio.gather(
+        status, decision, modules, setpoints, acs_force, volano_force, actuators = await asyncio.gather(
             *(thermomind_request("GET", path, base_url=base_url) for path in
-              ("status", "decision", "modules", "setpoints", "acs/force_puffer", "volano/force_puffer"))
+              ("status", "decision", "modules", "setpoints", "acs/force_puffer", "volano/force_puffer", "actuators"))
         )
         safe_status = {key: status.get(key) for key in ("version", "runtime_mode", "ha_connected", "last_update", "watchdog")}
         safe_setpoints = {section: {key: values.get(key) for key in keys}
@@ -2800,8 +2800,11 @@ def create_app() -> FastAPI:
         if isinstance(setpoints.get("volano"), dict):
             safe_setpoints.setdefault("volano", {}).update({key: setpoints["volano"].get(key)
                 for key in ("evening_dump_trigger", "evening_dump_run_entity")})
+        safe_actuators = {key: {"state": value.get("state"), "name": (value.get("attributes") or {}).get("friendly_name") or key}
+                          for key, value in actuators.items() if isinstance(value, dict) and key.startswith(("r", "generale_resistenze", "gas_boiler"))}
         return {"status": safe_status, "decision": decision, "modules": modules,
-                "setpoints": safe_setpoints, "forces": {"acs": acs_force, "volano": volano_force}}
+                "setpoints": safe_setpoints, "forces": {"acs": acs_force, "volano": volano_force},
+                "actuators": safe_actuators}
 
     @app.post("/api/user/heating/command")
     async def heating_command(request: Request, payload: dict) -> dict:

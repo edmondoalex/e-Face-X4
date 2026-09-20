@@ -1,5 +1,9 @@
 # Changelog
 
+## 2.21.209 — 2026-09-20
+
+- Completate le viste tecniche navigabili: Solare, Resistenze, Caldaie e Miscelatrice mostrano temperature, energia, logica e stato degli attuatori in sola lettura.
+
 ## 2.21.208 — 2026-09-20
 
 - Nuova sezione Riscaldamento e-ThermoMind con navigazione per Stato, Moduli, Regolazioni, Percorsi, Impianto e Zone; aggiornamento automatico e posizione conservata dopo il refresh.

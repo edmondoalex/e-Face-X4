@@ -1,4 +1,4 @@
-import { initHeating, openHeating as showHeating, closeHeating } from './heating.js?v=2.21.208'
+import { initHeating, openHeating as showHeating, closeHeating } from './heating.js?v=2.21.209'
 const $ = (selector) => document.querySelector(selector)
 initHeating()
 const deviceScope = (() => { const key='eface-device-scope-v1'; let value=localStorage.getItem(key); if(!/^[A-Za-z0-9_-]{16,64}$/.test(value||'')){value=(crypto.randomUUID?.()||`${Date.now()}-${Math.random()}`).replaceAll('-','');localStorage.setItem(key,value)} return value })()

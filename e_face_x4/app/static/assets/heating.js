@@ -1,4 +1,4 @@
-const tabs = [['status','Stato'],['modules','Moduli'],['setpoints','Regolazioni'],['flows','Percorsi'],['plant','Impianto'],['zones','Zone']]
+const tabs = [['status','Stato'],['modules','Moduli'],['setpoints','Regolazioni'],['flows','Percorsi'],['solar','Solare'],['resistances','Resistenze'],['plant','Impianto'],['boilers','Caldaie'],['mixer','Miscelatrice'],['zones','Zone']]
 const names = {resistenze_volano:'Resistenze volano',volano_to_acs:'Volano → ACS',volano_to_puffer:'Volano → Puffer',puffer_to_acs:'Puffer → ACS',impianto:'Impianto riscaldamento',gas_emergenza:'Caldaia gas emergenza',caldaia_legna:'Caldaia legna',solare:'Solare',miscelatrice:'Miscelatrice',curva_climatica:'Curva climatica',pdc:'Pompa di calore'}
 const controls = [
   ['acs','setpoint_c','ACS · setpoint',40,85,'°C'],['acs','max_c','ACS · limite massimo',50,85,'°C'],
@@ -10,6 +10,8 @@ const controls = [
 const esc = value => String(value ?? '').replace(/[&<>"']/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]))
 const number = (value, unit='°C') => Number.isFinite(Number(value)) ? `${Number(value).toFixed(unit === 'W' ? 0 : 1)} ${unit}` : '—'
 const card = (title, body, wide=false) => `<article class="heating-card${wide?' wide':''}"><h3>${esc(title)}</h3>${body}</article>`
+const reading = (label,value,unit='°C') => card(label,`<strong class="value">${number(value,unit)}</strong>`)
+const relay = key => { const item=snapshot.actuators?.[key];return item?card(item.name||key,`<strong class="value ${item.state==='on'?'heating-ok':'heating-muted'}">${esc(String(item.state||'—').toUpperCase())}</strong><small>Sola lettura</small>`):'' }
 let snapshot, active='status', loading=false, timer, root
 
 function summary() {
@@ -40,6 +42,23 @@ function flows() {
     ${card('Scarica Volano in Puffer',`<p>${f.volano?.active?`Attiva · ${Math.ceil((f.volano.remaining_s||0)/60)} min restanti`:'Non attiva'}</p><p>${esc(f.volano?.reason||'')}</p><div class="heating-actions"><input type="number" min="1" max="240" value="30" data-force-minutes="volano" aria-label="Durata in minuti"><button data-force="volano" data-active="true" ${f.volano?.can_apply===false?'disabled':''}>Avvia</button><button data-force="volano" data-active="false">Stop</button></div>`)}
     ${card('Scarico automatico',`<label>Trigger<select data-dump-trigger><option value="time" ${snapshot.setpoints?.volano?.evening_dump_trigger==='time'?'selected':''}>Orario</option><option value="entity" ${snapshot.setpoints?.volano?.evening_dump_trigger==='entity'?'selected':''}>Entità RUN</option></select></label><button data-save-dump="evening_dump_trigger">Salva trigger</button><label>Ora avvio<input type="number" min="0" max="23.99" step="0.25" data-dump-hour value="${esc(snapshot.setpoints?.volano?.evening_dump_after_h??'')}"></label><button data-save-dump="evening_dump_after_h">Salva ora</button><label>Entità RUN<input type="text" data-dump-entity value="${esc(snapshot.setpoints?.volano?.evening_dump_run_entity??'')}" placeholder="switch.nome_entita"></label><button data-save-dump="evening_dump_run_entity">Salva entità</button>`)}</div>`
 }
+function solar() {
+  const i=snapshot.decision?.inputs||{}, c=snapshot.decision?.computed||{}
+  const values=[['Mandata solare',i.t_solare_mandata],['Collettore',i.collettore_tsa1],['Ritorno solare',i.collettore_tse],['Serbatoio',i.collettore_twu],['Temperatura esterna',i.collettore_temp_esterna]]
+  return `<div class="heating-grid">${card('Stato collettore',`<strong class="value">${esc(i.collettore_status||'—')}</strong><p>${esc(i.collettore_status2||'')}</p><p>Ultimo dato: ${esc(i.collettore_datetime||'—')}</p>`)}${values.map(([label,value])=>reading(label,value)).join('')}${reading('Portata',i.collettore_flow_lmin,'L/min')}${reading('Pompa PWM',i.collettore_pwm_pct,'%')}${reading('Energia oggi',i.collettore_energy_day_kwh,'kWh')}${reading('Energia totale',i.collettore_energy_total_kwh,'kWh')}${['r8_valve_solare_notte_low_temp','r9_valve_solare_normal_funz','r10_valve_solare_precedenza_acs','r18_valve_ritorno_solare_basso','r19_valve_ritorno_solare_alto'].map(relay).join('')}${card('Decisione solare',`<p>${esc(c.module_reasons?.solare||'')}</p>`,true)}</div>`
+}
+function resistances() {
+  const i=snapshot.decision?.inputs||{}, c=snapshot.decision?.computed||{}
+  return `<div class="heating-grid">${reading('Potenza resistenze',i.resistenze_volano_power,'W')}${card('Step attuale',`<strong class="value">${esc(c.resistance_step??'—')} / 3</strong>`)}${reading('Export rete',i.grid_export_w,'W')}${reading('Extra safe',i.extra_safe_w,'W')}${reading('Disponibile calcolato',c.available_power_w,'W')}${reading('Volano alto',i.t_volano_alto)}${reading('Volano basso',i.t_volano_basso)}${['generale_resistenze_volano_pdc','r22_resistenza_1_volano_pdc','r23_resistenza_2_volano_pdc','r24_resistenza_3_volano_pdc'].map(relay).join('')}${card('Decisione resistenze',`<p>${esc(c.module_reasons?.resistenze_volano||'')}</p>`,true)}</div>`
+}
+function boilers() {
+  const i=snapshot.decision?.inputs||{}, c=snapshot.decision?.computed||{}, g=c.gas_emergenza||{}, w=c.caldaia_legna||{}
+  return `<h3 class="heating-section-title">Gas emergenza</h3><div class="heating-grid">${card('Stato gas',`<p>Necessaria: <strong>${g.need?'Sì':'No'}</strong></p><p>Domanda: <strong>${g.demand?'ON':'OFF'}</strong></p><p>Volano OK: ${g.vol_ok?'Sì':'No'} · Puffer OK: ${g.puf_ok?'Sì':'No'}</p>`)}${['gas_boiler_power','gas_boiler_ta'].map(relay).join('')}${card('Decisione gas',`<p>${esc(c.module_reasons?.gas_emergenza||'')}</p>`)}</div><h3 class="heating-section-title">Caldaia legna</h3><div class="heating-grid">${reading('Mandata',i.t_mandata_caldaia_legna)}${reading('Ritorno',i.t_ritorno_caldaia_legna)}${reading('Caldaia',i.t_caldaia_legna)}${card('Stato legna',`<p>Modulo: ${w.enabled?'ON':'OFF'} · Alimentazione: ${w.power?'ON':'OFF'} · TA: ${w.ta?'ON':'OFF'}</p><p>${esc(w.reason||'')}</p>`)}${['r30_alimentazione_caldaia_legna','r20_ta_caldaia_legna'].map(relay).join('')}</div>`
+}
+function mixer() {
+  const i=snapshot.decision?.inputs||{}, c=snapshot.decision?.computed||{}, m=c.miscelatrice||{}, curve=c.curva_climatica||{}
+  return `<div class="heating-grid">${reading('Mandata',i.t_mandata_miscelata)}${reading('Ritorno',i.t_ritorno_miscelato)}${reading('Setpoint mandata',m.setpoint)}${reading('Differenza mandata/ritorno',m.delta_tr)}${card('Miscelatrice',`<strong class="value">${esc(m.action||'—')}</strong><p>${esc(m.reason||'')}</p>`)}${reading('Esterno',i.t_esterna)}${reading('Setpoint curva',curve.setpoint)}${reading('Offset curva',curve.offset)}${card('Curva climatica',`<p>Modulo ${snapshot.modules?.curva_climatica?'ON':'OFF'} · pendenza ${esc(curve.slope??'—')}</p><p>${esc(c.module_reasons?.curva_climatica||'')}</p>`)}${['r16_cmd_miscelatrice_alza','r17_cmd_miscelatrice_abbassa'].map(relay).join('')}</div>`
+}
 function plant() {
   const c=snapshot.decision?.computed||{}, i=snapshot.decision?.inputs||{}
   const readings=[['Mandata miscelata',i.t_mandata_miscelata],['Ritorno miscelato',i.t_ritorno_miscelato],['Esterno',i.t_esterna],['Volano alto',i.t_volano_alto],['Volano basso',i.t_volano_basso],['Puffer alto',i.t_puffer_alto],['Puffer medio',i.t_puffer_medio],['Puffer basso',i.t_puffer_basso],['Caldaia legna',i.t_caldaia_legna]]
@@ -53,7 +72,7 @@ function zones() {
   const zones=snapshot.decision?.zones||[]
   return `<p class="heating-muted">Il setpoint agisce sulla zona Home Assistant collegata a e-ThermoMind. Lo stato del termostato resta in sola lettura.</p><div class="heating-grid">${zones.map(zone=>card(zone.entity_id?.replace(/^climate\./,'').replaceAll('_',' ')||'Zona',`<p>${esc(zone.group||'')} · ${esc(zone.state||'—')} · ${zone.active?'Richiesta calore':'Nessuna richiesta'}</p><p>Temperatura ${number(zone.temperature)}</p><label>Setpoint (°C)<input type="number" min="5" max="35" step="0.5" value="${esc(zone.setpoint??'')}" data-zone-temp="${esc(zone.entity_id)}"></label><button data-save-zone="${esc(zone.entity_id)}">Salva</button>`)).join('')||card('Zone','<p>Nessuna zona disponibile.</p>')}</div>`
 }
-const views={status:summary,modules,setpoints,flows,plant,zones}
+const views={status:summary,modules,setpoints,flows,solar,resistances,plant,boilers,mixer,zones}
 function render() {
   if (!root||!snapshot) return
   root.querySelector('#heating-tabs').innerHTML=tabs.map(([id,label])=>`<button type="button" data-heating-tab="${id}" class="${active===id?'active':''}" aria-current="${active===id?'page':'false'}">${label}</button>`).join('')
@@ -84,7 +103,7 @@ async function command(payload,button) {
   finally { button.disabled=false }
 }
 export function initHeating() {
-  document.head.insertAdjacentHTML('beforeend','<link rel="stylesheet" href="assets/heating.css?v=2.21.208">')
+  document.head.insertAdjacentHTML('beforeend','<link rel="stylesheet" href="assets/heating.css?v=2.21.209">')
   const nav=document.createElement('button');nav.dataset.view='heating';nav.title='Riscaldamento';nav.innerHTML='<img class="heating-nav-icon" src="assets/heating.svg" alt=""><span>Riscaldamento</span>'
   document.querySelector('.rail [data-view="comfort"]').after(nav)
   root=document.createElement('section');root.id='heating-view';root.className='heating-view';root.hidden=true
