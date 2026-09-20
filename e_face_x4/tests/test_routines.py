@@ -78,6 +78,11 @@ def test_professional_json_is_shared_persistent_and_admin_only(monkeypatch, tmp_
     assert customer.get(path).status_code == 403
     assert customer.post(path + "/validate", json={"spec": spec}).status_code == 403
     assert customer.post(path, json={"spec": spec, "enabled": False}).status_code == 403
+    filters_path = "/api/admin/routines/catalog-filters"
+    settings = {"block_sensitive_names": False, "hide_readonly_actions": False}
+    assert customer.put(filters_path, json=settings).status_code == 403
+    assert admin.put(filters_path, json=settings).json()["filters"] == settings
+    assert routines.catalog_filters() == settings
     assert admin.get(path).json()["items"][0]["spec"] == spec
     assert admin.get(path).json()["items"][0]["id"] == saved["id"]
     assert customer.get("/api/user/routines").json()["items"][0]["id"] == saved["id"]
@@ -386,11 +391,28 @@ def test_validation_blocks_access_commands_and_cycles():
     unsafe = sample()
     unsafe["steps"] = [{"type": "action", "device_id": "lock.door", "action": "unlock"}]
     result = routines.validate(unsafe, catalog())
-    assert result["can_enable"] is False
-    assert "sicurezza" in " ".join(result["errors"])
+    assert result["can_enable"] is True
+    assert "accesso fisico" in " ".join(result["risks"])
     cycle = sample()
     cycle["triggers"] = [{"type": "state", "device_id": "light.hall", "to": "on"}]
     assert "riattivare" in " ".join(routines.validate(cycle, catalog())["errors"])
+
+
+def test_cover_named_porta_available_and_catalog_filters_persist():
+    devices = catalog() + [{"id": "cover.scala", "kind": "cover", "name": "Porta Scala", "room": "Scala", "state": "closed"}]
+    spec = sample()
+    spec["triggers"] = [{"type": "state", "device_id": "sensor.motion", "to": "on"}]
+    spec["conditions"] = [{"device_id": "cover.scala", "operator": "is", "value": "closed"}]
+    spec["steps"] = [{"type": "action", "device_id": "cover.scala", "action": "open"}]
+    assert not routines.validate(spec, devices)["errors"]
+    spec["triggers"] = [{"type": "state", "device_id": "cover.scala", "to": "open"}]
+    spec["steps"] = [{"type": "action", "device_id": "light.hall", "action": "on"}]
+    assert not routines.validate(spec, devices)["errors"]
+    assert routines.catalog_filters() == {"block_sensitive_names": True, "hide_readonly_actions": True}
+    assert routines.save_catalog_filters({"block_sensitive_names": False, "hide_readonly_actions": False}) == {"block_sensitive_names": False, "hide_readonly_actions": False}
+    assert routines.catalog_filters()["block_sensitive_names"] is False
+    with pytest.raises(ValueError):
+        routines.save_catalog_filters({"block_sensitive_names": "false", "hide_readonly_actions": False})
 
 
 def test_validation_describes_timer_and_recheck():
@@ -872,6 +894,6 @@ def test_user_routes_and_admin_log_are_separated(monkeypatch):
         assert 'data-device-search' in script
         assert 'binary_sensor:[\'on\',\'off\']' in script
         assert "alarm_zone:['closed','active','tamper','masked','bypassed']" in script
-        assert 'matches.slice(0, 80)' in script
+        assert 'matches.slice(0, 80)' not in script
         invalid = client.post("/api/user/routines", json={"spec": sample(), "enabled": False})
         assert invalid.status_code == 400  # Devices missing from the live catalog.

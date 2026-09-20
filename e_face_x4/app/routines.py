@@ -32,8 +32,9 @@ SAFE_ACTIONS = {
     "media_player": {"media_play", "media_pause", "media_stop", "media_next", "media_previous", "turn_off", "set_volume", "volume_mute", "volume_unmute", "select_source", "remote_command", "dnd_on", "dnd_off", "tts"},
     "climate": {"set_target"},
     "cover": {"open", "close", "stop"},
+    "lock": {"lock", "unlock"},
 }
-ACTION_STATES = {"on": "on", "off": "off", "open": "open", "close": "closed", "media_play": "playing",
+ACTION_STATES = {"on": "on", "off": "off", "open": "open", "close": "closed", "lock": "locked", "unlock": "unlocked", "media_play": "playing",
                  "media_pause": "paused", "media_stop": "idle", "turn_off": "off"}
 ACTION_LABELS = {"on": "accendere", "off": "spegnere", "brightness": "regolare la luminosità", "open": "aprire",
                  "close": "chiudere", "stop": "fermare", "media_play": "avviare la riproduzione",
@@ -42,9 +43,10 @@ ACTION_LABELS = {"on": "accendere", "off": "spegnere", "brightness": "regolare l
                  "volume_mute": "silenziare", "volume_unmute": "riattivare l'audio", "set_target": "impostare la temperatura",
                  "media_next": "passare al brano successivo", "media_previous": "tornare al brano precedente", "tts": "pronunciare un messaggio su",
                  "select_source": "selezionare una sorgente su", "remote_command": "premere un tasto telecomando su",
-                 "dnd_on": "attivare Non disturbare su", "dnd_off": "disattivare Non disturbare su"}
+                 "dnd_on": "attivare Non disturbare su", "dnd_off": "disattivare Non disturbare su",
+                 "lock": "bloccare", "unlock": "sbloccare"}
 REMOTE_PLAYER_COMMANDS = {"media_play": "play", "media_pause": "pause", "media_stop": "stop", "media_next": "next", "media_previous": "previous", "turn_off": "turn_off", "volume_mute": "mute", "volume_unmute": "mute"}
-SENSITIVE_WORDS = re.compile(r"porta|portone|cancello|garage|serratura|allarme|alarm|gate|door|lock", re.I)
+SENSITIVE_WORDS = re.compile(r"portone|cancello|garage|serratura|allarme|alarm|gate|door|lock", re.I)
 SECRET_TEXT = re.compile(r"(?i)(password|token|secret|authorization)\s*[:=]\s*\S+|https?://\S+")
 
 
@@ -90,11 +92,28 @@ def _connect() -> sqlite3.Connection:
             detail TEXT NOT NULL DEFAULT '', before_state TEXT NOT NULL DEFAULT '',
             after_state TEXT NOT NULL DEFAULT '', result TEXT NOT NULL DEFAULT ''
         );
+        CREATE TABLE IF NOT EXISTS routine_settings (key TEXT PRIMARY KEY, value INTEGER NOT NULL);
         CREATE INDEX IF NOT EXISTS routine_runs_recent ON routine_runs(started_at DESC);
         CREATE INDEX IF NOT EXISTS routine_events_device ON routine_events(device_id, at DESC);
         CREATE INDEX IF NOT EXISTS routine_events_run ON routine_events(run_id, id);
     """)
     return connection
+
+
+def catalog_filters() -> dict[str, bool]:
+    defaults = {"block_sensitive_names": True, "hide_readonly_actions": True}
+    with _connect() as db:
+        saved = {row["key"]: bool(row["value"]) for row in db.execute("SELECT key, value FROM routine_settings")}
+    return {key: saved.get(key, value) for key, value in defaults.items()}
+
+
+def save_catalog_filters(values: dict) -> dict[str, bool]:
+    if not isinstance(values, dict) or set(values) != {"block_sensitive_names", "hide_readonly_actions"} or any(type(value) is not bool for value in values.values()):
+        raise ValueError("Filtri catalogo non validi")
+    with _connect() as db:
+        db.executemany("INSERT INTO routine_settings(key, value) VALUES(?, ?) ON CONFLICT(key) DO UPDATE SET value=excluded.value", [(key, int(value)) for key, value in values.items()])
+        db.commit()
+    return catalog_filters()
 
 
 def _now() -> str:
@@ -540,6 +559,7 @@ def validate(payload: dict, devices: list[dict], others: list[dict] = (), *, sol
     if unsupported:
         errors.append("Campi JSON non supportati: " + ", ".join(sorted(str(key) for key in unsupported)))
     catalog = {str(item.get("id")): item for item in devices if isinstance(item, dict) and item.get("id")}
+    active_filters = catalog_filters()
     name = str(payload.get("name") or "").strip()[:80]
     if not 1 <= len(name) <= 80:
         errors.append("Assegna un nome alla routine")
@@ -648,7 +668,8 @@ def validate(payload: dict, devices: list[dict], others: list[dict] = (), *, sol
                 continue
             device_kind = str(device.get("kind") or "")
             identity = " ".join(str(device.get(key) or "") for key in ("id", "entity_id", "name", "room"))
-            if device_kind in {"lock", "alarm_system", "alarm_partition", "alarm_scenario", "alarm_zone"} or SENSITIVE_WORDS.search(identity):
+            blocked_name = device_kind not in {"cover", "lock"} and (SENSITIVE_WORDS.search(identity) or re.search(r"porta", identity, re.I))
+            if device_kind in {"alarm_system", "alarm_partition", "alarm_scenario", "alarm_zone"} or (active_filters["block_sensitive_names"] and blocked_name):
                 errors.append(f"{device.get('name')}: accessi e sicurezza non sono automatizzabili dal cliente")
                 continue
             if action not in SAFE_ACTIONS.get(device_kind, set()):
@@ -815,6 +836,8 @@ def validate(payload: dict, devices: list[dict], others: list[dict] = (), *, sol
         risks.append("Uno spegnimento dopo un timer puo sovrascrivere un'accensione manuale avvenuta durante l'attesa.")
     if any(catalog[device_id].get("kind") == "cover" and action in {"open", "close"} for device_id, action in actions):
         risks.append("Oscuranti in movimento: e-Face non puo accertare la presenza di persone o ostacoli; verifica le protezioni fisiche dell'impianto.")
+    if any(catalog[device_id].get("kind") == "lock" and action == "unlock" for device_id, action in actions):
+        risks.append("La routine può sbloccare un accesso fisico automaticamente: verifica trigger, condizioni e protezioni prima di attivarla.")
     if any(catalog[device_id].get("kind") == "switch" for device_id, _ in actions):
         risks.append("Gli switch possono alimentare carichi reali: verifica che un comando automatico non interrompa apparecchiature importanti.")
     if mode == "parallel" and len({device_id for device_id, _ in actions}) < len(actions):

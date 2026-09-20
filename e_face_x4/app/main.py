@@ -76,7 +76,7 @@ from .connectors.supervisor import discover_addon_url, discover_host_url
 from .media_realtime import SharedMediaRealtime
 from .demo import dashboard as demo_dashboard
 
-VERSION = os.environ.get("EFACE_VERSION", "2.21.214")
+VERSION = os.environ.get("EFACE_VERSION", "2.21.215")
 STATIC = Path(__file__).parent / "static"
 logging.basicConfig(level=logging.WARNING, format="%(asctime)s %(levelname)s [e-face-x4] %(message)s")
 _reconnect_warning_at: dict[str, float] = {}
@@ -3166,7 +3166,7 @@ def create_app() -> FastAPI:
         devices = await routine_devices(request)
         return {"devices": [{key: item.get(key) for key in ("id", "entity_id", "name", "room", "kind", "state", "capabilities", "tts_enabled", "dnd_available", "source_list", "source_options", "provider")}
                             for item in devices if item.get("id")], "demo": load_settings().demo_mode,
-                "solar_available": bool(os.environ.get("SUPERVISOR_TOKEN"))}
+                "solar_available": bool(os.environ.get("SUPERVISOR_TOKEN")), "filters": routines.catalog_filters()}
 
     @app.post("/api/user/routines/from-text")
     async def user_routine_from_text(request: Request, payload: dict) -> dict:
@@ -3270,6 +3270,14 @@ def create_app() -> FastAPI:
     async def admin_professional_routines(request: Request) -> dict:
         require_admin(request)
         return {"items": routines.list_routines()}
+
+    @app.put("/api/admin/routines/catalog-filters")
+    async def admin_routine_catalog_filters(request: Request, payload: dict) -> dict:
+        require_admin(request)
+        try:
+            return {"filters": routines.save_catalog_filters(payload)}
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
 
     @app.post("/api/admin/routines/professional/validate")
     async def admin_validate_professional_routine(request: Request, payload: dict) -> dict:

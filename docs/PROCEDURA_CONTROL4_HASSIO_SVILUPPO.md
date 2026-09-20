@@ -137,6 +137,12 @@ L'agente non deve aspettare un promemoria dell'utente: nello stesso turno in cui
 - Distribuzione beta completata il 15/09/2026 con e-Face `2.21.61` e Asterisk `6.2.0-eface.11`: health positivo, provisioner HTTPS nuovamente raggiungibile, endpoint personali caricati con `opus/alaw/ulaw/h264/vp8`, inventari gruppi leggibili. Gli interni `8306` e `8307`, aperti dopo l'aggiornamento, hanno rilevato e attivato la capacità video; `8302–8305` la rileveranno alla prossima apertura. Durante la verifica è emersa una gara di avvio: il provisioner ora attende fino a 45 secondi `core waitfullybooted` e resta fail-closed oltre il limite. La resa video/audio fisica rimane distinta da queste prove automatiche.
 # Vincolo volume sessioni WiiM/Control4
 
+## Catalogo dispositivi routine (20/09/2026)
+
+- Lettura live e-HDL `GET /api/user/snapshot`: 175 dispositivi, fra cui 14 cover BusPro singole con indirizzo subnet/device/channel e 7 gruppi cover. Le cover singole non hanno `entity_id`; e-Face le normalizza in `BusproConnector` e le mostra nel catalogo routine. Il limite frontend di 80 opzioni impediva di raggiungerne alcune. Rimosso in `2.21.215`.
+- Le cover singole chiamate “Porta …” sono oscuranti, non serrature: trigger e condizioni leggono lo stato tramite `state_key` HDL; apri/chiudi/stop passano al connettore e-HDL. I dispositivi di tipo `lock` hanno blocca/sblocca, con avviso di rischio per lo sblocco automatico. Non inviare comandi di prova fisici per verificare il catalogo.
+- In Admin > Routine Professional il catalogo è leggibile e ricercabile. I filtri `block_sensitive_names` e `hide_readonly_actions` si salvano globalmente nella tabella `routine_settings` del database persistente `/data/routines.sqlite3`. Il filtro dei nomi non si applica a cover o lock; gli allarmi restano esclusi dalle azioni e i comandi fuori whitelist restano vietati anche quando i filtri sono spenti. Verifica ripetibile: `python -m pytest tests/test_routines.py -q`, poi lettura autenticata del catalogo dopo deploy, senza azionare dispositivi.
+
 ## Finestra oraria Routine (20/09/2026)
 
 - Schema persistente condiviso: condizione `{"type":"time_window","start":{"kind":"sunset","offset_minutes":0},"end":{"kind":"time","at":"23:00"}}`. Ogni estremo ammette `kind=time` con `at=HH:MM`, oppure `kind=sunrise|sunset` con `offset_minutes` intero tra -180 e +180. Inizio incluso, fine esclusa; se la fine precede l'inizio si usa una finestra oltre mezzanotte (es. tramonto→alba). Inizio e fine identici sono rifiutati.

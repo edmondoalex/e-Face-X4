@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.21.215 — 2026-09-20
+
+- Catalogo routine senza limite di 80 risultati: cover singole e gruppi disponibili come trigger, condizioni e azioni; le cover chiamate “Porta” non sono più confuse con accessi di sicurezza.
+- Routine Professional mostra il catalogo completo ricercabile e i filtri applicati. L'admin può disattivare globalmente e in modo persistente il blocco dei nomi sensibili e il filtro dei dispositivi senza azioni. Serrature disponibili con blocco/sblocco e avviso esplicito sui rischi.
+
 ## 2.21.214 — 2026-09-20
 
 - Routine visuali: nuova condizione “Intervallo da… a…” con estremi Orario, Alba o Tramonto e offset solari ±180 minuti. Gli intervalli oltre mezzanotte, incluso tramonto → alba, sono valutati correttamente.

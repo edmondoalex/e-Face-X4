@@ -71,6 +71,8 @@ professionalPanel.innerHTML = `<header><button type="button" data-professional-b
   {"type":"stop","reason":"Fine"}
 ]</pre><p>Sostituisci gli ID con quelli del catalogo. Una variabile può anche avere <code>value</code> fisso; per leggerla usa <code>{"type":"variable","name":"presenza","operator":"is","value":"on"}</code> come condizione.</p></details>
   <div class="routine-professional-actions"><label>Routine<select data-professional-select aria-label="Scegli routine"><option value="">Nuova routine</option></select></label><button type="button" data-professional-new>NUOVA</button><button type="button" data-professional-copy-catalog>COPIA CATALOGO DISPOSITIVI</button></div>
+  <details class="routine-professional-help"><summary>Catalogo dispositivi <span data-professional-catalog-count></span></summary><input data-professional-catalog-search type="search" placeholder="Cerca nome, stanza, tipo o ID" aria-label="Cerca nel catalogo dispositivi"><div data-professional-catalog-list class="routine-catalog-list"></div></details>
+  <details class="routine-professional-help"><summary>Filtri catalogo routine</summary><p>Queste impostazioni sono globali e persistenti. Non rimuovono il controllo dei tipi di comando realmente supportati.</p><label><input type="checkbox" data-catalog-filter="block_sensitive_names"> Blocca nelle azioni i nomi di accesso (porta, cancello, garage). Le cover e le serrature restano disponibili.</label><label><input type="checkbox" data-catalog-filter="hide_readonly_actions"> Nascondi nelle azioni i dispositivi senza comandi supportati. Restano sempre disponibili come trigger e condizioni.</label><p data-catalog-filter-status></p></details>
   <label class="routine-professional-code">Definizione JSON<textarea data-professional-json spellcheck="false" autocapitalize="off" autocomplete="off" rows="20" aria-label="JSON della routine"></textarea></label>
   <label class="routine-professional-enabled"><input type="checkbox" data-professional-enabled> Mantieni o rendi attiva dopo il salvataggio</label>
   <div class="routine-professional-actions"><button type="button" data-professional-check>CONTROLLA JSON</button><button type="button" data-professional-save>SALVA JSON</button><button type="button" data-professional-open-visual disabled>APRI NELL'EDITOR VISUALE</button></div>
@@ -79,6 +81,7 @@ root.append(professionalPanel)
 const $ = selector => panel.querySelector(selector)
 let routines = []
 let devices = []
+let catalogFilters = {block_sensitive_names:true, hide_readonly_actions:true}
 let current = null
 let draft = null
 const actions = {
@@ -86,18 +89,19 @@ const actions = {
   light: [['on', 'Accendi'], ['off', 'Spegni'], ['brightness', 'Luminosità %']],
   switch: [['on', 'Accendi'], ['off', 'Spegni']],
   cover: [['open', 'Apri'], ['close', 'Chiudi'], ['stop', 'Ferma']],
+  lock: [['lock', 'Blocca'], ['unlock', 'Sblocca']],
   media_player: [['media_play', 'Riproduci'], ['media_pause', 'Pausa'], ['media_stop', 'Stop'], ['media_next', 'Successivo'], ['media_previous', 'Precedente'], ['turn_off', 'Spegni stanza'], ['set_volume', 'Volume %'], ['volume_mute', 'Mute'], ['volume_unmute', 'Riattiva audio'], ['select_source', 'Seleziona sorgente'], ['remote_command', 'Tasto telecomando sorgente'], ['dnd_on', 'Attiva Non disturbare'], ['dnd_off', 'Disattiva Non disturbare'], ['tts', 'Messaggio vocale (TTS)']],
   climate: [['set_target', 'Temperatura °C']]
 }
-const sensitive = /porta|portone|cancello|garage|serratura|allarme|alarm|gate|door|lock/i
-const safeDevices = () => devices.filter(item => actions[item.kind] && !sensitive.test([item.id, item.entity_id, item.name, item.room].join(' ')))
+const sensitive = /portone|cancello|garage|serratura|allarme|alarm|gate|door|lock/i
+const safeDevices = () => devices.filter(item => { const identity = [item.id, item.entity_id, item.name, item.room].join(' '); return (!catalogFilters.hide_readonly_actions || actions[item.kind]) && (item.kind === 'lock' || item.kind === 'cover' || !catalogFilters.block_sensitive_names || (!sensitive.test(identity) && !/porta/i.test(identity))) })
 const deviceOptions = (selected, allowed = devices, query = '') => {
   const words = query.trim().toLocaleLowerCase('it-IT').split(/\s+/).filter(Boolean)
   const matches = allowed.filter(item => words.every(word => [item.room, item.name, item.id, item.entity_id].some(part => String(part || '').toLocaleLowerCase('it-IT').includes(word))))
-  const shown = matches.slice(0, 80)
+  const shown = matches
   const selectedItem = allowed.find(item => item.id === selected)
   if (selectedItem && !shown.some(item => item.id === selected)) shown.unshift(selectedItem)
-  return `<option value="">${matches.length > 80 ? `${matches.length} risultati: affina la ricerca` : matches.length ? `Scegli dispositivo (${matches.length})` : 'Nessun dispositivo trovato'}</option>${shown.map(item => `<option value="${escapeHtml(item.id)}" ${item.id === selected ? 'selected' : ''}>${escapeHtml([item.room, item.name, item.id].filter(Boolean).join(' · '))}</option>`).join('')}`
+  return `<option value="">${matches.length ? `Scegli dispositivo (${matches.length})` : 'Nessun dispositivo trovato'}</option>${shown.map(item => `<option value="${escapeHtml(item.id)}" ${item.id === selected ? 'selected' : ''}>${escapeHtml([item.room, item.name, item.id].filter(Boolean).join(' · '))}</option>`).join('')}`
 }
 const deviceField = (selected, scope = 'all') => `<div class="routine-device-field"><input data-device-search type="search" autocomplete="off" placeholder="Cerca stanza o dispositivo, es. ufficio" aria-label="Cerca dispositivo"><select data-field="device" data-device-scope="${scope}">${deviceOptions(selected, scope === 'safe' ? safeDevices() : scope === 'media' ? devices.filter(item => item.kind === 'media_player') : devices)}</select></div>`
 const mediaRemoteCapabilities = {media_play:'play',media_pause:'pause',media_stop:'stop',media_next:'next',media_previous:'previous',turn_off:'turn_off',volume_mute:'mute',volume_unmute:'mute'}
@@ -210,6 +214,7 @@ async function load() {
   const [list, catalog] = await Promise.all([request('api/user/routines'), request('api/user/routines/catalog')])
   routines = list.items || []
   devices = catalog.devices || []
+  catalogFilters = catalog.filters || catalogFilters
   renderList()
   if (catalog.demo) $('[data-routine-review]').textContent = 'Modalità demo: le routine non possono essere attivate.'
 }
@@ -432,10 +437,39 @@ function selectProfessional(item) {
   renderProfessionalChoice()
 }
 async function loadProfessional() {
-  const data = await request('api/admin/routines/professional')
+  const [data, catalog] = await Promise.all([request('api/admin/routines/professional'), request('api/user/routines/catalog')])
   professionalItems = data.items || []
+  devices = catalog.devices || []
+  catalogFilters = catalog.filters || catalogFilters
+  professionalPanel.querySelectorAll('[data-catalog-filter]').forEach(input => { input.checked = Boolean(catalogFilters[input.dataset.catalogFilter]) })
+  renderProfessionalCatalog()
   selectProfessional(professionalItems.find(item => item.id === professionalCurrent?.id) || null)
 }
+function renderProfessionalCatalog() {
+  const query = professional('[data-professional-catalog-search]').value.trim().toLocaleLowerCase('it-IT')
+  const matching = devices.filter(item => [item.name, item.room, item.kind, item.id].some(value => String(value || '').toLocaleLowerCase('it-IT').includes(query)))
+  professional('[data-professional-catalog-count]').textContent = `(${devices.length})`
+  professional('[data-professional-catalog-list]').innerHTML = matching.map(item => {
+    const commands = actions[item.kind]?.filter(([action]) => item.kind !== 'light_scenario' || item.capabilities?.[action === 'on' || action === 'off' ? 'onoff' : 'run']).map(([action]) => action) || []
+    return `<div class="routine-catalog-item"><b>${escapeHtml(item.name || item.id)}</b><small>${escapeHtml([item.room, item.kind, item.id].filter(Boolean).join(' · '))}</small><small>Trigger: stato · Condizione: stato · Azioni: ${escapeHtml(commands.join(', ') || 'sola lettura')}</small></div>`
+  }).join('') || '<p>Nessun dispositivo trovato.</p>'
+}
+professional('[data-professional-catalog-search]').addEventListener('input', renderProfessionalCatalog)
+professionalPanel.addEventListener('change', async event => {
+  const input = event.target.closest('[data-catalog-filter]')
+  if (!input) return
+  const next = {...catalogFilters, [input.dataset.catalogFilter]:input.checked}
+  input.disabled = true
+  try {
+    const result = await request('api/admin/routines/catalog-filters', jsonOptions('PUT', next))
+    catalogFilters = result.filters
+    professional('[data-catalog-filter-status]').textContent = 'Filtri salvati per tutti gli utenti.'
+    renderProfessionalCatalog()
+  } catch (error) {
+    input.checked = Boolean(catalogFilters[input.dataset.catalogFilter])
+    professional('[data-catalog-filter-status]').textContent = error.message
+  } finally { input.disabled = false }
+})
 function professionalSpec() {
   let spec
   try { spec = JSON.parse(professional('[data-professional-json]').value) } catch(error) { throw new Error(`JSON non valido: ${error.message}`) }
