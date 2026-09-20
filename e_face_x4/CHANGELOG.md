@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.21.212 — 2026-09-20
+
+- Scene Studio include una guida rapida richiudibile, chiusa inizialmente, che spiega identità, comandi, cover, combinazioni, trigger e prova dello scenario.
+- Nell'editor scenari i riferimenti visibili a Home Assistant e le sigle HA per i pulsanti sono sostituiti da e-Control; il collegamento tecnico resta invariato.
+
 ## 2.21.211 — 2026-09-20
 
 - I sette gruppi cover e-HDL compaiono ora come oscuranti comandabili, senza generare stanze fittizie; stati e posizione sono aggregati dai membri.
