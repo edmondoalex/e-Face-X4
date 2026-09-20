@@ -1110,6 +1110,12 @@ function rememberToolsLocation() {
 window.addEventListener('beforeunload', rememberToolsLocation)
 window.addEventListener('pagehide', rememberToolsLocation)
 initialize().then(() => {
+  // Restore an open panel only after a real refresh, not on a new visit to Strumenti.
+  const navigation = performance.getEntriesByType('navigation')[0]
+  if (navigation?.type !== 'reload') {
+    sessionStorage.removeItem('eface-tools-restore')
+    return
+  }
   let saved
   try { saved = JSON.parse(sessionStorage.getItem('eface-tools-restore') || 'null') } catch { return }
   if (!saved?.id || !/^[a-z0-9-]+$/.test(saved.id)) return

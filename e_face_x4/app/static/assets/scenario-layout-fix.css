@@ -1,0 +1,15 @@
+/* Full-viewport overlay: the Tools grid must not size Scene Studio as a grid cell. */
+.tools-theme #scenarios-config {
+  position: fixed !important;
+  inset: 0 !important;
+  width: 100vw !important;
+  max-width: none !important;
+  min-width: 0;
+  margin: 0 !important;
+  padding: 22px max(22px, calc((100vw - 1320px) / 2)) !important;
+  box-sizing: border-box;
+}
+
+@media (max-width: 600px) {
+  .tools-theme #scenarios-config { padding: 12px !important; }
+}

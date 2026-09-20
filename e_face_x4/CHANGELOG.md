@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.21.220 — 2026-09-20
+
+- Scenari: Scene Studio occupa correttamente la finestra anche quando viene aperto dalla griglia di Strumenti, senza comprimere i contenuti.
+- Strumenti ripristina il pannello aperto solo dopo un refresh della stessa pagina; una nuova visita non riapre Scenari automaticamente.
+
 ## 2.21.219 — 2026-09-20
 
 - Il ripristino dei bypass prosegue su tutte le zone anche se la scrittura del registro eventi fallisce (per esempio database pieno). Il journal di recupero resta persistente; aggiunto test di regressione per questa condizione.
