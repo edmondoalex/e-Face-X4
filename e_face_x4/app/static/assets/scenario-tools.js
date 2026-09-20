@@ -30,7 +30,7 @@ function targets() {
     return {key:targetKey(item,kind),kind,label:device.name||device.entity_id||targetKey(item,kind),room:device.group||device.category||'',detail:device.entity_id||`${device.subnet_id}.${device.device_id}.${device.channel}`,dimmable:Boolean(device.dimmable)&&item.domain!=='switch',item}
   })
   const groups=(catalog.groups||[]).map(group=>({key:`group:${group.id}`,kind:'group',label:group.name||group.id,room:'Gruppo tapparelle',detail:group.id,item:{group_id:group.id}}))
-  return [...devices,...groups]
+  return [...groups,...devices]
 }
 function targetName(item,kind) { const key=targetKey(item,kind);return targets().find(target=>target.key===key)?.label||item.entity_id||item.group_id||`${item.subnet_id}.${item.device_id}.${item.channel}` }
 function dimmable(item) { return targets().find(target=>target.key===targetKey(item,'light'))?.dimmable||item.brightness!==null&&item.brightness!==undefined }
@@ -51,7 +51,7 @@ function renderList(){
   const q=filter.trim().toLocaleLowerCase('it')
   const items=(catalog.items||[]).filter(item=>String(item.name||'').toLocaleLowerCase('it').includes(q))
   $('[data-scene-list]').innerHTML=items.map(item=>`<button type="button" data-scene-select="${esc(item.id)}" class="scene-entry ${item.id===currentId?'selected':''}"><span class="scene-entry-icon">${item.running?'▶':item.onoff_enabled?'◉':'✦'}</span><span><strong>${esc(item.name)}</strong><small>${(item.items||[]).length} luci · ${(item.covers||[]).length} tapparelle${item.running?' · IN CORSO':''}</small></span><i>›</i></button>`).join('')||'<p class="scene-empty">Nessuno scenario trovato.</p>'
-  $('[data-scene-stats]').innerHTML=`<strong>${catalog.items.length}</strong><span>scenari<br>condivisi</span>`
+  $('[data-scene-stats]').innerHTML=`<strong>${catalog.items.length}</strong><span>scenari condivisi<br>${catalog.groups.length} gruppi cover disponibili</span>`
 }
 const check = (value,label,checked) => `<label class="scene-check"><input type="checkbox" data-scene-field="${value}" ${checked?'checked':''}><span>${label}</span></label>`
 function renderSelected(){

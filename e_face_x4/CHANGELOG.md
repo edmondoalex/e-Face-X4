@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.21.211 — 2026-09-20
+
+- I sette gruppi cover e-HDL compaiono ora come oscuranti comandabili, senza generare stanze fittizie; stati e posizione sono aggregati dai membri.
+- In Strumenti > Ordina compare “Cover e gruppi”, con trascinamento e flag UI persistenti anche per i gruppi. In Scene Studio i gruppi sono mostrati per primi nel catalogo e sono selezionabili per gli scenari.
+
 ## 2.21.210 — 2026-09-20
 
 - Nuovo Scene Studio in Strumenti: elenco condiviso degli scenari e-HDL, creazione, modifica, duplicazione, eliminazione e comandi di prova con conferma.

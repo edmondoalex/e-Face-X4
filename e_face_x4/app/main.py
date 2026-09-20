@@ -76,7 +76,7 @@ from .connectors.supervisor import discover_addon_url, discover_host_url
 from .media_realtime import SharedMediaRealtime
 from .demo import dashboard as demo_dashboard
 
-VERSION = os.environ.get("EFACE_VERSION", "2.21.210")
+VERSION = os.environ.get("EFACE_VERSION", "2.21.211")
 STATIC = Path(__file__).parent / "static"
 logging.basicConfig(level=logging.WARNING, format="%(asctime)s %(levelname)s [e-face-x4] %(message)s")
 _reconnect_warning_at: dict[str, float] = {}
@@ -2917,7 +2917,7 @@ def create_app() -> FastAPI:
                     }
             room_map = {str(room.get("name", "")).casefold(): room for room in dashboard["rooms"] if isinstance(room, dict)}
             for device in dashboard["devices"]:
-                if device.get("kind") in {"alarm_partition", "alarm_scenario", "alarm_system"}:
+                if device.get("kind") in {"alarm_partition", "alarm_scenario", "alarm_system"} or device.get("category") == "cover_group":
                     continue
                 room = str(device.get("room") or "").strip()
                 if not room:

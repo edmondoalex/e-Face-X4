@@ -104,6 +104,30 @@ def normalize_snapshot(payload: dict[str, Any]) -> dict[str, Any]:
             "rgb_group": str(raw.get("rgb_group") or "").strip(),
             "rgb_channel": str(raw.get("rgb_channel") or "").strip().lower(),
         })
+    groups = payload.get("cover_groups") if isinstance(payload.get("cover_groups"), list) else []
+    for group in groups:
+        if not isinstance(group, dict):
+            continue
+        group_id = str(group.get("id") or "").strip()
+        members = group.get("members") if isinstance(group.get("members"), list) else []
+        if not group_id or not members:
+            continue
+        member_states = [state_at(cover_states, str(member)) for member in members]
+        active = any(isinstance(value, dict) and str(value.get("state") or "").upper() in {"OPEN", "OPENING"}
+                     for value in member_states)
+        closed = all(isinstance(value, dict) and str(value.get("state") or "").upper() in {"CLOSED", "CLOSE"}
+                     for value in member_states)
+        positions = [value.get("position") for value in member_states if isinstance(value, dict)
+                     and isinstance(value.get("position"), (int, float)) and not isinstance(value.get("position"), bool)]
+        normalized.append({
+            "id": f"cover-group:{group_id}", "group_id": group_id,
+            "name": str(group.get("name") or group_id), "kind": "cover", "room": "Gruppi cover",
+            "category": "cover_group", "state": "OPEN" if active else "CLOSED" if closed else "UNKNOWN",
+            "position": round(sum(positions) / len(positions)) if len(positions) == len(members) else None,
+            "icon": str(group.get("icon") or "mdi:window-shutter-settings"), "members": members,
+            "state_key": f"cover_group:{group_id}",
+        })
+        counts["covers"] += 1
     mqtt = payload.get("mqtt") if isinstance(payload.get("mqtt"), dict) else {}
     return {
         "devices": normalized,
@@ -190,6 +214,19 @@ class BusproConnector(Connector):
             devices = snapshot.get("devices") if isinstance(snapshot, dict) else None
             if not isinstance(devices, list):
                 raise ValueError("snapshot non valido")
+            if str(target_id).startswith("cover-group:"):
+                group_id = str(target_id).split(":", 1)[1]
+                groups = snapshot.get("cover_groups") if isinstance(snapshot.get("cover_groups"), list) else []
+                if not any(isinstance(group, dict) and str(group.get("id")) == group_id for group in groups):
+                    raise ValueError("gruppo cover non trovato")
+                if action not in {"open", "close", "stop"}:
+                    raise ValueError("comando gruppo cover non valido")
+                response = await client.post(
+                    f"{self.config.base_url}/api/control/cover_group/{group_id}",
+                    headers=self._headers(), json={"command": action.upper()},
+                )
+                response.raise_for_status()
+                return {"ok": True}
             raw = next((item for index, item in enumerate(devices) if isinstance(item, dict) and str(item.get("entity_id") or item.get("id") or index) == str(target_id)), None)
             if raw is None:
                 raise ValueError("dispositivo non trovato")
