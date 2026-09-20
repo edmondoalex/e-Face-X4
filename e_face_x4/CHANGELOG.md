@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.21.208 — 2026-09-20
+
+- Nuova sezione Riscaldamento e-ThermoMind con navigazione per Stato, Moduli, Regolazioni, Percorsi, Impianto e Zone; aggiornamento automatico e posizione conservata dopo il refresh.
+- Moduli, setpoint, stagioni, forzature temporanee e setpoint delle zone sono comandabili tramite un proxy ristretto, con validazione dei valori e senza accesso agli attuatori diretti o alla configurazione riservata.
+
 ## 2.21.207 — 2026-09-20
 
 - Home dinamica per utente: tre nuovi widget opt-in, Casa viva (attività stanze), Luci accese e Routine in corso. Si aggiornano con gli stati live, si possono ordinare e dimensionare come gli altri widget e aprono i relativi dispositivi o ambienti.

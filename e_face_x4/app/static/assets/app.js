@@ -1,4 +1,6 @@
+import { initHeating, openHeating as showHeating, closeHeating } from './heating.js?v=2.21.208'
 const $ = (selector) => document.querySelector(selector)
+initHeating()
 const deviceScope = (() => { const key='eface-device-scope-v1'; let value=localStorage.getItem(key); if(!/^[A-Za-z0-9_-]{16,64}$/.test(value||'')){value=(crypto.randomUUID?.()||`${Date.now()}-${Math.random()}`).replaceAll('-','');localStorage.setItem(key,value)} return value })()
 const deviceFetchOptions = (options={}) => ({...options,headers:{...(options.headers||{}),'X-Eface-Device':deviceScope}})
 document.head.insertAdjacentHTML('beforeend', '<link rel="stylesheet" href="assets/media-x4.css?v=2.21.168">')
@@ -1938,6 +1940,7 @@ function closeIntercom() {
 }
 
 function openIntercom() {
+  closeHeating()
   sessionStorage.setItem('eface-home-location', JSON.stringify({kind:'intercom'}))
   stopEnergyRefresh()
   applyBackground('')
@@ -1952,6 +1955,7 @@ function openIntercom() {
 }
 
 function openDevices(title, devices, options = {}) {
+  closeHeating()
   sessionStorage.setItem('eface-home-location', JSON.stringify({kind:'devices',title,ids:devices.map(device=>String(device.id)),options}))
   closeIntercom()
   $('#energy-view').hidden = true
@@ -1989,6 +1993,7 @@ function openDevices(title, devices, options = {}) {
 }
 
 function openScenariosPage() {
+  closeHeating()
   sessionStorage.setItem('eface-home-location', JSON.stringify({kind:'scenarios'}))
   closeIntercom()
   $('#energy-view').hidden = true
@@ -2049,6 +2054,7 @@ async function sendScenarioCommand(id, action, button) {
 }
 
 function showHome() {
+  closeHeating()
   sessionStorage.setItem('eface-home-location', JSON.stringify({kind:'home'}))
   closeIntercom()
   stopEnergyRefresh()
@@ -2067,6 +2073,7 @@ function showHome() {
 }
 
 function openEnergy() {
+  closeHeating()
   sessionStorage.setItem('eface-home-location', JSON.stringify({kind:'energy'}))
   closeIntercom()
   applyBackground('')
@@ -2075,6 +2082,19 @@ function openEnergy() {
   $('#detail-view').hidden = true
   $('#energy-view').hidden = false
   showEnergyPicker()
+  window.scrollTo({ top: 0, behavior: 'smooth' })
+}
+
+function openHeatingPage() {
+  sessionStorage.setItem('eface-home-location', JSON.stringify({kind:'heating'}))
+  closeIntercom()
+  stopEnergyRefresh()
+  applyBackground('')
+  activeDetailIds = null
+  $('#home-view').hidden = true
+  $('#detail-view').hidden = true
+  $('#energy-view').hidden = true
+  showHeating()
   window.scrollTo({ top: 0, behavior: 'smooth' })
 }
 
@@ -2392,6 +2412,7 @@ document.querySelectorAll('.rail button').forEach((button) => button.addEventLis
   if (button.dataset.view === 'covers') openDevices('Oscuranti', organizedDevices('covers',currentDevices.filter((device) => deviceInCategory(device, 'covers'))), { filters: true })
   if (button.dataset.view === 'comfort') openDevices('Comfort', organizedDevices('comfort',currentDevices.filter((device) => deviceInCategory(device, 'comfort'))), { filters: true })
   if (button.dataset.view === 'energy') openEnergy()
+  if (button.dataset.view === 'heating') openHeatingPage()
   if (button.dataset.view === 'security') openDevices('Sicurezza', organizedDevices('security',currentDevices.filter((device) => deviceInCategory(device, 'security'))))
 }))
 $('#widgets').addEventListener('click', (event) => {
@@ -3210,6 +3231,7 @@ Promise.all([
     if (devices.length) openDevices(savedLocation.title || 'Dispositivi', devices, savedLocation.options || {})
   } else if (savedLocation?.kind === 'scenarios') openScenariosPage()
   else if (savedLocation?.kind === 'intercom') openIntercom()
+  else if (savedLocation?.kind === 'heating') openHeatingPage()
   else if (savedLocation?.kind === 'energy' || savedLocation?.kind === 'energy-dashboard') {
     openEnergy()
     if (savedLocation.kind === 'energy-dashboard' && savedLocation.id) openEnergyDashboard(savedLocation.id, savedLocation.name || 'Dashboard energia')

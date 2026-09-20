@@ -47,7 +47,7 @@ from . import voip_phones
 from . import personal_devices
 from . import intercom_groups
 from . import push_notifications
-from . import routines, routine_nl
+from . import routines, routine_nl, heating
 from . import provisioner_client
 from . import installation
 from . import credential_inventory
@@ -76,7 +76,7 @@ from .connectors.supervisor import discover_addon_url, discover_host_url
 from .media_realtime import SharedMediaRealtime
 from .demo import dashboard as demo_dashboard
 
-VERSION = os.environ.get("EFACE_VERSION", "2.21.207")
+VERSION = os.environ.get("EFACE_VERSION", "2.21.208")
 STATIC = Path(__file__).parent / "static"
 logging.basicConfig(level=logging.WARNING, format="%(asctime)s %(levelname)s [e-face-x4] %(message)s")
 _reconnect_warning_at: dict[str, float] = {}
@@ -2747,6 +2747,70 @@ def create_app() -> FastAPI:
     @app.get("/health")
     async def health() -> dict:
         return {"ok": True, "version": VERSION}
+
+    async def thermomind_url() -> str:
+        settings = load_settings()
+        config = settings.thermomind
+        if not config.enabled:
+            raise HTTPException(503, "e-ThermoMind disabilitato")
+        manual = str(config.base_url or "").lower()
+        if manual and "127.0.0.1" not in manual and "localhost" not in manual:
+            return config.base_url
+        cached = getattr(app.state, "thermomind_url", None)
+        if cached and time.monotonic() - cached[1] < 300:
+            return cached[0]
+        host_url, discovered = await asyncio.gather(
+            discover_host_url(8099, settings.request_timeout_s),
+            discover_addon_url("e_thermomind", 8099, settings.request_timeout_s),
+        )
+        base_url = host_url or discovered or config.base_url
+        if not base_url:
+            raise HTTPException(503, "e-ThermoMind non trovato: configura l'indirizzo nelle opzioni add-on")
+        app.state.thermomind_url = (base_url, time.monotonic())
+        return base_url
+
+    async def thermomind_request(method: str, path: str, payload: dict | None = None, base_url: str | None = None) -> dict:
+        settings = load_settings()
+        base_url = base_url or await thermomind_url()
+        try:
+            async with httpx.AsyncClient(timeout=settings.request_timeout_s, follow_redirects=False) as client:
+                response = await client.request(method, f"{base_url}/api/{path}", json=payload)
+            data = response.json()
+        except (httpx.HTTPError, ValueError) as exc:
+            raise HTTPException(502, f"e-ThermoMind non raggiungibile: {type(exc).__name__}") from exc
+        if response.status_code >= 400:
+            detail = data.get("detail") if isinstance(data, dict) else None
+            raise HTTPException(response.status_code if response.status_code < 500 else 502, str(detail or "Comando rifiutato da e-ThermoMind")[:200])
+        return data if isinstance(data, dict) else {}
+
+    @app.get("/api/user/heating")
+    async def heating_snapshot(request: Request) -> dict:
+        base_url = await thermomind_url()
+        status, decision, modules, setpoints, acs_force, volano_force = await asyncio.gather(
+            *(thermomind_request("GET", path, base_url=base_url) for path in
+              ("status", "decision", "modules", "setpoints", "acs/force_puffer", "volano/force_puffer"))
+        )
+        safe_status = {key: status.get(key) for key in ("version", "runtime_mode", "ha_connected", "last_update", "watchdog")}
+        safe_setpoints = {section: {key: values.get(key) for key in keys}
+                          for section, keys in heating.SETPOINTS.items()
+                          if isinstance(values := setpoints.get(section), dict)}
+        if isinstance(setpoints.get("impianto"), dict):
+            safe_setpoints.setdefault("impianto", {}).update({key: setpoints["impianto"].get(key)
+                for key in ("season_mode", "source_mode", "pdc_ready", "puffer_ready")})
+        if isinstance(setpoints.get("volano"), dict):
+            safe_setpoints.setdefault("volano", {}).update({key: setpoints["volano"].get(key)
+                for key in ("evening_dump_trigger", "evening_dump_run_entity")})
+        return {"status": safe_status, "decision": decision, "modules": modules,
+                "setpoints": safe_setpoints, "forces": {"acs": acs_force, "volano": volano_force}}
+
+    @app.post("/api/user/heating/command")
+    async def heating_command(request: Request, payload: dict) -> dict:
+        path, upstream = heating.command_payload(payload)
+        if payload.get("kind") == "zone":
+            decision = await thermomind_request("GET", "decision")
+            if payload["entity_id"] not in {zone.get("entity_id") for zone in decision.get("zones", []) if isinstance(zone, dict)}:
+                raise HTTPException(400, "Zona non presente in e-ThermoMind")
+        return await thermomind_request("POST", path, upstream)
 
     @app.get("/api/sunmind/{proxy_path:path}", include_in_schema=False)
     async def sunmind_proxy(proxy_path: str, request: Request) -> Response:

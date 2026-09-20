@@ -29,6 +29,7 @@ class Settings:
     buspro: ProviderConfig
     evoice: ProviderConfig
     etherm: ProviderConfig
+    thermomind: ProviderConfig
     ksenia: ProviderConfig
     sunmind: ProviderConfig
 
@@ -75,6 +76,7 @@ def load_settings() -> Settings:
         buspro=_provider(raw.get("buspro")),
         evoice=_provider(raw.get("evoice")),
         etherm=_provider(raw.get("etherm")),
+        thermomind=_provider(raw.get("thermomind", {"enabled": True})),
         ksenia=_provider(raw.get("ksenia")),
         sunmind=_provider(raw.get("sunmind")),
     )
