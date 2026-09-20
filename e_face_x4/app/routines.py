@@ -283,6 +283,14 @@ def fail_bypass_recovery(run_id: str, error: str) -> None:
         db.execute("UPDATE routine_bypass_recovery SET last_error = ? WHERE run_id = ?", (error[:300], run_id))
 
 
+def _record_bypass_event(run_id: str, stage: str, **fields: str) -> None:
+    # An audit write must never prevent the remaining alarm zones being restored.
+    try:
+        record_event(run_id, stage, **fields)
+    except (sqlite3.Error, OSError):
+        pass
+
+
 def _compile_condition(raw: object, catalog: dict[str, dict], errors: list[str], depth: int = 0) -> dict | None:
     if depth > MAX_FLOW_DEPTH or not isinstance(raw, dict):
         errors.append("Condizione annidata non valida o troppo profonda")
@@ -1101,12 +1109,15 @@ class Engine:
                 await self.command(device_id, "off", None)
                 if not await self._wait_bypass_state(device_id, "off"):
                     raise RuntimeError("spegnimento non confermato")
-                record_event(run_id, "bypass_restore", device_id=device_id, action="off", result="confirmed")
+                _record_bypass_event(run_id, "bypass_restore", device_id=device_id, action="off", result="confirmed")
             except Exception as exc:
                 errors.append(f"{device_id}: {exc}")
-                record_event(run_id, "bypass_restore", device_id=device_id, action="off", detail=str(exc), result="pending")
+                _record_bypass_event(run_id, "bypass_restore", device_id=device_id, action="off", detail=str(exc), result="pending")
         if errors:
-            fail_bypass_recovery(run_id, "; ".join(errors))
+            try:
+                fail_bypass_recovery(run_id, "; ".join(errors))
+            except (sqlite3.Error, OSError):
+                pass  # The previously committed recovery row remains pending.
             return False
         finish_bypass_recovery(run_id)
         return True
@@ -1540,7 +1551,7 @@ class Engine:
                                 await self.command(device_id, "on", None)
                                 if not await self._wait_bypass_state(device_id, "on"):
                                     raise RuntimeError(f"Bypass {device_id} non confermato")
-                                record_event(run_id, "bypass", device_id=device_id, action="on", result="confirmed")
+                                _record_bypass_event(run_id, "bypass", device_id=device_id, action="on", result="confirmed")
                             if step["enable_delay_seconds"]:
                                 await asyncio.sleep(step["enable_delay_seconds"])
                             status, current = await execute(step["steps"], current, values)

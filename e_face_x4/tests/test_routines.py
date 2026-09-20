@@ -123,6 +123,25 @@ def test_pending_bypass_recovery_survives_engine_restart():
     assert routines.pending_bypass_recovery() == []
 
 
+def test_bypass_audit_failure_does_not_block_other_switch_restoration(monkeypatch):
+    switches = ["switch.e_safe_zone_20_bypass_ctrl", "switch.e_safe_zone_27_bypass_ctrl"]
+    state = {item: "on" for item in switches}
+    routines.begin_bypass_recovery("old-run", "old-routine", switches)
+    async def snapshot():
+        return []
+    async def command(device_id, action, value):
+        state[device_id] = action
+    async def read_state(device_id):
+        return state[device_id]
+    def failed_audit(*args, **kwargs):
+        raise routines.sqlite3.OperationalError("database full")
+    monkeypatch.setattr(routines, "record_event", failed_audit)
+    engine = routines.Engine(snapshot, command, bypass_state=read_state)
+    asyncio.run(engine.recover_bypasses())
+    assert state == {item: "off" for item in switches}
+    assert routines.pending_bypass_recovery() == []
+
+
 def test_protected_cover_cancel_restores_bypass():
     bypass = "switch.e_safe_zone_20_bypass_ctrl"
     state = {bypass: "off"}

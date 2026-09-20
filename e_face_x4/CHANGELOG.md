@@ -1,5 +1,9 @@
 # Changelog
 
+## 2.21.219 — 2026-09-20
+
+- Il ripristino dei bypass prosegue su tutte le zone anche se la scrittura del registro eventi fallisce (per esempio database pieno). Il journal di recupero resta persistente; aggiunto test di regressione per questa condizione.
+
 ## 2.21.218 — 2026-09-20
 
 - Routine: azione `set_position` (0–100%) solo per cover che dichiarano la capacità nel catalogo live. Le cover Home Assistant `cover.buspro_cover_*` sono selezionabili anche in Routine Professional e nell'editor visuale; i gruppi `no %` restano apri/chiudi/stop.
