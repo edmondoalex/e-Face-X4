@@ -47,7 +47,7 @@ from . import voip_phones
 from . import personal_devices
 from . import intercom_groups
 from . import push_notifications
-from . import routines, routine_nl, heating
+from . import routines, routine_nl, heating, scenario_editor
 from . import provisioner_client
 from . import installation
 from . import credential_inventory
@@ -76,7 +76,7 @@ from .connectors.supervisor import discover_addon_url, discover_host_url
 from .media_realtime import SharedMediaRealtime
 from .demo import dashboard as demo_dashboard
 
-VERSION = os.environ.get("EFACE_VERSION", "2.21.209")
+VERSION = os.environ.get("EFACE_VERSION", "2.21.210")
 STATIC = Path(__file__).parent / "static"
 logging.basicConfig(level=logging.WARNING, format="%(asctime)s %(levelname)s [e-face-x4] %(message)s")
 _reconnect_warning_at: dict[str, float] = {}
@@ -4079,6 +4079,132 @@ def create_app() -> FastAPI:
         if not config.enabled or not config.base_url:
             raise HTTPException(status_code=503, detail="Connettore e-HDL non disponibile")
         return settings, config
+
+    async def scenario_editor_data() -> tuple[dict, list, list, list, dict]:
+        settings, config = await buspro_config()
+        headers = {"Authorization": f"Bearer {config.token}"} if config.token else {}
+        paths = ("user/light_scenarios", "user/devices", "cover_groups", "user/scenario_ha_triggers", "user/light_scenarios_status")
+        try:
+            async with httpx.AsyncClient(timeout=settings.request_timeout_s, follow_redirects=False) as client:
+                responses = await asyncio.gather(*(client.get(f"{config.base_url}/api/{path}", headers=headers) for path in paths))
+            for response in responses:
+                response.raise_for_status()
+            scenarios_raw, devices_raw, groups_raw, triggers_raw, status_raw = (response.json() for response in responses)
+        except (httpx.HTTPError, ValueError, AttributeError) as exc:
+            raise HTTPException(502, "Catalogo scenari e-HDL non disponibile") from exc
+        return (scenarios_raw, devices_raw, groups_raw.get("groups", []), triggers_raw.get("items", []), status_raw)
+
+    @app.get("/api/user/scenarios/editor")
+    async def scenario_editor_catalog(request: Request) -> dict:
+        scenarios_raw, devices, groups, triggers, status = await scenario_editor_data()
+        states, running = status.get("states", {}), status.get("running", {})
+        items = scenarios_raw.get("items", [])
+        return {"items": [{**item, "revision": scenario_editor.fingerprint(item),
+                           "state": states.get(str(item.get("id")), ""),
+                           "running": bool(running.get(str(item.get("id"))))}
+                          for item in items if isinstance(item, dict)],
+                "devices": [item for item in devices if isinstance(item, dict) and str(item.get("type") or "light") in {"light", "cover"}],
+                "groups": groups, "ha_triggers": triggers}
+
+    async def scenario_editor_write(method: str, scenario_id: str | None, payload: dict) -> dict:
+        scenarios_raw, devices, groups, triggers, _ = await scenario_editor_data()
+        current = next((item for item in scenarios_raw.get("items", []) if isinstance(item, dict) and str(item.get("id")) == scenario_id), None) if scenario_id else None
+        if scenario_id and current is None:
+            raise HTTPException(404, "Scenario non trovato")
+        if current and payload.get("revision") != scenario_editor.fingerprint(current):
+            raise HTTPException(409, "Scenario modificato altrove: ricarica prima di salvare")
+        spec = scenario_editor.validate(payload.get("spec"), devices, groups, triggers, current)
+        settings, config = await buspro_config()
+        headers = {"Authorization": f"Bearer {config.token}"} if config.token else {}
+        target = f"{config.base_url}/api/user/light_scenarios"
+        if scenario_id:
+            target += f"/{scenario_id}"
+        try:
+            async with httpx.AsyncClient(timeout=settings.request_timeout_s, follow_redirects=False) as client:
+                response = await client.request(method, target, headers=headers, json=spec)
+            result = response.json()
+        except (httpx.HTTPError, ValueError) as exc:
+            raise HTTPException(502, "Salvataggio scenario e-HDL non riuscito") from exc
+        if response.status_code >= 400:
+            raise HTTPException(response.status_code if response.status_code < 500 else 502,
+                                str(result.get("detail") or "Scenario rifiutato da e-HDL")[:200])
+        return {"item": result, "revision": scenario_editor.fingerprint(result)}
+
+    @app.post("/api/user/scenarios/editor")
+    async def scenario_editor_create(request: Request, payload: dict) -> dict:
+        return await scenario_editor_write("POST", None, payload)
+
+    @app.put("/api/user/scenarios/editor/{scenario_id}")
+    async def scenario_editor_update(scenario_id: str, request: Request, payload: dict) -> dict:
+        if not re.fullmatch(r"[a-zA-Z0-9_-]{1,80}", scenario_id):
+            raise HTTPException(400, "ID scenario non valido")
+        return await scenario_editor_write("PUT", scenario_id, payload)
+
+    @app.delete("/api/user/scenarios/editor/{scenario_id}")
+    async def scenario_editor_delete(scenario_id: str, request: Request, revision: str = Query("")) -> dict:
+        if not re.fullmatch(r"[a-zA-Z0-9_-]{1,80}", scenario_id):
+            raise HTTPException(400, "ID scenario non valido")
+        scenarios_raw, _, _, _, _ = await scenario_editor_data()
+        current = next((item for item in scenarios_raw.get("items", []) if isinstance(item, dict) and str(item.get("id")) == scenario_id), None)
+        if current is None:
+            raise HTTPException(404, "Scenario non trovato")
+        if revision != scenario_editor.fingerprint(current):
+            raise HTTPException(409, "Scenario modificato altrove: ricarica prima di eliminare")
+        settings, config = await buspro_config()
+        headers = {"Authorization": f"Bearer {config.token}"} if config.token else {}
+        try:
+            async with httpx.AsyncClient(timeout=settings.request_timeout_s, follow_redirects=False) as client:
+                response = await client.delete(f"{config.base_url}/api/user/light_scenarios/{scenario_id}", headers=headers)
+            response.raise_for_status()
+        except httpx.HTTPError as exc:
+            raise HTTPException(502, "Eliminazione scenario e-HDL non riuscita") from exc
+        return {"ok": True}
+
+    async def admin_scenario_trigger_request(method: str, trigger_id: str | None = None, name: str | None = None) -> dict:
+        host = await discover_host_url(8125, load_settings().request_timeout_s)
+        if not host:
+            raise HTTPException(503, "Porta amministrativa e-HDL non disponibile")
+        target = f"{host}/api/scenario_ha_triggers"
+        if trigger_id:
+            target += f"/{trigger_id}"
+        try:
+            async with httpx.AsyncClient(timeout=load_settings().request_timeout_s, follow_redirects=False) as client:
+                response = await client.request(method, target, json={"name": name} if name is not None else None)
+            response.raise_for_status()
+            return response.json()
+        except (httpx.HTTPError, ValueError) as exc:
+            raise HTTPException(502, "Gestione trigger HA e-HDL non riuscita") from exc
+
+    @app.post("/api/admin/scenario-triggers")
+    async def scenario_ha_trigger_create(request: Request, payload: dict) -> dict:
+        require_admin(request)
+        name = str(payload.get("name") or "").strip()
+        if not 1 <= len(name) <= 80:
+            raise HTTPException(400, "Nome trigger obbligatorio")
+        return await admin_scenario_trigger_request("POST", name=name)
+
+    @app.put("/api/admin/scenario-triggers/{trigger_id}")
+    async def scenario_ha_trigger_update(trigger_id: str, request: Request, payload: dict) -> dict:
+        require_admin(request)
+        if not re.fullmatch(r"[a-zA-Z0-9_-]{1,80}", trigger_id):
+            raise HTTPException(400, "ID trigger non valido")
+        name = str(payload.get("name") or "").strip()
+        if not 1 <= len(name) <= 80:
+            raise HTTPException(400, "Nome trigger obbligatorio")
+        return await admin_scenario_trigger_request("PUT", trigger_id, name)
+
+    @app.delete("/api/admin/scenario-triggers/{trigger_id}")
+    async def scenario_ha_trigger_delete(trigger_id: str, request: Request, force: bool = False) -> dict:
+        require_admin(request)
+        if not re.fullmatch(r"[a-zA-Z0-9_-]{1,80}", trigger_id):
+            raise HTTPException(400, "ID trigger non valido")
+        scenarios_raw, _, _, triggers, _ = await scenario_editor_data()
+        if not any(str(item.get("id")) == trigger_id for item in triggers if isinstance(item, dict)):
+            raise HTTPException(404, "Trigger non trovato")
+        linked = [item.get("name") for item in scenarios_raw.get("items", []) if isinstance(item, dict) and item.get("ha_trigger_id") == trigger_id and item.get("ha_trigger_enabled")]
+        if linked and not force:
+            raise HTTPException(409, f"Trigger usato da {len(linked)} scenari: conferma la rimozione")
+        return await admin_scenario_trigger_request("DELETE", trigger_id)
 
     @app.get("/api/scenarios")
     async def scenarios() -> dict:

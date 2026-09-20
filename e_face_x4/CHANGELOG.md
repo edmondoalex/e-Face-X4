@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.21.210 — 2026-09-20
+
+- Nuovo Scene Studio in Strumenti: elenco condiviso degli scenari e-HDL, creazione, modifica, duplicazione, eliminazione e comandi di prova con conferma.
+- Editor completo per luci, dimmer, tapparelle, gruppi, combinazioni HDL, attivazioni orarie/alba/tramonto/sveglia e pulsanti Home Assistant. Catalogo live, validazione server e controllo delle modifiche concorrenti; i dati restano persistenti in e-HDL.
+
 ## 2.21.209 — 2026-09-20
 
 - Completate le viste tecniche navigabili: Solare, Resistenze, Caldaie e Miscelatrice mostrano temperature, energia, logica e stato degli attuatori in sola lettura.
