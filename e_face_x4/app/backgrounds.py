@@ -10,7 +10,9 @@ SECURITY_ORDER = ["scenarios", "areas", "zones", "locks", "cameras"]
 SHORTCUT_CATEGORIES = ["lights", "switches", "covers", "climate", "security", "media", "sensors", "other"]
 DEVICE_ORGANIZATION_CATEGORIES = ["lights", "extra", "covers", "comfort", "security", "scenarios", "intercom", "media"]
 NAVIGATION_ITEMS = ["watch", "listen", "intercom", "lights", "extra", "scenarios", "covers", "comfort", "energy", "security"]
-HOME_WIDGETS = ["overview", "weather", "camera_event", "doorbell", "motion", "states", "rooms", "live"]
+LEGACY_HOME_WIDGETS = ["overview", "weather", "camera_event", "doorbell", "motion", "states", "rooms", "live"]
+NEW_HOME_WIDGETS = ["room_pulse", "lights_now", "routine_pulse"]
+HOME_WIDGETS = [*LEGACY_HOME_WIDGETS, *NEW_HOME_WIDGETS]
 MIME_SUFFIX = {"image/png": ".png", "image/jpeg": ".jpg", "image/webp": ".webp"}
 
 def _directory() -> Path: return Path(os.environ.get("EFACE_BACKGROUNDS", "/data/backgrounds"))
@@ -177,7 +179,7 @@ def load_home_widgets(owner: str | None = None) -> list[dict[str, object]]:
     if owner and not isinstance(value, list): value = account.get("home_widgets")
     if owner and not isinstance(value, list): value = raw.get("home_widgets")
     if not isinstance(value, list):
-        return [{"id": item, "visible": True, "size": "wide" if item in {"overview", "rooms", "live"} else "standard", "height": "standard"} for item in HOME_WIDGETS]
+        return [{"id": item, "visible": item not in NEW_HOME_WIDGETS, "size": "wide" if item in {"overview", "rooms", "live", "room_pulse"} else "standard", "height": "standard"} for item in HOME_WIDGETS]
     clean, seen = [], set()
     for item in value:
         if not isinstance(item, dict) or item.get("id") not in HOME_WIDGETS or item["id"] in seen: continue
@@ -185,17 +187,22 @@ def load_home_widgets(owner: str | None = None) -> list[dict[str, object]]:
         height = item.get("height")
         clean.append({"id": item["id"], "visible": item.get("visible") is not False, "size": size if size in {"quarter", "compact", "standard", "large", "wide"} else "standard", "height": height if height in {"uniform", "short", "standard", "tall"} else "standard"})
     for widget_id in HOME_WIDGETS:
-        if widget_id not in seen: clean.append({"id": widget_id, "visible": True, "size": "standard", "height": "standard"})
+        if widget_id not in seen: clean.append({"id": widget_id, "visible": widget_id not in NEW_HOME_WIDGETS, "size": "wide" if widget_id == "room_pulse" else "standard", "height": "standard"})
     return clean
 
 def save_home_widgets(items: list[dict[str, object]], owner: str | None = None) -> None:
-    if not isinstance(items, list) or len(items) != len(HOME_WIDGETS): raise ValueError("Configurazione Home non valida")
+    if not isinstance(items, list) or len(items) not in {len(LEGACY_HOME_WIDGETS), len(HOME_WIDGETS)}: raise ValueError("Configurazione Home non valida")
     ids = [item.get("id") for item in items if isinstance(item, dict)]
-    if set(ids) != set(HOME_WIDGETS) or len(ids) != len(set(ids)): raise ValueError("Widget Home non validi")
+    if len(ids) != len(items) or any(not isinstance(widget_id, str) for widget_id in ids): raise ValueError("Widget Home non validi")
+    if (frozenset(ids) not in {frozenset(LEGACY_HOME_WIDGETS), frozenset(HOME_WIDGETS)}
+            or len(ids) != len(set(ids))): raise ValueError("Widget Home non validi")
     clean = []
     for item in items:
         if not isinstance(item.get("visible"), bool) or item.get("size") not in {"quarter", "compact", "standard", "large", "wide"} or item.get("height", "standard") not in {"uniform", "short", "standard", "tall"}: raise ValueError("Proprietà widget non valide")
         clean.append({"id": item["id"], "visible": item["visible"], "size": item["size"], "height": item.get("height", "standard")})
+    for widget_id in NEW_HOME_WIDGETS:
+        if widget_id not in ids:
+            clean.append({"id": widget_id, "visible": False, "size": "wide" if widget_id == "room_pulse" else "standard", "height": "standard"})
     raw = _config()
     if owner:
         users = raw.get("user_appearance") if isinstance(raw.get("user_appearance"), dict) else {}; scoped = users.get(owner) if isinstance(users.get(owner), dict) else {}; scoped["home_widgets"] = clean; users[owner] = scoped; raw["user_appearance"] = users

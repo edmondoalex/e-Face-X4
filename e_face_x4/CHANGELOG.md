@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.21.207 — 2026-09-20
+
+- Home dinamica per utente: tre nuovi widget opt-in, Casa viva (attività stanze), Luci accese e Routine in corso. Si aggiornano con gli stati live, si possono ordinare e dimensionare come gli altri widget e aprono i relativi dispositivi o ambienti.
+- Routine Professional: i menu a tendina usano il tema scuro anche nell'elenco delle opzioni.
+
 ## 2.21.206 — 2026-09-19
 
 - Routine Professional: descrizione persistente, condizioni logiche `and`/`or`/`not`, azioni annidate `delay`, `wait_until`, `if`/`else`, `choose`, `repeat`, `parallel`, `variable` e `stop`. Restano disponibili trigger multipli e modalità `single`, `restart`, `queued`, `parallel`.

@@ -23,6 +23,7 @@ function syncRoutineActivity() {
       card.append(badge)
     } else if (!active && badge) badge.remove()
   })
+  renderHomeWowWidgets()
 }
 const recentRealtimeDeviceStates = new Map()
 let appVersion = '0'
@@ -165,6 +166,7 @@ function esc(value) {
   node.textContent = String(value ?? '')
   return node.innerHTML
 }
+function escAttribute(value) { return esc(value).replaceAll('"', '&quot;').replaceAll("'", '&#39;') }
 
 function mdiName(value, fallback = 'shape') {
   const match = /^mdi:([a-z0-9_-]+)$/i.exec(String(value || '').trim())
@@ -344,6 +346,7 @@ function render(data) {
     notice.hidden = false
   }
   renderHomeStatusCounters()
+  renderHomeWowWidgets()
   const visibleRoomNames = new Set(currentDevices
     .filter((device) => !['alarm_partition', 'alarm_scenario', 'alarm_system'].includes(device.kind))
     .map((device) => String(device.room || '').trim().toLocaleLowerCase('it'))
@@ -387,10 +390,45 @@ function renderHomeStatusCounters() {
   }).join('')
 }
 
+function renderHomeWowWidgets() {
+  const roomsNode = $('#home-room-pulse-list')
+  if (!roomsNode) return
+  if (['#home-room-pulse','#home-lights-now','#home-routine-pulse'].every(selector => $(selector)?.classList.contains('widget-user-hidden'))) return
+  const rooms = new Map()
+  for (const device of currentDevices) {
+    const name = String(device.room || '').trim()
+    if (!name || ['alarm_system','alarm_partition','alarm_scenario'].includes(device.kind)) continue
+    const key = name.toLocaleLowerCase('it')
+    if (!rooms.has(key)) rooms.set(key, {name, lights:0, media:0, temperatures:[]})
+    const room = rooms.get(key)
+    if (device.kind === 'light' && lightIsOn(device)) room.lights++
+    if (device.kind === 'media_player' && String(device.state || '').toLowerCase() === 'playing') room.media++
+    if (['climate','temp','temperature'].includes(device.kind)) {
+      const temperature = Number(device.temperature ?? device.value ?? device.state)
+      if (Number.isFinite(temperature) && temperature > -30 && temperature < 60) room.temperatures.push(temperature)
+    }
+  }
+  const sorted = [...rooms.values()].sort((a,b) => (b.lights + b.media * 2) - (a.lights + a.media * 2) || a.name.localeCompare(b.name, 'it')).slice(0, 8)
+  $('#home-room-pulse-count').textContent = `${rooms.size} ${rooms.size === 1 ? 'STANZA' : 'STANZE'}`
+  roomsNode.innerHTML = sorted.map(room => {
+    const temperature = room.temperatures.length ? `${(room.temperatures.reduce((sum,value) => sum + value,0)/room.temperatures.length).toFixed(1)}°` : '—'
+    return `<button type="button" class="home-pulse-room ${room.lights || room.media ? 'is-awake' : ''}" data-pulse-room="${escAttribute(room.name)}"><span class="home-pulse-orb"></span><strong>${esc(room.name)}</strong><small>${room.lights} ${room.lights === 1 ? 'luce' : 'luci'} · ${temperature}${room.media ? ` · ${room.media} media` : ''}</small></button>`
+  }).join('') || '<p class="home-insight-empty">Nessuna stanza disponibile</p>'
+
+  const lights = currentDevices.filter(device => device.kind === 'light' && lightIsOn(device))
+  $('#home-lights-now-count').textContent = `${lights.length} ACCESE`
+  $('#home-lights-now-list').innerHTML = lights.slice(0, 6).map(device => `<button type="button" class="home-glow-light" data-pulse-device="${escAttribute(device.id)}"><span class="home-glow-bulb">✦</span><span><strong>${esc(device.name || 'Luce')}</strong><small>${esc(device.room || 'Casa')}</small></span><b>ON</b></button>`).join('') || '<p class="home-insight-empty">Tutte le luci sono spente</p>'
+
+  const affected = currentDevices.filter(device => routineActiveDeviceIds.has(String(device.id)))
+  $('#home-routine-pulse-count').textContent = `${affected.length} ${affected.length === 1 ? 'DISPOSITIVO' : 'DISPOSITIVI'}`
+  $('#home-routine-pulse').classList.toggle('is-running', affected.length > 0)
+  $('#home-routine-pulse-list').innerHTML = affected.slice(0, 6).map(device => `<button type="button" class="home-running-device" data-pulse-device="${escAttribute(device.id)}"><span class="home-running-ring"></span><span><strong>${esc(device.name || device.id)}</strong><small>${esc(device.room || 'Casa')} · ${esc(stateLabel(device))}</small></span></button>`).join('') || '<p class="home-insight-empty">Nessuna routine in esecuzione</p>'
+}
+
 const shortcutCategoryLabels = {lights:'Luci',switches:'Extra',covers:'Oscuranti',climate:'Comfort',security:'Sicurezza',media:'Audio e video',sensors:'Sensori',other:'Altro'}
 function applyHomeWidgetLayout(){
   const board=$('#home-view .dashboard-grid'); if(!board)return
-  const elements={overview:$('.home-overview-summary'),weather:$('#home-weather-widget'),camera_event:$('#home-camera-event'),doorbell:$('#home-doorbell-event'),motion:$('#home-motion-event'),states:$('#widgets'),rooms:$('#room-panel'),live:$('#home-live-media')}
+  const elements={overview:$('.home-overview-summary'),weather:$('#home-weather-widget'),camera_event:$('#home-camera-event'),doorbell:$('#home-doorbell-event'),motion:$('#home-motion-event'),states:$('#widgets'),rooms:$('#room-panel'),live:$('#home-live-media'),room_pulse:$('#home-room-pulse'),lights_now:$('#home-lights-now'),routine_pulse:$('#home-routine-pulse')}
   const layout=currentHomeWidgets.length?currentHomeWidgets:[{id:'overview',visible:true,size:'wide'},{id:'states',visible:true,size:'standard'},{id:'rooms',visible:true,size:'wide'},{id:'live',visible:true,size:'wide'}]
   layout.forEach((item,index)=>{const element=elements[item.id];if(!element)return;element.dataset.homeWidget=item.id;element.dataset.widgetSize=item.size||'standard';element.dataset.widgetHeight=item.height||'standard';element.style.order=String(index);element.classList.toggle('widget-user-hidden',item.visible===false);board.append(element)})
   refreshHomeHighlights()
@@ -2278,6 +2316,7 @@ function applyRealtimeEvent(event) {
     }
     updateNavigationStates()
     renderHomeSecurity()
+    renderHomeWowWidgets()
     if (activeDetailIds && !$('#detail-view').hidden) requestAnimationFrame(renderActiveDeviceList)
     return
   }
@@ -2302,6 +2341,7 @@ function applyRealtimeEvent(event) {
     }
     if (!changed) return
     if (!mediaVolumeUiLocked()) renderHomeMediaSessions()
+    renderHomeWowWidgets()
     updateNavigationStates()
     if (activeDetailIds && !$('#detail-view').hidden) requestAnimationFrame(renderActiveDeviceList)
     if (!mediaVolumeUiLocked()) renderOpenStatePanels()
@@ -2325,6 +2365,7 @@ function applyRealtimeEvent(event) {
   if (data.position !== undefined) device.position = data.position
   if (data.brightness !== undefined) device.brightness = data.brightness
   renderHomeStatusCounters()
+  renderHomeWowWidgets()
   renderHomeComfort()
   updateNavigationStates()
   if (activeRgbGroup && $('#rgb-dialog').open && device.rgb_group === activeRgbGroup) renderRgbDialog()
@@ -2372,6 +2413,18 @@ $('#rooms').addEventListener('click', (event) => {
   const button = event.target.closest('[data-room]')
   if (!button) return
   openDevices(button.dataset.room, currentDevices.filter((device) => device.room.toLocaleLowerCase('it') === button.dataset.room.toLocaleLowerCase('it')), {room:button.dataset.room, filters:true})
+})
+$('#home-view').addEventListener('click', (event) => {
+  const roomButton = event.target.closest('[data-pulse-room]')
+  if (roomButton) {
+    const room = roomButton.dataset.pulseRoom
+    openDevices(room, currentDevices.filter(device => String(device.room || '').toLocaleLowerCase('it') === room.toLocaleLowerCase('it')), {room, filters:true})
+    return
+  }
+  const deviceButton = event.target.closest('[data-pulse-device]')
+  if (!deviceButton) return
+  const device = currentDevices.find(item => String(item.id) === deviceButton.dataset.pulseDevice)
+  if (device) openDevices(device.room || device.name || 'Dispositivo', [device], {room:device.room || undefined, filters:true})
 })
 async function toggleHomeLiveMute(button){
   const id=String(button.dataset.homeZoneMute)
