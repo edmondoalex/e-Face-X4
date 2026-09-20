@@ -119,15 +119,24 @@ def normalize_snapshot(payload: dict[str, Any]) -> dict[str, Any]:
                      for value in member_states)
         positions = [value.get("position") for value in member_states if isinstance(value, dict)
                      and isinstance(value.get("position"), (int, float)) and not isinstance(value.get("position"), bool)]
+        group_state = "OPEN" if active else "CLOSED" if closed else "UNKNOWN"
         normalized.append({
             "id": f"cover-group:{group_id}", "group_id": group_id,
             "name": str(group.get("name") or group_id), "kind": "cover", "room": "Gruppi cover",
-            "category": "cover_group", "state": "OPEN" if active else "CLOSED" if closed else "UNKNOWN",
+            "category": "cover_group", "state": group_state,
             "position": round(sum(positions) / len(positions)) if len(positions) == len(members) else None,
             "icon": str(group.get("icon") or "mdi:window-shutter-settings"), "members": members,
             "state_key": f"cover_group:{group_id}",
         })
-        counts["covers"] += 1
+        normalized.append({
+            "id": f"cover-group-no-pct:{group_id}", "group_id": group_id,
+            "name": f"{str(group.get('name') or group_id)} · no %", "kind": "cover",
+            "room": "Gruppi cover no %", "category": "cover_group_no_pct",
+            "state": group_state, "position": None,
+            "icon": str(group.get("icon") or "mdi:window-shutter-settings"), "members": members,
+            "state_key": f"cover_group:{group_id}",
+        })
+        counts["covers"] += 2
     mqtt = payload.get("mqtt") if isinstance(payload.get("mqtt"), dict) else {}
     return {
         "devices": normalized,
@@ -214,7 +223,7 @@ class BusproConnector(Connector):
             devices = snapshot.get("devices") if isinstance(snapshot, dict) else None
             if not isinstance(devices, list):
                 raise ValueError("snapshot non valido")
-            if str(target_id).startswith("cover-group:"):
+            if str(target_id).startswith(("cover-group:", "cover-group-no-pct:")):
                 group_id = str(target_id).split(":", 1)[1]
                 groups = snapshot.get("cover_groups") if isinstance(snapshot.get("cover_groups"), list) else []
                 if not any(isinstance(group, dict) and str(group.get("id")) == group_id for group in groups):

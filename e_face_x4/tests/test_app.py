@@ -80,7 +80,7 @@ def test_health() -> None:
     response = TestClient(create_app()).get("/health")
     assert response.status_code == 200
     assert response.json()["ok"] is True
-    assert response.json()["version"] == "2.21.212"
+    assert response.json()["version"] == "2.21.213"
 
 
 def test_home_event_times_reads_saved_doorbird_motion(monkeypatch, tmp_path) -> None:
@@ -127,7 +127,7 @@ def test_intercom_is_in_sidebar_with_embedded_view() -> None:
     client_script = (static / "assets" / "intercom.js").read_text(encoding="utf-8")
     intercom_page = (static / "intercom.html").read_text(encoding="utf-8")
     assert "Tablet Control4 · interno 8291" in intercom_page
-    assert "const currentVersion = '2.21.212'" in client_script
+    assert "const currentVersion = '2.21.213'" in client_script
     assert 'id="call-ufficio" data-dial-extension="8291" data-video-capable="true"' in intercom_page
     assert "Postazione esterna · interno 8201" in intercom_page
     assert "Postazione esterna · interno ${station.sip_extension}" in client_script
@@ -334,9 +334,9 @@ def test_intercom_dashboard_stores_only_local_settings(monkeypatch, tmp_path) ->
     assert 'id="users-tool"' in page
     assert 'id="logout"' in page
     assert page.index('id="logout"') < page.index('id="tools-user-section"')
-    assert "tools-dashboard.js?v=2.21.212" in page
-    assert "tools.js?v=2.21.212" in page
-    assert "organization-tools.js?v=2.21.212" in page
+    assert "tools-dashboard.js?v=2.21.213" in page
+    assert "tools.js?v=2.21.213" in page
+    assert "organization-tools.js?v=2.21.213" in page
     tools_js = client.get("/assets/tools.js").text
     assert "document.querySelector('.tools-shell').append(shortcutsPanel)" in tools_js
     assert "data-shortcut-drag=\"category\"" in tools_js
@@ -346,7 +346,7 @@ def test_intercom_dashboard_stores_only_local_settings(monkeypatch, tmp_path) ->
     assert '<b>Accesi</b>' not in home
     assert 'id="light-on-filter"' in home
     assert "backgrounds.css?v=2.21.43" in home
-    assert "app.js?v=2.21.212" in home
+    assert "app.js?v=2.21.213" in home
     app_js = client.get("/assets/app.js").text
     assert "event.type === 'doorbird_event'" in app_js
     assert "event.type === 'home_camera_event'" in app_js
@@ -767,8 +767,8 @@ def test_tools_page_starts_with_selected_background_and_card_theme(monkeypatch, 
     home = client.get("/").text
     login = client.get("/login").text
     assert '<body class="app-theme" data-background="midnight" data-card-theme="slate">' in home
-    assert 'ui-theme-contract.css?v=2.21.212' in home
-    assert 'app.js?v=2.21.212' in home
+    assert 'ui-theme-contract.css?v=2.21.213' in home
+    assert 'app.js?v=2.21.213' in home
     assert 'energy.css?v=2.21.30' in home
     assert 'home-comfort.css?v=2.21.31' in home
     assert '<body class="login-theme" data-background="midnight" data-card-theme="slate">' in login
@@ -811,6 +811,7 @@ def test_user_appearance_persists_room_order_and_glow(monkeypatch, tmp_path) -> 
         "switch.cancello": {"visible": False, "categories": ["security", "extra"], "orders": {"security": 0, "extra": 2}},
         "cover-group:ufficio": {"visible": False, "categories": ["covers"], "orders": {"covers": 1}},
         "cover-group:pt": {"visible": True, "categories": ["covers"], "orders": {"covers": 0}},
+        "cover-group-no-pct:pt": {"visible": True, "categories": ["covers"], "orders": {"covers": 2}},
     }
     assert client.put("/api/user/appearance", json={"device_organization": organization}).json()["device_organization"] == organization
     assert TestClient(create_app()).get("/api/user/appearance").json()["device_organization"] == organization
@@ -1087,9 +1088,9 @@ def test_x4_shell_and_brand_assets_are_served() -> None:
     assert client.get("/tools").status_code == 200
     assert "Amministrazione" in client.get("/tools").text
     css = client.get("/assets/app.css").text
-    assert "app.css?v=2.21.212" in client.get("/").text
-    assert "home-live-media.css?v=2.21.212" in client.get("/").text
-    assert "alarm-state.css?v=2.21.212" in client.get("/").text
+    assert "app.css?v=2.21.213" in client.get("/").text
+    assert "home-live-media.css?v=2.21.213" in client.get("/").text
+    assert "alarm-state.css?v=2.21.213" in client.get("/").text
     assert ".home-event-dialog figure img{display:block;width:auto;height:auto;max-width:100%;max-height:100%" in css
     assert ".home-event-widget img{object-fit:contain" not in css
     assert "data-home-zone-mute" in app_js
@@ -2126,9 +2127,12 @@ def test_buspro_cover_groups_are_devices_not_rooms() -> None:
         "cover_states": {"1.101.1": {"state": "OPEN", "position": 72}},
     })
     group = next(item for item in normalized["devices"] if item["id"] == "cover-group:ufficio")
+    no_pct = next(item for item in normalized["devices"] if item["id"] == "cover-group-no-pct:ufficio")
     assert (group["kind"], group["category"], group["state"], group["position"]) == (
         "cover", "cover_group", "OPEN", 72)
-    assert normalized["counts"]["covers"] == 2
+    assert (no_pct["kind"], no_pct["category"], no_pct["state"], no_pct["position"]) == (
+        "cover", "cover_group_no_pct", "OPEN", None)
+    assert normalized["counts"]["covers"] == 3
     assert [room["name"] for room in normalized["rooms"]] == ["Ufficio"]
 
 
@@ -2151,7 +2155,7 @@ async def test_buspro_cover_group_commands_check_live_catalog(monkeypatch) -> No
         transport=httpx.MockTransport(handler), **kwargs))
     connector = BusproConnector(ProviderConfig(enabled=True, base_url="http://hdl", token=""), 4)
     await connector.command("cover-group:ufficio", "open")
-    await connector.command("cover-group:ufficio", "stop")
+    await connector.command("cover-group-no-pct:ufficio", "stop")
     with pytest.raises(ValueError):
         await connector.command("cover-group:missing", "close")
     assert calls == [

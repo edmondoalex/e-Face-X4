@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.21.213 — 2026-09-20
+
+- La pagina Oscuranti espone anche le varianti “no %” dei gruppi cover e-HDL, separate dalle schede standard: soli comandi Apri/Stop/Chiudi, nessuna posizione percentuale.
+- Ogni variante ha ID, ordinamento e flag UI persistenti propri in Strumenti > Ordina; il comando usa lo stesso gruppo HDL verificato nel catalogo live, senza duplicare la configurazione dell'impianto.
+
 ## 2.21.212 — 2026-09-20
 
 - Scene Studio include una guida rapida richiudibile, chiusa inizialmente, che spiega identità, comandi, cover, combinazioni, trigger e prova dello scenario.
