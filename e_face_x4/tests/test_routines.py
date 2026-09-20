@@ -1,5 +1,6 @@
 import asyncio
 from datetime import datetime, timedelta
+from pathlib import Path
 from zoneinfo import ZoneInfo
 
 import pytest
@@ -27,6 +28,14 @@ def catalog():
 def sample():
     return {"name": "Luce ingresso", "triggers": [{"type": "state", "device_id": "sensor.motion", "to": "on"}],
             "conditions": [], "steps": [{"type": "action", "device_id": "light.hall", "action": "on"}]}
+
+
+def test_visual_editor_exposes_time_window_fields():
+    script = (Path(__file__).resolve().parents[1] / "app/static/assets/routine-tools.js").read_text(encoding="utf-8")
+    assert 'value="time_window"' in script
+    assert 'window-${key}-kind' in script
+    assert "Intervallo da… a…" in script
+    assert "'time_window'].includes(item.type)" in script
 
 
 def test_guided_text_creates_reviewable_draft_without_actuation():
@@ -89,6 +98,71 @@ def test_solar_trigger_condition_and_location_guard():
     assert not routines.validate(spec, catalog(), solar_available=False)["can_enable"]
     spec["triggers"][0]["offset_minutes"] = 181
     assert routines.validate(spec, catalog())["errors"]
+
+
+def test_visual_time_window_validates_and_persists_without_losing_solar_boundaries():
+    spec = sample()
+    spec["conditions"] = [{"type": "time_window",
+                           "start": {"kind": "sunset", "offset_minutes": -15},
+                           "end": {"kind": "time", "at": "23:00"}}]
+    review = routines.validate(spec, catalog())
+    assert review["errors"] == []
+    assert "tramonto" in review["description"]
+    saved = routines.save("owner", "owner", None, review["spec"], False, None, shared=True)
+    assert routines.get_routine(saved["id"])["spec"]["conditions"] == review["spec"]["conditions"]
+    assert not routines.validate(spec, catalog(), solar_available=False)["can_enable"]
+    bad = {**spec, "conditions": [{"type": "time_window", "start": {"kind": "time", "at": "23:00"},
+                                  "end": {"kind": "sunrise", "offset_minutes": 181}}]}
+    assert routines.validate(bad, catalog())["errors"]
+
+
+@pytest.mark.asyncio
+async def test_time_window_handles_midnight_and_sunset_to_sunrise(monkeypatch):
+    from datetime import datetime as real_datetime
+
+    current_hour = [22]
+    class FakeDateTime(real_datetime):
+        @classmethod
+        def now(cls, tz=None):
+            return real_datetime(2026, 9, 20, current_hour[0], 0, tzinfo=tz)
+
+    monkeypatch.setattr(routines, "datetime", FakeDateTime)
+    async def solar_times():
+        zone = ZoneInfo("Europe/Rome")
+        return {"sunrise": real_datetime(2026, 9, 20, 7, tzinfo=zone),
+                "sunset": real_datetime(2026, 9, 20, 19, tzinfo=zone)}
+
+    async def snapshot():
+        return []
+    async def command(*_args):
+        return None
+    engine = routines.Engine(snapshot, command, solar_times=solar_times)
+    condition = {"type": "time_window", "start": {"kind": "sunset", "offset_minutes": 0},
+                 "end": {"kind": "sunrise", "offset_minutes": 0}}
+    assert (await engine._evaluate_time_window(condition))[0]
+    current_hour[0] = 1
+    assert (await engine._evaluate_time_window(condition))[0]
+    current_hour[0] = 12
+    assert not (await engine._evaluate_time_window(condition))[0]
+    fixed = {"type": "time_window", "start": {"kind": "time", "at": "21:00"},
+             "end": {"kind": "time", "at": "23:00"}}
+    assert not (await engine._evaluate_time_window(fixed))[0]
+    current_hour[0] = 22
+    assert (await engine._evaluate_time_window(fixed))[0]
+
+
+def test_professional_or_can_include_visual_time_window():
+    spec = sample()
+    spec["description"] = "Finestra serale o sensore attivo"
+    spec["conditions"] = {"or": [
+        {"type": "time_window", "start": {"kind": "sunset", "offset_minutes": 0},
+         "end": {"kind": "time", "at": "23:00"}},
+        {"device_id": "sensor.motion", "operator": "is", "value": "on"},
+    ]}
+    review = routines.validate(spec, catalog())
+    assert review["errors"] == []
+    assert routines.uses_sun(review["spec"])
+    assert not routines.validate(spec, catalog(), solar_available=False)["can_enable"]
 
 
 def test_media_remote_commands_follow_source_capabilities():

@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.21.214 — 2026-09-20
+
+- Routine visuali: nuova condizione “Intervallo da… a…” con estremi Orario, Alba o Tramonto e offset solari ±180 minuti. Gli intervalli oltre mezzanotte, incluso tramonto → alba, sono valutati correttamente.
+- Lo stesso schema `time_window` è validato anche in Routine Professional; il registro mostra le soglie effettive e l'ora controllata. Le routine restano persistenti e condivise.
+
 ## 2.21.213 — 2026-09-20
 
 - La pagina Oscuranti espone anche le varianti “no %” dei gruppi cover e-HDL, separate dalle schede standard: soli comandi Apri/Stop/Chiudi, nessuna posizione percentuale.

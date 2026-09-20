@@ -158,6 +158,43 @@ def _solar_rule(raw: dict, errors: list[str], *, condition: bool = False) -> dic
     return rule
 
 
+def _window_boundary(raw: object, errors: list[str], label: str) -> dict | None:
+    if not isinstance(raw, dict):
+        errors.append(f"{label}: indica orario, alba o tramonto")
+        return None
+    kind = raw.get("kind")
+    if kind == "time" and set(raw) == {"kind", "at"}:
+        at = raw.get("at")
+        if isinstance(at, str) and re.fullmatch(r"(?:[01]\d|2[0-3]):[0-5]\d", at):
+            return {"kind": "time", "at": at}
+    elif isinstance(kind, str) and kind in {"sunrise", "sunset"} and set(raw) == {"kind", "offset_minutes"}:
+        offset = raw.get("offset_minutes")
+        if type(offset) is int and -180 <= offset <= 180:
+            return {"kind": kind, "offset_minutes": offset}
+    errors.append(f"{label}: orario non valido oppure offset fuori da -180/+180 minuti")
+    return None
+
+
+def _time_window(raw: object, errors: list[str]) -> dict | None:
+    if not isinstance(raw, dict) or set(raw) != {"type", "start", "end"} or raw.get("type") != "time_window":
+        errors.append("Intervallo orario non valido")
+        return None
+    start = _window_boundary(raw["start"], errors, "Inizio intervallo")
+    end = _window_boundary(raw["end"], errors, "Fine intervallo")
+    if not start or not end:
+        return None
+    if start == end:
+        errors.append("Inizio e fine dell'intervallo coincidono")
+        return None
+    return {"type": "time_window", "start": start, "end": end}
+
+
+def _window_label(boundary: dict) -> str:
+    if boundary["kind"] == "time":
+        return boundary["at"]
+    return f"{'alba' if boundary['kind'] == 'sunrise' else 'tramonto'} {boundary['offset_minutes']:+d} min"
+
+
 def _remote_allowed(device: dict | None, source_id: int, command: str) -> bool:
     if not device or device.get("kind") != "media_player":
         return False
@@ -187,7 +224,8 @@ def referenced_devices(spec: dict) -> set[str]:
 
 
 def uses_sun(spec: dict) -> bool:
-    return any(item.get("type") == "sun" for item in _flow_items(spec))
+    return any(item.get("type") == "sun" or (isinstance(item.get("kind"), str) and item.get("kind") in {"sunrise", "sunset"})
+               for item in _flow_items(spec))
 
 
 def _action_steps(steps: object) -> list[dict]:
@@ -219,6 +257,8 @@ def _compile_condition(raw: object, catalog: dict[str, dict], errors: list[str],
         if extra:
             errors.append("Campi condizione solare non supportati: " + ", ".join(sorted(extra)))
         return _solar_rule(raw, errors, condition=True)
+    if kind == "time_window":
+        return _time_window(raw, errors)
     if kind == "variable":
         if set(raw) - {"type", "name", "operator", "value"}:
             errors.append("Campi condizione variabile non supportati")
@@ -557,14 +597,17 @@ def validate(payload: dict, devices: list[dict], others: list[dict] = (), *, sol
         raw_conditions = []
     for raw in raw_conditions:
         if isinstance(raw, dict):
-            if raw.get("type") not in (None, "state", "sun"):
+            if raw.get("type") not in (None, "state", "sun", "time_window"):
                 errors.append("Tipo di condizione non supportato")
-            allowed = {"type", "event", "offset_minutes", "relation"} if raw.get("type") == "sun" else {"type", "device_id", "operator", "value"}
+            allowed = ({"type", "event", "offset_minutes", "relation"} if raw.get("type") == "sun" else
+                       {"type", "start", "end"} if raw.get("type") == "time_window" else
+                       {"type", "device_id", "operator", "value"})
             extra = set(raw) - allowed
             if extra:
                 errors.append("Campi condizione non supportati: " + ", ".join(sorted(str(key) for key in extra)))
-    conditions = [item for raw in raw_conditions if (item := _solar_rule(raw, errors, condition=True) if isinstance(raw, dict) and raw.get("type") == "sun" else _condition(raw, catalog, errors))]
-    if not solar_available and (any(item.get("type") == "sun" for item in triggers) or any(item.get("type") == "sun" for item in conditions)):
+    conditions = [item for raw in raw_conditions if (item := _solar_rule(raw, errors, condition=True) if isinstance(raw, dict) and raw.get("type") == "sun" else
+                  _time_window(raw, errors) if isinstance(raw, dict) and raw.get("type") == "time_window" else _condition(raw, catalog, errors))]
+    if not solar_available and uses_sun({"triggers": triggers, "conditions": conditions}):
         errors.append("Alba/tramonto non disponibili: controlla posizione e fuso orario di Home Assistant")
     raw_steps = payload.get("steps")
     if not isinstance(raw_steps, list) or not 1 <= len(raw_steps) <= MAX_STEPS:
@@ -793,6 +836,8 @@ def validate(payload: dict, devices: list[dict], others: list[dict] = (), *, sol
     narrative = "La casa avvierà la routine " + (" oppure ".join(descriptions) if descriptions else "solo dopo una configurazione valida") + ". "
     if conditions:
         narrative += "Prima controllerà " + ", ".join(
+            f"se è tra {_window_label(item['start'])} e {_window_label(item['end'])}"
+            if item.get("type") == "time_window" else
             f"se è {'prima' if item['relation'] == 'before' else 'dopo'} di {'alba' if item['event'] == 'sunrise' else 'tramonto'} {item['offset_minutes']:+d} minuti"
             if item.get("type") == "sun" else
             f"{catalog[item['device_id']].get('name')} {item['operator'].replace('is_not', 'non è').replace('is', 'è')} {item['value']}"
@@ -1197,6 +1242,34 @@ class Engine:
                 self.cancel_reasons[task] = "Routine modificata o disattivata"
                 task.cancel()
 
+    async def _evaluate_time_window(self, condition: dict) -> tuple[bool, str]:
+        start, end = condition["start"], condition["end"]
+        solar = any(boundary["kind"] != "time" for boundary in (start, end))
+        if solar and not self.solar_times:
+            raise RuntimeError("Orari di alba/tramonto non disponibili")
+        schedule = await self.solar_times() if solar else {}
+        zone = next(iter(schedule.values())).tzinfo if schedule else ZoneInfo("Europe/Rome")
+        now = datetime.now(zone)
+
+        def minute(boundary: dict) -> int:
+            if boundary["kind"] == "time":
+                hour, minute_part = map(int, boundary["at"].split(":"))
+                return hour * 60 + minute_part
+            moment = schedule[boundary["kind"]] + timedelta(minutes=boundary["offset_minutes"])
+            return moment.hour * 60 + moment.minute
+
+        first, last = minute(start), minute(end)
+        current = now.hour * 60 + now.minute
+        if first < last:
+            passed = first <= current < last
+        elif first > last:
+            passed = current >= first or current < last
+        else:
+            passed = False
+        detail = (f"Intervallo {_window_label(start)} → {_window_label(end)}; "
+                  f"soglie {first // 60:02d}:{first % 60:02d}–{last // 60:02d}:{last % 60:02d}; ora {now:%H:%M}")
+        return passed, detail
+
     async def _evaluate_condition(self, condition: dict, devices: dict[str, dict], variables: dict) -> bool:
         if "and" in condition:
             for item in condition["and"]:
@@ -1210,6 +1283,8 @@ class Engine:
             return False
         if "not" in condition:
             return not await self._evaluate_condition(condition["not"], devices, variables)
+        if condition.get("type") == "time_window":
+            return (await self._evaluate_time_window(condition))[0]
         if condition.get("type") == "sun":
             if not self.solar_times:
                 raise RuntimeError("Orari di alba/tramonto non disponibili")
@@ -1229,12 +1304,16 @@ class Engine:
         initial = conditions if isinstance(conditions, list) else [conditions]
         devices = starting_devices
         for condition in initial:
-            passed = await self._evaluate_condition(condition, devices, variables)
+            if condition.get("type") == "time_window":
+                passed, detail = await self._evaluate_time_window(condition)
+            else:
+                passed = await self._evaluate_condition(condition, devices, variables)
+                detail = ""
             device_id = str(condition.get("device_id") or "")
             device = devices.get(device_id, {})
             actual = _state(device) if device_id else ""
             record_event(run_id, "condition", device_id=device_id, device_name=str(device.get("name") or ""),
-                         detail=f"Regola {json.dumps(condition, ensure_ascii=False)}; stato letto: {actual or 'non applicabile'}",
+                         detail=detail or f"Regola {json.dumps(condition, ensure_ascii=False)}; stato letto: {actual or 'non applicabile'}",
                          before_state=actual, result="pass" if passed else "skip")
             if not passed:
                 return "skipped"
@@ -1361,6 +1440,13 @@ class Engine:
                 return
             devices = starting_devices
             for condition in routine["spec"]["conditions"]:
+                if condition.get("type") == "time_window":
+                    passed, detail = await self._evaluate_time_window(condition)
+                    record_event(run_id, "condition", detail=detail, result="pass" if passed else "skip")
+                    if not passed:
+                        status = "skipped"
+                        return
+                    continue
                 if condition.get("type") == "sun":
                     if not self.solar_times:
                         raise RuntimeError("Orari di alba/tramonto non disponibili")

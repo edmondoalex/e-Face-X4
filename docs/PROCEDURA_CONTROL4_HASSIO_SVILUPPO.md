@@ -137,6 +137,12 @@ L'agente non deve aspettare un promemoria dell'utente: nello stesso turno in cui
 - Distribuzione beta completata il 15/09/2026 con e-Face `2.21.61` e Asterisk `6.2.0-eface.11`: health positivo, provisioner HTTPS nuovamente raggiungibile, endpoint personali caricati con `opus/alaw/ulaw/h264/vp8`, inventari gruppi leggibili. Gli interni `8306` e `8307`, aperti dopo l'aggiornamento, hanno rilevato e attivato la capacità video; `8302–8305` la rileveranno alla prossima apertura. Durante la verifica è emersa una gara di avvio: il provisioner ora attende fino a 45 secondi `core waitfullybooted` e resta fail-closed oltre il limite. La resa video/audio fisica rimane distinta da queste prove automatiche.
 # Vincolo volume sessioni WiiM/Control4
 
+## Finestra oraria Routine (20/09/2026)
+
+- Schema persistente condiviso: condizione `{"type":"time_window","start":{"kind":"sunset","offset_minutes":0},"end":{"kind":"time","at":"23:00"}}`. Ogni estremo ammette `kind=time` con `at=HH:MM`, oppure `kind=sunrise|sunset` con `offset_minutes` intero tra -180 e +180. Inizio incluso, fine esclusa; se la fine precede l'inizio si usa una finestra oltre mezzanotte (es. tramonto→alba). Inizio e fine identici sono rifiutati.
+- La condizione è disponibile nell'editor visuale e in Routine Professional. Le finestre solari richiedono posizione/fuso validi da HA; le finestre solo orarie usano il fuso `Europe/Rome` già impiegato dallo scheduler. Non aggiunge trigger ripetuti né comandi, quindi non apre nuovi loop; il controllo avviene solo quando arriva un trigger esistente.
+- Test ripetibile senza azionare dispositivi: `python -m pytest tests/test_routines.py -q`. Il registro degli eventi indica soglie calcolate e ora di verifica; non è stata necessaria una prova fisica per il contratto temporale.
+
 ## Scenari e-HDL in Strumenti (20/09/2026)
 
 - Evidenza: le letture live `GET /api/user/light_scenarios`, `/api/user/light_scenarios_status`, `/api/user/devices`, `/api/cover_groups` e `/api/user/scenario_ha_triggers` mostrano 11 scenari persistiti in e-HDL. La nuova UI e-Face usa il catalogo sorgente e non mantiene una seconda copia degli scenari.

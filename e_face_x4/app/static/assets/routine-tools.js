@@ -36,7 +36,7 @@ panel.innerHTML = `<header><button type="button" data-routine-back aria-label="T
   <div class="routine-layout"><aside><button type="button" class="routine-primary" data-routine-new>+ NUOVA ROUTINE</button><div data-routine-list></div></aside>
   <div class="routine-editor" hidden><label>Nome routine<input data-routine-name maxlength="80" placeholder="Es. Luci ingresso la sera"></label><label>Modalità di esecuzione<select data-routine-mode><option value="single">Singola · ignora nuovi eventi mentre è in corso</option><option value="restart">Riavvia · nuovo evento fa ripartire il timer</option><option value="queued">In coda · massimo 5 attese</option><option value="parallel">Parallela · massimo 3 esecuzioni</option></select></label>
   <h3>Quando</h3><p>Una qualsiasi attivazione avvia la routine. Alba e tramonto usano la posizione di Home Assistant; minuti negativi anticipano, positivi ritardano.</p><div data-routine-triggers></div><button type="button" data-routine-add="trigger">+ Aggiungi attivazione</button>
-  <h3>E se <small>(opzionale)</small></h3><p>Tutte queste condizioni devono essere vere all'inizio.</p><div data-routine-conditions></div><button type="button" data-routine-add="condition">+ Aggiungi condizione</button>
+  <h3>E se <small>(opzionale)</small></h3><p>Tutte queste condizioni devono essere vere all'inizio. Per una fascia oraria, scegli «Intervallo da… a…»: puoi combinare ora fissa, alba e tramonto, anche oltre la mezzanotte.</p><div data-routine-conditions></div><button type="button" data-routine-add="condition">+ Aggiungi condizione</button>
   <h3>Allora</h3><p>I blocchi sono eseguiti nell'ordine mostrato. Dopo un timer puoi ricontrollare uno stato.</p><div data-routine-steps></div>
   <div class="routine-add"><button type="button" data-routine-add="action">+ Azione</button><button type="button" data-routine-add="wait">+ Timer</button><button type="button" data-routine-add="check">+ Verifica</button></div>
   <div class="routine-review" data-routine-review aria-live="polite">Premi «Controlla» per leggere gli effetti della routine.</div>
@@ -137,9 +137,18 @@ function collect() {
       : type === 'remote' ? {type, device_id:row.querySelector('[data-field="device"]')?.value || '', source_id:Number(row.querySelector('[data-field="remote-source"]')?.value || 0), command:row.querySelector('[data-field="remote-command"]')?.value || ''}
       : {type: 'state', device_id: row.querySelector('[data-field="device"]')?.value || '', to: row.querySelector('[data-field="value"]')?.value || ''}
   })
-  draft.conditions = [...$('[data-routine-conditions]').children].map(row => row.querySelector('[data-field="condition-type"]')?.value === 'sun'
-    ? {type:'sun', event:row.querySelector('[data-field="sun-event"]')?.value || 'sunset', offset_minutes:Number(row.querySelector('[data-field="sun-offset"]')?.value ?? 0), relation:row.querySelector('[data-field="sun-relation"]')?.value || 'after'}
-    : {device_id: row.querySelector('[data-field="device"]')?.value || '', operator: row.querySelector('[data-field="operator"]')?.value || 'is', value: row.querySelector('[data-field="value"]')?.value || ''})
+  draft.conditions = [...$('[data-routine-conditions]').children].map(row => {
+    const type = row.querySelector('[data-field="condition-type"]')?.value
+    if (type === 'sun') return {type:'sun', event:row.querySelector('[data-field="sun-event"]')?.value || 'sunset', offset_minutes:Number(row.querySelector('[data-field="sun-offset"]')?.value ?? 0), relation:row.querySelector('[data-field="sun-relation"]')?.value || 'after'}
+    if (type === 'time_window') {
+      const boundary = edge => {
+        const kind = row.querySelector(`[data-field="window-${edge}-kind"]`)?.value || 'time'
+        return kind === 'time' ? {kind,at:row.querySelector(`[data-field="window-${edge}-at"]`)?.value || ''} : {kind,offset_minutes:Number(row.querySelector(`[data-field="window-${edge}-offset"]`)?.value ?? 0)}
+      }
+      return {type,start:boundary('start'),end:boundary('end')}
+    }
+    return {device_id: row.querySelector('[data-field="device"]')?.value || '', operator: row.querySelector('[data-field="operator"]')?.value || 'is', value: row.querySelector('[data-field="value"]')?.value || ''}
+  })
   draft.steps = [...$('[data-routine-steps]').children].map(row => {
     const type = row.dataset.type
     if (type === 'wait') return {type, seconds: Number(row.querySelector('[data-field="seconds"]').value)}
@@ -180,8 +189,16 @@ function renderEditor() {
   renderList()
 }
 function conditionRow(item, index, type) {
-  if (type === 'condition') return `<div class="routine-block" data-index="${index}"><select data-field="condition-type"><option value="state" ${item.type === 'sun' ? '' : 'selected'}>Stato dispositivo</option><option value="sun" ${item.type === 'sun' ? 'selected' : ''}>Alba / Tramonto</option></select>${item.type === 'sun' ? solarFields(item, true) : `${deviceField(item.device_id)}<select data-field="operator"><option value="is" ${item.operator === 'is' ? 'selected' : ''}>è</option><option value="is_not" ${item.operator === 'is_not' ? 'selected' : ''}>non è</option></select>${stateSelect(item.device_id, item.value)}`}<button type="button" data-routine-remove="condition" aria-label="Rimuovi">×</button></div>`
+  if (type === 'condition') return `<div class="routine-block" data-index="${index}"><select data-field="condition-type"><option value="state" ${!['sun','time_window'].includes(item.type) ? 'selected' : ''}>Stato dispositivo</option><option value="sun" ${item.type === 'sun' ? 'selected' : ''}>Alba / Tramonto</option><option value="time_window" ${item.type === 'time_window' ? 'selected' : ''}>Intervallo da… a…</option></select>${item.type === 'sun' ? solarFields(item, true) : item.type === 'time_window' ? windowFields(item) : `${deviceField(item.device_id)}<select data-field="operator"><option value="is" ${item.operator === 'is' ? 'selected' : ''}>è</option><option value="is_not" ${item.operator === 'is_not' ? 'selected' : ''}>non è</option></select>${stateSelect(item.device_id, item.value)}`}<button type="button" data-routine-remove="condition" aria-label="Rimuovi">×</button></div>`
   return `<div class="routine-block" data-index="${index}" ${type === 'check' ? 'data-type="check"' : ''}><b>${type === 'check' ? 'Verifica e interrompi se falsa' : 'Condizione iniziale'}</b>${deviceField(item.device_id)}<select data-field="operator"><option value="is" ${item.operator === 'is' ? 'selected' : ''}>è</option><option value="is_not" ${item.operator === 'is_not' ? 'selected' : ''}>non è</option></select>${stateSelect(item.device_id, item.value)}${type === 'check' ? stepButtons(index) : '<button type="button" data-routine-remove="condition" aria-label="Rimuovi">×</button>'}</div>`
+}
+function windowFields(item) {
+  const edge = (label,key,defaultTime) => {
+    const boundary = item[key] || {kind:'time',at:defaultTime}
+    const kind = boundary.kind || 'time'
+    return `<label class="routine-window-edge">${label}<select data-field="window-${key}-kind"><option value="time" ${kind==='time'?'selected':''}>Orario</option><option value="sunrise" ${kind==='sunrise'?'selected':''}>Alba</option><option value="sunset" ${kind==='sunset'?'selected':''}>Tramonto</option></select>${kind==='time'?`<input data-field="window-${key}-at" type="time" value="${escapeHtml(boundary.at||defaultTime)}">`:`<span>Minuti prima (−) / dopo (+)<input data-field="window-${key}-offset" type="number" min="-180" max="180" step="1" value="${Number(boundary.offset_minutes)||0}"></span>`}</label>`
+  }
+  return `<div class="routine-window">${edge('Da','start','18:00')}${edge('A','end','23:00')}<small>Da incluso, A escluso. Se «A» precede «Da», l'intervallo continua oltre mezzanotte.</small></div>`
 }
 function solarFields(item, condition = false) { return `<select data-field="sun-event" aria-label="Evento solare"><option value="sunrise" ${item.event === 'sunrise' ? 'selected' : ''}>Alba</option><option value="sunset" ${item.event === 'sunset' ? 'selected' : ''}>Tramonto</option></select><label class="routine-sun-offset">Minuti prima (−) / dopo (+)<input data-field="sun-offset" type="number" min="-180" max="180" step="1" value="${Number(item.offset_minutes) || 0}"></label>${condition ? `<select data-field="sun-relation" aria-label="Confronto con alba o tramonto"><option value="after" ${item.relation === 'after' ? 'selected' : ''}>Dopo questo orario</option><option value="before" ${item.relation === 'before' ? 'selected' : ''}>Prima di questo orario</option></select>` : ''}` }
 function stepButtons() { return '<div class="routine-move"><button type="button" class="drag-handle routine-drag" data-routine-drag aria-label="Trascina per cambiare ordine; usa freccia su e giù da tastiera" title="Trascina per riordinare">☰</button><button type="button" data-routine-remove="step" aria-label="Rimuovi">×</button></div>' }
@@ -344,7 +361,7 @@ panel.addEventListener('input', event => {
 })
 panel.addEventListener('change', event => {
   const field = event.target
-  if (!field.matches('[data-field="device"],[data-field="type"],[data-field="condition-type"],[data-field="action"],[data-field="remote-source"]')) return
+  if (!field.matches('[data-field="device"],[data-field="type"],[data-field="condition-type"],[data-field="window-start-kind"],[data-field="window-end-kind"],[data-field="action"],[data-field="remote-source"]')) return
   collect()
   const row = field.closest('[data-index]')
   const index = Number(row?.dataset.index)
@@ -354,8 +371,11 @@ panel.addEventListener('change', event => {
     else if (field.dataset.field === 'device') draft.triggers[index].to = ''
     else if (field.dataset.field === 'remote-source') draft.triggers[index].command = ''
   } else if (row?.parentElement.matches('[data-routine-conditions]')) {
-    if (field.dataset.field === 'condition-type') draft.conditions[index] = field.value === 'sun' ? {type:'sun',event:'sunset',offset_minutes:0,relation:'after'} : {device_id:'',operator:'is',value:''}
-    else draft.conditions[index].value = ''
+    if (field.dataset.field === 'condition-type') draft.conditions[index] = field.value === 'sun' ? {type:'sun',event:'sunset',offset_minutes:0,relation:'after'} : field.value === 'time_window' ? {type:'time_window',start:{kind:'sunset',offset_minutes:0},end:{kind:'time',at:'23:00'}} : {device_id:'',operator:'is',value:''}
+    else if (field.dataset.field === 'window-start-kind' || field.dataset.field === 'window-end-kind') {
+      const key = field.dataset.field === 'window-start-kind' ? 'start' : 'end'
+      draft.conditions[index][key] = field.value === 'time' ? {kind:'time',at:key==='start'?'18:00':'23:00'} : {kind:field.value,offset_minutes:0}
+    } else draft.conditions[index].value = ''
   }
   else if (row?.dataset.type === 'check') draft.steps[index].value = ''
   else if (row?.dataset.type === 'action') {
@@ -399,7 +419,7 @@ const professional = selector => professionalPanel.querySelector(selector)
 let professionalItems = []
 let professionalCurrent = null
 const professionalTemplate = () => ({name:'Nuova routine',mode:'single',triggers:[{type:'state',device_id:'',to:'on'}],conditions:[],steps:[{type:'action',device_id:'',action:'on'}]})
-const hasAdvancedFlow = spec => Boolean(spec && (spec.description || (typeof spec.conditions === 'object' && !Array.isArray(spec.conditions)) || (Array.isArray(spec.conditions) && spec.conditions.some(item => ![undefined,'state','sun'].includes(item.type))) || (spec.steps || []).some(step => !['action','wait','check'].includes(step.type))))
+const hasAdvancedFlow = spec => Boolean(spec && (spec.description || (typeof spec.conditions === 'object' && !Array.isArray(spec.conditions)) || (Array.isArray(spec.conditions) && spec.conditions.some(item => ![undefined,'state','sun','time_window'].includes(item.type))) || (spec.steps || []).some(step => !['action','wait','check'].includes(step.type))))
 function renderProfessionalChoice() {
   professional('[data-professional-select]').innerHTML = `<option value="">Nuova routine</option>${professionalItems.map(item => `<option value="${escapeHtml(item.id)}" ${professionalCurrent?.id === item.id ? 'selected' : ''}>${escapeHtml(item.name)} · v${item.revision}</option>`).join('')}`
 }
