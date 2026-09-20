@@ -69,10 +69,13 @@ def normalize_snapshot(payload: dict[str, Any]) -> dict[str, Any]:
         brightness: Any = None
         battery: Any = raw.get("battery_percent", raw.get("battery_percentage", raw.get("battery_level", raw.get("battery"))))
         entity_id = str(raw.get("entity_id") or "").lower()
+        position_supported = kind == "cover" and (bool(raw.get("use_position")) or bool(entity_id) and "_no_" not in entity_id and not raw.get("no_percentage"))
         if entity_id and isinstance(ha_states.get(entity_id), dict):
             ha_state = ha_states[entity_id]
             state = ha_state.get("state")
             attributes = ha_state.get("attributes") if isinstance(ha_state.get("attributes"), dict) else {}
+            if kind == "cover" and isinstance(attributes.get("supported_features"), int):
+                position_supported = position_supported and bool(attributes["supported_features"] & 4)
             unit = str(attributes.get("unit_of_measurement") or "")
             position = attributes.get("current_position")
             brightness = attributes.get("brightness")
@@ -96,7 +99,7 @@ def normalize_snapshot(payload: dict[str, Any]) -> dict[str, Any]:
                 state = raw_state
         normalized.append({
             "id": device_id, "name": name, "kind": kind, "room": room_entry["name"], "state": state,
-            "unit": unit, "position": position, "icon": str(raw.get("icon") or "").strip(),
+            "unit": unit, "position": position, "position_supported": position_supported, "icon": str(raw.get("icon") or "").strip(),
             "category": category, "entity_domain": entity_domain,
             "state_key": entity_id or address,
             "dimmable": bool(raw.get("dimmable")), "brightness": brightness,
@@ -204,7 +207,7 @@ class BusproConnector(Connector):
             }
 
     async def command(self, target_id: str, action: str, value: Any = None) -> dict[str, Any]:
-        allowed = {"on", "off", "brightness", "open", "close", "stop", "lock", "unlock"}
+        allowed = {"on", "off", "brightness", "open", "close", "stop", "set_position", "lock", "unlock"}
         action = str(action or "").strip().lower()
         if action not in allowed:
             raise ValueError("azione non consentita")
@@ -252,8 +255,12 @@ class BusproConnector(Connector):
                     if action == "brightness" and domain == "light":
                         body["brightness"] = brightness_value
                     path = f"/api/control/ha/{domain}/{entity_id}"
-                elif domain == "cover" and action in {"open", "close", "stop"}:
+                elif domain == "cover" and action in {"open", "close", "stop", "set_position"}:
                     path, body = f"/api/control/ha/cover/{entity_id}", {"command": action.upper()}
+                    if action == "set_position":
+                        if isinstance(value, bool) or not isinstance(value, (int, float)) or not 0 <= value <= 100:
+                            raise ValueError("posizione cover non valida")
+                        body["position"] = round(value)
                 elif domain == "cover" and kind == "lock" and action in {"lock", "unlock"}:
                     # Garage doors can be presented as security locks while their
                     # Home Assistant entity still belongs to the cover domain.
@@ -273,8 +280,15 @@ class BusproConnector(Connector):
                     if action == "brightness":
                         body["brightness"] = brightness_value
                     path = f"/api/control/light/{address}"
-                elif kind == "cover" and action in {"open", "close", "stop"}:
+                elif kind == "cover" and action in {"open", "close", "stop", "set_position"}:
+                    if action == "set_position":
+                        if not raw.get("use_position"):
+                            raise ValueError("posizionamento non disponibile per questa cover")
+                        if isinstance(value, bool) or not isinstance(value, (int, float)) or not 0 <= value <= 100:
+                            raise ValueError("posizione cover non valida")
                     path, body = f"/api/control/cover/{address}", {"command": action.upper()}
+                    if action == "set_position":
+                        body["position"] = round(value)
                 else:
                     raise ValueError("comando non disponibile per questo dispositivo")
             response = await client.post(f"{self.config.base_url}{path}", headers=self._headers(), json=body)

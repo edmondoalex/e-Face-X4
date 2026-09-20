@@ -31,7 +31,7 @@ SAFE_ACTIONS = {
     "switch": {"on", "off"},
     "media_player": {"media_play", "media_pause", "media_stop", "media_next", "media_previous", "turn_off", "set_volume", "volume_mute", "volume_unmute", "select_source", "remote_command", "dnd_on", "dnd_off", "tts"},
     "climate": {"set_target"},
-    "cover": {"open", "close", "stop"},
+    "cover": {"open", "close", "stop", "set_position"},
     "lock": {"lock", "unlock"},
 }
 ACTION_STATES = {"on": "on", "off": "off", "open": "open", "close": "closed", "lock": "locked", "unlock": "unlocked", "media_play": "playing",
@@ -44,10 +44,12 @@ ACTION_LABELS = {"on": "accendere", "off": "spegnere", "brightness": "regolare l
                  "media_next": "passare al brano successivo", "media_previous": "tornare al brano precedente", "tts": "pronunciare un messaggio su",
                  "select_source": "selezionare una sorgente su", "remote_command": "premere un tasto telecomando su",
                  "dnd_on": "attivare Non disturbare su", "dnd_off": "disattivare Non disturbare su",
-                 "lock": "bloccare", "unlock": "sbloccare"}
+                 "lock": "bloccare", "unlock": "sbloccare", "set_position": "posizionare"}
 REMOTE_PLAYER_COMMANDS = {"media_play": "play", "media_pause": "pause", "media_stop": "stop", "media_next": "next", "media_previous": "previous", "turn_off": "turn_off", "volume_mute": "mute", "volume_unmute": "mute"}
 SENSITIVE_WORDS = re.compile(r"portone|cancello|garage|serratura|allarme|alarm|gate|door|lock", re.I)
 SECRET_TEXT = re.compile(r"(?i)(password|token|secret|authorization)\s*[:=]\s*\S+|https?://\S+")
+BYPASS_ID = re.compile(r"switch\.e_safe_zone_[0-9]{1,3}_bypass_ctrl\Z")
+HA_COVER_ID = re.compile(r"cover\.buspro_cover_[a-z0-9_]+\Z")
 
 
 def _path() -> Path:
@@ -93,6 +95,10 @@ def _connect() -> sqlite3.Connection:
             after_state TEXT NOT NULL DEFAULT '', result TEXT NOT NULL DEFAULT ''
         );
         CREATE TABLE IF NOT EXISTS routine_settings (key TEXT PRIMARY KEY, value INTEGER NOT NULL);
+        CREATE TABLE IF NOT EXISTS routine_bypass_recovery (
+            run_id TEXT PRIMARY KEY, routine_id TEXT NOT NULL, switch_ids TEXT NOT NULL,
+            started_at TEXT NOT NULL, last_error TEXT NOT NULL DEFAULT ''
+        );
         CREATE INDEX IF NOT EXISTS routine_runs_recent ON routine_runs(started_at DESC);
         CREATE INDEX IF NOT EXISTS routine_events_device ON routine_events(device_id, at DESC);
         CREATE INDEX IF NOT EXISTS routine_events_run ON routine_events(run_id, id);
@@ -251,6 +257,32 @@ def _action_steps(steps: object) -> list[dict]:
     return [item for item in _flow_items(steps) if item.get("type") == "action"]
 
 
+def has_bypass(spec: dict) -> bool:
+    return any(item.get("type") == "protected_cover" for item in _flow_items(spec))
+
+
+def pending_bypass_recovery() -> list[dict]:
+    with _connect() as db:
+        return [{"run_id": row["run_id"], "routine_id": row["routine_id"],
+                 "switch_ids": json.loads(row["switch_ids"])} for row in db.execute("SELECT * FROM routine_bypass_recovery")]
+
+
+def begin_bypass_recovery(run_id: str, routine_id: str, switch_ids: list[str]) -> None:
+    with _connect() as db:
+        db.execute("INSERT INTO routine_bypass_recovery(run_id,routine_id,switch_ids,started_at) VALUES(?,?,?,?)",
+                   (run_id, routine_id, json.dumps(switch_ids), _now()))
+
+
+def finish_bypass_recovery(run_id: str) -> None:
+    with _connect() as db:
+        db.execute("DELETE FROM routine_bypass_recovery WHERE run_id = ?", (run_id,))
+
+
+def fail_bypass_recovery(run_id: str, error: str) -> None:
+    with _connect() as db:
+        db.execute("UPDATE routine_bypass_recovery SET last_error = ? WHERE run_id = ?", (error[:300], run_id))
+
+
 def _compile_condition(raw: object, catalog: dict[str, dict], errors: list[str], depth: int = 0) -> dict | None:
     if depth > MAX_FLOW_DEPTH or not isinstance(raw, dict):
         errors.append("Condizione annidata non valida o troppo profonda")
@@ -380,6 +412,29 @@ def _compile_flow(steps: object, catalog: dict[str, dict], errors: list[str], bu
             if any(item.get("type") == "variable" for branch in compiled for item in _flow_items(branch)):
                 errors.append("Variabili non consentite nei rami paralleli")
             result.append({"type": kind, "branches": compiled})
+        elif kind == "protected_cover":
+            switch_ids = raw.get("bypass_switches")
+            delay = raw.get("enable_delay_seconds", 3)
+            move = raw.get("move_seconds", 40)
+            if (set(raw) - {"type", "bypass_switches", "enable_delay_seconds", "move_seconds", "steps"}
+                    or not isinstance(switch_ids, list) or not 1 <= len(switch_ids) <= 16
+                    or len(switch_ids) != len(set(str(item) for item in switch_ids))
+                    or any(not isinstance(item, str) or not BYPASS_ID.fullmatch(item)
+                           or catalog.get(item, {}).get("kind") != "safety_bypass" for item in switch_ids)
+                    or isinstance(delay, bool) or not isinstance(delay, int) or not 0 <= delay <= 30
+                    or isinstance(move, bool) or not isinstance(move, int) or not 1 <= move <= 180):
+                errors.append("Bypass protetto: switch e-Safe presenti nel catalogo, ritardo 0–30 s e movimento 1–180 s obbligatori")
+                continue
+            branch = _compile_flow(raw.get("steps"), catalog, errors, budget, depth + 1)
+            if not branch or any(item.get("type") != "action" or catalog.get(item.get("device_id"), {}).get("kind") not in {"cover", "light"}
+                                 for item in _flow_items(branch) if "type" in item):
+                errors.append("Bypass protetto: ammesse soltanto azioni dirette su cover e luci")
+                continue
+            if not any(catalog.get(item["device_id"], {}).get("kind") == "cover" for item in _action_steps(branch)):
+                errors.append("Bypass protetto: aggiungi almeno una cover")
+                continue
+            result.append({"type": kind, "bypass_switches": switch_ids,
+                           "enable_delay_seconds": delay, "move_seconds": move, "steps": branch})
         elif kind == "variable":
             name, value, source = raw.get("name"), raw.get("value"), raw.get("from_device_id")
             if set(raw) - {"type", "name", "value", "from_device_id"} or not isinstance(name, str) or not re.fullmatch(r"[A-Za-z][A-Za-z0-9_]{0,31}", name) or (source is None) == (value is None) or (source is not None and str(source) not in catalog) or (value is not None and (not isinstance(value, (str, int, float, bool)) or len(str(value)) > 80)):
@@ -413,6 +468,8 @@ def _flow_max_wait(steps: list[dict]) -> int:
             total += step["count"] * _flow_max_wait(step["steps"])
         elif kind == "parallel":
             total += max(_flow_max_wait(branch) for branch in step["branches"])
+        elif kind == "protected_cover":
+            total += step["enable_delay_seconds"] + step["move_seconds"] + _flow_max_wait(step["steps"])
     return total
 
 
@@ -430,6 +487,8 @@ def _flow_max_commands(steps: list[dict]) -> int:
             total += step["count"] * _flow_max_commands(step["steps"])
         elif kind == "parallel":
             total += sum(_flow_max_commands(branch) for branch in step["branches"])
+        elif kind == "protected_cover":
+            total += 2 * len(step["bypass_switches"]) + _flow_max_commands(step["steps"])
     return total
 
 
@@ -493,6 +552,10 @@ def _validate_advanced(payload: dict, devices: list[dict], others: list[dict], s
     if any(item.get("type") == "variable" for item in _flow_items(compiled_conditions)):
         errors.append("Le condizioni iniziali non possono usare variabili: non sono ancora definite")
     flow = _compile_flow(payload.get("steps"), catalog, errors, {"nodes": 0})
+    protected = [item for item in _flow_items(flow) if item.get("type") == "protected_cover"]
+    if protected and (len(protected) > 4 or payload.get("mode", "single") != "single"
+                      or any(item.get("type") in {"repeat", "parallel"} for item in _flow_items(flow))):
+        errors.append("Bypass protetto: massimo 4 blocchi sequenziali, modalità single, senza repeat o parallel")
     _flow_validate_variables(flow, set(), errors)
     if not flow or _flow_max_wait(flow) > MAX_WAIT_SECONDS:
         errors.append("Azioni mancanti o durata massima superiore a 60 minuti")
@@ -524,6 +587,8 @@ def _validate_advanced(payload: dict, devices: list[dict], others: list[dict], s
         extra_risks.append("Nei rami paralleli un ramo può completare comandi anche se un altro si ferma; non esiste annullamento fisico dei comandi già inviati.")
     if "wait_until" in kinds:
         extra_risks.append("Se wait_until raggiunge il timeout, le azioni successive vengono interrotte; i comandi precedenti restano applicati.")
+    if protected:
+        extra_risks.append("Bypass allarme: e-Face verifica che le zone siano disattivate prima, registra il ripristino e tenta lo spegnimento anche dopo errori o interruzioni. Se Home Assistant è irraggiungibile il ripristino resta pendente e viene ritentato: verificare comunque l'allarme fisico.")
     if any(item.get("type") == "action" and item.get("action") == "off" for item in _flow_items(flow)) and kinds & {"wait", "wait_until"}:
         extra_risks.append("Uno spegnimento dopo un'attesa può sovrascrivere un'accensione manuale fatta nel frattempo.")
     base["risks"] = list(dict.fromkeys([*base["risks"], *extra_risks]))
@@ -604,7 +669,7 @@ def validate(payload: dict, devices: list[dict], others: list[dict] = (), *, sol
         elif raw.get("type") == "state":
             device_id = str(raw.get("device_id") or "")
             target = str(raw.get("to") or "").strip().casefold()[:80]
-            if device_id not in catalog or not target:
+            if device_id not in catalog or not target or catalog.get(device_id, {}).get("kind") == "safety_bypass":
                 errors.append(f"Attivazione non valida per {device_id or 'dispositivo mancante'}")
             else:
                 triggers.append({"type": "state", "device_id": device_id, "to": target})
@@ -691,11 +756,14 @@ def validate(payload: dict, devices: list[dict], others: list[dict] = (), *, sol
                 errors.append(f"{device.get('name')}: comando {action} non esposto dal dispositivo")
                 continue
             value = raw.get("value")
-            if action in {"brightness", "set_volume"}:
+            if action in {"brightness", "set_volume", "set_position"}:
                 if isinstance(value, bool) or not isinstance(value, (int, float)) or not 0 <= value <= 100:
                     errors.append(f"{device.get('name')}: valore percentuale non valido")
                     continue
                 value = round(float(value))
+                if action == "set_position" and not device.get("position_supported"):
+                    errors.append(f"{device.get('name')}: posizionamento percentuale non disponibile")
+                    continue
             elif action == "set_target":
                 if isinstance(value, bool) or not isinstance(value, (int, float)) or not 5 <= value <= 35:
                     errors.append(f"{device.get('name')}: temperatura fuori dai limiti 5–35 °C")
@@ -738,7 +806,7 @@ def validate(payload: dict, devices: list[dict], others: list[dict] = (), *, sol
                 value = None
             actions.append((device_id, action))
             steps.append({"type": "action", "device_id": device_id, "action": action, "value": value})
-            if device_kind == "cover" and action in {"open", "close"}:
+            if device_kind == "cover" and action in {"open", "close", "set_position"}:
                 warnings.append(f"{device.get('name')}: il movimento fisico della tenda/tapparella può sorprendere chi è vicino")
             if device_kind == "switch":
                 warnings.append(f"{device.get('name')}: verifica che lo switch non alimenti un dispositivo critico")
@@ -833,7 +901,7 @@ def validate(payload: dict, devices: list[dict], others: list[dict] = (), *, sol
         risks.append("Fino a 3 esecuzioni possono operare contemporaneamente: comandi sullo stesso dispositivo potrebbero sovrapporsi.")
     if any(step["type"] == "wait" for step in steps) and any(action == "off" for _, action in actions):
         risks.append("Uno spegnimento dopo un timer puo sovrascrivere un'accensione manuale avvenuta durante l'attesa.")
-    if any(catalog[device_id].get("kind") == "cover" and action in {"open", "close"} for device_id, action in actions):
+    if any(catalog[device_id].get("kind") == "cover" and action in {"open", "close", "set_position"} for device_id, action in actions):
         risks.append("Oscuranti in movimento: e-Face non puo accertare la presenza di persone o ostacoli; verifica le protezioni fisiche dell'impianto.")
     if any(catalog[device_id].get("kind") == "lock" and action == "unlock" for device_id, action in actions):
         risks.append("La routine può sbloccare un accesso fisico automaticamente: verifica trigger, condizioni e protezioni prima di attivarla.")
@@ -983,12 +1051,16 @@ class Engine:
     def __init__(self, snapshot: Callable[[], Awaitable[list[dict]]], command: Callable[[str, str, object], Awaitable[object]],
                  snapshot_selected: Callable[[set[str]], Awaitable[list[dict]]] | None = None,
                  activity_changed: Callable[[set[str]], Awaitable[None]] | None = None,
-                 solar_times: Callable[[], Awaitable[dict[str, datetime]]] | None = None):
+                 solar_times: Callable[[], Awaitable[dict[str, datetime]]] | None = None,
+                 bypass_state: Callable[[str], Awaitable[str]] | None = None):
         self.snapshot = snapshot
         self.snapshot_selected = snapshot_selected
         self.command = command
         self.activity_changed = activity_changed
         self.solar_times = solar_times
+        self.bypass_state = bypass_state
+        self.active_bypass_runs: set[str] = set()
+        self.bypass_lock = asyncio.Lock()
         self.active_targets: dict[str, set[str]] = {}
         self.previous: dict[str, str] = {}
         self.running: dict[str, asyncio.Task] = {}
@@ -1011,6 +1083,38 @@ class Engine:
         references = set().union(*(self._references(routine) for routine in matching))
         items = await self.snapshot_selected(references) if self.snapshot_selected else await self.snapshot()
         return {str(item["id"]): item for item in items if item.get("id") is not None}
+
+    async def _wait_bypass_state(self, device_id: str, wanted: str) -> bool:
+        if self.bypass_state is None:
+            return False
+        for attempt in range(7):
+            if await self.bypass_state(device_id) == wanted:
+                return True
+            if attempt < 6:
+                await asyncio.sleep(0.5)
+        return False
+
+    async def _restore_bypasses(self, run_id: str, switch_ids: list[str]) -> bool:
+        errors = []
+        for device_id in switch_ids:
+            try:
+                await self.command(device_id, "off", None)
+                if not await self._wait_bypass_state(device_id, "off"):
+                    raise RuntimeError("spegnimento non confermato")
+                record_event(run_id, "bypass_restore", device_id=device_id, action="off", result="confirmed")
+            except Exception as exc:
+                errors.append(f"{device_id}: {exc}")
+                record_event(run_id, "bypass_restore", device_id=device_id, action="off", detail=str(exc), result="pending")
+        if errors:
+            fail_bypass_recovery(run_id, "; ".join(errors))
+            return False
+        finish_bypass_recovery(run_id)
+        return True
+
+    async def recover_bypasses(self) -> None:
+        for item in pending_bypass_recovery():
+            if item["run_id"] not in self.active_bypass_runs:
+                await self._restore_bypasses(item["run_id"], item["switch_ids"])
 
     async def ksenia_event(self, items: list[dict]) -> None:
         received_at = _now()
@@ -1418,6 +1522,38 @@ class Engine:
                         return next(status for status, _ in results if status != "completed"), current
                     current = await self._snapshot_for([routine])
                     record_event(run_id, "parallel", detail=f"Completati {len(tasks)} rami")
+                elif kind == "protected_cover":
+                    async with self.bypass_lock:
+                        switch_ids = step["bypass_switches"]
+                        if self.bypass_state is None:
+                            raise RuntimeError("Verifica bypass Home Assistant non disponibile")
+                        if pending_bypass_recovery():
+                            raise RuntimeError("Un ripristino bypass precedente è ancora pendente: movimento annullato")
+                        for device_id in switch_ids:
+                            state = await self.bypass_state(device_id)
+                            if state != "off":
+                                raise RuntimeError(f"Bypass {device_id} non spento: movimento annullato")
+                        begin_bypass_recovery(run_id, routine["id"], switch_ids)
+                        self.active_bypass_runs.add(run_id)
+                        try:
+                            for device_id in switch_ids:
+                                await self.command(device_id, "on", None)
+                                if not await self._wait_bypass_state(device_id, "on"):
+                                    raise RuntimeError(f"Bypass {device_id} non confermato")
+                                record_event(run_id, "bypass", device_id=device_id, action="on", result="confirmed")
+                            if step["enable_delay_seconds"]:
+                                await asyncio.sleep(step["enable_delay_seconds"])
+                            status, current = await execute(step["steps"], current, values)
+                            if status != "completed":
+                                return status, current
+                            await asyncio.sleep(step["move_seconds"])
+                        finally:
+                            try:
+                                restored = await self._restore_bypasses(run_id, switch_ids)
+                                if not restored:
+                                    raise RuntimeError("Bypass non ripristinato: intervento richiesto; recupero automatico pendente")
+                            finally:
+                                self.active_bypass_runs.discard(run_id)
                 elif kind == "action":
                     device_id = step["device_id"]
                     device = current.get(device_id)

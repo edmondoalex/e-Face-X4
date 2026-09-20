@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.21.218 — 2026-09-20
+
+- Routine: azione `set_position` (0–100%) solo per cover che dichiarano la capacità nel catalogo live. Le cover Home Assistant `cover.buspro_cover_*` sono selezionabili anche in Routine Professional e nell'editor visuale; i gruppi `no %` restano apri/chiudi/stop.
+- Nuovo blocco `protected_cover` per movimenti con bypass e-Safe: solo admin, switch e-Safe allowlist verificati spenti prima dell'avvio, solo cover/luci nel blocco, modalità `single`, nessun repeat/parallel. L'esclusione viene registrata in `/data/routines.sqlite3`, il ripristino OFF è verificato e ritentato dopo errore, annullamento o riavvio. Se Home Assistant è indisponibile il movimento si ferma e il ripristino resta pendente: serve comunque verificare l'allarme fisico.
+- Il blocco protetto è modificabile nell'editor visuale, anche nei rami `choose`, con duplicazione e trascinamento delle azioni interne. Aggiunta guida JSON in Routine Professional. Nessun comando reale inviato durante i test automatici.
+
 ## 2.21.217 — 2026-09-20
 
 - Ogni attivazione, condizione e blocco della routine visuale ha «Duplica»; anche le scelte e i blocchi dentro `choose` si duplicano senza condividere riferimenti. Il riordino usa ovunque la maniglia ☰ trascinabile, comprese le scelte e i blocchi annidati, senza frecce di movimento.

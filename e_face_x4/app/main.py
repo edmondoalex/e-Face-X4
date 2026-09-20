@@ -76,7 +76,7 @@ from .connectors.supervisor import discover_addon_url, discover_host_url
 from .media_realtime import SharedMediaRealtime
 from .demo import dashboard as demo_dashboard
 
-VERSION = os.environ.get("EFACE_VERSION", "2.21.217")
+VERSION = os.environ.get("EFACE_VERSION", "2.21.218")
 STATIC = Path(__file__).parent / "static"
 logging.basicConfig(level=logging.WARNING, format="%(asctime)s %(levelname)s [e-face-x4] %(message)s")
 _reconnect_warning_at: dict[str, float] = {}
@@ -3009,10 +3009,81 @@ def create_app() -> FastAPI:
             logging.warning("Scenari luci non disponibili nel catalogo routine")
             return []
 
+    async def routine_bypass_state(device_id: str) -> str:
+        if not routines.BYPASS_ID.fullmatch(device_id):
+            raise ValueError("Switch bypass non autorizzato")
+        token = str(os.environ.get("SUPERVISOR_TOKEN") or "").strip()
+        if not token:
+            raise RuntimeError("Home Assistant non disponibile per il bypass")
+        async with httpx.AsyncClient(timeout=8, follow_redirects=False, trust_env=False) as client:
+            response = await client.get(f"http://supervisor/core/api/states/{device_id}",
+                                        headers={"Authorization": f"Bearer {token}"})
+            response.raise_for_status()
+            return str(response.json().get("state") or "").lower()
+
+    async def routine_bypass_items(referenced: set[str] | None = None) -> list[dict]:
+        token = str(os.environ.get("SUPERVISOR_TOKEN") or "").strip()
+        if not token:
+            return []
+        headers = {"Authorization": f"Bearer {token}"}
+        try:
+            async with httpx.AsyncClient(timeout=8, follow_redirects=False, trust_env=False) as client:
+                if referenced is None:
+                    response = await client.get("http://supervisor/core/api/states", headers=headers)
+                    response.raise_for_status()
+                    states = response.json()
+                else:
+                    states = []
+                    for device_id in sorted(referenced):
+                        if routines.BYPASS_ID.fullmatch(device_id):
+                            response = await client.get(f"http://supervisor/core/api/states/{device_id}", headers=headers)
+                            response.raise_for_status()
+                            states.append(response.json())
+            return [{"id": item["entity_id"], "entity_id": item["entity_id"],
+                     "name": str((item.get("attributes") or {}).get("friendly_name") or item["entity_id"]),
+                     "room": "e-Safe", "kind": "safety_bypass", "provider": "home_assistant",
+                     "state": item.get("state")}
+                    for item in states if isinstance(item, dict) and routines.BYPASS_ID.fullmatch(str(item.get("entity_id") or ""))]
+        except (httpx.HTTPError, ValueError, TypeError):
+            logging.warning("Catalogo bypass e-Safe non disponibile")
+            return []
+
+    async def routine_ha_cover_items(referenced: set[str] | None = None) -> list[dict]:
+        token = str(os.environ.get("SUPERVISOR_TOKEN") or "").strip()
+        if not token:
+            return []
+        headers = {"Authorization": f"Bearer {token}"}
+        try:
+            async with httpx.AsyncClient(timeout=8, follow_redirects=False, trust_env=False) as client:
+                if referenced is None:
+                    response = await client.get("http://supervisor/core/api/states", headers=headers)
+                    response.raise_for_status()
+                    states = response.json()
+                else:
+                    states = []
+                    for device_id in sorted(referenced):
+                        if routines.HA_COVER_ID.fullmatch(device_id):
+                            response = await client.get(f"http://supervisor/core/api/states/{device_id}", headers=headers)
+                            response.raise_for_status()
+                            states.append(response.json())
+            return [{"id": item["entity_id"], "entity_id": item["entity_id"],
+                     "name": str((item.get("attributes") or {}).get("friendly_name") or item["entity_id"]),
+                     "room": "Cover Home Assistant", "kind": "cover", "provider": "home_assistant",
+                     "state": item.get("state"), "position": (item.get("attributes") or {}).get("current_position"),
+                     "position_supported": bool((item.get("attributes") or {}).get("supported_features", 0) & 4)}
+                    for item in states if isinstance(item, dict) and routines.HA_COVER_ID.fullmatch(str(item.get("entity_id") or ""))]
+        except (httpx.HTTPError, ValueError, TypeError):
+            logging.warning("Catalogo cover Home Assistant non disponibile")
+            return []
+
     async def routine_devices(request: Request | None = None, referenced: set[str] | None = None) -> list[dict]:
         async def with_scenarios(items: list[dict]) -> list[dict]:
             if request is not None or (referenced and any(identifier.startswith("light-scenario:") for identifier in referenced)):
                 items.extend(await routine_scenario_items())
+            extra = await asyncio.gather(routine_bypass_items(referenced if request is None else None),
+                                         routine_ha_cover_items(referenced if request is None else None))
+            for group in extra:
+                items.extend(group)
             return items
         if request is None:
             settings = load_settings()
@@ -3043,6 +3114,33 @@ def create_app() -> FastAPI:
         return await with_scenarios(data.get("dashboard", {}).get("devices", []))
 
     async def routine_command(device_id: str, action: str, value: object) -> object:
+        if routines.HA_COVER_ID.fullmatch(device_id):
+            if action not in {"open", "close", "stop", "set_position"}:
+                raise ValueError("Comando cover Home Assistant non consentito")
+            state = next((item for item in await routine_ha_cover_items({device_id}) if item["id"] == device_id), None)
+            if not state or (action == "set_position" and not state["position_supported"]):
+                raise RuntimeError("Cover o posizionamento non disponibile")
+            if action == "set_position" and (isinstance(value, bool) or not isinstance(value, (int, float)) or not 0 <= value <= 100):
+                raise ValueError("Posizione cover non valida")
+            token = str(os.environ.get("SUPERVISOR_TOKEN") or "").strip()
+            service = {"open": "open_cover", "close": "close_cover", "stop": "stop_cover", "set_position": "set_cover_position"}[action]
+            body = {"entity_id": device_id, **({"position": round(value)} if action == "set_position" else {})}
+            async with httpx.AsyncClient(timeout=12, follow_redirects=False, trust_env=False) as client:
+                response = await client.post(f"http://supervisor/core/api/services/cover/{service}",
+                                             headers={"Authorization": f"Bearer {token}"}, json=body)
+                response.raise_for_status()
+            return {"ok": True}
+        if routines.BYPASS_ID.fullmatch(device_id):
+            if action not in {"on", "off"} or value is not None:
+                raise ValueError("Comando bypass non consentito")
+            token = str(os.environ.get("SUPERVISOR_TOKEN") or "").strip()
+            if not token:
+                raise RuntimeError("Home Assistant non disponibile per il bypass")
+            async with httpx.AsyncClient(timeout=12, follow_redirects=False, trust_env=False) as client:
+                response = await client.post(f"http://supervisor/core/api/services/switch/turn_{action}",
+                                             headers={"Authorization": f"Bearer {token}"}, json={"entity_id": device_id})
+                response.raise_for_status()
+            return {"ok": True}
         if device_id.startswith("light-scenario:"):
             return await scenario_command(device_id.split(":", 1)[1], {"action": action})
         if action == "remote_command":
@@ -3055,7 +3153,8 @@ def create_app() -> FastAPI:
         await broadcast_realtime({"type": "routine_activity", "data": {"device_ids": sorted(device_ids)}})
 
     routine_engine = routines.Engine(lambda: routine_devices(), routine_command,
-                                     lambda referenced: routine_devices(referenced=referenced), routine_activity_changed, routine_solar_times)
+                                     lambda referenced: routine_devices(referenced=referenced), routine_activity_changed, routine_solar_times,
+                                     routine_bypass_state)
 
     async def dispatch_routine_doorbird(event: str) -> None:
         try:
@@ -3075,6 +3174,7 @@ def create_app() -> FastAPI:
             while True:
                 try:
                     if not load_settings().demo_mode:
+                        await routine_engine.recover_bypasses()
                         await routine_engine.tick()
                 except asyncio.CancelledError:
                     raise
@@ -3187,6 +3287,8 @@ def create_app() -> FastAPI:
         existing = routines.get_routine(routine_id)
         if not existing:
             raise HTTPException(status_code=404, detail="Routine non trovata")
+        if routines.has_bypass(existing["spec"]):
+            require_admin(request)
         enabled = payload.get("enabled")
         if not isinstance(enabled, bool):
             raise HTTPException(status_code=400, detail="Stato routine non valido")
@@ -3214,6 +3316,8 @@ def create_app() -> FastAPI:
         raw = payload.get("spec", payload)
         if not isinstance(raw, dict):
             raise HTTPException(status_code=400, detail="Routine non valida")
+        if routines.has_bypass(raw):
+            require_admin(request)
         routine_id = str(payload.get("id") or "")
         if routine_id and not routines.get_routine(routine_id):
             raise HTTPException(status_code=404, detail="Routine non trovata")
@@ -3226,6 +3330,8 @@ def create_app() -> FastAPI:
         raw = payload.get("spec", payload)
         if not isinstance(raw, dict):
             raise HTTPException(status_code=400, detail="Routine non valida")
+        if routines.has_bypass(raw) or (routine_id and routines.has_bypass((routines.get_routine(routine_id) or {}).get("spec", {}))):
+            require_admin(request)
         if len(json.dumps(raw, ensure_ascii=False)) > 32_000:
             raise HTTPException(status_code=413, detail="Routine troppo grande")
         raw = {**raw, "id": routine_id}
@@ -3261,6 +3367,9 @@ def create_app() -> FastAPI:
 
     @app.delete("/api/user/routines/{routine_id}")
     async def user_delete_routine(request: Request, routine_id: str) -> dict:
+        existing = routines.get_routine(routine_id)
+        if existing and routines.has_bypass(existing["spec"]):
+            require_admin(request)
         if not routines.delete(routine_owner(request), routine_id, shared=True):
             raise HTTPException(status_code=404, detail="Routine non trovata")
         routine_engine.cancel_routine(routine_id)

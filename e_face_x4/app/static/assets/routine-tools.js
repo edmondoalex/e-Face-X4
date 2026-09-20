@@ -38,7 +38,7 @@ panel.innerHTML = `<header><button type="button" data-routine-back aria-label="T
   <h3>Quando</h3><p>Una qualsiasi attivazione avvia la routine. Alba e tramonto usano la posizione di Home Assistant; minuti negativi anticipano, positivi ritardano.</p><div data-routine-triggers></div><button type="button" data-routine-add="trigger">+ Aggiungi attivazione</button>
   <h3>E se <small>(opzionale)</small></h3><p>Tutte queste condizioni devono essere vere all'inizio. Per una fascia oraria, scegli «Intervallo da… a…»: puoi combinare ora fissa, alba e tramonto, anche oltre la mezzanotte.</p><div data-routine-conditions></div><button type="button" data-routine-add="condition">+ Aggiungi condizione</button>
   <h3>Allora</h3><p>I blocchi sono eseguiti nell'ordine mostrato. Dopo un timer puoi ricontrollare uno stato.</p><div data-routine-steps></div>
-  <div class="routine-add"><button type="button" data-routine-add="action">+ Azione</button><button type="button" data-routine-add="wait">+ Timer</button><button type="button" data-routine-add="check">+ Verifica</button><button type="button" data-routine-add="choose">+ Scegli ramo</button></div>
+  <div class="routine-add"><button type="button" data-routine-add="action">+ Azione</button><button type="button" data-routine-add="wait">+ Timer</button><button type="button" data-routine-add="check">+ Verifica</button><button type="button" data-routine-add="choose">+ Scegli ramo</button><button type="button" data-routine-add="protected_cover">+ Cover con bypass protetto</button></div>
   <div class="routine-review" data-routine-review aria-live="polite">Premi «Controlla» per leggere gli effetti della routine.</div>
   <div class="routine-actions"><button type="button" data-routine-validate>CONTROLLA</button><button type="button" data-routine-save="draft">SALVA DISATTIVATA</button><button type="button" class="routine-primary" data-routine-save="active">SALVA E ATTIVA</button><button type="button" data-routine-delete hidden>ELIMINA</button></div></div></div>`
 root.append(panel)
@@ -69,7 +69,7 @@ professionalPanel.innerHTML = `<header><button type="button" data-professional-b
   {"type":"parallel","branches":[[{"type":"action","device_id":"light.a","action":"on"}],[{"type":"action","device_id":"light.b","action":"on"}]]},
   {"type":"variable","name":"presenza","from_device_id":"sensor.id"},
   {"type":"stop","reason":"Fine"}
-]</pre><p>Sostituisci gli ID con quelli del catalogo. Una variabile può anche avere <code>value</code> fisso; per leggerla usa <code>{"type":"variable","name":"presenza","operator":"is","value":"on"}</code> come condizione.</p></details>
+]</pre><p>Per cover a percentuale usa <code>{"type":"action","device_id":"cover.buspro_cover_finestra_cucina","action":"set_position","value":8}</code>. Per cover senza percentuale usa <code>open</code>, <code>close</code> o <code>stop</code>.</p><p>Il bypass allarme è consentito solo in <code>protected_cover</code> (admin, modalità single). Esempio: <code>{"type":"protected_cover","bypass_switches":["switch.e_safe_zone_20_bypass_ctrl"],"enable_delay_seconds":3,"move_seconds":40,"steps":[{"type":"action","device_id":"cover.buspro_cover_finestra_cucina","action":"set_position","value":8}]}</code>. Gli switch devono essere spenti prima; il ripristino viene ritentato se non è confermato. Non sostituisce la verifica fisica dell'allarme.</p><p>Sostituisci gli ID con quelli del catalogo. Una variabile può anche avere <code>value</code> fisso; per leggerla usa <code>{"type":"variable","name":"presenza","operator":"is","value":"on"}</code> come condizione.</p></details>
   <div class="routine-professional-actions"><label>Routine<select data-professional-select aria-label="Scegli routine"><option value="">Nuova routine</option></select></label><button type="button" data-professional-new>NUOVA</button><button type="button" data-professional-copy-catalog>COPIA CATALOGO DISPOSITIVI</button></div>
   <details class="routine-professional-help"><summary>Catalogo dispositivi <span data-professional-catalog-count></span></summary><input data-professional-catalog-search type="search" placeholder="Cerca nome, stanza, tipo o ID" aria-label="Cerca nel catalogo dispositivi"><div data-professional-catalog-list class="routine-catalog-list"></div></details>
   <details class="routine-professional-help"><summary>Filtri catalogo routine</summary><p>Queste impostazioni sono globali e persistenti. Non rimuovono il controllo dei tipi di comando realmente supportati.</p><label><input type="checkbox" data-catalog-filter="block_sensitive_names"> Blocca nelle azioni i nomi di accesso (porta, cancello, garage). Le cover e le serrature restano disponibili.</label><label><input type="checkbox" data-catalog-filter="hide_readonly_actions"> Nascondi nelle azioni i dispositivi senza comandi supportati. Restano sempre disponibili come trigger e condizioni.</label><p data-catalog-filter-status></p></details>
@@ -88,7 +88,7 @@ const actions = {
   light_scenario: [['on', 'Attiva'], ['off', 'Disattiva'], ['run', 'Esegui'], ['stop', 'Ferma']],
   light: [['on', 'Accendi'], ['off', 'Spegni'], ['brightness', 'Luminosità %']],
   switch: [['on', 'Accendi'], ['off', 'Spegni']],
-  cover: [['open', 'Apri'], ['close', 'Chiudi'], ['stop', 'Ferma']],
+  cover: [['open', 'Apri'], ['close', 'Chiudi'], ['stop', 'Ferma'], ['set_position', 'Posizione %']],
   lock: [['lock', 'Blocca'], ['unlock', 'Sblocca']],
   media_player: [['media_play', 'Riproduci'], ['media_pause', 'Pausa'], ['media_stop', 'Stop'], ['media_next', 'Successivo'], ['media_previous', 'Precedente'], ['turn_off', 'Spegni stanza'], ['set_volume', 'Volume %'], ['volume_mute', 'Mute'], ['volume_unmute', 'Riattiva audio'], ['select_source', 'Seleziona sorgente'], ['remote_command', 'Tasto telecomando sorgente'], ['dnd_on', 'Attiva Non disturbare'], ['dnd_off', 'Disattiva Non disturbare'], ['tts', 'Messaggio vocale (TTS)']],
   climate: [['set_target', 'Temperatura °C']]
@@ -103,7 +103,7 @@ const deviceOptions = (selected, allowed = devices, query = '') => {
   if (selectedItem && !shown.some(item => item.id === selected)) shown.unshift(selectedItem)
   return `<option value="">${matches.length ? `Scegli dispositivo (${matches.length})` : 'Nessun dispositivo trovato'}</option>${shown.map(item => `<option value="${escapeHtml(item.id)}" ${item.id === selected ? 'selected' : ''}>${escapeHtml([item.room, item.name, item.id].filter(Boolean).join(' · '))}</option>`).join('')}`
 }
-const deviceField = (selected, scope = 'all') => `<div class="routine-device-field"><input data-device-search type="search" autocomplete="off" placeholder="Cerca stanza o dispositivo, es. ufficio" aria-label="Cerca dispositivo"><select data-field="device" data-device-scope="${scope}">${deviceOptions(selected, scope === 'safe' ? safeDevices() : scope === 'media' ? devices.filter(item => item.kind === 'media_player') : devices)}</select></div>`
+const deviceField = (selected, scope = 'all') => `<div class="routine-device-field"><input data-device-search type="search" autocomplete="off" placeholder="Cerca stanza o dispositivo, es. ufficio" aria-label="Cerca dispositivo"><select data-field="device" data-device-scope="${scope}">${deviceOptions(selected, scope === 'safe' ? safeDevices() : scope === 'media' ? devices.filter(item => item.kind === 'media_player') : scope === 'cover_light' ? devices.filter(item => ['cover','light'].includes(item.kind)) : devices)}</select></div>`
 const mediaRemoteCapabilities = {media_play:'play',media_pause:'pause',media_stop:'stop',media_next:'next',media_previous:'previous',turn_off:'turn_off',volume_mute:'mute',volume_unmute:'mute'}
 const remoteLabels = {play:'Play',pause:'Pausa',stop:'Stop',skip_fwd:'Successivo',skip_rev:'Precedente',scan_fwd:'Avanti veloce',scan_rev:'Riavvolgi',channel_up:'Canale +',channel_down:'Canale −',up:'Su',down:'Giù',left:'Sinistra',right:'Destra',enter:'OK / Seleziona',menu:'Menu',guide:'Guida',info:'Info',cancel:'Indietro',dvr:'DVR',record:'Registra',input:'Ingresso',recall:'Richiama',page_up:'Pagina +',page_down:'Pagina −'}
 function remoteFields(deviceId, sourceId = 0, command = '', trigger = true) {
@@ -132,6 +132,7 @@ const stateSelect = (deviceId, selected) => {
 const visualCondition = condition => Boolean(condition && !condition.and && !condition.or && !condition.not && [undefined, 'state', 'sun', 'time_window'].includes(condition.type))
 const visualSteps = (steps, depth = 0) => Array.isArray(steps) && depth <= 5 && steps.every(step => {
   if (['action', 'wait', 'delay', 'check'].includes(step?.type)) return true
+  if (step?.type === 'protected_cover') return Array.isArray(step.bypass_switches) && Array.isArray(step.steps) && step.steps.every(child => child?.type === 'action')
   return depth === 0 && step?.type === 'choose' && Array.isArray(step.choices) && step.choices.every(choice => visualCondition(choice.condition) && visualSteps(choice.steps, depth + 1)) && visualSteps(step.default || [], depth + 1)
 })
 const canOpenVisual = spec => Boolean(spec && Array.isArray(spec.conditions) && spec.conditions.every(visualCondition) && visualSteps(spec.steps))
@@ -151,6 +152,7 @@ function collectCondition(row) {
 }
 function collectStepRow(row) {
   const type = row.dataset.type
+  if (type === 'protected_cover') return {type,bypass_switches:[...row.querySelectorAll('[data-protected-bypass]:checked')].map(input => input.value),enable_delay_seconds:Number(row.querySelector('[data-field="enable-delay"]').value),move_seconds:Number(row.querySelector('[data-field="move-seconds"]').value),steps:[...row.querySelector(':scope > [data-protected-steps]').children].map(collectStepRow)}
   if (type === 'choose') {
     const branches = [...row.querySelectorAll(':scope > .routine-choose-branches > [data-choose-branch]')]
     const readSteps = branch => [...branch.querySelector('[data-choose-steps]').children].map(collectStepRow)
@@ -193,6 +195,7 @@ function renderEditor() {
   $('[data-routine-triggers]').innerHTML = draft.triggers.map((item, index) => `<div class="routine-block" data-index="${index}"><select data-field="type"><option value="state" ${item.type === 'state' ? 'selected' : ''}>Quando cambia un dispositivo</option><option value="time" ${item.type === 'time' ? 'selected' : ''}>A un orario</option><option value="sun" ${item.type === 'sun' ? 'selected' : ''}>Alba / Tramonto</option><option value="remote" ${item.type === 'remote' ? 'selected' : ''}>Tasto telecomando e-Face</option><option value="doorbird" ${item.type === 'doorbird' ? 'selected' : ''}>Evento DoorBird</option></select>${item.type === 'time' ? `<input data-field="at" type="time" value="${escapeHtml(item.at || '')}">` : item.type === 'doorbird' ? `<select data-field="event"><option value="doorbell" ${item.event === 'doorbell' ? 'selected' : ''}>Chiamata</option><option value="motionsensor" ${item.event === 'motionsensor' ? 'selected' : ''}>Movimento</option></select>` : item.type === 'sun' ? solarFields(item) : item.type === 'remote' ? `${deviceField(item.device_id,'media')}${remoteFields(item.device_id,item.source_id,item.command)}` : `${deviceField(item.device_id)}${stateSelect(item.device_id, item.to)}`}<div class="routine-move"><button type="button" class="drag-handle routine-drag" data-routine-drag aria-label="Trascina per riordinare l'attivazione" title="Trascina per riordinare">☰</button><button type="button" data-routine-duplicate-row="trigger" aria-label="Duplica attivazione" title="Duplica">⧉</button><button type="button" data-routine-remove="trigger" aria-label="Rimuovi">×</button></div></div>`).join('')
   $('[data-routine-conditions]').innerHTML = draft.conditions.map((item, index) => conditionRow(item, index, 'condition')).join('')
   $('[data-routine-steps]').innerHTML = draft.steps.map((item, index) => renderStepRow(item, index)).join('')
+  if (document.querySelector('#tools-admin-nav')?.hidden) panel.querySelectorAll('[data-routine-add="protected_cover"],[data-choose-add-step="protected_cover"]').forEach(button => { button.hidden = true })
   $('[data-routine-delete]').hidden = !current
   $('[data-routine-review]').textContent = 'Premi «Controlla» per leggere gli effetti della routine.'
   renderList()
@@ -208,21 +211,22 @@ function chooseConditionFields(item) {
 function renderChooseBranch(choice, index) {
   const isDefault = index === 'default'
   const steps = isDefault ? choice : choice.steps
-  return `<section class="routine-choose-branch" data-choose-branch="${index}"><div class="routine-choose-title">${isDefault ? '' : '<button type="button" class="routine-choice-drag" data-routine-drag aria-label="Trascina per riordinare la scelta" title="Trascina per riordinare">☰</button>'}<b>${isDefault ? 'Altrimenti' : `Scelta ${Number(index) + 1}`}</b>${isDefault ? '' : '<span><button type="button" data-choose-duplicate-choice aria-label="Duplica scelta" title="Duplica">⧉</button><button type="button" data-choose-remove-choice aria-label="Rimuovi scelta">×</button></span>'}</div>${isDefault ? '' : `<div class="routine-choose-condition" data-choose-condition>${chooseConditionFields(choice.condition)}</div>`}<div class="routine-choose-steps" data-choose-steps>${steps.map((step, stepIndex) => renderStepRow(step, stepIndex, true)).join('')}</div><div class="routine-choose-add"><button type="button" data-choose-add-step="action">+ Azione</button><button type="button" data-choose-add-step="wait">+ Timer</button><button type="button" data-choose-add-step="check">+ Verifica</button></div></section>`
+  return `<section class="routine-choose-branch" data-choose-branch="${index}"><div class="routine-choose-title">${isDefault ? '' : '<button type="button" class="routine-choice-drag" data-routine-drag aria-label="Trascina per riordinare la scelta" title="Trascina per riordinare">☰</button>'}<b>${isDefault ? 'Altrimenti' : `Scelta ${Number(index) + 1}`}</b>${isDefault ? '' : '<span><button type="button" data-choose-duplicate-choice aria-label="Duplica scelta" title="Duplica">⧉</button><button type="button" data-choose-remove-choice aria-label="Rimuovi scelta">×</button></span>'}</div>${isDefault ? '' : `<div class="routine-choose-condition" data-choose-condition>${chooseConditionFields(choice.condition)}</div>`}<div class="routine-choose-steps" data-choose-steps>${steps.map((step, stepIndex) => renderStepRow(step, stepIndex, true)).join('')}</div><div class="routine-choose-add"><button type="button" data-choose-add-step="action">+ Azione</button><button type="button" data-choose-add-step="wait">+ Timer</button><button type="button" data-choose-add-step="check">+ Verifica</button><button type="button" data-choose-add-step="protected_cover">+ Cover con bypass protetto</button></div></section>`
 }
 function renderStepRow(item, index, nested = false) {
-  const marker = nested ? `data-branch-step="${index}"` : `data-index="${index}"`
-  const controls = nested ? '<div class="routine-move"><button type="button" class="drag-handle routine-drag" data-routine-drag aria-label="Trascina per riordinare il blocco" title="Trascina per riordinare">☰</button><button type="button" data-branch-duplicate-step aria-label="Duplica blocco" title="Duplica">⧉</button><button type="button" data-branch-remove-step aria-label="Rimuovi blocco">×</button></div>' : stepButtons()
+  const marker = nested === 'protected' ? `data-protected-step="${index}"` : nested ? `data-branch-step="${index}"` : `data-index="${index}"`
+  const controls = nested === 'protected' ? '<div class="routine-move"><button type="button" class="drag-handle routine-drag" data-routine-drag aria-label="Trascina per riordinare il blocco" title="Trascina per riordinare">☰</button><button type="button" data-protected-duplicate-step aria-label="Duplica azione" title="Duplica">⧉</button><button type="button" data-protected-remove-step aria-label="Rimuovi azione">×</button></div>' : nested ? '<div class="routine-move"><button type="button" class="drag-handle routine-drag" data-routine-drag aria-label="Trascina per riordinare il blocco" title="Trascina per riordinare">☰</button><button type="button" data-branch-duplicate-step aria-label="Duplica blocco" title="Duplica">⧉</button><button type="button" data-branch-remove-step aria-label="Rimuovi blocco">×</button></div>' : stepButtons()
+  if (item.type === 'protected_cover') return `<div class="routine-block routine-protected" ${marker} data-type="protected_cover"><b>Cover con bypass protetto</b><p>Le zone e-Safe devono essere spente. e-Face registra il ripristino e lo ritenta dopo un errore o riavvio.</p><div class="routine-protected-switches">${devices.filter(device => device.kind === 'safety_bypass').map(device => `<label><input type="checkbox" data-protected-bypass value="${escapeHtml(device.id)}" ${item.bypass_switches?.includes(device.id) ? 'checked' : ''}>${escapeHtml(device.name)}</label>`).join('') || '<span>Nessun bypass e-Safe disponibile</span>'}</div><label>Attesa dopo bypass (s)<input data-field="enable-delay" type="number" min="0" max="30" value="${Number(item.enable_delay_seconds ?? 3)}"></label><label>Tempo movimento prima del ripristino (s)<input data-field="move-seconds" type="number" min="1" max="180" value="${Number(item.move_seconds ?? 40)}"></label><div data-protected-steps>${(item.steps || []).map((step,i) => renderStepRow(step,i,'protected')).join('')}</div><button type="button" data-protected-add-step>+ Aggiungi cover o luce</button>${controls}</div>`
   if (item.type === 'choose') return `<div class="routine-block routine-choose" ${marker} data-type="choose"><b>Scegli un ramo · il primo che risulta vero</b><div class="routine-choose-branches">${item.choices.map((choice, choiceIndex) => renderChooseBranch(choice, choiceIndex)).join('')}${renderChooseBranch(item.default || [], 'default')}</div><button type="button" data-choose-add-choice>+ Aggiungi scelta</button>${controls}</div>`
   if (item.type === 'wait' || item.type === 'delay') return `<div class="routine-block" ${marker} data-type="${item.type}"><b>Timer</b><label>Secondi<input data-field="seconds" type="number" min="1" max="3600" value="${Number(item.seconds) || 60}"></label>${controls}</div>`
   if (item.type === 'check') return `<div class="routine-block" ${marker} data-type="check"><b>Verifica e interrompi se falsa</b>${deviceField(item.device_id)}<select data-field="operator"><option value="is" ${item.operator !== 'is_not' ? 'selected' : ''}>è</option><option value="is_not" ${item.operator === 'is_not' ? 'selected' : ''}>non è</option></select>${stateSelect(item.device_id,item.value)}${controls}</div>`
   const device = devices.find(entry => entry.id === item.device_id)
   const choices = actions[device?.kind] || []
   const capabilityFor = device?.kind === 'light_scenario' ? {on:'onoff',off:'onoff',run:'run',stop:'run'} : {media_play:'play',media_pause:'pause',media_stop:'stop',media_next:'next',media_previous:'previous',turn_off:'turn_off',set_volume:'set_volume',volume_mute:'mute',volume_unmute:'mute'}
-  const actionChoices = choices.filter(([key]) => key === 'tts' ? device?.tts_enabled : key.startsWith('dnd_') ? device?.dnd_available : key === 'remote_command' ? device?.source_options?.some(source => source.experience === 'watch' && source.remote_actions?.length) : key === 'select_source' ? device?.capabilities?.select_source && (device?.source_list?.length || device?.source_options?.length) : !capabilityFor[key] || device?.capabilities?.[capabilityFor[key]])
+  const actionChoices = choices.filter(([key]) => key === 'set_position' ? device?.position_supported : key === 'tts' ? device?.tts_enabled : key.startsWith('dnd_') ? device?.dnd_available : key === 'remote_command' ? device?.source_options?.some(source => source.experience === 'watch' && source.remote_actions?.length) : key === 'select_source' ? device?.capabilities?.select_source && (device?.source_list?.length || device?.source_options?.length) : !capabilityFor[key] || device?.capabilities?.[capabilityFor[key]])
   const sourceChoices = device?.provider === 'control4' ? (device.source_options || []).map(source => [source.key,source.label]) : (device?.source_list || []).map(source => [source,source])
-  const value = item.action === 'tts' ? `<label class="routine-tts">Testo da pronunciare<textarea data-field="action-value" maxlength="500" rows="3">${escapeHtml(item.value || '')}</textarea></label>` : item.action === 'remote_command' ? remoteFields(item.device_id,item.value?.source_id,item.value?.command,false) : item.action === 'select_source' ? `<label class="routine-tts">Sorgente<select data-field="action-value"><option value="">Scegli sorgente</option>${sourceChoices.map(([key,label]) => `<option value="${escapeHtml(key)}" ${key === item.value || label === item.value ? 'selected' : ''}>${escapeHtml(label)}</option>`).join('')}</select></label>` : ['brightness', 'set_volume', 'set_target'].includes(item.action) ? `<label>Valore<input data-field="action-value" type="number" min="${item.action === 'set_target' ? 5 : 0}" max="${item.action === 'set_target' ? 35 : 100}" value="${item.value ?? ''}"></label>` : ''
-  return `<div class="routine-block" ${marker} data-type="action"><b>Azione</b>${deviceField(item.device_id,'safe')}<select data-field="action"><option value="">Comando...</option>${actionChoices.map(([key,label]) => `<option value="${key}" ${key === item.action ? 'selected' : ''}>${label}</option>`).join('')}</select>${value}${controls}</div>`
+  const value = item.action === 'tts' ? `<label class="routine-tts">Testo da pronunciare<textarea data-field="action-value" maxlength="500" rows="3">${escapeHtml(item.value || '')}</textarea></label>` : item.action === 'remote_command' ? remoteFields(item.device_id,item.value?.source_id,item.value?.command,false) : item.action === 'select_source' ? `<label class="routine-tts">Sorgente<select data-field="action-value"><option value="">Scegli sorgente</option>${sourceChoices.map(([key,label]) => `<option value="${escapeHtml(key)}" ${key === item.value || label === item.value ? 'selected' : ''}>${escapeHtml(label)}</option>`).join('')}</select></label>` : ['brightness', 'set_volume', 'set_target', 'set_position'].includes(item.action) ? `<label>Valore<input data-field="action-value" type="number" min="${item.action === 'set_target' ? 5 : 0}" max="${item.action === 'set_target' ? 35 : 100}" value="${item.value ?? ''}"></label>` : ''
+  return `<div class="routine-block" ${marker} data-type="action"><b>Azione</b>${deviceField(item.device_id,nested === 'protected' ? 'cover_light' : 'safe')}<select data-field="action"><option value="">Comando...</option>${actionChoices.map(([key,label]) => `<option value="${key}" ${key === item.action ? 'selected' : ''}>${label}</option>`).join('')}</select>${value}${controls}</div>`
 }
 function windowFields(item) {
   const edge = (label,key,defaultTime) => {
@@ -325,7 +329,27 @@ $('[data-routine-list]').addEventListener('change', async event => {
     window.alert(error.message)
   } finally { toggle.disabled = false }
 })
+function protectedStepAt(element) {
+  const block = element.closest('[data-type="protected_cover"]')
+  if (!block) return null
+  const branch = block.closest('[data-choose-branch]')
+  if (!branch) return draft.steps[Number(block.dataset.index)]
+  const outer = branch.closest('[data-routine-steps] > .routine-block')
+  const choose = draft.steps[Number(outer.dataset.index)]
+  const steps = branch.dataset.chooseBranch === 'default' ? choose.default : choose.choices[Number(branch.dataset.chooseBranch)].steps
+  return steps[Number(block.dataset.branchStep)]
+}
 panel.addEventListener('click', event => {
+  const protectedControl = event.target.closest('[data-protected-add-step],[data-protected-remove-step],[data-protected-duplicate-step]')
+  if (protectedControl) {
+    collect()
+    const block = protectedStepAt(protectedControl)
+    if (!block) return
+    if (protectedControl.hasAttribute('data-protected-add-step')) { if (block.steps.length >= 20) return window.alert('Massimo 20 azioni.'); block.steps.push({type:'action',device_id:'',action:''}) }
+    else { const index = Number(protectedControl.closest('[data-protected-step]').dataset.protectedStep); if (protectedControl.hasAttribute('data-protected-duplicate-step')) { if (block.steps.length >= 20) return window.alert('Massimo 20 azioni.'); block.steps.splice(index + 1,0,structuredClone(block.steps[index])) } else block.steps.splice(index,1) }
+    renderEditor()
+    return
+  }
   const choiceControl = event.target.closest('[data-choose-add-choice],[data-choose-remove-choice],[data-choose-duplicate-choice],[data-choose-add-step],[data-branch-remove-step],[data-branch-duplicate-step]')
   if (choiceControl) {
     collect()
@@ -337,7 +361,7 @@ panel.addEventListener('click', event => {
     if (choiceControl.hasAttribute('data-choose-add-choice')) { if (choose.choices.length >= 8) return window.alert('Massimo 8 scelte.'); choose.choices.push({condition:newCondition('time_window'),steps:[{type:'action',device_id:'',action:''}]}) }
     else if (choiceControl.hasAttribute('data-choose-duplicate-choice')) { if (choose.choices.length >= 8) return window.alert('Massimo 8 scelte.'); choose.choices.splice(Number(branchIndex) + 1, 0, structuredClone(choose.choices[Number(branchIndex)])) }
     else if (choiceControl.hasAttribute('data-choose-remove-choice')) choose.choices.splice(Number(branchIndex), 1)
-    else if (choiceControl.hasAttribute('data-choose-add-step')) { if (steps.length >= 20) return window.alert('Massimo 20 blocchi per ramo.'); steps.push(choiceControl.dataset.chooseAddStep === 'wait' ? {type:'wait',seconds:60} : choiceControl.dataset.chooseAddStep === 'check' ? {type:'check',device_id:'',operator:'is',value:''} : {type:'action',device_id:'',action:''}) }
+    else if (choiceControl.hasAttribute('data-choose-add-step')) { if (steps.length >= 20) return window.alert('Massimo 20 blocchi per ramo.'); steps.push(choiceControl.dataset.chooseAddStep === 'protected_cover' ? {type:'protected_cover',bypass_switches:[],enable_delay_seconds:3,move_seconds:40,steps:[{type:'action',device_id:'',action:''}]} : choiceControl.dataset.chooseAddStep === 'wait' ? {type:'wait',seconds:60} : choiceControl.dataset.chooseAddStep === 'check' ? {type:'check',device_id:'',operator:'is',value:''} : {type:'action',device_id:'',action:''}) }
     else {
       const stepIndex = Number(choiceControl.closest('[data-branch-step]').dataset.branchStep)
       if (choiceControl.hasAttribute('data-branch-duplicate-step')) { if (steps.length >= 20) return window.alert('Massimo 20 blocchi per ramo.'); steps.splice(stepIndex + 1, 0, structuredClone(steps[stepIndex])) }
@@ -363,7 +387,7 @@ panel.addEventListener('click', event => {
     const kind = add.dataset.routineAdd
     if (kind === 'trigger') draft.triggers.push({type: 'state', device_id: '', to: ''})
     else if (kind === 'condition') draft.conditions.push({device_id: '', operator: 'is', value: ''})
-    else draft.steps.push(kind === 'choose' ? newChoose() : kind === 'wait' ? {type: 'wait', seconds: 60} : kind === 'check' ? {type: 'check', device_id: '', operator: 'is', value: ''} : {type: 'action', device_id: '', action: ''})
+    else draft.steps.push(kind === 'protected_cover' ? {type:'protected_cover',bypass_switches:[],enable_delay_seconds:3,move_seconds:40,steps:[{type:'action',device_id:'',action:''}]} : kind === 'choose' ? newChoose() : kind === 'wait' ? {type: 'wait', seconds: 60} : kind === 'check' ? {type: 'check', device_id: '', operator: 'is', value: ''} : {type: 'action', device_id: '', action: ''})
     renderEditor()
     return
   }
@@ -381,6 +405,12 @@ function dragCollection(container) {
   if (container.matches('[data-routine-triggers]')) return {items:draft.triggers,key:'index',kind:'trigger'}
   if (container.matches('[data-routine-conditions]')) return {items:draft.conditions,key:'index',kind:'condition'}
   if (container.matches('[data-routine-steps]')) return {items:draft.steps,key:'index',kind:'step'}
+  if (container.matches('[data-protected-steps]')) {
+    const block = container.closest('[data-type="protected_cover"]')
+    const outer = block.closest('[data-routine-steps] > .routine-block')
+    const branch = block.closest('[data-choose-branch]')
+    return {items:protectedStepAt(container)?.steps,key:'protectedStep',kind:'protectedStep',topIndex:Number(outer.dataset.index),branch:branch?.dataset.chooseBranch,protectedIndex:block.dataset.branchStep}
+  }
   const outer = container.closest('[data-routine-steps] > .routine-block')
   if (!outer || outer.dataset.type !== 'choose') return null
   const topIndex = Number(outer.dataset.index)
@@ -397,6 +427,11 @@ function dragContainer(info) {
   if (info.kind === 'trigger') return $('[data-routine-triggers]')
   if (info.kind === 'condition') return $('[data-routine-conditions]')
   if (info.kind === 'step') return $('[data-routine-steps]')
+  if (info.kind === 'protectedStep') {
+    const outer = $('[data-routine-steps]').children[info.topIndex]
+    const block = info.branch === undefined ? outer : outer?.querySelector(`[data-choose-branch="${info.branch}"] > [data-choose-steps] > [data-branch-step="${info.protectedIndex}"]`)
+    return block?.querySelector(':scope > [data-protected-steps]')
+  }
   const outer = $('[data-routine-steps]').children[info.topIndex]
   if (info.kind === 'choice') return outer?.querySelector(':scope > .routine-choose-branches')
   return outer?.querySelector(`:scope > .routine-choose-branches > [data-choose-branch="${info.branch}"] > [data-choose-steps]`)
@@ -454,13 +489,22 @@ panel.addEventListener('keydown', event => {
 panel.addEventListener('input', event => {
   if (!event.target.matches('[data-device-search]')) return
   const select = event.target.parentElement.querySelector('[data-field="device"]')
-  const allowed = select.dataset.deviceScope === 'safe' ? safeDevices() : select.dataset.deviceScope === 'media' ? devices.filter(item => item.kind === 'media_player') : devices
+  const allowed = select.dataset.deviceScope === 'safe' ? safeDevices() : select.dataset.deviceScope === 'media' ? devices.filter(item => item.kind === 'media_player') : select.dataset.deviceScope === 'cover_light' ? devices.filter(item => ['cover','light'].includes(item.kind)) : devices
   select.innerHTML = deviceOptions(select.value, allowed, event.target.value)
 })
 panel.addEventListener('change', event => {
   const field = event.target
   if (!field.matches('[data-field="device"],[data-field="type"],[data-field="condition-type"],[data-field="window-start-kind"],[data-field="window-end-kind"],[data-field="action"],[data-field="remote-source"]')) return
   collect()
+  const protectedChild = field.closest('[data-protected-step]')
+  if (protectedChild) {
+    const block = protectedStepAt(field)
+    const child = block.steps[Number(protectedChild.dataset.protectedStep)]
+    if (field.dataset.field === 'device') { child.action = ''; child.value = null }
+    if (field.dataset.field === 'action') child.value = null
+    renderEditor()
+    return
+  }
   const branch = field.closest('[data-choose-branch]')
   if (branch) {
     const outer = branch.closest('[data-routine-steps] > .routine-block')

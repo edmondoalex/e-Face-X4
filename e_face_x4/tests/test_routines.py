@@ -30,6 +30,168 @@ def sample():
             "conditions": [], "steps": [{"type": "action", "device_id": "light.hall", "action": "on"}]}
 
 
+def test_protected_cover_block_is_constrained_and_persistent():
+    devices = catalog() + [
+        {"id": "cover.kitchen", "kind": "cover", "name": "Finestra Cucina", "state": "closed", "position_supported": True},
+        {"id": "switch.e_safe_zone_20_bypass_ctrl", "kind": "safety_bypass", "name": "Bypass 20", "state": "off"},
+    ]
+    block = {"type": "protected_cover", "bypass_switches": ["switch.e_safe_zone_20_bypass_ctrl"],
+             "enable_delay_seconds": 3, "move_seconds": 40,
+             "steps": [{"type": "action", "device_id": "cover.kitchen", "action": "set_position", "value": 8}]}
+    spec = {**sample(), "mode": "single", "steps": [block]}
+    review = routines.validate(spec, devices)
+    assert review["errors"] == []
+    saved = routines.save("admin", "admin", None, review["spec"], False, None, shared=True)
+    assert routines.validate(saved["spec"], devices)["errors"] == []
+    assert saved["spec"]["steps"][0]["steps"][0]["value"] == 8
+    assert routines.has_bypass(saved["spec"])
+    for invalid in ({**block, "bypass_switches": ["switch.untrusted"]},
+                    {**block, "steps": [{"type": "action", "device_id": "lock.door", "action": "unlock"}]},
+                    {**block, "move_seconds": 3600}):
+        assert routines.validate({**spec, "steps": [invalid]}, devices)["errors"]
+    assert routines.validate({**spec, "mode": "parallel"}, devices)["errors"]
+    assert routines.validate({**spec, "steps": [{"type": "repeat", "count": 2, "steps": [block]}]}, devices)["errors"]
+    assert routines.validate({**spec, "steps": [{"type": "action", "device_id": "switch.e_safe_zone_20_bypass_ctrl", "action": "on"}]}, devices)["errors"]
+    assert routines.validate({**spec, "triggers": [{"type": "state", "device_id": "switch.e_safe_zone_20_bypass_ctrl", "to": "on"}]}, devices)["errors"]
+
+
+def test_cover_position_requires_live_capability():
+    spec = {**sample(), "steps": [{"type": "action", "device_id": "cover.kitchen", "action": "set_position", "value": 8}]}
+    cover = {"id": "cover.kitchen", "kind": "cover", "name": "Finestra Cucina", "state": "closed"}
+    assert routines.validate(spec, catalog() + [cover])["errors"]
+    assert routines.validate(spec, catalog() + [{**cover, "position_supported": True}])["errors"] == []
+    assert routines.validate({**spec, "steps": [{**spec["steps"][0], "value": 101}]}, catalog() + [{**cover, "position_supported": True}])["errors"]
+
+
+def test_protected_cover_restores_bypass_after_command_failure():
+    bypass = "switch.e_safe_zone_20_bypass_ctrl"
+    state = {bypass: "off"}
+    devices = catalog() + [
+        {"id": "cover.kitchen", "kind": "cover", "name": "Finestra Cucina", "state": "closed", "position_supported": True},
+        {"id": bypass, "kind": "safety_bypass", "name": "Bypass 20", "state": "off"},
+    ]
+    async def snapshot():
+        return [{**item, "state": state.get(item["id"], item["state"])} for item in devices]
+
+    commands = []
+    async def command(device_id, action, value):
+        commands.append((device_id, action, value))
+        if device_id == "cover.kitchen":
+            raise RuntimeError("cover offline")
+        state[device_id] = action
+
+    spec = {**sample(), "steps": [{"type": "protected_cover", "bypass_switches": [bypass],
+            "enable_delay_seconds": 0, "move_seconds": 1,
+            "steps": [{"type": "action", "device_id": "cover.kitchen", "action": "set_position", "value": 8}]}]}
+    review = routines.validate(spec, devices)
+    assert review["errors"] == []
+    saved = routines.save("admin", "admin", None, review["spec"], True, None, shared=True)
+    engine = routines.Engine(snapshot, command, bypass_state=lambda device_id: read_state(device_id))
+
+    async def read_state(device_id):
+        return state[device_id]
+
+    async def run():
+        engine._start(saved, "test", "protected:1", {item["id"]: item for item in await snapshot()})
+        await asyncio.wait_for(engine.running[saved["id"]], 3)
+
+    asyncio.run(run())
+    assert state[bypass] == "off"
+    assert [item[1] for item in commands] == ["on", "set_position", "off"]
+    assert routines.pending_bypass_recovery() == []
+    assert routines.list_runs(routine_id=saved["id"])[0]["status"] == "failed"
+
+
+def test_pending_bypass_recovery_survives_engine_restart():
+    bypass = "switch.e_safe_zone_20_bypass_ctrl"
+    state = {bypass: "on"}
+    routines.begin_bypass_recovery("old-run", "old-routine", [bypass])
+
+    async def snapshot():
+        return []
+
+    async def command(device_id, action, value):
+        assert (device_id, action, value) == (bypass, "off", None)
+        state[device_id] = "off"
+
+    async def read_state(device_id):
+        return state[device_id]
+
+    engine = routines.Engine(snapshot, command, bypass_state=read_state)
+    asyncio.run(engine.recover_bypasses())
+    assert state[bypass] == "off"
+    assert routines.pending_bypass_recovery() == []
+
+
+def test_protected_cover_cancel_restores_bypass():
+    bypass = "switch.e_safe_zone_20_bypass_ctrl"
+    state = {bypass: "off"}
+    devices = catalog() + [
+        {"id": "cover.kitchen", "kind": "cover", "name": "Finestra Cucina", "state": "closed", "position_supported": True},
+        {"id": bypass, "kind": "safety_bypass", "name": "Bypass 20", "state": "off"},
+    ]
+    async def snapshot():
+        return [{**item, "state": state.get(item["id"], item["state"])} for item in devices]
+
+    async def command(device_id, action, value):
+        if device_id == bypass:
+            state[device_id] = action
+
+    async def read_state(device_id):
+        return state[device_id]
+
+    spec = {**sample(), "steps": [{"type": "protected_cover", "bypass_switches": [bypass],
+            "enable_delay_seconds": 0, "move_seconds": 30,
+            "steps": [{"type": "action", "device_id": "cover.kitchen", "action": "set_position", "value": 8}]}]}
+    review = routines.validate(spec, devices)
+    assert review["errors"] == []
+    saved = routines.save("admin", "admin", None, review["spec"], True, None, shared=True)
+    engine = routines.Engine(snapshot, command, bypass_state=read_state)
+
+    async def run():
+        engine._start(saved, "test", "protected:cancel", {item["id"]: item for item in await snapshot()})
+        task = engine.running[saved["id"]]
+        for _ in range(20):
+            if state[bypass] == "on":
+                break
+            await asyncio.sleep(0.05)
+        assert state[bypass] == "on"
+        engine.cancel_routine(saved["id"])
+        await asyncio.gather(task, return_exceptions=True)
+
+    asyncio.run(run())
+    assert state[bypass] == "off"
+    assert routines.pending_bypass_recovery() == []
+
+
+def test_day_night_blueprint_equivalent_validates_without_execution():
+    switch_ids = [f"switch.e_safe_zone_{number}_bypass_ctrl" for number in (20, 27, 30, 24, 18, 29, 38)]
+    covers = [
+        {"id": "cover.buspro_cover_finestra_cucina", "kind": "cover", "name": "Finestra Cucina", "state": "closed", "position_supported": True},
+        {"id": "cover.buspro_cover_porta_sala_cx", "kind": "cover", "name": "Porta Sala CX", "state": "closed", "position_supported": True},
+        {"id": "cover.buspro_cover_no_gruppo_tapparelle_1degp_no", "kind": "cover", "name": "Gruppo 1P no %", "state": "closed", "position_supported": False},
+    ]
+    devices = catalog() + covers + [{"id": item, "kind": "safety_bypass", "name": item, "state": "off"} for item in switch_ids]
+    def block(actions):
+        return {"type": "protected_cover", "bypass_switches": switch_ids,
+                "enable_delay_seconds": 3, "move_seconds": 40, "steps": actions}
+    def action(device_id, command, value=None):
+        return {"type": "action", "device_id": device_id, "action": command, "value": value}
+    spec = {"name": "1°P TP Giorno/Notte (offset) SAFE", "mode": "single",
+            "triggers": [{"type": "sun", "event": "sunrise", "offset_minutes": 15},
+                         {"type": "sun", "event": "sunset", "offset_minutes": 15}],
+            "conditions": [], "steps": [{"type": "choose", "choices": [
+                {"condition": {"type": "time_window", "start": {"kind": "sunrise", "offset_minutes": 15},
+                               "end": {"kind": "sunset", "offset_minutes": 15}},
+                 "steps": [block([action(covers[0]["id"], "set_position", 8), action(covers[1]["id"], "set_position", 8)])]},
+                {"condition": {"type": "time_window", "start": {"kind": "sunset", "offset_minutes": 15},
+                               "end": {"kind": "sunrise", "offset_minutes": 15}},
+                 "steps": [block([action(covers[2]["id"], "close")])]}], "default": []}]}
+    review = routines.validate(spec, devices)
+    assert review["errors"] == []
+    assert routines.validate(review["spec"], devices)["errors"] == []
+
+
 def test_visual_editor_exposes_time_window_fields():
     script = (Path(__file__).resolve().parents[1] / "app/static/assets/routine-tools.js").read_text(encoding="utf-8")
     assert 'value="time_window"' in script
@@ -45,6 +207,14 @@ def test_visual_editor_exposes_choose_branches_without_dropping_advanced_routine
                    'const hasAdvancedFlow = spec => !canOpenVisual(spec)'):
         assert marker in script
     assert "if (!canOpenVisual(draft))" in script
+
+
+def test_visual_editor_exposes_protected_cover_with_nested_copy_and_drag():
+    script = (Path(__file__).resolve().parents[1] / "app/static/assets/routine-tools.js").read_text(encoding="utf-8")
+    for marker in ('data-routine-add="protected_cover"', 'data-choose-add-step="protected_cover"',
+                   'data-protected-bypass', 'data-protected-add-step', 'data-protected-duplicate-step',
+                   "kind:'protectedStep'", "step?.type === 'protected_cover'"):
+        assert marker in script
 
 
 def test_visual_editor_uses_drag_handles_and_duplicate_for_every_row():
