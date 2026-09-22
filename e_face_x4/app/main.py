@@ -77,7 +77,7 @@ from .connectors.supervisor import discover_addon_url, discover_host_url, instal
 from .media_realtime import SharedMediaRealtime
 from .demo import dashboard as demo_dashboard
 
-VERSION = os.environ.get("EFACE_VERSION", "2.21.227")
+VERSION = os.environ.get("EFACE_VERSION", "2.21.228")
 STATIC = Path(__file__).parent / "static"
 logging.basicConfig(level=logging.WARNING, format="%(asctime)s %(levelname)s [e-face-x4] %(message)s")
 _reconnect_warning_at: dict[str, float] = {}
@@ -2229,13 +2229,13 @@ def create_app() -> FastAPI:
         if response.status_code != 200: raise HTTPException(status_code=502, detail="Dato e-Control non disponibile")
         return response
 
-    async def home_assistant_service(domain: str, service: str, data: dict) -> dict:
+    async def home_assistant_service(domain: str, service: str, data: dict, *, response_data: bool = False) -> dict:
         token = str(os.environ.get("SUPERVISOR_TOKEN") or "").strip()
         if not token: raise HTTPException(status_code=503, detail="e-Control non disponibile")
         try:
             async with httpx.AsyncClient(timeout=20, follow_redirects=False) as client:
                 response = await client.post(
-                    f"http://supervisor/core/api/services/{domain}/{service}?return_response",
+                    f"http://supervisor/core/api/services/{domain}/{service}{'?return_response' if response_data else ''}",
                     headers={"Authorization": f"Bearer {token}"}, json=data,
                 )
         except httpx.HTTPError as exc:
@@ -2254,7 +2254,16 @@ def create_app() -> FastAPI:
             attributes = state.get("attributes") if isinstance(state.get("attributes"), dict) else {}
             try: count = max(0, int(float(state.get("state") or 0)))
             except (TypeError, ValueError): count = 0
-            result.append({"entity_id": entity_id, "name": str(attributes.get("friendly_name") or entity_id), "count": count})
+            original_name = str(attributes.get("friendly_name") or entity_id).strip()
+            lowered = f"{original_name} {entity_id}".casefold()
+            if "shopping list" in lowered or "lista della spesa" in lowered:
+                name = "Lista della spesa"
+            elif "to-do list" in lowered or "to do list" in lowered:
+                name = "Lista attività"
+            else:
+                name = re.sub(r"^\S+@\S+\s*", "", original_name).strip() or "Lista personale"
+            source = "Alexa" if "@" in original_name or ("shopping_list" in entity_id and entity_id != "todo.shopping_list") else "e-Control"
+            result.append({"entity_id": entity_id, "name": name[:100], "source": source, "count": count})
         return sorted(result, key=lambda item: str(item["name"]).casefold())
 
     @app.get("/api/home/todo/lists")
@@ -2270,7 +2279,7 @@ def create_app() -> FastAPI:
         catalog = await home_todo_lists()
         entry = next((item for item in catalog if item["entity_id"] == entity_id), None)
         if not entry: raise HTTPException(status_code=404, detail="Lista non più disponibile in e-Control")
-        result = await home_assistant_service("todo", "get_items", {"entity_id": entity_id})
+        result = await home_assistant_service("todo", "get_items", {"entity_id": entity_id}, response_data=True)
         response = result.get("service_response") if isinstance(result.get("service_response"), dict) else result
         payload = response.get(entity_id) if isinstance(response, dict) else {}
         raw_items = payload.get("items") if isinstance(payload, dict) else []
@@ -2290,21 +2299,19 @@ def create_app() -> FastAPI:
         await home_assistant_service("todo", "add_item", {"entity_id": entity_id, "item": summary})
         return {"ok": True}
 
-    @app.put("/api/home/todo/items/{uid}")
-    async def home_todo_update(uid: str, payload: dict) -> dict:
+    @app.post("/api/home/todo/item")
+    async def home_todo_item(payload: dict) -> dict:
         entity_id = load_home_todo_entity()
         if not entity_id: raise HTTPException(status_code=409, detail="Scegli una lista in Home dinamica")
+        uid = str(payload.get("uid") or "").strip()
         if not uid or len(uid) > 500: raise HTTPException(status_code=400, detail="Articolo non valido")
-        status = "completed" if payload.get("completed") is True else "needs_action"
-        await home_assistant_service("todo", "update_item", {"entity_id": entity_id, "item": uid, "status": status})
-        return {"ok": True}
-
-    @app.delete("/api/home/todo/items/{uid}")
-    async def home_todo_remove(uid: str) -> dict:
-        entity_id = load_home_todo_entity()
-        if not entity_id: raise HTTPException(status_code=409, detail="Scegli una lista in Home dinamica")
-        if not uid or len(uid) > 500: raise HTTPException(status_code=400, detail="Articolo non valido")
-        await home_assistant_service("todo", "remove_item", {"entity_id": entity_id, "item": uid})
+        action = str(payload.get("action") or "")
+        if action == "remove":
+            await home_assistant_service("todo", "remove_item", {"entity_id": entity_id, "item": uid})
+        elif action in {"complete", "restore"}:
+            await home_assistant_service("todo", "update_item", {"entity_id": entity_id, "item": uid, "status": "completed" if action == "complete" else "needs_action"})
+        else:
+            raise HTTPException(status_code=400, detail="Azione lista non valida")
         return {"ok": True}
 
     async def home_assistant_camera_stream(entity_id: str) -> str:

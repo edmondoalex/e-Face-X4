@@ -92,7 +92,7 @@ def test_health() -> None:
     response = TestClient(create_app()).get("/health")
     assert response.status_code == 200
     assert response.json()["ok"] is True
-    assert response.json()["version"] == "2.21.227"
+    assert response.json()["version"] == "2.21.228"
 
 
 def test_home_event_times_reads_saved_doorbird_motion(monkeypatch, tmp_path) -> None:
@@ -139,7 +139,7 @@ def test_intercom_is_in_sidebar_with_embedded_view() -> None:
     client_script = (static / "assets" / "intercom.js").read_text(encoding="utf-8")
     intercom_page = (static / "intercom.html").read_text(encoding="utf-8")
     assert "Tablet Control4 · interno 8291" in intercom_page
-    assert "const currentVersion = '2.21.227'" in client_script
+    assert "const currentVersion = '2.21.228'" in client_script
     assert 'id="call-ufficio" data-dial-extension="8291" data-video-capable="true"' in intercom_page
     assert "Postazione esterna · interno 8201" in intercom_page
     assert "Postazione esterna · interno ${station.sip_extension}" in client_script
@@ -346,10 +346,10 @@ def test_intercom_dashboard_stores_only_local_settings(monkeypatch, tmp_path) ->
     assert 'id="users-tool"' in page
     assert 'id="logout"' in page
     assert page.index('id="logout"') < page.index('id="tools-user-section"')
-    assert "tools-dashboard.js?v=2.21.227" in page
-    assert "tools-dashboard.css?v=2.21.227" in page
-    assert "tools.js?v=2.21.227" in page
-    assert "organization-tools.js?v=2.21.227" in page
+    assert "tools-dashboard.js?v=2.21.228" in page
+    assert "tools-dashboard.css?v=2.21.228" in page
+    assert "tools.js?v=2.21.228" in page
+    assert "organization-tools.js?v=2.21.228" in page
     tools_js = client.get("/assets/tools.js").text
     assert "document.querySelector('.tools-shell').append(shortcutsPanel)" in tools_js
     assert "data-shortcut-drag=\"category\"" in tools_js
@@ -359,7 +359,7 @@ def test_intercom_dashboard_stores_only_local_settings(monkeypatch, tmp_path) ->
     assert '<b>Accesi</b>' not in home
     assert 'id="light-on-filter"' in home
     assert "backgrounds.css?v=2.21.43" in home
-    assert "app.js?v=2.21.227" in home
+    assert "app.js?v=2.21.228" in home
     app_js = client.get("/assets/app.js").text
     assert "event.type === 'doorbird_event'" in app_js
     assert "event.type === 'home_camera_event'" in app_js
@@ -780,8 +780,8 @@ def test_tools_page_starts_with_selected_background_and_card_theme(monkeypatch, 
     home = client.get("/").text
     login = client.get("/login").text
     assert '<body class="app-theme" data-background="midnight" data-card-theme="slate">' in home
-    assert 'ui-theme-contract.css?v=2.21.227' in home
-    assert 'app.js?v=2.21.227' in home
+    assert 'ui-theme-contract.css?v=2.21.228' in home
+    assert 'app.js?v=2.21.228' in home
     assert 'energy.css?v=2.21.30' in home
     assert 'home-comfort.css?v=2.21.31' in home
     assert '<body class="login-theme" data-background="midnight" data-card-theme="slate">' in login
@@ -874,7 +874,7 @@ def test_home_shopping_list_discovers_and_controls_econtrol_todo(monkeypatch, tm
     calls = []
 
     def handler(request: httpx.Request) -> httpx.Response:
-        calls.append((request.method, request.url.path, json.loads(request.content or b"{}")))
+        calls.append((request.method, request.url.path, request.url.query.decode(), json.loads(request.content or b"{}")))
         if request.method == "GET" and request.url.path.endswith("/api/states"):
             return httpx.Response(200, json=[
                 {"entity_id": "todo.shopping_list", "state": "2", "attributes": {"friendly_name": "Shopping list"}},
@@ -892,19 +892,22 @@ def test_home_shopping_list_discovers_and_controls_econtrol_todo(monkeypatch, tm
     monkeypatch.setattr(main_module.httpx, "AsyncClient", lambda **kwargs: original(transport=httpx.MockTransport(handler), **kwargs))
     client = TestClient(main_module.create_app())
     catalog = client.get("/api/home/todo/lists").json()
-    assert [item["entity_id"] for item in catalog["items"]] == ["todo.shopping_list", "todo.to_do_list"]
+    assert {item["entity_id"] for item in catalog["items"]} == {"todo.shopping_list", "todo.to_do_list"}
+    assert {item["name"] for item in catalog["items"]} == {"Lista della spesa", "Lista attività"}
     assert client.put("/api/user/appearance", json={"home_todo_entity": "todo.shopping_list"}).status_code == 200
     content = client.get("/api/home/todo").json()
-    assert content["name"] == "Shopping list"
+    assert content["name"] == "Lista della spesa"
     assert content["count"] == 1
     assert [item["summary"] for item in content["items"]] == ["Latte", "Pane"]
     assert client.post("/api/home/todo/items", json={"summary": "Pasta"}).status_code == 200
-    assert client.put("/api/home/todo/items/item-1", json={"completed": True}).status_code == 200
-    assert client.delete("/api/home/todo/items/item-2").status_code == 200
-    service_calls = {(method, path): body for method, path, body in calls if "/api/services/todo/" in path}
+    assert client.post("/api/home/todo/item", json={"uid": "item-1", "action": "complete"}).status_code == 200
+    assert client.post("/api/home/todo/item", json={"uid": "item-2", "action": "remove"}).status_code == 200
+    service_calls = {(method, path): body for method, path, query, body in calls if "/api/services/todo/" in path}
     assert service_calls[("POST", "/core/api/services/todo/add_item")]["item"] == "Pasta"
     assert service_calls[("POST", "/core/api/services/todo/update_item")]["status"] == "completed"
     assert service_calls[("POST", "/core/api/services/todo/remove_item")]["item"] == "item-2"
+    assert next(query for method, path, query, body in calls if path.endswith("/todo/get_items")) == "return_response"
+    assert all(not query for method, path, query, body in calls if "/api/services/todo/" in path and not path.endswith("/get_items"))
 
 
 def test_dynamic_home_settings_are_isolated_by_device(monkeypatch, tmp_path) -> None:
@@ -1141,10 +1144,10 @@ def test_x4_shell_and_brand_assets_are_served() -> None:
     assert client.get("/tools").status_code == 200
     assert "Amministrazione" in client.get("/tools").text
     css = client.get("/assets/app.css").text
-    assert "app.css?v=2.21.227" in client.get("/").text
-    assert "home-live-media.css?v=2.21.227" in client.get("/").text
-    assert "alarm-state.css?v=2.21.227" in client.get("/").text
-    assert "state-glow.css?v=2.21.227" in client.get("/").text
+    assert "app.css?v=2.21.228" in client.get("/").text
+    assert "home-live-media.css?v=2.21.228" in client.get("/").text
+    assert "alarm-state.css?v=2.21.228" in client.get("/").text
+    assert "state-glow.css?v=2.21.228" in client.get("/").text
     assert ".home-event-dialog figure img{display:block;width:auto;height:auto;max-width:100%;max-height:100%" in css
     assert ".home-event-widget img{object-fit:contain" not in css
     assert "data-home-zone-mute" in app_js

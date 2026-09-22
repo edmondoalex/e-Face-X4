@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.21.228 — 2026-09-22
+
+- Ridisegnata la Lista della spesa con card più compatta e colorata, popup operativo a tutto spazio e nessuna email o entità tecnica mostrata.
+- Corrette aggiunta, completamento, ripristino ed eliminazione: soltanto `todo.get_items` richiede una risposta, mentre i servizi di scrittura e-Control non accettano `return_response`.
+
 ## 2.21.227 — 2026-09-22
 
 - Nuovo widget Home “Lista della spesa”: scopre tutte le liste `todo.*` esposte da e-Control, consente di scegliere quella attiva in Home dinamica e offre larghezze dal 25% al 100%.

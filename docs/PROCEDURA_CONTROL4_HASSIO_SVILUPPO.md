@@ -113,9 +113,10 @@ L'agente non deve aspettare un promemoria dell'utente: nello stesso turno in cui
 ## Liste e-Control/Alexa nella Home (22/09/2026)
 
 - Dalla e-Face `2.21.227`, Home dinamica scopre le entità `todo.*` tramite la REST API locale di e-Control e permette di scegliere una sola lista attiva per impianto. Non codificare ID o nomi Alexa: su ogni installazione possono cambiare.
-- La lettura degli elementi usa `todo.get_items` con risposta; aggiunta, completamento/ripristino e rimozione usano rispettivamente `todo.add_item`, `todo.update_item` e `todo.remove_item`. Il token Supervisor resta server-side e non viene restituito al browser.
+- La lettura degli elementi usa `todo.get_items` con `return_response`; aggiunta, completamento/ripristino e rimozione usano rispettivamente `todo.add_item`, `todo.update_item` e `todo.remove_item` **senza** `return_response`, perché e-Control rifiuta la richiesta di risposta per questi servizi. Il token Supervisor resta server-side e non viene restituito al browser.
 - Verifica live read-only del 22/09: l'impianto di prova espone la lista interna e le liste Shopping/To-do dell'integrazione Alexa Devices; la Shopping list riporta un conteggio non nullo. La prova non ha letto i nomi dei prodotti né inviato comandi.
 - Controllo ripetibile redatto: dal container e-Face interrogare `http://supervisor/core/api/states` con il token ambiente e stampare soltanto `entity_id`, `friendly_name` e conteggio delle entità il cui ID inizia per `todo.`. Per il contratto di scrittura usare il test mock `test_home_shopping_list_discovers_and_controls_econtrol_todo`, non una lista reale.
+- Regressione `2.21.228`: prova end-to-end sulla sola lista interna vuota con elemento tecnico temporaneo; add, lettura, complete, restore e remove hanno risposto `200` e la pulizia finale ha confermato l'assenza dell'elemento. La lista Alexa dell'utente non è stata modificata.
 
 # Gruppi Intercom e-Face (15/09/2026)
 
