@@ -1,5 +1,9 @@
 # Changelog
 
+## 2.21.233 — 2026-09-22
+
+- Ripristinato il selettore circolare visibile accanto a ogni prodotto: bordo celeste nello stato attivo e cerchio pieno con spunta nello stato completato.
+
 ## 2.21.232 — 2026-09-22
 
 - Corretto il formato 25% della tessera Lista della spesa: la percentuale controlla solo la larghezza e non estende più la tessera all'altezza dell'intera dashboard.

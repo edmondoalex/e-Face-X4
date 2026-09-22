@@ -66,8 +66,11 @@ html body .home-shopping-add{border-color:#44788888;background:#0d1215}
 html body .home-shopping-add input:focus{outline-color:#61d8f2}
 html body .home-shopping-add button{color:#0e181c;background:linear-gradient(145deg,#7ce5f7,#4bb6d0)}
 html body .home-shopping-item:hover{border-color:#4a879866}
-html body .home-shopping-check{border-color:#538b9b;color:#eafaff}
-html body .home-shopping-item.completed .home-shopping-check i{background:#397b8e}
+html body .home-shopping-check{width:34px;height:34px;min-height:34px;justify-self:center;border:2px solid #5e9daf;border-radius:50%;color:#eafaff;background:#111a1e;transition:border-color .16s,background .16s,transform .12s}
+html body .home-shopping-check:hover,html body .home-shopping-check:focus-visible{border-color:#7de5fa;background:#1d333c;outline:2px solid #61d8f233;outline-offset:2px}
+html body .home-shopping-check i{display:grid;place-items:center;width:24px;height:24px;border-radius:50%;font-style:normal;font-size:17px;font-weight:900;line-height:1}
+html body .home-shopping-item.completed .home-shopping-check{border-color:#61d8f2;background:#397b8e}
+html body .home-shopping-item.completed .home-shopping-check i{background:transparent}
 html body .home-shopping-empty b{color:#0e181c;background:#61d8f2}
 .home-shopping-section{display:grid;gap:8px}.home-shopping-section+.home-shopping-section{margin-top:20px;padding-top:18px;border-top:1px solid #ffffff17}.home-shopping-section h3{display:flex;align-items:center;justify-content:space-between;margin:0 3px 3px;color:#e9f3f5;font-size:12px;letter-spacing:.08em;text-transform:uppercase}.home-shopping-section h3 span{display:grid;place-items:center;min-width:25px;height:25px;padding:0 7px;border-radius:13px;color:#0e181c;background:#61d8f2;font-size:11px}.home-shopping-section.completed-section h3{color:#91a4a8}.home-shopping-section.completed-section h3 span{color:#d9e3e5;background:#344249}
 @media(max-width:700px){html body .dashboard-grid .home-shopping-card{min-height:150px}}
