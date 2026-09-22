@@ -110,6 +110,13 @@ Prima di chiedere un gesto manuale, rispondere internamente a quattro domande: *
 
 L'agente non deve aspettare un promemoria dell'utente: nello stesso turno in cui verifica un nuovo meccanismo Control4/HA o risolve un guasto che generalizza a più sorgenti, aggiorna questa procedura (o il task specifico) con: **data, evidenza ottenuta, confine di sicurezza, comando/sonda ripetibile e risultato ancora da verificare**. Lo fa anche dopo una modifica alla persistenza o un test reale che conferma/smentisce un'ipotesi. Non apre un task separato per ogni dettaglio puramente estetico e non scrive credenziali o dump integrali. La regola è resa scopribile alle sessioni future tramite `AGENTS.md` alla radice del repository.
 
+## Liste e-Control/Alexa nella Home (22/09/2026)
+
+- Dalla e-Face `2.21.227`, Home dinamica scopre le entità `todo.*` tramite la REST API locale di e-Control e permette di scegliere una sola lista attiva per impianto. Non codificare ID o nomi Alexa: su ogni installazione possono cambiare.
+- La lettura degli elementi usa `todo.get_items` con risposta; aggiunta, completamento/ripristino e rimozione usano rispettivamente `todo.add_item`, `todo.update_item` e `todo.remove_item`. Il token Supervisor resta server-side e non viene restituito al browser.
+- Verifica live read-only del 22/09: l'impianto di prova espone la lista interna e le liste Shopping/To-do dell'integrazione Alexa Devices; la Shopping list riporta un conteggio non nullo. La prova non ha letto i nomi dei prodotti né inviato comandi.
+- Controllo ripetibile redatto: dal container e-Face interrogare `http://supervisor/core/api/states` con il token ambiente e stampare soltanto `entity_id`, `friendly_name` e conteggio delle entità il cui ID inizia per `todo.`. Per il contratto di scrittura usare il test mock `test_home_shopping_list_discovers_and_controls_econtrol_todo`, non una lista reale.
+
 # Gruppi Intercom e-Face (15/09/2026)
 
 - Asterisk e-Face `6.2.0-eface.9` gestisce i gruppi `8280–8289` e il gruppo automatico Tutti `8290` tramite `/config/asterisk/eface/intercom_groups.json` e `intercom_groups.conf`.
