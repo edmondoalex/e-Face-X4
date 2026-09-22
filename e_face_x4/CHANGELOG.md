@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.21.234 — 2026-09-22
+
+- La selezione di un prodotto lo sposta immediatamente e stabilmente tra «Da comprare» e «Completato».
+- Durante la sincronizzazione Alexa e-Face conserva lo stato ottimistico per otto secondi e non visualizza più gli snapshot intermedi obsoleti che facevano andare e venire la voce.
+
 ## 2.21.233 — 2026-09-22
 
 - Ripristinato il selettore circolare visibile accanto a ogni prodotto: bordo celeste nello stato attivo e cerchio pieno con spunta nello stato completato.

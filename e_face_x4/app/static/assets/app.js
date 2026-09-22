@@ -465,7 +465,7 @@ let homeShoppingHoldUntil=0
 function homeShoppingRows(items,completed=false){return items.map(item=>`<div class="home-shopping-item ${completed?'completed':''}" data-todo-uid="${escAttribute(item.uid)}"><button type="button" class="home-shopping-check" data-todo-action="${completed?'restore':'complete'}" aria-label="${completed?'Rimetti da comprare':'Segna come comprato'} ${escAttribute(item.summary)}"><i>${completed?'✓':''}</i></button><strong>${esc(item.summary)}</strong><button type="button" class="home-shopping-remove" data-todo-action="remove" aria-label="Elimina ${escAttribute(item.summary)}"><span class="mdi-mask" style="${mdiStyle('mdi:delete-outline','delete-outline')}"></span></button></div>`).join('')}
 async function refreshHomeShoppingList(full=true){
   if(homeShoppingBusy){if(full)homeShoppingNeedsFull=true;return}
-  if(!full&&Date.now()<homeShoppingHoldUntil)return
+  if(Date.now()<homeShoppingHoldUntil)return
   homeShoppingBusy=true
   try{
     const response=await fetch(apiUrl('api/home/todo'),{cache:'no-store'}),data=await response.json()
@@ -480,13 +480,26 @@ async function refreshHomeShoppingList(full=true){
   }catch(error){$('#home-shopping-count').textContent='—';$('#home-shopping-name').textContent='Lista della spesa';$('#home-shopping-preview').textContent='Lista momentaneamente non disponibile';if(full)$('#home-shopping-items').innerHTML=`<p class="home-insight-empty home-shopping-error">${esc(error.message)}</p>`}
   finally{homeShoppingBusy=false;if(homeShoppingNeedsFull){homeShoppingNeedsFull=false;void refreshHomeShoppingList(true)}}
 }
-function scheduleHomeShoppingRefresh(){homeShoppingHoldUntil=Date.now()+6500;for(const delay of [1800,3500,6000])setTimeout(()=>refreshHomeShoppingList(true),delay)}
+function scheduleHomeShoppingRefresh(){homeShoppingHoldUntil=Date.now()+8000;setTimeout(()=>refreshHomeShoppingList(true),8200)}
 async function homeShoppingCommand(path,options){const response=await fetch(apiUrl(path),options),data=await response.json().catch(()=>({}));if(!response.ok)throw new Error(data.detail||`HTTP ${response.status}`);scheduleHomeShoppingRefresh()}
+function homeShoppingSection(kind){const list=$('#home-shopping-items'),completed=kind==='completed';let section=list.querySelector(`[data-shopping-section="${kind}"]`);if(section)return section;section=document.createElement('section');section.className=`home-shopping-section${completed?' completed-section':''}`;section.dataset.shoppingSection=kind;section.innerHTML=`<h3>${completed?'Completato':'Da comprare'} <span>0</span></h3>`;const other=list.querySelector(`[data-shopping-section="${completed?'active':'completed'}"]`);if(completed)list.append(section);else list.insertBefore(section,other||list.firstChild);return section}
+function syncHomeShoppingSections(){const list=$('#home-shopping-items');for(const section of list.querySelectorAll('[data-shopping-section]')){const rows=section.querySelectorAll('[data-todo-uid],.home-shopping-item.pending');if(!rows.length)section.remove();else section.querySelector('h3 span').textContent=String(rows.length)}const active=[...list.querySelectorAll('[data-shopping-section="active"] .home-shopping-item strong')].map(node=>node.textContent);$('#home-shopping-count').textContent=String(active.length);const navCount=$('#shopping-nav-count');if(navCount){navCount.textContent=String(active.length);navCount.hidden=!active.length}$('#home-shopping-preview').textContent=active.slice(0,3).join(' · ')||'Nessun articolo da acquistare'}
 $('#home-shopping-list')?.addEventListener('click',async()=>{const dialog=$('#home-shopping-dialog');dialog.showModal();await refreshHomeShoppingList(true);$('#home-shopping-input').focus()})
 $('#home-shopping-close')?.addEventListener('click',()=>$('#home-shopping-dialog').close())
 $('#home-shopping-dialog')?.addEventListener('click',(event)=>{if(event.target===$('#home-shopping-dialog'))event.currentTarget.close()})
 $('#home-shopping-add')?.addEventListener('submit',async(event)=>{event.preventDefault();const input=$('#home-shopping-input'),summary=input.value.trim();if(!summary)return;const list=$('#home-shopping-items'),before=Number($('#home-shopping-count').textContent)||0,row=`<div class="home-shopping-item pending"><button type="button" class="home-shopping-check" disabled><i></i></button><strong>${esc(summary)}</strong><span class="home-shopping-sync">SALVATAGGIO…</span></div>`;input.value='';const activeSection=list.querySelector('[data-shopping-section="active"]');if(activeSection)activeSection.insertAdjacentHTML('beforeend',row);else list.insertAdjacentHTML('afterbegin',`<section class="home-shopping-section" data-shopping-section="active"><h3>Da comprare <span>1</span></h3>${row}</section>`);$('#home-shopping-count').textContent=String(before+1);$('#home-shopping-preview').textContent=summary;try{await homeShoppingCommand('api/home/todo/items',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({summary})});input.focus()}catch(error){notify(error.message);await refreshHomeShoppingList(true)}})
-$('#home-shopping-items')?.addEventListener('click',async(event)=>{const row=event.target.closest('[data-todo-uid]'),button=event.target.closest('[data-todo-action]');if(!row||!button)return;const action=button.dataset.todoAction,before=Number($('#home-shopping-count').textContent)||0;row.classList.add('pending');button.disabled=true;if(action==='remove'||action==='complete'){row.remove();$('#home-shopping-count').textContent=String(Math.max(0,before-1))}else if(action==='restore'){$('#home-shopping-count').textContent=String(before+1);row.remove()}try{await homeShoppingCommand('api/home/todo/item',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({uid:row.dataset.todoUid,action})})}catch(error){notify(error.message);await refreshHomeShoppingList(true)}})
+$('#home-shopping-items')?.addEventListener('click',async(event)=>{
+  const row=event.target.closest('[data-todo-uid]'),button=event.target.closest('[data-todo-action]');if(!row||!button)return
+  const action=button.dataset.todoAction,uid=row.dataset.todoUid
+  row.classList.add('pending');button.disabled=true
+  if(action==='remove')row.remove()
+  else{
+    const completed=action==='complete',target=homeShoppingSection(completed?'completed':'active')
+    row.classList.toggle('completed',completed);button.dataset.todoAction=completed?'restore':'complete';button.setAttribute('aria-label',`${completed?'Rimetti da comprare':'Segna come comprato'} ${row.querySelector('strong')?.textContent||''}`);button.querySelector('i').textContent=completed?'✓':'';target.append(row)
+  }
+  syncHomeShoppingSections()
+  try{await homeShoppingCommand('api/home/todo/item',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({uid,action})});row.classList.remove('pending');button.disabled=false}catch(error){homeShoppingHoldUntil=0;notify(error.message);await refreshHomeShoppingList(true)}
+})
 function refreshHomeEventTimes(){
   fetch(apiUrl('api/home/event-times'),{cache:'no-store'}).then(response=>response.ok?response.json():Promise.reject()).then(data=>{
     for(const [kind,selector] of Object.entries({camera:'#home-camera-event',doorbell:'#home-doorbell-event',motion:'#home-motion-event'})){
