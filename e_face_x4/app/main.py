@@ -77,7 +77,7 @@ from .connectors.supervisor import discover_addon_url, discover_host_url, instal
 from .media_realtime import SharedMediaRealtime
 from .demo import dashboard as demo_dashboard
 
-VERSION = os.environ.get("EFACE_VERSION", "2.21.236")
+VERSION = os.environ.get("EFACE_VERSION", "2.21.237")
 STATIC = Path(__file__).parent / "static"
 logging.basicConfig(level=logging.WARNING, format="%(asctime)s %(levelname)s [e-face-x4] %(message)s")
 _reconnect_warning_at: dict[str, float] = {}
@@ -2250,7 +2250,7 @@ def create_app() -> FastAPI:
         token = str(os.environ.get("SUPERVISOR_TOKEN") or "").strip()
         if not token: raise HTTPException(status_code=503, detail="e-Control non disponibile")
         try:
-            async with websockets.connect("ws://supervisor/core/websocket", open_timeout=8) as socket:
+            async with websockets.connect("ws://supervisor/core/websocket", open_timeout=8, max_size=16 * 1024 * 1024) as socket:
                 await socket.recv()
                 await socket.send(json.dumps({"type": "auth", "access_token": token}))
                 if json.loads(await socket.recv()).get("type") != "auth_ok": raise RuntimeError("Autenticazione e-Control fallita")

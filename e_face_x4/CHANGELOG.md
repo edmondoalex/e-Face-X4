@@ -1,5 +1,9 @@
 # Changelog
 
+## 2.21.237 — 2026-09-22
+
+- La scoperta automatica di Echo e agende ora accetta registri e-Control di grandi dimensioni senza chiudere la connessione WebSocket al limite predefinito di 1 MB.
+
 ## 2.21.236 — 2026-09-22
 
 - Centrata l'icona carrello nella barra di navigazione, mantenendo il contatore sovrapposto nell'angolo.
