@@ -19,7 +19,7 @@ def test_bootstrap_restarts_core_once_when_component_is_not_loaded(monkeypatch, 
     bootstrap.main()
     bootstrap.main()
 
-    assert calls.count(("/core/restart", "POST")) == 1
+    assert calls.count(("/core/api/services/homeassistant/restart", "POST")) == 1
     assert marker.read_text(encoding="utf-8") == "1.1.0"
 
 

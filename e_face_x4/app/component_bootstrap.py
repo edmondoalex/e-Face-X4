@@ -58,7 +58,7 @@ def main() -> None:
         pass
     time.sleep(10)
     try:
-        status, _ = _request("/core/restart", token, "POST")
+        status, _ = _request("/core/api/services/homeassistant/restart", token, "POST")
         if status in {200, 201}:
             MARKER.parent.mkdir(parents=True, exist_ok=True)
             MARKER.write_text(version, encoding="utf-8")

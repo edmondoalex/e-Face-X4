@@ -1,5 +1,9 @@
 # Changelog
 
+## 2.21.250 — 2026-09-22
+
+- Corretto il primo riavvio automatico dopo l'installazione di `eface_alexa`: ora usa l'azione Home Assistant autorizzata `homeassistant.restart`, invece dell'endpoint Supervisor non disponibile con il ruolo standard dell'add-on.
+
 ## 2.21.249 — 2026-09-22
 
 - L'Agenda rilevata legge e mostra l'elenco completo di sveglie, timer e promemoria attivi su tutti gli Echo, anziché limitarsi al prossimo evento dei sensori.
