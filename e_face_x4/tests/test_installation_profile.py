@@ -66,6 +66,9 @@ def test_tools_exposes_portable_connector_and_access_sections() -> None:
     assert "Serrature e accessi" in script
     assert "api/admin/connectors" in script
     assert "api/admin/access-devices" in script
+    assert 'id="access-devices-search"' in script
+    assert "function filterAccessDevices()" in script
+    assert "row.dataset.search" in script
 
 
 def test_connector_admin_api_is_protected_and_never_returns_secrets(monkeypatch, tmp_path) -> None:

@@ -13,9 +13,21 @@ const accessPanel = document.createElement('section')
 accessPanel.id = 'access-devices-config'
 accessPanel.className = 'media-config admin-dashboard-panel'
 accessPanel.hidden = true
-accessPanel.innerHTML = '<header><button type="button" aria-label="Torna ad Amministrazione">‹</button><div><small>AMMINISTRAZIONE</small><h2>Serrature e accessi</h2></div></header><div class="admin-info"><b>Nessuna regola specifica nel codice</b><p>Configura come e-Face deve presentare e comandare ogni switch, cover o lock di questo impianto. Auto conserva il comportamento rilevato.</p></div><div id="access-devices-status" class="admin-status"></div><form id="access-devices-form"><div id="access-devices-list" class="access-device-list"></div><div class="admin-form-actions"><button type="submit">SALVA ACCESSI</button></div></form>'
+accessPanel.innerHTML = '<header><button type="button" aria-label="Torna ad Amministrazione">‹</button><div><small>AMMINISTRAZIONE</small><h2>Serrature e accessi</h2></div></header><div class="admin-info"><b>Nessuna regola specifica nel codice</b><p>Configura come e-Face deve presentare e comandare ogni switch, cover o lock di questo impianto. Auto conserva il comportamento rilevato.</p></div><div id="access-devices-status" class="admin-status"></div><label class="access-device-search"><span>Cerca dispositivo</span><input id="access-devices-search" type="search" placeholder="Nome, stanza, tipo o ID" autocomplete="off"><small id="access-devices-filter-count"></small></label><form id="access-devices-form"><div id="access-devices-list" class="access-device-list"></div><div class="admin-form-actions"><button type="submit">SALVA ACCESSI</button></div></form>'
 document.body.append(accessPanel)
 accessPanel.querySelector('header button').addEventListener('click', () => closePanel('access-devices-config'))
+
+function filterAccessDevices() {
+  const query = ($('#access-devices-search')?.value || '').trim().toLocaleLowerCase('it')
+  const rows = [...document.querySelectorAll('.access-device-card')]
+  let visible = 0
+  for (const row of rows) {
+    row.hidden = Boolean(query) && !row.dataset.search.includes(query)
+    if (!row.hidden) visible += 1
+  }
+  $('#access-devices-filter-count').textContent = query ? `${visible} di ${rows.length}` : `${rows.length} dispositivi`
+}
+$('#access-devices-search').addEventListener('input', filterAccessDevices)
 
 const toolsIntercom = document.createElement('section')
 toolsIntercom.id = 'tools-intercom-live'
@@ -1121,6 +1133,7 @@ async function loadAccessDevices() {
   for (const item of [...byId.values()].sort((a,b) => `${a.room} ${a.name}`.localeCompare(`${b.room} ${b.name}`, 'it'))) {
     const profile = data.profiles[item.device_id] || {enabled:false, behavior:'auto', name:'', confirm:false}
     const row = document.createElement('article'); row.className = 'access-device-card'; row.dataset.deviceId = item.device_id
+    row.dataset.search = `${item.name} ${item.room} ${item.kind} ${item.entity_domain} ${item.device_id}`.toLocaleLowerCase('it')
     const info = document.createElement('div'); const name = document.createElement('strong'); name.textContent = item.name
     const detail = document.createElement('small'); detail.textContent = `${item.room || 'Senza stanza'} · ${item.entity_domain || item.kind} · ${item.device_id}`; info.append(name, detail)
     const enabled = field('Gestisci come accesso', '', 'checkbox'); enabled.input.checked = profile.enabled
@@ -1130,6 +1143,7 @@ async function loadAccessDevices() {
     const confirm = field('Chiedi conferma', '', 'checkbox'); confirm.input.checked = profile.confirm
     row.append(info, enabled.wrapper, displayName.wrapper, behavior, confirm.wrapper); list.append(row)
   }
+  filterAccessDevices()
 }
 
 $('#access-devices-form').addEventListener('submit', async event => {

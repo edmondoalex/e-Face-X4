@@ -1,5 +1,9 @@
 # Changelog
 
+## 2.21.223 — 2026-09-22
+
+- Serrature e accessi aggiunge una ricerca istantanea per nome, stanza, tipo e ID, con conteggio dei risultati visibili.
+
 ## 2.21.222 — 2026-09-22
 
 - Connettori esterni mostra ora il collegamento effettivo rilevato automaticamente e la sua origine, distinguendolo dall'override manuale opzionale.
