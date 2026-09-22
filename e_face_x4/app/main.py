@@ -77,7 +77,7 @@ from .connectors.supervisor import discover_addon_url, discover_host_url, instal
 from .media_realtime import SharedMediaRealtime
 from .demo import dashboard as demo_dashboard
 
-VERSION = os.environ.get("EFACE_VERSION", "2.21.221")
+VERSION = os.environ.get("EFACE_VERSION", "2.21.222")
 STATIC = Path(__file__).parent / "static"
 logging.basicConfig(level=logging.WARNING, format="%(asctime)s %(levelname)s [e-face-x4] %(message)s")
 _reconnect_warning_at: dict[str, float] = {}
@@ -2220,24 +2220,24 @@ def create_app() -> FastAPI:
 
     async def home_assistant_get(path: str) -> httpx.Response:
         token = str(os.environ.get("SUPERVISOR_TOKEN") or "").strip()
-        if not token: raise HTTPException(status_code=503, detail="Home Assistant non disponibile")
+        if not token: raise HTTPException(status_code=503, detail="e-Control non disponibile")
         try:
             async with httpx.AsyncClient(timeout=20, follow_redirects=False) as client:
                 response = await client.get(f"http://supervisor/core/api/{path.lstrip('/')}", headers={"Authorization": f"Bearer {token}"})
         except httpx.HTTPError as exc:
-            raise HTTPException(status_code=502, detail="Home Assistant non risponde") from exc
-        if response.status_code != 200: raise HTTPException(status_code=502, detail="Dato Home Assistant non disponibile")
+            raise HTTPException(status_code=502, detail="e-Control non risponde") from exc
+        if response.status_code != 200: raise HTTPException(status_code=502, detail="Dato e-Control non disponibile")
         return response
 
     async def home_assistant_camera_stream(entity_id: str) -> str:
         token = str(os.environ.get("SUPERVISOR_TOKEN") or "").strip()
-        if not token: raise HTTPException(status_code=503, detail="Home Assistant non disponibile")
+        if not token: raise HTTPException(status_code=503, detail="e-Control non disponibile")
         try:
             async with websockets.connect("ws://supervisor/core/websocket", open_timeout=8) as socket:
                 await socket.recv()
                 await socket.send(json.dumps({"type":"auth", "access_token":token}))
                 auth = json.loads(await socket.recv())
-                if auth.get("type") != "auth_ok": raise RuntimeError("Autenticazione Home Assistant fallita")
+                if auth.get("type") != "auth_ok": raise RuntimeError("Autenticazione e-Control fallita")
                 await socket.send(json.dumps({"id":1,"type":"camera/stream","entity_id":entity_id,"format":"hls"}))
                 result = json.loads(await asyncio.wait_for(socket.recv(), timeout=15))
                 url = str((result.get("result") or {}).get("url") or "")
@@ -2294,7 +2294,7 @@ def create_app() -> FastAPI:
         if not resource_path or ".." in resource_path.split("/"):
             raise HTTPException(status_code=400, detail="Risorsa HLS non valida")
         token = str(os.environ.get("SUPERVISOR_TOKEN") or "").strip()
-        if not token: raise HTTPException(status_code=503, detail="Home Assistant non disponibile")
+        if not token: raise HTTPException(status_code=503, detail="e-Control non disponibile")
         headers = {"Authorization": f"Bearer {token}"}
         if request.headers.get("range"): headers["Range"] = request.headers["range"]
         try:
@@ -2967,7 +2967,7 @@ def create_app() -> FastAPI:
         if time.monotonic() >= float(solar_location_cache["expires"]):
             token = str(os.environ.get("SUPERVISOR_TOKEN") or "").strip()
             if not token:
-                raise RuntimeError("Posizione Home Assistant non disponibile")
+                raise RuntimeError("Posizione e-Control non disponibile")
             try:
                 async with httpx.AsyncClient(timeout=load_settings().request_timeout_s, follow_redirects=False, trust_env=False) as client:
                     response = await client.get("http://supervisor/core/api/config", headers={"Authorization": f"Bearer {token}"})
@@ -2979,7 +2979,7 @@ def create_app() -> FastAPI:
                 if not -90 <= latitude <= 90 or not -180 <= longitude <= 180:
                     raise ValueError("Coordinate non valide")
             except (httpx.HTTPError, KeyError, TypeError, ValueError) as exc:
-                raise RuntimeError("Posizione Home Assistant non disponibile") from exc
+                raise RuntimeError("Posizione e-Control non disponibile") from exc
             solar_location_cache.update({"latitude": latitude, "longitude": longitude, "zone": zone, "expires": time.monotonic() + 21600})
         zone = solar_location_cache["zone"]
         day = datetime.now(zone).date()
@@ -3015,7 +3015,7 @@ def create_app() -> FastAPI:
             raise ValueError("Switch bypass non autorizzato")
         token = str(os.environ.get("SUPERVISOR_TOKEN") or "").strip()
         if not token:
-            raise RuntimeError("Home Assistant non disponibile per il bypass")
+            raise RuntimeError("e-Control non disponibile per il bypass")
         async with httpx.AsyncClient(timeout=8, follow_redirects=False, trust_env=False) as client:
             response = await client.get(f"http://supervisor/core/api/states/{device_id}",
                                         headers={"Authorization": f"Bearer {token}"})
@@ -3069,12 +3069,12 @@ def create_app() -> FastAPI:
                             states.append(response.json())
             return [{"id": item["entity_id"], "entity_id": item["entity_id"],
                      "name": str((item.get("attributes") or {}).get("friendly_name") or item["entity_id"]),
-                     "room": "Cover Home Assistant", "kind": "cover", "provider": "home_assistant",
+                     "room": "Cover e-Control", "kind": "cover", "provider": "home_assistant",
                      "state": item.get("state"), "position": (item.get("attributes") or {}).get("current_position"),
                      "position_supported": bool((item.get("attributes") or {}).get("supported_features", 0) & 4)}
                     for item in states if isinstance(item, dict) and routines.HA_COVER_ID.fullmatch(str(item.get("entity_id") or ""))]
         except (httpx.HTTPError, ValueError, TypeError):
-            logging.warning("Catalogo cover Home Assistant non disponibile")
+            logging.warning("Catalogo cover e-Control non disponibile")
             return []
 
     async def routine_devices(request: Request | None = None, referenced: set[str] | None = None) -> list[dict]:
@@ -3117,7 +3117,7 @@ def create_app() -> FastAPI:
     async def routine_command(device_id: str, action: str, value: object) -> object:
         if routines.HA_COVER_ID.fullmatch(device_id):
             if action not in {"open", "close", "stop", "set_position"}:
-                raise ValueError("Comando cover Home Assistant non consentito")
+                raise ValueError("Comando cover e-Control non consentito")
             state = next((item for item in await routine_ha_cover_items({device_id}) if item["id"] == device_id), None)
             if not state or (action == "set_position" and not state["position_supported"]):
                 raise RuntimeError("Cover o posizionamento non disponibile")
@@ -3136,7 +3136,7 @@ def create_app() -> FastAPI:
                 raise ValueError("Comando bypass non consentito")
             token = str(os.environ.get("SUPERVISOR_TOKEN") or "").strip()
             if not token:
-                raise RuntimeError("Home Assistant non disponibile per il bypass")
+                raise RuntimeError("e-Control non disponibile per il bypass")
             async with httpx.AsyncClient(timeout=12, follow_redirects=False, trust_env=False) as client:
                 response = await client.post(f"http://supervisor/core/api/services/switch/turn_{action}",
                                              headers={"Authorization": f"Bearer {token}"}, json={"entity_id": device_id})
@@ -3612,9 +3612,43 @@ def create_app() -> FastAPI:
             "ksenia": "Ksenia",
             "sunmind": "SunMIND",
         }
+        addons, buspro_url, etherm_url, ksenia_url, thermomind_addon, thermomind_host, sunmind_addon, sunmind_host = await asyncio.gather(
+            installed_addons(settings.request_timeout_s),
+            discover_addon_url("e_hdl_buspro_mqtt", 8124, settings.request_timeout_s),
+            discover_addon_url("e_therm_plus_ks", 8080, settings.request_timeout_s),
+            discover_addon_url("ksenia_lares_addon", 8080, settings.request_timeout_s),
+            discover_addon_url("e_thermomind", 8099, settings.request_timeout_s),
+            discover_host_url(8099, settings.request_timeout_s),
+            discover_addon_url("e_sunmind", 1980, settings.request_timeout_s),
+            discover_host_url(1980, settings.request_timeout_s),
+        )
+        discovered = {
+            "buspro": (buspro_url, "Add-on e-Control"),
+            "etherm": (etherm_url, "Add-on e-Control"),
+            "ksenia": (ksenia_url, "Add-on e-Control"),
+            "thermomind": (thermomind_host or thermomind_addon, "Rete host e-Control" if thermomind_host else "Add-on e-Control"),
+            "sunmind": (sunmind_addon or sunmind_host, "Add-on e-Control" if sunmind_addon else "Rete host e-Control"),
+        }
+        auth_options = {
+            "buspro": ["none", "token"], "evoice": ["none", "token"],
+            "etherm": ["none", "basic", "token"], "thermomind": ["none"],
+            "ksenia": ["none"], "sunmind": ["none"],
+        }
         connectors = []
         for connector_id in installation_profile.CONNECTOR_IDS:
             value = asdict(getattr(settings, connector_id))
+            manual = str(value["base_url"] or "")
+            is_manual = bool(manual and "127.0.0.1" not in manual.lower() and "localhost" not in manual.lower())
+            if connector_id == "evoice" and not (manual and value["installation_id"]):
+                effective_url, source = "e-Control locale · API eVoice", "Integrazione e-Control"
+                mode = "locale"
+            elif is_manual:
+                effective_url, source, mode = manual, "Configurazione manuale", "manuale"
+            else:
+                effective_url, source = discovered.get(connector_id, ("", ""))
+                effective_url = effective_url or manual
+                source = source if effective_url and discovered.get(connector_id, ("", ""))[0] else ("Fallback configurato" if effective_url else "Non rilevato")
+                mode = "automatico" if effective_url else "non_configurato"
             connectors.append({
                 "id": connector_id,
                 "name": labels[connector_id],
@@ -3625,8 +3659,13 @@ def create_app() -> FastAPI:
                 "installation_id": value["installation_id"],
                 "token_configured": bool(value["token"]),
                 "password_configured": bool(value["password"]),
+                "effective_url": effective_url,
+                "source": source,
+                "mode": mode,
+                "auth_options": auth_options[connector_id],
+                "installation_id_supported": connector_id == "evoice",
             })
-        return {"connectors": connectors, "addons": await installed_addons(settings.request_timeout_s)}
+        return {"connectors": connectors, "addons": addons}
 
     @app.put("/api/admin/connectors/{connector_id}")
     async def admin_save_connector(connector_id: str, request: Request, payload: dict) -> dict:

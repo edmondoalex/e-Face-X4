@@ -156,10 +156,10 @@ def validate(payload: dict, catalog: list[dict], groups: list[dict], triggers: l
     ha_enabled = payload.get("ha_trigger_enabled", False)
     ha_id = str(payload.get("ha_trigger_id") or "").strip()
     if type(ha_enabled) is not bool or len(ha_id) > 80:
-        _fail("Trigger Home Assistant non valido")
+        _fail("Trigger e-Control non valido")
     known_trigger_ids = {str(item.get("id")) for item in triggers if isinstance(item, dict)}
     if ha_enabled and (not ha_id or ha_id not in known_trigger_ids):
-        _fail("Seleziona un trigger Home Assistant esistente")
+        _fail("Seleziona un trigger e-Control esistente")
     out["ha_trigger_enabled"] = ha_enabled
     out["ha_trigger_id"] = ha_id if ha_enabled else ""
     return out

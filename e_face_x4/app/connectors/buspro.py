@@ -259,7 +259,7 @@ class BusproConnector(Connector):
                 domain = entity_id.split(".", 1)[0]
                 if domain == "switch" and kind == "lock" and action in {"lock", "unlock", "open"}:
                     # Keep the access card presentation, but address the original
-                    # Home Assistant switch only: open/unlock=ON, close/lock=OFF.
+                    # e-Control switch only: open/unlock=ON, close/lock=OFF.
                     path, body = f"/api/control/ha/switch/{entity_id}", {"state": "OFF" if action == "lock" else "ON"}
                 elif domain in {"light", "switch"} and action in {"on", "off", "brightness"}:
                     body = {"state": "ON" if action == "brightness" else action.upper()}
@@ -274,7 +274,7 @@ class BusproConnector(Connector):
                         body["position"] = round(value)
                 elif domain == "cover" and kind == "lock" and action in {"lock", "unlock"}:
                     # Garage doors can be presented as security locks while their
-                    # Home Assistant entity still belongs to the cover domain.
+                    # e-Control entity still belongs to the cover domain.
                     command = "CLOSE" if action == "lock" else "OPEN"
                     path, body = f"/api/control/ha/cover/{entity_id}", {"command": command}
                 elif kind == "lock" and action in {"lock", "unlock", "open"}:

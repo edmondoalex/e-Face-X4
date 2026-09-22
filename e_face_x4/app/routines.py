@@ -596,7 +596,7 @@ def _validate_advanced(payload: dict, devices: list[dict], others: list[dict], s
     if "wait_until" in kinds:
         extra_risks.append("Se wait_until raggiunge il timeout, le azioni successive vengono interrotte; i comandi precedenti restano applicati.")
     if protected:
-        extra_risks.append("Bypass allarme: e-Face verifica che le zone siano disattivate prima, registra il ripristino e tenta lo spegnimento anche dopo errori o interruzioni. Se Home Assistant è irraggiungibile il ripristino resta pendente e viene ritentato: verificare comunque l'allarme fisico.")
+        extra_risks.append("Bypass allarme: e-Face verifica che le zone siano disattivate prima, registra il ripristino e tenta lo spegnimento anche dopo errori o interruzioni. Se e-Control è irraggiungibile il ripristino resta pendente e viene ritentato: verificare comunque l'allarme fisico.")
     if any(item.get("type") == "action" and item.get("action") == "off" for item in _flow_items(flow)) and kinds & {"wait", "wait_until"}:
         extra_risks.append("Uno spegnimento dopo un'attesa può sovrascrivere un'accensione manuale fatta nel frattempo.")
     base["risks"] = list(dict.fromkeys([*base["risks"], *extra_risks]))
@@ -700,7 +700,7 @@ def validate(payload: dict, devices: list[dict], others: list[dict] = (), *, sol
     conditions = [item for raw in raw_conditions if (item := _solar_rule(raw, errors, condition=True) if isinstance(raw, dict) and raw.get("type") == "sun" else
                   _time_window(raw, errors) if isinstance(raw, dict) and raw.get("type") == "time_window" else _condition(raw, catalog, errors))]
     if not solar_available and uses_sun({"triggers": triggers, "conditions": conditions}):
-        errors.append("Alba/tramonto non disponibili: controlla posizione e fuso orario di Home Assistant")
+        errors.append("Alba/tramonto non disponibili: controlla posizione e fuso orario di e-Control")
     raw_steps = payload.get("steps")
     if not isinstance(raw_steps, list) or not 1 <= len(raw_steps) <= MAX_STEPS:
         errors.append(f"Servono da 1 a {MAX_STEPS} blocchi in Allora")
@@ -1537,7 +1537,7 @@ class Engine:
                     async with self.bypass_lock:
                         switch_ids = step["bypass_switches"]
                         if self.bypass_state is None:
-                            raise RuntimeError("Verifica bypass Home Assistant non disponibile")
+                            raise RuntimeError("Verifica bypass e-Control non disponibile")
                         if pending_bypass_recovery():
                             raise RuntimeError("Un ripristino bypass precedente è ancora pendente: movimento annullato")
                         for device_id in switch_ids:

@@ -65,7 +65,7 @@ async def installed_addons(timeout_s: float) -> list[dict[str, Any]]:
 
 
 def find_host_url(payload: dict[str, Any], port: int) -> str:
-    """Return the first usable Home Assistant host address from Supervisor data."""
+    """Return the first usable e-Control host address from Supervisor data."""
     data = payload.get("data") if isinstance(payload.get("data"), dict) else payload
     interfaces = data.get("interfaces") if isinstance(data, dict) else None
     if not isinstance(interfaces, list):

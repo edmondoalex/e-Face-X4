@@ -70,7 +70,7 @@ function plant() {
 }
 function zones() {
   const zones=snapshot.decision?.zones||[]
-  return `<p class="heating-muted">Il setpoint agisce sulla zona Home Assistant collegata a e-ThermoMind. Lo stato del termostato resta in sola lettura.</p><div class="heating-grid">${zones.map(zone=>card(zone.entity_id?.replace(/^climate\./,'').replaceAll('_',' ')||'Zona',`<p>${esc(zone.group||'')} · ${esc(zone.state||'—')} · ${zone.active?'Richiesta calore':'Nessuna richiesta'}</p><p>Temperatura ${number(zone.temperature)}</p><label>Setpoint (°C)<input type="number" min="5" max="35" step="0.5" value="${esc(zone.setpoint??'')}" data-zone-temp="${esc(zone.entity_id)}"></label><button data-save-zone="${esc(zone.entity_id)}">Salva</button>`)).join('')||card('Zone','<p>Nessuna zona disponibile.</p>')}</div>`
+  return `<p class="heating-muted">Il setpoint agisce sulla zona e-Control collegata a e-ThermoMind. Lo stato del termostato resta in sola lettura.</p><div class="heating-grid">${zones.map(zone=>card(zone.entity_id?.replace(/^climate\./,'').replaceAll('_',' ')||'Zona',`<p>${esc(zone.group||'')} · ${esc(zone.state||'—')} · ${zone.active?'Richiesta calore':'Nessuna richiesta'}</p><p>Temperatura ${number(zone.temperature)}</p><label>Setpoint (°C)<input type="number" min="5" max="35" step="0.5" value="${esc(zone.setpoint??'')}" data-zone-temp="${esc(zone.entity_id)}"></label><button data-save-zone="${esc(zone.entity_id)}">Salva</button>`)).join('')||card('Zone','<p>Nessuna zona disponibile.</p>')}</div>`
 }
 const views={status:summary,modules,setpoints,flows,solar,resistances,plant,boilers,mixer,zones}
 function render() {

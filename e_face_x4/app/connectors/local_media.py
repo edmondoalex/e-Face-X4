@@ -68,7 +68,7 @@ class LocalMediaConnector(Connector):
                 failures.append(f"percorso {index}: {type(exc).__name__}")
                 if ws is not None:
                     await ws.close()
-        raise RuntimeError("WebSocket Home Assistant locale non raggiungibile (" + ", ".join(failures) + ")")
+        raise RuntimeError("WebSocket e-Control locale non raggiungibile (" + ", ".join(failures) + ")")
 
     async def _registry_snapshot(self) -> dict[str, Any]:
         ws = await self._connect_websocket()
@@ -179,7 +179,7 @@ class LocalMediaConnector(Connector):
 
     async def events(self) -> AsyncIterator[dict[str, Any]]:
         # e-Voice already exposes its filtered SSE stream. Consuming it here
-        # avoids a second broad Home Assistant state subscription and lets the
+        # avoids a second broad e-Control state subscription and lets the
         # shared e-Face broker own the single upstream connection.
         async for event in super().events():
             yield event

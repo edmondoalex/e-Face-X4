@@ -343,7 +343,7 @@ function render(data) {
   if (data.mode === 'live' && failedProvider) {
     const notice = $('#notice')
     notice.textContent = failedProvider.id === 'evoice'
-      ? `${failedProvider.label}: servizio Home Assistant temporaneamente non disponibile (${failedProvider.reason || 'connessione non riuscita'}). Nuovo tentativo automatico in corso.`
+      ? `${failedProvider.label}: servizio e-Control temporaneamente non disponibile (${failedProvider.reason || 'connessione non riuscita'}). Nuovo tentativo automatico in corso.`
       : `${failedProvider.label || failedProvider.name || failedProvider.id || 'Servizio'}: ${failedProvider.reason || 'connettore non disponibile'}. Controlla indirizzo, porta e autenticazione.`
     notice.hidden = false
   }
@@ -2558,7 +2558,7 @@ $('#scenario-list').addEventListener('click', (event) => {
   const card = event.target.closest('[data-scenario-id]')
   if (button && card) sendScenarioCommand(card.dataset.scenarioId, button.dataset.scenarioAction, button)
 })
-// Home Assistant's mobile WebView can drop the synthetic click after a touch
+// e-Control's mobile WebView can drop the synthetic click after a touch
 // pointer sequence. Dispatch shortcut action buttons directly on pointerup and
 // mark them so a compatibility click cannot send the command twice.
 $('#device-list').addEventListener('pointerup', (event) => {

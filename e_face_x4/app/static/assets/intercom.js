@@ -2,7 +2,7 @@
   const $ = (selector) => document.querySelector(selector)
   const adminMode = document.documentElement.classList.contains('admin-intercom')
   const root = new URL('./', location.href)
-const currentVersion = '2.21.221'
+const currentVersion = '2.21.222'
   function newDeviceId() {
     if (typeof crypto.randomUUID === 'function') return crypto.randomUUID()
     const bytes = new Uint8Array(16)
@@ -885,7 +885,7 @@ const currentVersion = '2.21.221'
 
   async function microphone() {
     if (!window.isSecureContext || !navigator.mediaDevices?.getUserMedia) {
-      throw new Error('Microfono non disponibile: apri e-Face direttamente tramite HTTPS, fuori dalla finestra Home Assistant.')
+      throw new Error('Microfono non disponibile: apri e-Face direttamente tramite HTTPS, fuori dalla finestra e-Control.')
     }
     try {
       return await navigator.mediaDevices.getUserMedia({audio:true, video:false})

@@ -84,7 +84,17 @@ def test_connector_admin_api_is_protected_and_never_returns_secrets(monkeypatch,
     assert saved.status_code == 200
     payload = client.get("/api/admin/connectors").json()
     buspro = next(item for item in payload["connectors"] if item["id"] == "buspro")
+    evoice = next(item for item in payload["connectors"] if item["id"] == "evoice")
     assert buspro["token_configured"] is True
     assert "token" not in buspro
     assert "password" not in buspro
     assert "secret-token" not in json.dumps(payload)
+    assert evoice["effective_url"] == "e-Control locale · API eVoice"
+    assert evoice["source"] == "Integrazione e-Control"
+
+
+def test_user_interface_never_uses_home_assistant_branding() -> None:
+    static = Path(__file__).parents[1] / "app/static"
+    for path in static.rglob("*"):
+        if path.is_file() and path.suffix in {".html", ".js", ".css"}:
+            assert "Home Assistant" not in path.read_text(encoding="utf-8"), path

@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.21.222 — 2026-09-22
+
+- Connettori esterni mostra ora il collegamento effettivo rilevato automaticamente e la sua origine, distinguendolo dall'override manuale opzionale.
+- eKonex Voice locale e ThermoMIND non appaiono più vuoti quando utilizzano rispettivamente l'integrazione e-Control e la scoperta della rete host.
+- L'interfaccia usa la denominazione e-Control per l'inventario degli add-on.
+
 ## 2.21.221 — 2026-09-22
 
 - Aggiunge in Amministrazione l'inventario degli add-on Home Assistant e la configurazione persistente dei connettori esterni, senza esporre credenziali.

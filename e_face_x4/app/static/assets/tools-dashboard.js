@@ -5,7 +5,7 @@ const connectorsPanel = document.createElement('section')
 connectorsPanel.id = 'connectors-config'
 connectorsPanel.className = 'media-config admin-dashboard-panel'
 connectorsPanel.hidden = true
-connectorsPanel.innerHTML = '<header><button type="button" aria-label="Torna ad Amministrazione">‹</button><div><small>AMMINISTRAZIONE</small><h2>Connettori esterni</h2></div></header><div class="admin-info"><b>Configurazione portabile dell’impianto</b><p>I valori salvati qui sostituiscono le opzioni iniziali dell’add-on e restano in /data. Token e password non vengono mostrati; lasciandoli vuoti si conserva il valore esistente.</p></div><div id="connectors-list" class="connector-admin-list"></div><div class="admin-list-head"><h3>Add-on rilevati da Home Assistant</h3><span id="addons-count"></span></div><div id="addons-list" class="admin-users-list"></div>'
+connectorsPanel.innerHTML = '<header><button type="button" aria-label="Torna ad Amministrazione">‹</button><div><small>AMMINISTRAZIONE</small><h2>Connettori esterni</h2></div></header><div class="admin-info"><b>Configurazione portabile dell’impianto</b><p>I valori salvati qui sostituiscono le opzioni iniziali dell’add-on e restano in /data. Token e password non vengono mostrati; lasciandoli vuoti si conserva il valore esistente.</p></div><div id="connectors-list" class="connector-admin-list"></div><div class="admin-list-head"><h3>Add-on rilevati da e-Control</h3><span id="addons-count"></span></div><div id="addons-list" class="admin-users-list"></div>'
 document.body.append(connectorsPanel)
 connectorsPanel.querySelector('header button').addEventListener('click', () => closePanel('connectors-config'))
 
@@ -1056,14 +1056,23 @@ async function loadConnectors() {
     form.className = 'admin-form connector-admin-card'
     const title = document.createElement('h3')
     title.textContent = connector.name
+    const detected = document.createElement('div')
+    detected.className = `connector-effective ${connector.mode === 'non_configurato' ? 'missing' : ''}`
+    const detectedTitle = document.createElement('strong')
+    detectedTitle.textContent = connector.mode === 'non_configurato' ? 'Non rilevato' : `Collegamento ${connector.mode}`
+    const detectedValue = document.createElement('small')
+    detectedValue.textContent = `${connector.effective_url || 'Nessun endpoint disponibile'} · ${connector.source}`
+    detected.append(detectedTitle, detectedValue)
     const enabled = field('Abilitato', '', 'checkbox')
     enabled.input.checked = connector.enabled
-    const endpoint = field('Endpoint HTTP/HTTPS', connector.base_url)
+    const endpoint = field('Override endpoint manuale (opzionale)', connector.base_url)
+    endpoint.input.placeholder = connector.mode === 'automatico' || connector.mode === 'locale' ? connector.effective_url : 'http://indirizzo:porta'
     const auth = document.createElement('label')
     auth.textContent = 'Autenticazione'
     const select = document.createElement('select')
-    for (const [value, label] of [['none','Nessuna'],['token','Token'],['basic','Utente e password']]) {
-      const option = document.createElement('option'); option.value = value; option.textContent = label; option.selected = connector.auth_mode === value; select.append(option)
+    const authLabels = {none:'Nessuna', token:'Token', basic:'Utente e password'}
+    for (const value of connector.auth_options) {
+      const option = document.createElement('option'); option.value = value; option.textContent = authLabels[value]; option.selected = connector.auth_mode === value; select.append(option)
     }
     auth.append(select)
     const username = field('Utente', connector.username)
@@ -1074,13 +1083,17 @@ async function loadConnectors() {
     const installation = field('ID installazione', connector.installation_id)
     const grid = document.createElement('div')
     grid.className = 'admin-form-grid'
-    grid.append(enabled.wrapper, endpoint.wrapper, auth, username.wrapper, token.wrapper, password.wrapper, installation.wrapper)
+    grid.append(enabled.wrapper, endpoint.wrapper)
+    if (connector.auth_options.length > 1) grid.append(auth)
+    if (connector.auth_options.includes('basic')) grid.append(username.wrapper, password.wrapper)
+    if (connector.auth_options.includes('token')) grid.append(token.wrapper)
+    if (connector.installation_id_supported) grid.append(installation.wrapper)
     const save = document.createElement('button'); save.textContent = 'SALVA CONNETTORE'
-    form.append(title, grid, save)
+    form.append(title, detected, grid, save)
     form.addEventListener('submit', async event => {
       event.preventDefault(); save.disabled = true
       try {
-        await request(`api/admin/connectors/${encodeURIComponent(connector.id)}`, {method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify({enabled:enabled.input.checked, base_url:endpoint.input.value.trim(), auth_mode:select.value, username:username.input.value.trim(), token:token.input.value, password:password.input.value, installation_id:installation.input.value.trim()})})
+        await request(`api/admin/connectors/${encodeURIComponent(connector.id)}`, {method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify({enabled:enabled.input.checked, base_url:endpoint.input.value.trim(), auth_mode:select.value || 'none', username:username.input.value.trim(), token:token.input.value, password:password.input.value, installation_id:installation.input.value.trim()})})
         message(`${connector.name} salvato`); await loadConnectors()
       } catch (error) { message(error.message) } finally { save.disabled = false }
     })

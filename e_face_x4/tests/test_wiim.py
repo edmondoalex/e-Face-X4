@@ -208,7 +208,7 @@ def test_wiim_admin_ui_is_present() -> None:
     assert 'id="wiim-tool"' in page
     assert 'id="wiim-config"' in page
     assert "Collegamento diretto e-Face → WiiM" in page
-    assert "Home Assistant non è nel percorso funzionale" in page
+    assert "e-Control non è nel percorso funzionale" in page
     home = TestClient(create_app()).get("/").text
     assert 'data-view="wiim"' not in home
     assert 'id="wiim-frame"' not in home
