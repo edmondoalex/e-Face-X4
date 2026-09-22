@@ -1,5 +1,9 @@
 # Changelog
 
+## 2.21.232 — 2026-09-22
+
+- Corretto il formato 25% della tessera Lista della spesa: la percentuale controlla solo la larghezza e non estende più la tessera all'altezza dell'intera dashboard.
+
 ## 2.21.231 — 2026-09-22
 
 - Uniformata l'altezza della tessera Lista della spesa alle altre tessere informative della stessa riga, su desktop e mobile.
