@@ -1,5 +1,6 @@
 create_alarm:
   name: Crea sveglia Alexa
+  description: Crea una sveglia Alexa direttamente da e-Face X4. Creato da Ekonex.it.
   fields:
     device_id:
       required: true
@@ -18,6 +19,7 @@ create_alarm:
             - daily
 create_timer:
   name: Crea timer Alexa
+  description: Crea un timer Alexa direttamente da e-Face X4. Creato da Ekonex.it.
   fields:
     device_id:
       required: true
@@ -33,6 +35,7 @@ create_timer:
         text:
 create_reminder:
   name: Crea promemoria Alexa
+  description: Crea un promemoria Alexa direttamente da e-Face X4. Creato da Ekonex.it.
   fields:
     device_id:
       required: true
@@ -49,6 +52,7 @@ create_reminder:
         text:
 list_notifications:
   name: Elenca eventi Alexa
+  description: Elenca sveglie, timer e promemoria Alexa. Creato da Ekonex.it.
   fields:
     device_id:
       required: true
@@ -57,6 +61,7 @@ list_notifications:
           integration: alexa_devices
 delete_notification:
   name: Elimina evento Alexa
+  description: Elimina uno specifico evento Alexa. Creato da Ekonex.it.
   fields:
     device_id:
       required: true
@@ -69,6 +74,7 @@ delete_notification:
         text:
 delete_next_notification:
   name: Elimina il prossimo evento Alexa
+  description: Elimina il prossimo evento Alexa del tipo scelto. Creato da Ekonex.it.
   fields:
     device_id:
       required: true

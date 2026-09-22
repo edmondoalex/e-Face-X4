@@ -1,10 +1,10 @@
 {
   "domain": "eface_alexa",
-  "name": "e-Control Alexa Agenda",
+  "name": "e-Face X4 Alexa · Creato da Ekonex.it",
   "codeowners": [],
   "dependencies": ["alexa_devices"],
   "documentation": "https://github.com/edmondoalex/e-Face-X4",
   "integration_type": "service",
   "iot_class": "cloud_push",
-  "version": "1.0.0"
+  "version": "1.1.0"
 }

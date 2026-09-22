@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.21.246 — 2026-09-22
+
+- Aggiunto al componente Home Assistant `eface_alexa` il logo Alexa/e-Face X4 fornito, nelle varianti locali `brand/icon` e `brand/logo` supportate da Home Assistant 2026.3+.
+- Resa visibile l'attribuzione `Creato da Ekonex.it` nel nome del componente e nella relativa documentazione inclusa.
+
 ## 2.21.245 — 2026-09-22
 
 - Widget e popup Lista della spesa, widget Agenda e pagina Agenda ora usano le variabili della palette card selezionata in Strumenti, eliminando gli sfondi e gli accenti azzurri fissi.
