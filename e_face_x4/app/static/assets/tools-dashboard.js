@@ -1,6 +1,22 @@
 const $ = (selector) => document.querySelector(selector)
 const api = (path) => new URL(`../${path}`, location.href.endsWith('/') ? location.href : `${location.href}/`).toString()
 
+const connectorsPanel = document.createElement('section')
+connectorsPanel.id = 'connectors-config'
+connectorsPanel.className = 'media-config admin-dashboard-panel'
+connectorsPanel.hidden = true
+connectorsPanel.innerHTML = '<header><button type="button" aria-label="Torna ad Amministrazione">‹</button><div><small>AMMINISTRAZIONE</small><h2>Connettori esterni</h2></div></header><div class="admin-info"><b>Configurazione portabile dell’impianto</b><p>I valori salvati qui sostituiscono le opzioni iniziali dell’add-on e restano in /data. Token e password non vengono mostrati; lasciandoli vuoti si conserva il valore esistente.</p></div><div id="connectors-list" class="connector-admin-list"></div><div class="admin-list-head"><h3>Add-on rilevati da Home Assistant</h3><span id="addons-count"></span></div><div id="addons-list" class="admin-users-list"></div>'
+document.body.append(connectorsPanel)
+connectorsPanel.querySelector('header button').addEventListener('click', () => closePanel('connectors-config'))
+
+const accessPanel = document.createElement('section')
+accessPanel.id = 'access-devices-config'
+accessPanel.className = 'media-config admin-dashboard-panel'
+accessPanel.hidden = true
+accessPanel.innerHTML = '<header><button type="button" aria-label="Torna ad Amministrazione">‹</button><div><small>AMMINISTRAZIONE</small><h2>Serrature e accessi</h2></div></header><div class="admin-info"><b>Nessuna regola specifica nel codice</b><p>Configura come e-Face deve presentare e comandare ogni switch, cover o lock di questo impianto. Auto conserva il comportamento rilevato.</p></div><div id="access-devices-status" class="admin-status"></div><form id="access-devices-form"><div id="access-devices-list" class="access-device-list"></div><div class="admin-form-actions"><button type="submit">SALVA ACCESSI</button></div></form>'
+document.body.append(accessPanel)
+accessPanel.querySelector('header button').addEventListener('click', () => closePanel('access-devices-config'))
+
 const toolsIntercom = document.createElement('section')
 toolsIntercom.id = 'tools-intercom-live'
 toolsIntercom.className = 'media-config admin-dashboard-panel tools-intercom-live'
@@ -1020,6 +1036,95 @@ $('#media-composer-back').addEventListener('click', () => closePanel('media-comp
 $('#composer-discover').addEventListener('click', async event => { event.currentTarget.disabled=true; try { await loadMediaComposer(true); message('Topologia sincronizzata con i dispositivi disponibili') } catch(error) { message(error.message) } finally { event.currentTarget.disabled=false } })
 $('#composer-save').addEventListener('click', async event => { event.currentTarget.disabled=true; try { mediaProject = await request('api/admin/media-project', {method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(mediaProject)}); renderMediaComposer(); message('Progetto multimediale salvato') } catch(error) { message(error.message) } finally { event.currentTarget.disabled=false } })
 
+function field(label, value = '', type = 'text') {
+  const wrapper = document.createElement('label')
+  wrapper.textContent = label
+  const input = document.createElement('input')
+  input.type = type
+  input.value = value
+  input.autocomplete = type === 'password' ? 'new-password' : 'off'
+  wrapper.append(input)
+  return {wrapper, input}
+}
+
+async function loadConnectors() {
+  const data = await request('api/admin/connectors')
+  const list = $('#connectors-list')
+  list.replaceChildren()
+  for (const connector of data.connectors) {
+    const form = document.createElement('form')
+    form.className = 'admin-form connector-admin-card'
+    const title = document.createElement('h3')
+    title.textContent = connector.name
+    const enabled = field('Abilitato', '', 'checkbox')
+    enabled.input.checked = connector.enabled
+    const endpoint = field('Endpoint HTTP/HTTPS', connector.base_url)
+    const auth = document.createElement('label')
+    auth.textContent = 'Autenticazione'
+    const select = document.createElement('select')
+    for (const [value, label] of [['none','Nessuna'],['token','Token'],['basic','Utente e password']]) {
+      const option = document.createElement('option'); option.value = value; option.textContent = label; option.selected = connector.auth_mode === value; select.append(option)
+    }
+    auth.append(select)
+    const username = field('Utente', connector.username)
+    const token = field('Token', '', 'password')
+    token.input.placeholder = connector.token_configured ? 'Già configurato' : 'Non configurato'
+    const password = field('Password', '', 'password')
+    password.input.placeholder = connector.password_configured ? 'Già configurata' : 'Non configurata'
+    const installation = field('ID installazione', connector.installation_id)
+    const grid = document.createElement('div')
+    grid.className = 'admin-form-grid'
+    grid.append(enabled.wrapper, endpoint.wrapper, auth, username.wrapper, token.wrapper, password.wrapper, installation.wrapper)
+    const save = document.createElement('button'); save.textContent = 'SALVA CONNETTORE'
+    form.append(title, grid, save)
+    form.addEventListener('submit', async event => {
+      event.preventDefault(); save.disabled = true
+      try {
+        await request(`api/admin/connectors/${encodeURIComponent(connector.id)}`, {method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify({enabled:enabled.input.checked, base_url:endpoint.input.value.trim(), auth_mode:select.value, username:username.input.value.trim(), token:token.input.value, password:password.input.value, installation_id:installation.input.value.trim()})})
+        message(`${connector.name} salvato`); await loadConnectors()
+      } catch (error) { message(error.message) } finally { save.disabled = false }
+    })
+    list.append(form)
+  }
+  $('#addons-count').textContent = `${data.addons.length} rilevati`
+  $('#addons-list').replaceChildren(...data.addons.map(addon => {
+    const row = document.createElement('article'); row.className = 'admin-user-row'
+    const info = document.createElement('div'); const name = document.createElement('strong'); name.textContent = addon.name
+    const detail = document.createElement('small'); detail.textContent = `${addon.slug} · versione ${addon.version || '—'}`; info.append(name, detail)
+    const state = document.createElement('span'); state.textContent = addon.state.toUpperCase(); row.append(info, state); return row
+  }))
+}
+
+const accessLabels = {
+  auto:'Auto · comportamento rilevato', native_lock:'Lock nativo', relay_on_unlock:'Relè ON apre / OFF blocca',
+  relay_off_unlock:'Relè OFF apre / ON blocca', cover_open_unlock:'Cover OPEN apre / CLOSE blocca', cover_close_unlock:'Cover CLOSE apre / OPEN blocca'
+}
+async function loadAccessDevices() {
+  const data = await request('api/admin/access-devices')
+  $('#access-devices-status').textContent = data.status === 'online' ? `${data.items.length} dispositivi configurabili rilevati` : 'BusPro non disponibile: sono mostrati solo i profili già salvati.'
+  const byId = new Map(data.items.map(item => [item.device_id, item]))
+  for (const [device_id, profile] of Object.entries(data.profiles)) if (!byId.has(device_id)) byId.set(device_id, {device_id, name:profile.name || device_id, room:'Non rilevato', kind:'unknown', entity_domain:''})
+  const list = $('#access-devices-list'); list.replaceChildren()
+  for (const item of [...byId.values()].sort((a,b) => `${a.room} ${a.name}`.localeCompare(`${b.room} ${b.name}`, 'it'))) {
+    const profile = data.profiles[item.device_id] || {enabled:false, behavior:'auto', name:'', confirm:false}
+    const row = document.createElement('article'); row.className = 'access-device-card'; row.dataset.deviceId = item.device_id
+    const info = document.createElement('div'); const name = document.createElement('strong'); name.textContent = item.name
+    const detail = document.createElement('small'); detail.textContent = `${item.room || 'Senza stanza'} · ${item.entity_domain || item.kind} · ${item.device_id}`; info.append(name, detail)
+    const enabled = field('Gestisci come accesso', '', 'checkbox'); enabled.input.checked = profile.enabled
+    const displayName = field('Nome in e-Face', profile.name || '')
+    const behavior = document.createElement('select')
+    for (const [value,label] of Object.entries(accessLabels)) { const option=document.createElement('option'); option.value=value; option.textContent=label; option.selected=profile.behavior===value; behavior.append(option) }
+    const confirm = field('Chiedi conferma', '', 'checkbox'); confirm.input.checked = profile.confirm
+    row.append(info, enabled.wrapper, displayName.wrapper, behavior, confirm.wrapper); list.append(row)
+  }
+}
+
+$('#access-devices-form').addEventListener('submit', async event => {
+  event.preventDefault()
+  const items = [...document.querySelectorAll('.access-device-card')].map(row => ({device_id:row.dataset.deviceId, enabled:row.querySelectorAll('input[type=checkbox]')[0].checked, name:row.querySelector('input[type=text]').value.trim(), behavior:row.querySelector('select').value, confirm:row.querySelectorAll('input[type=checkbox]')[1].checked}))
+  try { await request('api/admin/access-devices', {method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({items})}); message('Profili di accesso salvati'); await loadAccessDevices() } catch(error) { message(error.message) }
+})
+
 async function initialize() {
   const status = await request('api/auth/status')
   if (status.enabled) {
@@ -1032,6 +1137,16 @@ async function initialize() {
   }
   $('#tools-admin-nav').hidden = status.enabled && status.role !== 'admin'
   if (status.enabled && status.role === 'admin') {
+    const connectors = document.createElement('button')
+    connectors.type = 'button'; connectors.id = 'connectors-tool'; connectors.className = 'tool-card'
+    connectors.innerHTML = '<span>⇄</span><div><b>Connettori esterni</b><small>Add-on, endpoint e configurazione portabile</small></div><i>›</i>'
+    connectors.addEventListener('click', async () => { try { await loadConnectors(); openPanel('connectors-config') } catch(error) { message(error.message) } })
+    const access = document.createElement('button')
+    access.type = 'button'; access.id = 'access-devices-tool'; access.className = 'tool-card'
+    access.innerHTML = '<span>⌁</span><div><b>Serrature e accessi</b><small>Regole per lock, switch, cover e relè</small></div><i>›</i>'
+    access.addEventListener('click', async () => { try { await loadAccessDevices(); openPanel('access-devices-config') } catch(error) { message(error.message) } })
+    $('#admin-tools .tools-grid').prepend(access)
+    $('#admin-tools .tools-grid').prepend(connectors)
     const composer = document.createElement('button')
     composer.type = 'button'
     composer.id = 'media-composer-tool'

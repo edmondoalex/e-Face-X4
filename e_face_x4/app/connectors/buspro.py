@@ -5,6 +5,7 @@ from typing import Any
 import httpx
 
 from ..config import ProviderConfig
+from ..installation_profile import access_profiles, translate_access_action
 from .base import Connector
 
 
@@ -36,6 +37,7 @@ def normalize_snapshot(payload: dict[str, Any]) -> dict[str, Any]:
             if key in source:
                 return source[key]
         return None
+    configured_access = access_profiles()
     for index, raw in enumerate(devices):
         if not isinstance(raw, dict):
             continue
@@ -46,8 +48,15 @@ def normalize_snapshot(payload: dict[str, Any]) -> dict[str, Any]:
         # Keep the configured presentation/group, while retaining the real HA
         # domain below for state and command routing.
         kind = "cover" if raw_kind == "lock" and entity_domain == "cover" else ("switch" if category.casefold() == "switch" else raw_kind)
+        transport_kind = kind
         room = str(raw.get("group") or "Senza stanza").strip() or "Senza stanza"
         name = str(raw.get("name") or raw.get("entity_id") or f"Dispositivo {index + 1}").strip()
+        device_id = str(raw.get("entity_id") or raw.get("id") or index)
+        access_profile = configured_access.get(device_id)
+        if access_profile and access_profile.get("enabled"):
+            kind = "lock"
+            if access_profile.get("name"):
+                name = str(access_profile["name"])
         if kind == "light":
             counts["lights"] += 1
         elif kind == "switch":
@@ -61,7 +70,6 @@ def normalize_snapshot(payload: dict[str, Any]) -> dict[str, Any]:
         room_key = room.casefold()
         room_entry = rooms.setdefault(room_key, {"name": room, "devices": 0})
         room_entry["devices"] += 1
-        device_id = str(raw.get("entity_id") or raw.get("id") or index)
         address = ".".join(str(raw.get(key)) for key in ("subnet_id", "device_id", "channel") if raw.get(key) is not None)
         state: Any = None
         unit = ""
@@ -83,9 +91,9 @@ def normalize_snapshot(payload: dict[str, Any]) -> dict[str, Any]:
             metrics = ha_state.get("metrics") if isinstance(ha_state.get("metrics"), dict) else {}
             battery = metrics.get("battery_level", battery)
         if state is None:
-            source = cover_states if kind == "cover" else light_states
-            if kind in sensor_sources:
-                source_name, default_unit = sensor_sources[kind]
+            source = cover_states if transport_kind == "cover" else light_states
+            if transport_kind in sensor_sources:
+                source_name, default_unit = sensor_sources[transport_kind]
                 candidate = payload.get(source_name)
                 source = candidate if isinstance(candidate, dict) else {}
                 unit = default_unit
@@ -104,6 +112,8 @@ def normalize_snapshot(payload: dict[str, Any]) -> dict[str, Any]:
             "state_key": entity_id or address,
             "dimmable": bool(raw.get("dimmable")), "brightness": brightness,
             "battery_percent": battery if kind == "lock" else None,
+            "access_behavior": str((access_profile or {}).get("behavior") or "auto"),
+            "confirm_action": bool((access_profile or {}).get("confirm")),
             "rgb_group": str(raw.get("rgb_group") or "").strip(),
             "rgb_channel": str(raw.get("rgb_channel") or "").strip().lower(),
         })
@@ -209,6 +219,7 @@ class BusproConnector(Connector):
     async def command(self, target_id: str, action: str, value: Any = None) -> dict[str, Any]:
         allowed = {"on", "off", "brightness", "open", "close", "stop", "set_position", "lock", "unlock"}
         action = str(action or "").strip().lower()
+        action = translate_access_action(access_profiles().get(str(target_id)), action)
         if action not in allowed:
             raise ValueError("azione non consentita")
         brightness_value: int | None = None

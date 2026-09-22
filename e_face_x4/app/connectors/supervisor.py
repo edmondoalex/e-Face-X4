@@ -39,6 +39,31 @@ async def discover_addon_url(target_slug: str, port: int, timeout_s: float) -> s
         return ""
 
 
+async def installed_addons(timeout_s: float) -> list[dict[str, Any]]:
+    """Return a redacted add-on inventory; never expose Supervisor authentication."""
+    token = str(os.environ.get("SUPERVISOR_TOKEN") or "").strip()
+    if not token:
+        return []
+    try:
+        async with httpx.AsyncClient(timeout=timeout_s, follow_redirects=False) as client:
+            response = await client.get("http://supervisor/addons", headers={"Authorization": f"Bearer {token}"})
+            response.raise_for_status()
+            payload = response.json()
+        data = payload.get("data") if isinstance(payload, dict) and isinstance(payload.get("data"), dict) else payload
+        addons = data.get("addons") if isinstance(data, dict) else []
+        return [
+            {
+                "slug": str(item.get("slug") or ""),
+                "name": str(item.get("name") or item.get("slug") or ""),
+                "version": str(item.get("version") or ""),
+                "state": str(item.get("state") or "unknown"),
+            }
+            for item in addons if isinstance(item, dict)
+        ]
+    except (httpx.HTTPError, ValueError):
+        return []
+
+
 def find_host_url(payload: dict[str, Any], port: int) -> str:
     """Return the first usable Home Assistant host address from Supervisor data."""
     data = payload.get("data") if isinstance(payload.get("data"), dict) else payload

@@ -2,6 +2,14 @@
 
 Stato: **DA FARE — requisito tassativo prima della distribuzione in campo**.
 
+### Incremento portabilità Admin — 22 settembre 2026
+
+La versione 2.21.221 introduce una prima sorgente di configurazione per-impianto in `/data/installation_profile.json`, scritta atomicamente con permessi ristretti. In **Amministrazione → Connettori esterni** l'installatore può configurare BusPro, eKonex Voice, e-Therm, ThermoMIND, Ksenia e SunMIND; token e password restano server-side e non sono restituiti alla UI. La stessa pagina mostra l'inventario redatto degli add-on ottenuto dal Supervisor (nome, slug, versione e stato), senza esporre il token Supervisor. I valori salvati dall'Admin prevalgono sulle opzioni iniziali dell'add-on, rendendo possibile cambiare impianto senza ricompilare e-Face.
+
+È disponibile anche **Amministrazione → Serrature e accessi**. Le entità BusPro `switch`, `cover` e `lock` possono essere associate a un comportamento esplicito (`lock` nativo, relè ON/OFF normale o invertito, cover OPEN/CLOSE normale o invertita), rinominate e protette con richiesta di conferma. Il trasporto reale resta distinto dalla presentazione: una cover mostrata come serratura continua a leggere lo stato cover. In assenza di profilo rimane il comportamento compatibile esistente. Test locali mirati: 13 verdi, inclusi persistenza, conservazione del segreto, stato cover e traduzione delle azioni. Non è stata eseguita alcuna azione sull'impianto live.
+
+Questo incremento **non chiude il requisito standalone**. Restano da migrare o rendere scopribili almeno: default WiiM e associazioni Control4, interni e gruppi Intercom ancora legati alla topologia pilota, configurazione DoorBird/Asterisk/TURN, associazioni sorgenti Control4 e qualsiasi ID/IP residuo individuato dall'audit. Ogni migrazione deve conservare i dati esistenti, offrire test read-only e distinguere chiaramente configurato, rilevato e verificato sul campo.
+
 ### Verifica di sola lettura — 14 settembre 2026
 
 Nell'impianto di prova e-Face 2.21.7 e Asterisk 6.2.0 sono avviati. Dall'add-on e-Face risultano raggiungibili Asterisk sulla porta 8088 e DoorBird sulla porta 80; l'identità DoorBird risponde con autenticazione Digest valida. TURN è configurato. Asterisk espone `/ws` e il dialplan `8290@default` instrada verso `control4-t3-ufficio-test`, `control4-t3-tavolo-test` e `8301`; questi tre endpoint esistono. L'interno personale `8302` risulta assegnato in e-Face ma ancora non provisionato e non è presente fra gli endpoint Asterisk. Gli endpoint `8301` e altri risultavano non registrati al momento del controllo: ciò non prova un guasto finché i client non sono connessi. Non sono state effettuate chiamate, ricariche SIP o modifiche a credenziali/configurazione live. Il prossimo gate è il provisioner Asterisk ristretto, con test locali di rollback e persistenza prima di qualsiasi attivazione live; poi prova reale di squillo/audio e solo successivamente video.

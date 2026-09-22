@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.21.221 — 2026-09-22
+
+- Aggiunge in Amministrazione l'inventario degli add-on Home Assistant e la configurazione persistente dei connettori esterni, senza esporre credenziali.
+- Aggiunge la sezione Serrature e accessi: switch, cover e lock possono essere presentati e comandati tramite profili specifici dell'impianto, eliminando la necessità di nuove eccezioni hardcoded.
+- Le configurazioni salvate dall'Admin risiedono in `/data/installation_profile.json` e prevalgono sulle sole opzioni iniziali dell'add-on.
+
 ## 2.21.220 — 2026-09-20
 
 - Scenari: Scene Studio occupa correttamente la finestra anche quando viene aperto dalla griglia di Strumenti, senza comprimere i contenuti.

@@ -13,7 +13,7 @@ import uuid
 from datetime import datetime, timedelta, timezone
 from html import escape
 from pathlib import Path
-from dataclasses import replace
+from dataclasses import asdict, replace
 from urllib.parse import quote, urlsplit
 from zoneinfo import ZoneInfo
 
@@ -62,6 +62,7 @@ from . import media_project
 from . import startup_settings
 from . import skyq_settings
 from . import skyq_icons
+from . import installation_profile
 from .connectors.soundcloud import SoundCloudClient
 from .media_preferences import apply_preferences, load_preferences, save_preferences
 from .source_icons import delete_source_icon, hidden_source_ids, load_builtin_source_icon, load_builtin_source_icon_by_id, load_source_icon, save_source_icon, set_source_hidden
@@ -72,11 +73,11 @@ from .connectors.local_media import LocalMediaConnector
 from .connectors.wiim import WiiMClient
 from .connectors import skyq as skyq_connector
 from .connectors.control4_media import cached_control4_icon, cached_control4_icon_path, cached_control4_source_label, control4_icon_path
-from .connectors.supervisor import discover_addon_url, discover_host_url
+from .connectors.supervisor import discover_addon_url, discover_host_url, installed_addons
 from .media_realtime import SharedMediaRealtime
 from .demo import dashboard as demo_dashboard
 
-VERSION = os.environ.get("EFACE_VERSION", "2.21.220")
+VERSION = os.environ.get("EFACE_VERSION", "2.21.221")
 STATIC = Path(__file__).parent / "static"
 logging.basicConfig(level=logging.WARNING, format="%(asctime)s %(levelname)s [e-face-x4] %(message)s")
 _reconnect_warning_at: dict[str, float] = {}
@@ -3598,6 +3599,73 @@ def create_app() -> FastAPI:
         except (OSError, ValueError) as exc:
             raise HTTPException(status_code=400, detail=str(exc))
         return {"ok": True, "players": len(saved)}
+
+    @app.get("/api/admin/connectors")
+    async def admin_connectors(request: Request) -> dict:
+        require_admin(request)
+        settings = load_settings()
+        labels = {
+            "buspro": "e-HDL BusPro MQTT",
+            "evoice": "eKonex Voice",
+            "etherm": "e-Therm",
+            "thermomind": "ThermoMIND",
+            "ksenia": "Ksenia",
+            "sunmind": "SunMIND",
+        }
+        connectors = []
+        for connector_id in installation_profile.CONNECTOR_IDS:
+            value = asdict(getattr(settings, connector_id))
+            connectors.append({
+                "id": connector_id,
+                "name": labels[connector_id],
+                "enabled": value["enabled"],
+                "base_url": value["base_url"],
+                "auth_mode": value["auth_mode"],
+                "username": value["username"],
+                "installation_id": value["installation_id"],
+                "token_configured": bool(value["token"]),
+                "password_configured": bool(value["password"]),
+            })
+        return {"connectors": connectors, "addons": await installed_addons(settings.request_timeout_s)}
+
+    @app.put("/api/admin/connectors/{connector_id}")
+    async def admin_save_connector(connector_id: str, request: Request, payload: dict) -> dict:
+        require_admin(request)
+        settings = load_settings()
+        if connector_id not in installation_profile.CONNECTOR_IDS:
+            raise HTTPException(status_code=404, detail="Connettore non trovato")
+        try:
+            installation_profile.save_connector(connector_id, payload, asdict(getattr(settings, connector_id)))
+        except (OSError, ValueError) as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        return {"ok": True}
+
+    @app.get("/api/admin/access-devices")
+    async def admin_access_devices(request: Request) -> dict:
+        require_admin(request)
+        settings = load_settings()
+        snapshot = await BusproConnector(settings.buspro, settings.request_timeout_s).snapshot()
+        candidates = [
+            {
+                "device_id": str(item.get("id") or ""),
+                "name": str(item.get("name") or item.get("id") or ""),
+                "room": str(item.get("room") or ""),
+                "kind": str(item.get("kind") or ""),
+                "entity_domain": str(item.get("entity_domain") or ""),
+            }
+            for item in snapshot.get("items", [])
+            if item.get("kind") in {"lock", "switch", "cover"}
+        ]
+        return {"status": snapshot.get("status"), "items": candidates, "profiles": installation_profile.access_profiles()}
+
+    @app.put("/api/admin/access-devices")
+    async def admin_save_access_devices(request: Request, payload: dict) -> dict:
+        require_admin(request)
+        try:
+            profiles = installation_profile.save_access_profiles(payload)
+        except (OSError, ValueError) as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        return {"ok": True, "profiles": profiles}
 
     @app.get("/api/installer/media-source-icons")
     async def installer_media_source_icons(request: Request) -> dict:

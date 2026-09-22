@@ -7,6 +7,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from .installation_profile import connector_overrides
+
 
 @dataclass(frozen=True)
 class ProviderConfig:
@@ -67,16 +69,19 @@ def load_settings() -> Settings:
     }
     raw_icons = raw.get("nav_icons") if isinstance(raw.get("nav_icons"), dict) else {}
     nav_icons = {key: str(raw_icons.get(key) or value).strip() for key, value in icon_defaults.items()}
+    overrides = connector_overrides()
+    def configured(name: str, fallback: Any) -> ProviderConfig:
+        return _provider(overrides.get(name, fallback))
     return Settings(
         home_name=str(raw.get("home_name") or "Casa").strip() or "Casa",
         installer_password=str(raw.get("installer_password") or ""),
         demo_mode=bool(raw.get("demo_mode", True)),
         request_timeout_s=timeout,
         nav_icons=nav_icons,
-        buspro=_provider(raw.get("buspro")),
-        evoice=_provider(raw.get("evoice")),
-        etherm=_provider(raw.get("etherm")),
-        thermomind=_provider(raw.get("thermomind", {"enabled": True})),
-        ksenia=_provider(raw.get("ksenia")),
-        sunmind=_provider(raw.get("sunmind")),
+        buspro=configured("buspro", raw.get("buspro")),
+        evoice=configured("evoice", raw.get("evoice")),
+        etherm=configured("etherm", raw.get("etherm")),
+        thermomind=configured("thermomind", raw.get("thermomind", {"enabled": True})),
+        ksenia=configured("ksenia", raw.get("ksenia")),
+        sunmind=configured("sunmind", raw.get("sunmind")),
     )
