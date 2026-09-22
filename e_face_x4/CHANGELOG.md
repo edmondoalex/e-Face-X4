@@ -1,5 +1,9 @@
 # Changelog
 
+## 2.21.245 — 2026-09-22
+
+- Widget e popup Lista della spesa, widget Agenda e pagina Agenda ora usano le variabili della palette card selezionata in Strumenti, eliminando gli sfondi e gli accenti azzurri fissi.
+
 ## 2.21.244 — 2026-09-22
 
 - Aggiunta la scelta `Una volta` / `Tutti i giorni` per le sveglie Alexa; nelle routine è disponibile l'azione dedicata `Imposta sveglia tutti i giorni`.

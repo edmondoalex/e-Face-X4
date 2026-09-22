@@ -31,3 +31,57 @@ dialog header,.media-sessions-dialog header,.media-zones-dialog footer{
 .media-sources,.remote-console .remote-nav{
   background-color:var(--user-card-field)!important
 }
+
+/* Lista della spesa e Agenda seguono la palette scelta in Strumenti. */
+body[data-card-theme] .home-shopping-card,
+body[data-card-theme] .home-agenda-card,
+body[data-card-theme] .home-shopping-dialog,
+body[data-card-theme] .alexa-agenda-card{
+  border-color:color-mix(in srgb,var(--user-card-accent) 28%,transparent)!important;
+  background:var(--user-card)!important;
+  box-shadow:0 16px 38px rgba(0,0,0,.28)!important
+}
+body[data-card-theme] .home-shopping-dialog>header,
+body[data-card-theme] .alexa-agenda-event{
+  background:var(--user-card-soft)!important
+}
+body[data-card-theme] .home-shopping-item,
+body[data-card-theme] .alexa-agenda-kinds{
+  background:var(--user-card-cell)!important
+}
+body[data-card-theme] .home-shopping-add,
+body[data-card-theme] .alexa-agenda-card input,
+body[data-card-theme] .alexa-agenda-card select{
+  background:var(--user-card-field)!important
+}
+body[data-card-theme] .home-shopping-copy small,
+body[data-card-theme] .home-shopping-open,
+body[data-card-theme] .home-shopping-dialog header small,
+body[data-card-theme] .alexa-agenda-view>.detail-header small,
+body[data-card-theme] .alexa-agenda-card small,
+body[data-card-theme] .home-agenda-copy small,
+body[data-card-theme] .home-agenda-open{
+  color:var(--user-card-accent)!important
+}
+body[data-card-theme] .home-shopping-art,
+body[data-card-theme] .home-agenda-art,
+body[data-card-theme] .alexa-agenda-mark,
+body[data-card-theme] .alexa-agenda-event i,
+body[data-card-theme] .alexa-agenda-kinds button.active,
+body[data-card-theme] .home-shopping-add button,
+body[data-card-theme] .alexa-agenda-submit{
+  background:var(--user-card-soft)!important;
+  color:var(--user-card-accent)!important
+}
+body[data-card-theme] .home-shopping-art b{
+  background:var(--user-card-accent)!important;
+  color:var(--user-card-field)!important
+}
+body[data-card-theme] .home-shopping-card:hover,
+body[data-card-theme] .home-agenda-card:hover,
+body[data-card-theme] .home-shopping-card:focus-visible,
+body[data-card-theme] .home-agenda-card:focus-visible,
+body[data-card-theme] .alexa-agenda-card input:focus,
+body[data-card-theme] .alexa-agenda-card select:focus{
+  border-color:var(--user-card-accent)!important
+}
