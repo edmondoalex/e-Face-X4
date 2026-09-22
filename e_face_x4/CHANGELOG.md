@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.21.247 — 2026-09-22
+
+- L'anteprima di Home dinamica rappresenta ora anche l'altezza configurata dei widget e mostra chiaramente entrambe le dimensioni (`L` e `H`).
+- I controlli di ogni widget espongono etichette separate per larghezza e altezza, con frazioni reali della griglia a 12 colonne.
+- L'Agenda mostra soltanto sveglie, timer e promemoria realmente attivi, senza creare schede per i sensori Alexa privi di evento.
+
 ## 2.21.246 — 2026-09-22
 
 - Aggiunto al componente Home Assistant `eface_alexa` il logo Alexa/e-Face X4 fornito, nelle varianti locali `brand/icon` e `brand/logo` supportate da Home Assistant 2026.3+.
