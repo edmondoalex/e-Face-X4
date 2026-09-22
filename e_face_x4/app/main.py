@@ -77,7 +77,7 @@ from .connectors.supervisor import discover_addon_url, discover_host_url, instal
 from .media_realtime import SharedMediaRealtime
 from .demo import dashboard as demo_dashboard
 
-VERSION = os.environ.get("EFACE_VERSION", "2.21.234")
+VERSION = os.environ.get("EFACE_VERSION", "2.21.235")
 STATIC = Path(__file__).parent / "static"
 logging.basicConfig(level=logging.WARNING, format="%(asctime)s %(levelname)s [e-face-x4] %(message)s")
 _reconnect_warning_at: dict[str, float] = {}
@@ -3163,12 +3163,40 @@ def create_app() -> FastAPI:
             logging.warning("Catalogo cover e-Control non disponibile")
             return []
 
+    async def routine_alexa_schedule_items(referenced: set[str] | None = None) -> list[dict]:
+        token = str(os.environ.get("SUPERVISOR_TOKEN") or "").strip()
+        if not token:
+            return []
+        headers = {"Authorization": f"Bearer {token}"}
+        try:
+            async with httpx.AsyncClient(timeout=8, follow_redirects=False, trust_env=False) as client:
+                if referenced is None:
+                    response = await client.get("http://supervisor/core/api/states", headers=headers)
+                    response.raise_for_status()
+                    states = response.json()
+                else:
+                    states = []
+                    for device_id in sorted(referenced):
+                        if routines.ALEXA_SCHEDULE_ID.fullmatch(device_id):
+                            response = await client.get(f"http://supervisor/core/api/states/{device_id}", headers=headers)
+                            response.raise_for_status()
+                            states.append(response.json())
+            return [{"id": item["entity_id"], "entity_id": item["entity_id"],
+                     "name": str((item.get("attributes") or {}).get("friendly_name") or item["entity_id"]),
+                     "room": "Alexa", "kind": "alexa_schedule", "provider": "home_assistant",
+                     "state": item.get("state"), "device_class": (item.get("attributes") or {}).get("device_class")}
+                    for item in states if isinstance(item, dict) and routines.ALEXA_SCHEDULE_ID.fullmatch(str(item.get("entity_id") or ""))]
+        except (httpx.HTTPError, ValueError, TypeError):
+            logging.warning("Sensori agenda Alexa non disponibili nel catalogo routine")
+            return []
+
     async def routine_devices(request: Request | None = None, referenced: set[str] | None = None) -> list[dict]:
         async def with_scenarios(items: list[dict]) -> list[dict]:
             if request is not None or (referenced and any(identifier.startswith("light-scenario:") for identifier in referenced)):
                 items.extend(await routine_scenario_items())
             extra = await asyncio.gather(routine_bypass_items(referenced if request is None else None),
-                                         routine_ha_cover_items(referenced if request is None else None))
+                                         routine_ha_cover_items(referenced if request is None else None),
+                                         routine_alexa_schedule_items(referenced if request is None else None))
             for group in extra:
                 items.extend(group)
             return items

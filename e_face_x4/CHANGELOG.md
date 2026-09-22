@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.21.235 — 2026-09-22
+
+- Aggiunti alle Routine i trigger temporali «Sveglia / timer / promemoria Alexa», selezionabili per singolo sensore Echo e con anticipo o ritardo da -180 a +180 minuti.
+- Il motore legge il timestamp e-Control, avvia la routine una sola volta nella finestra dell'evento e conserva una chiave evento stabile contro i doppi avvii.
+
 ## 2.21.234 — 2026-09-22
 
 - La selezione di un prodotto lo sposta immediatamente e stabilmente tra «Da comprare» e «Completato».

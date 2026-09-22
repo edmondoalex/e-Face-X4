@@ -225,6 +225,21 @@ def test_visual_editor_exposes_choose_branches_without_dropping_advanced_routine
                    'data-choose-condition', 'function collectStepRow', 'function renderStepRow',
                    'const hasAdvancedFlow = spec => !canOpenVisual(spec)'):
         assert marker in script
+
+
+def test_alexa_schedule_trigger_validates_and_is_exposed_in_editor():
+    sensor = {"id": "sensor.echo_cucina_next_alarm", "entity_id": "sensor.echo_cucina_next_alarm",
+              "name": "Echo Cucina Prossima sveglia", "room": "Alexa", "kind": "alexa_schedule",
+              "provider": "home_assistant", "state": "2026-09-22T18:30:00+02:00"}
+    spec = sample()
+    spec["triggers"] = [{"type": "alexa_schedule", "device_id": sensor["id"], "offset_minutes": -10}]
+    review = routines.validate(spec, catalog() + [sensor])
+    assert review["errors"] == []
+    assert review["spec"]["triggers"] == spec["triggers"]
+    assert routines.ALEXA_SCHEDULE_ID.fullmatch(sensor["id"])
+    script = (Path(__file__).resolve().parents[1] / "app/static/assets/routine-tools.js").read_text(encoding="utf-8")
+    assert "Sveglia / timer / promemoria Alexa" in script
+    assert "alexaScheduleFields" in script
     assert "if (!canOpenVisual(draft))" in script
 
 

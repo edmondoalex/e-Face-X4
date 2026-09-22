@@ -50,6 +50,7 @@ SENSITIVE_WORDS = re.compile(r"portone|cancello|garage|serratura|allarme|alarm|g
 SECRET_TEXT = re.compile(r"(?i)(password|token|secret|authorization)\s*[:=]\s*\S+|https?://\S+")
 BYPASS_ID = re.compile(r"switch\.e_safe_zone_[0-9]{1,3}_bypass_ctrl\Z")
 HA_COVER_ID = re.compile(r"cover\.buspro_cover_[a-z0-9_]+\Z")
+ALEXA_SCHEDULE_ID = re.compile(r"sensor\.[a-z0-9_]+_(?:next_alarm|next_timer|next_reminder)\Z")
 
 
 def _path() -> Path:
@@ -645,6 +646,7 @@ def validate(payload: dict, devices: list[dict], others: list[dict] = (), *, sol
             errors.append("Attivazione non valida")
             continue
         trigger_fields = {"time": {"type", "at"}, "doorbird": {"type", "event"}, "sun": {"type", "event", "offset_minutes"},
+                          "alexa_schedule": {"type", "device_id", "offset_minutes"},
                           "remote": {"type", "device_id", "source_id", "command"}, "state": {"type", "device_id", "to"}}
         trigger_kind = raw.get("type") if isinstance(raw.get("type"), str) else ""
         extra = set(raw) - trigger_fields.get(trigger_kind, set(raw))
@@ -666,6 +668,14 @@ def validate(payload: dict, devices: list[dict], others: list[dict] = (), *, sol
             rule = _solar_rule(raw, errors)
             if rule:
                 triggers.append(rule)
+        elif raw.get("type") == "alexa_schedule":
+            device_id = str(raw.get("device_id") or "")
+            offset = raw.get("offset_minutes", 0)
+            if (device_id not in catalog or catalog.get(device_id, {}).get("kind") != "alexa_schedule" or
+                    isinstance(offset, bool) or not isinstance(offset, int) or not -180 <= offset <= 180):
+                errors.append("Evento Alexa non valido")
+            else:
+                triggers.append({"type": "alexa_schedule", "device_id": device_id, "offset_minutes": offset})
         elif raw.get("type") == "remote":
             device_id = str(raw.get("device_id") or "")
             source_id = raw.get("source_id", 0)
@@ -929,6 +939,8 @@ def validate(payload: dict, devices: list[dict], others: list[dict] = (), *, sol
             descriptions.append(f"a {'alba' if trigger['event'] == 'sunrise' else 'tramonto'} {trigger['offset_minutes']:+d} minuti")
         elif trigger["type"] == "remote":
             descriptions.append(f"quando e-Face invia il tasto {trigger['command']} a {catalog[trigger['device_id']].get('name')}")
+        elif trigger["type"] == "alexa_schedule":
+            descriptions.append(f"all'evento {catalog[trigger['device_id']].get('name')} {trigger['offset_minutes']:+d} minuti")
         else:
             descriptions.append(f"quando {catalog[trigger['device_id']].get('name')} diventa {trigger['to']}")
     narrative = "La casa avvierà la routine " + (" oppure ".join(descriptions) if descriptions else "solo dopo una configurazione valida") + ". "
@@ -1246,6 +1258,7 @@ class Engine:
                 continue
             matched = ""
             matched_type = ""
+            matched_key = ""
             for trigger in routine["spec"]["triggers"]:
                 if trigger["type"] == "state":
                     device_id = trigger["device_id"]
@@ -1265,9 +1278,21 @@ class Engine:
                     if target <= now < target + timedelta(minutes=1):
                         matched = f"{'Alba' if trigger['event'] == 'sunrise' else 'Tramonto'} {trigger['offset_minutes']:+d} minuti"
                         matched_type = "sun"
+                elif trigger["type"] == "alexa_schedule":
+                    device_id = trigger["device_id"]
+                    raw_state = current.get(device_id)
+                    try:
+                        target = datetime.fromisoformat(str(raw_state).replace("Z", "+00:00")) + timedelta(minutes=trigger["offset_minutes"])
+                        now = datetime.now(target.tzinfo) if target.tzinfo else local.replace(tzinfo=None)
+                        if target <= now < target + timedelta(minutes=1):
+                            matched = f"{devices[device_id].get('name')} {trigger['offset_minutes']:+d} minuti"
+                            matched_type = "alexa_schedule"
+                            matched_key = f"alexa:{device_id}:{raw_state}:{trigger['offset_minutes']}"
+                    except (TypeError, ValueError):
+                        pass
             if not matched:
                 continue
-            trigger_key = local.strftime("%Y-%m-%d") + ":" + matched if matched_type == "sun" else local.strftime("%Y-%m-%d %H:%M") + ":" + matched if matched_type == "time" else f"state:{uuid.uuid4()}"
+            trigger_key = matched_key or (local.strftime("%Y-%m-%d") + ":" + matched if matched_type == "sun" else local.strftime("%Y-%m-%d %H:%M") + ":" + matched if matched_type == "time" else f"state:{uuid.uuid4()}")
             self._start(routine, matched, trigger_key, devices)
         self.previous = current
 
