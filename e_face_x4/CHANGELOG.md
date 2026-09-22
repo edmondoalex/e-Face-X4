@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.21.229 — 2026-09-22
+
+- La Lista della spesa aggiorna subito card e popup dopo aggiunta, spunta, ripristino o eliminazione, quindi si riconcilia automaticamente con la risposta Alexa dopo 1,8, 3,5 e 6 secondi.
+- Palette resa più sobria e coerente con e-Face; aggiunta la voce “Spesa” con carrello e contatore nella barra principale, ordinabile e disattivabile dagli Strumenti.
+- Rimossi dalla UI email, ID entità e nomi account; gli elementi in sincronizzazione mostrano uno stato esplicito e ogni prodotto ha un'icona contestuale.
+
 ## 2.21.228 — 2026-09-22
 
 - Ridisegnata la Lista della spesa con card più compatta e colorata, popup operativo a tutto spazio e nessuna email o entità tecnica mostrata.

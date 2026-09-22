@@ -460,27 +460,32 @@ function renderWeather(data){const current=data.current||{},daily=data.daily||{}
   refreshHomeEventTimes()
 }
 let homeShoppingBusy=false
+let homeShoppingHoldUntil=0
+function homeShoppingProductIcon(summary){const value=String(summary||'').toLocaleLowerCase('it');if(/latte|acqua|vino|birra|succo|bibita|olio/.test(value))return'mdi:bottle-soda-outline';if(/caffè|tè|tis[aà]na/.test(value))return'mdi:coffee-outline';if(/pane|pasta|riso|farina|biscott|cracker|grissin/.test(value))return'mdi:food-croissant';if(/mela|pera|banana|frutta|verdura|insalata|pomodor/.test(value))return'mdi:food-apple-outline';if(/detersiv|sapone|carta|pellicola|spugna/.test(value))return'mdi:spray-bottle';return'mdi:basket-outline'}
 async function refreshHomeShoppingList(full=true){
   if(homeShoppingBusy)return
+  if(!full&&Date.now()<homeShoppingHoldUntil)return
   homeShoppingBusy=true
   try{
     const response=await fetch(apiUrl('api/home/todo'),{cache:'no-store'}),data=await response.json()
     if(!response.ok)throw new Error(data.detail||`HTTP ${response.status}`)
     const active=(data.items||[]).filter(item=>item.status!=='completed'),completed=(data.items||[]).filter(item=>item.status==='completed')
     $('#home-shopping-count').textContent=String(active.length)
+    const navCount=$('#shopping-nav-count');if(navCount){navCount.textContent=String(active.length);navCount.hidden=!active.length}
     $('#home-shopping-name').textContent='Lista della spesa'
     $('#home-shopping-preview').textContent=active.slice(0,3).map(item=>item.summary).join(' · ')||'Nessun articolo da acquistare'
     $('#home-shopping-dialog-title').textContent='Lista della spesa'
-    if(full)$('#home-shopping-items').innerHTML=[...active,...completed].map(item=>`<div class="home-shopping-item ${item.status==='completed'?'completed':''}" data-todo-uid="${escAttribute(item.uid)}"><button type="button" class="home-shopping-check" data-todo-action="${item.status==='completed'?'restore':'complete'}" aria-label="${item.status==='completed'?'Ripristina':'Completa'} ${escAttribute(item.summary)}"><i>${item.status==='completed'?'✓':''}</i></button><strong>${esc(item.summary)}</strong><button type="button" class="home-shopping-remove" data-todo-action="remove" aria-label="Elimina ${escAttribute(item.summary)}"><span class="mdi-mask" style="${mdiStyle('mdi:delete-outline','delete-outline')}"></span></button></div>`).join('')||'<div class="home-shopping-empty"><b>✓</b><strong>Lista completata</strong><span>Aggiungi qualcosa quando ti serve.</span></div>'
+    if(full)$('#home-shopping-items').innerHTML=[...active,...completed].map(item=>`<div class="home-shopping-item ${item.status==='completed'?'completed':''}" data-todo-uid="${escAttribute(item.uid)}"><button type="button" class="home-shopping-check" data-todo-action="${item.status==='completed'?'restore':'complete'}" aria-label="${item.status==='completed'?'Ripristina':'Completa'} ${escAttribute(item.summary)}"><i>${item.status==='completed'?'✓':''}</i></button><span class="home-shopping-product-icon mdi-mask" style="${mdiStyle(homeShoppingProductIcon(item.summary),'basket-outline')}"></span><strong>${esc(item.summary)}</strong><button type="button" class="home-shopping-remove" data-todo-action="remove" aria-label="Elimina ${escAttribute(item.summary)}"><span class="mdi-mask" style="${mdiStyle('mdi:delete-outline','delete-outline')}"></span></button></div>`).join('')||'<div class="home-shopping-empty"><b>✓</b><strong>Lista completata</strong><span>Aggiungi qualcosa quando ti serve.</span></div>'
   }catch(error){$('#home-shopping-count').textContent='—';$('#home-shopping-name').textContent='Lista della spesa';$('#home-shopping-preview').textContent='Lista momentaneamente non disponibile';if(full)$('#home-shopping-items').innerHTML=`<p class="home-insight-empty home-shopping-error">${esc(error.message)}</p>`}
   finally{homeShoppingBusy=false}
 }
-async function homeShoppingCommand(path,options){const response=await fetch(apiUrl(path),options),data=await response.json().catch(()=>({}));if(!response.ok)throw new Error(data.detail||`HTTP ${response.status}`);await refreshHomeShoppingList(true)}
+function scheduleHomeShoppingRefresh(){homeShoppingHoldUntil=Date.now()+6500;for(const delay of [1800,3500,6000])setTimeout(()=>refreshHomeShoppingList(true),delay)}
+async function homeShoppingCommand(path,options){const response=await fetch(apiUrl(path),options),data=await response.json().catch(()=>({}));if(!response.ok)throw new Error(data.detail||`HTTP ${response.status}`);scheduleHomeShoppingRefresh()}
 $('#home-shopping-list')?.addEventListener('click',async()=>{const dialog=$('#home-shopping-dialog');dialog.showModal();await refreshHomeShoppingList(true);$('#home-shopping-input').focus()})
 $('#home-shopping-close')?.addEventListener('click',()=>$('#home-shopping-dialog').close())
 $('#home-shopping-dialog')?.addEventListener('click',(event)=>{if(event.target===$('#home-shopping-dialog'))event.currentTarget.close()})
-$('#home-shopping-add')?.addEventListener('submit',async(event)=>{event.preventDefault();const input=$('#home-shopping-input'),summary=input.value.trim();if(!summary)return;try{await homeShoppingCommand('api/home/todo/items',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({summary})});input.value='';input.focus()}catch(error){notify(error.message)}})
-$('#home-shopping-items')?.addEventListener('click',async(event)=>{const row=event.target.closest('[data-todo-uid]'),button=event.target.closest('[data-todo-action]');if(!row||!button)return;button.disabled=true;try{await homeShoppingCommand('api/home/todo/item',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({uid:row.dataset.todoUid,action:button.dataset.todoAction})})}catch(error){button.disabled=false;notify(error.message)}})
+$('#home-shopping-add')?.addEventListener('submit',async(event)=>{event.preventDefault();const input=$('#home-shopping-input'),summary=input.value.trim();if(!summary)return;const list=$('#home-shopping-items'),before=Number($('#home-shopping-count').textContent)||0;input.value='';list.insertAdjacentHTML('afterbegin',`<div class="home-shopping-item pending"><button type="button" class="home-shopping-check" disabled><i></i></button><span class="home-shopping-product-icon mdi-mask" style="${mdiStyle(homeShoppingProductIcon(summary),'basket-outline')}"></span><strong>${esc(summary)}</strong><span class="home-shopping-sync">SALVATAGGIO…</span></div>`);$('#home-shopping-count').textContent=String(before+1);$('#home-shopping-preview').textContent=summary;try{await homeShoppingCommand('api/home/todo/items',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({summary})});input.focus()}catch(error){notify(error.message);await refreshHomeShoppingList(true)}})
+$('#home-shopping-items')?.addEventListener('click',async(event)=>{const row=event.target.closest('[data-todo-uid]'),button=event.target.closest('[data-todo-action]');if(!row||!button)return;const action=button.dataset.todoAction,before=Number($('#home-shopping-count').textContent)||0;row.classList.add('pending');button.disabled=true;if(action==='remove'||action==='complete'){row.remove();$('#home-shopping-count').textContent=String(Math.max(0,before-1))}else if(action==='restore'){$('#home-shopping-count').textContent=String(before+1);row.remove()}try{await homeShoppingCommand('api/home/todo/item',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({uid:row.dataset.todoUid,action})})}catch(error){notify(error.message);await refreshHomeShoppingList(true)}})
 function refreshHomeEventTimes(){
   fetch(apiUrl('api/home/event-times'),{cache:'no-store'}).then(response=>response.ok?response.json():Promise.reject()).then(data=>{
     for(const [kind,selector] of Object.entries({camera:'#home-camera-event',doorbell:'#home-doorbell-event',motion:'#home-motion-event'})){
@@ -2455,6 +2460,7 @@ document.querySelectorAll('.rail button').forEach((button) => button.addEventLis
   if (button.dataset.view === 'energy') openEnergy()
   if (button.dataset.view === 'heating') openHeatingPage()
   if (button.dataset.view === 'security') openDevices('Sicurezza', organizedDevices('security',currentDevices.filter((device) => deviceInCategory(device, 'security'))))
+  if (button.dataset.view === 'shopping') { $('#home-shopping-dialog').showModal(); refreshHomeShoppingList(true) }
 }))
 $('#widgets').addEventListener('click', (event) => {
   const button = event.target.closest('[data-kind]')
