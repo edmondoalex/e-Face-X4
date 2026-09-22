@@ -24,7 +24,13 @@ ATTR_DURATION = "duration"
 ATTR_LABEL = "label"
 
 DEVICE_SCHEMA = {vol.Required(ATTR_DEVICE_ID): cv.string}
-TIMED_SCHEMA = vol.Schema(DEVICE_SCHEMA | {vol.Required(ATTR_TIMESTAMP): cv.datetime})
+TIMED_SCHEMA = vol.Schema(
+    DEVICE_SCHEMA
+    | {
+        vol.Required(ATTR_TIMESTAMP): cv.datetime,
+        vol.Optional("recurrence", default="once"): vol.In({"once", "daily"}),
+    }
+)
 TIMER_SCHEMA = vol.Schema(
     DEVICE_SCHEMA
     | {
@@ -114,6 +120,8 @@ async def _write_notification(call: ServiceCall, kind: str) -> None:
             "extensions": [],
             "endpointId": f"{serial}@{device_type}",
         }
+        if call.data.get("recurrence") == "daily":
+            alarm_payload["trigger"]["recurrence"] = {"freq": "DAILY", "byDay": []}
         try:
             _, response = await wrapper.session_request(
                 HTTPMethod.POST,
@@ -167,6 +175,10 @@ async def _list_notifications(call: ServiceCall) -> dict[str, Any]:
         identifier = str(record.get("notificationIndex") or record.get("id") or "")
         if not identifier:
             continue
+        trigger = record.get("trigger") if isinstance(record.get("trigger"), dict) else {}
+        scheduled_time = trigger.get("scheduledTime")
+        if not scheduled_time and record.get("originalDate") and record.get("originalTime"):
+            scheduled_time = f"{record['originalDate']}T{str(record['originalTime']).removesuffix('.000')}"
         items.append(
             {
                 "id": identifier,
@@ -174,6 +186,7 @@ async def _list_notifications(call: ServiceCall) -> dict[str, Any]:
                 "status": record.get("status"),
                 "label": record.get("reminderLabel") or record.get("timerLabel") or record.get("originalLabel"),
                 "alarm_time": record.get("alarmTime"),
+                "scheduled_time": scheduled_time,
                 "remaining_ms": record.get("remainingTime"),
             }
         )

@@ -10,6 +10,12 @@ create_alarm:
       required: true
       selector:
         datetime:
+    recurrence:
+      selector:
+        select:
+          options:
+            - once
+            - daily
 create_timer:
   name: Crea timer Alexa
   fields:

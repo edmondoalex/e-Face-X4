@@ -30,7 +30,7 @@ SAFE_ACTIONS = {
     "light": {"on", "off", "brightness"},
     "switch": {"on", "off"},
     "media_player": {"media_play", "media_pause", "media_stop", "media_next", "media_previous", "turn_off", "set_volume", "volume_mute", "volume_unmute", "select_source", "remote_command", "dnd_on", "dnd_off", "tts"},
-    "alexa_device": {"set_alarm", "set_timer", "set_reminder", "cancel_alarm", "cancel_timer", "cancel_reminder"},
+    "alexa_device": {"set_alarm", "set_daily_alarm", "set_timer", "set_reminder", "cancel_alarm", "cancel_timer", "cancel_reminder"},
     "climate": {"set_target"},
     "cover": {"open", "close", "stop", "set_position"},
     "lock": {"lock", "unlock"},
@@ -45,7 +45,7 @@ ACTION_LABELS = {"on": "accendere", "off": "spegnere", "brightness": "regolare l
                  "media_next": "passare al brano successivo", "media_previous": "tornare al brano precedente", "tts": "pronunciare un messaggio su",
                  "select_source": "selezionare una sorgente su", "remote_command": "premere un tasto telecomando su",
                  "dnd_on": "attivare Non disturbare su", "dnd_off": "disattivare Non disturbare su",
-                 "set_alarm": "impostare una sveglia su", "set_timer": "impostare un timer su", "set_reminder": "impostare un promemoria su",
+                 "set_alarm": "impostare una sveglia su", "set_daily_alarm": "impostare una sveglia giornaliera su", "set_timer": "impostare un timer su", "set_reminder": "impostare un promemoria su",
                  "cancel_alarm": "cancellare la prossima sveglia da", "cancel_timer": "cancellare il prossimo timer da", "cancel_reminder": "cancellare il prossimo promemoria da",
                  "lock": "bloccare", "unlock": "sbloccare", "set_position": "posizionare"}
 REMOTE_PLAYER_COMMANDS = {"media_play": "play", "media_pause": "pause", "media_stop": "stop", "media_next": "next", "media_previous": "previous", "turn_off": "turn_off", "volume_mute": "mute", "volume_unmute": "mute"}
@@ -790,7 +790,7 @@ def validate(payload: dict, devices: list[dict], others: list[dict] = (), *, sol
                     errors.append(f"{device.get('name')}: temperatura fuori dai limiti 5–35 °C")
                     continue
                 value = round(float(value), 1)
-            elif action in {"tts", "set_alarm", "set_timer", "set_reminder"}:
+            elif action in {"tts", "set_alarm", "set_daily_alarm", "set_timer", "set_reminder"}:
                 value = str(value or "").strip()
                 if not value or len(value) > 300:
                     errors.append(f"{device.get('name')}: testo del comando Alexa mancante o troppo lungo")
@@ -833,7 +833,7 @@ def validate(payload: dict, devices: list[dict], others: list[dict] = (), *, sol
                 warnings.append(f"{device.get('name')}: verifica che lo switch non alimenti un dispositivo critico")
             if action == "set_volume" and value is not None and value > 70:
                 warnings.append(f"{device.get('name')}: volume elevato ({value}%) percepibile dalle persone presenti")
-            if action in {"tts", "set_alarm", "set_timer", "set_reminder"}:
+            if action in {"tts", "set_alarm", "set_daily_alarm", "set_timer", "set_reminder"}:
                 warnings.append(f"{device.get('name')}: il messaggio vocale potrebbe essere sentito dalle persone presenti")
             if action == "remote_command":
                 warnings.append(f"{device.get('name')}: il telecomando richiede che la sorgente video selezionata sia attiva al momento dell'esecuzione")

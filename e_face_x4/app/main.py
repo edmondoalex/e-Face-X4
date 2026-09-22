@@ -77,7 +77,7 @@ from .connectors.supervisor import discover_addon_url, discover_host_url, instal
 from .media_realtime import SharedMediaRealtime
 from .demo import dashboard as demo_dashboard
 
-VERSION = os.environ.get("EFACE_VERSION", "2.21.243")
+VERSION = os.environ.get("EFACE_VERSION", "2.21.244")
 STATIC = Path(__file__).parent / "static"
 logging.basicConfig(level=logging.WARNING, format="%(asctime)s %(levelname)s [e-face-x4] %(message)s")
 _reconnect_warning_at: dict[str, float] = {}
@@ -2369,6 +2369,11 @@ def create_app() -> FastAPI:
         device = next((item for item in devices if item["device_id"] == device_id), None)
         if not device: raise HTTPException(status_code=404, detail="Dispositivo Alexa non disponibile")
         service_name, service_data = alexa_schedule_service(kind, str(payload.get("value") or ""))
+        if kind == "alarm":
+            recurrence = str(payload.get("recurrence") or "once")
+            if recurrence not in {"once", "daily"}:
+                raise HTTPException(status_code=400, detail="Ripetizione Alexa non valida")
+            service_data["recurrence"] = recurrence
         await home_assistant_service("eface_alexa", service_name, {"device_id": device_id, **service_data})
         return {"ok": True, "confirmed": True, "message": "Inserimento confermato da Alexa"}
 
@@ -3390,7 +3395,7 @@ def create_app() -> FastAPI:
 
     async def routine_command(device_id: str, action: str, value: object) -> object:
         if device_id.startswith("alexa-device:"):
-            kind = {"set_alarm": "alarm", "set_timer": "timer", "set_reminder": "reminder",
+            kind = {"set_alarm": "alarm", "set_daily_alarm": "alarm", "set_timer": "timer", "set_reminder": "reminder",
                     "cancel_alarm": "alarm", "cancel_timer": "timer", "cancel_reminder": "reminder"}.get(action)
             if not kind: raise ValueError("Comando Alexa non consentito")
             ha_device_id = device_id.split(":", 1)[1]
@@ -3400,6 +3405,7 @@ def create_app() -> FastAPI:
                 await home_assistant_service("eface_alexa", "delete_next_notification", {"device_id": ha_device_id, "kind": kind})
                 return {"ok": True}
             service_name, service_data = alexa_schedule_service(kind, str(value or ""))
+            if action == "set_daily_alarm": service_data["recurrence"] = "daily"
             await home_assistant_service("eface_alexa", service_name, {"device_id": ha_device_id, **service_data})
             return {"ok": True}
         if routines.HA_COVER_ID.fullmatch(device_id):

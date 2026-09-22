@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.21.244 — 2026-09-22
+
+- Aggiunta la scelta `Una volta` / `Tutti i giorni` per le sveglie Alexa; nelle routine è disponibile l'azione dedicata `Imposta sveglia tutti i giorni`.
+- Gli eventi Alexa nel pannello Agenda mostrano anche l'orario del nuovo formato Alerts v1.
+
 ## 2.21.243 — 2026-09-22
 
 - Alexa Alerts conferma la creazione con HTTP `201 Created`; e-Control ora riconosce correttamente questa risposta invece di mostrarla come errore 500.
