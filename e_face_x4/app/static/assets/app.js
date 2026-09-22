@@ -453,17 +453,18 @@ let homeImagesLoadedAt=0
 const weatherMeta=(code)=>{code=Number(code);if(code===0)return['Sereno','☀️','sunny'];if([1,2].includes(code))return['Poco nuvoloso','🌤️','cloudy'];if(code===3)return['Nuvoloso','☁️','cloudy'];if([45,48].includes(code))return['Nebbia','🌫️','fog'];if(code>=51&&code<=67)return['Pioggia','🌧️','rain'];if(code>=71&&code<=77)return['Neve','🌨️','snow'];if(code>=80&&code<=82)return['Rovesci','🌦️','rain'];if(code>=85&&code<=86)return['Neve','❄️','snow'];if(code>=95)return['Temporale','⛈️','storm'];return['Variabile','🌥️','cloudy']}
 function renderWeather(data){const current=data.current||{},daily=data.daily||{},meta=weatherMeta(current.weather_code),card=$('#home-weather-widget');card.dataset.weather=meta[2];$('#home-weather-place').textContent=[data.name,data.area].filter(Boolean).join(' · ');$('#home-weather-clock').textContent=new Intl.DateTimeFormat('it-IT',{hour:'2-digit',minute:'2-digit',timeZone:data.timezone||undefined}).format(new Date());$('#home-weather-icon').textContent=meta[1];$('#home-weather-state').textContent=meta[0];$('#home-weather-temperature').textContent=`${Math.round(Number(current.temperature_2m))}°`;$('#home-weather-detail').textContent=`Percepita ${Math.round(Number(current.apparent_temperature))}° · UR ${Math.round(Number(current.relative_humidity_2m))}% · Vento ${Math.round(Number(current.wind_speed_10m))} km/h`;const days=daily.time||[];$('#home-weather-forecast').innerHTML=days.slice(0,5).map((date,index)=>{const item=weatherMeta((daily.weather_code||[])[index]);const day=new Intl.DateTimeFormat('it-IT',{weekday:'short'}).format(new Date(`${date}T12:00:00`)).replace('.','').toUpperCase();return `<div><small>${day}</small><i class="weather-symbol">${item[1]}</i><span><b>${Math.round(Number((daily.temperature_2m_max||[])[index]))}°</b> ${Math.round(Number((daily.temperature_2m_min||[])[index]))}°</span></div>`}).join('')}async function refreshHomeHighlights(){
   const now=Date.now()
-  if(!$('#home-shopping-list')?.classList.contains('widget-user-hidden')) refreshHomeShoppingList(false)
+  if(!$('#home-shopping-list')?.classList.contains('widget-user-hidden')) refreshHomeShoppingList(true)
   if(now-homeWeatherLoadedAt>=600000){homeWeatherLoadedAt=now;fetch(apiUrl('api/home/weather'),deviceFetchOptions({cache:'no-store'})).then(async(response)=>{if(!response.ok)throw new Error();renderWeather(await response.json())}).catch(()=>{$('#home-weather-state').textContent='Configura il meteo in Strumenti';$('#home-weather-temperature').textContent='--°';$('#home-weather-forecast').innerHTML=''})}
   if(now-homeImagesLoadedAt<15000)return;homeImagesLoadedAt=now
   ;['camera','doorbell','motion'].forEach(refreshHomeEventImage)
   refreshHomeEventTimes()
 }
 let homeShoppingBusy=false
+let homeShoppingNeedsFull=false
 let homeShoppingHoldUntil=0
 function homeShoppingProductIcon(summary){const value=String(summary||'').toLocaleLowerCase('it');if(/latte|acqua|vino|birra|succo|bibita|olio/.test(value))return'mdi:bottle-soda-outline';if(/caffè|tè|tis[aà]na/.test(value))return'mdi:coffee-outline';if(/pane|pasta|riso|farina|biscott|cracker|grissin/.test(value))return'mdi:food-croissant';if(/mela|pera|banana|frutta|verdura|insalata|pomodor/.test(value))return'mdi:food-apple-outline';if(/detersiv|sapone|carta|pellicola|spugna/.test(value))return'mdi:spray-bottle';return'mdi:basket-outline'}
 async function refreshHomeShoppingList(full=true){
-  if(homeShoppingBusy)return
+  if(homeShoppingBusy){if(full)homeShoppingNeedsFull=true;return}
   if(!full&&Date.now()<homeShoppingHoldUntil)return
   homeShoppingBusy=true
   try{
@@ -477,7 +478,7 @@ async function refreshHomeShoppingList(full=true){
     $('#home-shopping-dialog-title').textContent='Lista della spesa'
     if(full)$('#home-shopping-items').innerHTML=[...active,...completed].map(item=>`<div class="home-shopping-item ${item.status==='completed'?'completed':''}" data-todo-uid="${escAttribute(item.uid)}"><button type="button" class="home-shopping-check" data-todo-action="${item.status==='completed'?'restore':'complete'}" aria-label="${item.status==='completed'?'Ripristina':'Completa'} ${escAttribute(item.summary)}"><i>${item.status==='completed'?'✓':''}</i></button><span class="home-shopping-product-icon mdi-mask" style="${mdiStyle(homeShoppingProductIcon(item.summary),'basket-outline')}"></span><strong>${esc(item.summary)}</strong><button type="button" class="home-shopping-remove" data-todo-action="remove" aria-label="Elimina ${escAttribute(item.summary)}"><span class="mdi-mask" style="${mdiStyle('mdi:delete-outline','delete-outline')}"></span></button></div>`).join('')||'<div class="home-shopping-empty"><b>✓</b><strong>Lista completata</strong><span>Aggiungi qualcosa quando ti serve.</span></div>'
   }catch(error){$('#home-shopping-count').textContent='—';$('#home-shopping-name').textContent='Lista della spesa';$('#home-shopping-preview').textContent='Lista momentaneamente non disponibile';if(full)$('#home-shopping-items').innerHTML=`<p class="home-insight-empty home-shopping-error">${esc(error.message)}</p>`}
-  finally{homeShoppingBusy=false}
+  finally{homeShoppingBusy=false;if(homeShoppingNeedsFull){homeShoppingNeedsFull=false;void refreshHomeShoppingList(true)}}
 }
 function scheduleHomeShoppingRefresh(){homeShoppingHoldUntil=Date.now()+6500;for(const delay of [1800,3500,6000])setTimeout(()=>refreshHomeShoppingList(true),delay)}
 async function homeShoppingCommand(path,options){const response=await fetch(apiUrl(path),options),data=await response.json().catch(()=>({}));if(!response.ok)throw new Error(data.detail||`HTTP ${response.status}`);scheduleHomeShoppingRefresh()}

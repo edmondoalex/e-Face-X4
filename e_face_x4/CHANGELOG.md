@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.21.230 — 2026-09-22
+
+- Lista della spesa: eliminata la dominante verde in favore della palette grafite/celeste di e-Face.
+- L'icona carrello della tessera e della navigazione è ora SVG incorporato e non dipende più dal caricamento protetto delle icone via Ingress.
+- Il contenuto completo viene precaricato con la dashboard e una richiesta di apertura arrivata durante un aggiornamento viene accodata, evitando il popup fermo su «Caricamento…».
+
 ## 2.21.229 — 2026-09-22
 
 - La Lista della spesa aggiorna subito card e popup dopo aggiunta, spunta, ripristino o eliminazione, quindi si riconcilia automaticamente con la risposta Alexa dopo 1,8, 3,5 e 6 secondi.

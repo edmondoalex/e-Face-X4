@@ -118,6 +118,7 @@ L'agente non deve aspettare un promemoria dell'utente: nello stesso turno in cui
 - Controllo ripetibile redatto: dal container e-Face interrogare `http://supervisor/core/api/states` con il token ambiente e stampare soltanto `entity_id`, `friendly_name` e conteggio delle entità il cui ID inizia per `todo.`. Per il contratto di scrittura usare il test mock `test_home_shopping_list_discovers_and_controls_econtrol_todo`, non una lista reale.
 - Regressione `2.21.228`: prova end-to-end sulla sola lista interna vuota con elemento tecnico temporaneo; add, lettura, complete, restore e remove hanno risposto `200` e la pulizia finale ha confermato l'assenza dell'elemento. La lista Alexa dell'utente non è stata modificata.
 - Misura Alexa reale del 22/09: un elemento tecnico temporaneo è diventato leggibile dopo circa 1,44 secondi e la sua eliminazione dopo circa 0,8 secondi; pulizia finale confermata. Dalla `2.21.229` la UI applica quindi subito la modifica in modo ottimistico e riconcilia a 1,8/3,5/6 secondi, evitando di ripristinare visivamente lo snapshot Alexa ancora vecchio.
+- Correzione `2.21.230`: il refresh sintetico della tessera deve precaricare anche gli elementi. Se il popup viene aperto mentre la richiesta è già in corso, il refresh completo viene accodato; senza questa regola la finestra poteva restare su «Caricamento…». Le icone principali della lista sono SVG incorporati perché gli URL icona protetti possono non essere risolti nel contesto Ingress.
 
 # Gruppi Intercom e-Face (15/09/2026)
 
