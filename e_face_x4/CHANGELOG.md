@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.21.239 — 2026-09-22
+
+- I comandi Alexa sono ora autosufficienti (`per`/`di`) e normalizzano orari come `17.30` in `17:30`, evitando che Alexa apra una domanda alla quale il comando testuale non può rispondere.
+- Senza variazione del sensore, la pagina non dichiara più l'inserimento completato ma richiede esplicitamente una conferma vocale completa.
+
 ## 2.21.238 — 2026-09-22
 
 - Aggiunto il widget Agenda realmente configurabile in Home dinamica, con dimensioni dal 25% al 100%, riepilogo del prossimo evento e apertura diretta della pagina Agenda.

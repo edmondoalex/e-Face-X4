@@ -77,7 +77,7 @@ from .connectors.supervisor import discover_addon_url, discover_host_url, instal
 from .media_realtime import SharedMediaRealtime
 from .demo import dashboard as demo_dashboard
 
-VERSION = os.environ.get("EFACE_VERSION", "2.21.238")
+VERSION = os.environ.get("EFACE_VERSION", "2.21.239")
 STATIC = Path(__file__).parent / "static"
 logging.basicConfig(level=logging.WARNING, format="%(asctime)s %(levelname)s [e-face-x4] %(message)s")
 _reconnect_warning_at: dict[str, float] = {}
@@ -2282,9 +2282,10 @@ def create_app() -> FastAPI:
 
     def alexa_command(kind: str, value: str) -> str:
         clean = re.sub(r"[\x00-\x1f\x7f]", " ", str(value or "")).strip()
+        clean = re.sub(r"\b([01]?\d|2[0-3])[.,]([0-5]\d)\b", r"\1:\2", clean)
         if kind not in {"alarm", "timer", "reminder"} or not 1 <= len(clean) <= 300:
             raise HTTPException(status_code=400, detail="Comando Alexa non valido")
-        prefix = {"alarm": "imposta una sveglia", "timer": "imposta un timer di", "reminder": "ricordami"}[kind]
+        prefix = {"alarm": "imposta una sveglia per", "timer": "imposta un timer per", "reminder": "ricordami di"}[kind]
         return f"{prefix} {clean}"
 
     @app.get("/api/home/alexa/agenda")
