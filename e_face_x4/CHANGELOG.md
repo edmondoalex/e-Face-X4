@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.21.231 — 2026-09-22
+
+- Uniformata l'altezza della tessera Lista della spesa alle altre tessere informative della stessa riga, su desktop e mobile.
+- Rimossi i pittogrammi dedotti dal nome dei prodotti: la lista usa ora caselle di stato esplicite e sezioni separate «Da comprare» e «Completato».
+
 ## 2.21.230 — 2026-09-22
 
 - Lista della spesa: eliminata la dominante verde in favore della palette grafite/celeste di e-Face.
