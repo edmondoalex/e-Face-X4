@@ -30,7 +30,7 @@ SAFE_ACTIONS = {
     "light": {"on", "off", "brightness"},
     "switch": {"on", "off"},
     "media_player": {"media_play", "media_pause", "media_stop", "media_next", "media_previous", "turn_off", "set_volume", "volume_mute", "volume_unmute", "select_source", "remote_command", "dnd_on", "dnd_off", "tts"},
-    "alexa_device": {"set_alarm", "set_timer", "set_reminder"},
+    "alexa_device": {"set_alarm", "set_timer", "set_reminder", "cancel_alarm", "cancel_timer", "cancel_reminder"},
     "climate": {"set_target"},
     "cover": {"open", "close", "stop", "set_position"},
     "lock": {"lock", "unlock"},
@@ -46,6 +46,7 @@ ACTION_LABELS = {"on": "accendere", "off": "spegnere", "brightness": "regolare l
                  "select_source": "selezionare una sorgente su", "remote_command": "premere un tasto telecomando su",
                  "dnd_on": "attivare Non disturbare su", "dnd_off": "disattivare Non disturbare su",
                  "set_alarm": "impostare una sveglia su", "set_timer": "impostare un timer su", "set_reminder": "impostare un promemoria su",
+                 "cancel_alarm": "cancellare la prossima sveglia da", "cancel_timer": "cancellare il prossimo timer da", "cancel_reminder": "cancellare il prossimo promemoria da",
                  "lock": "bloccare", "unlock": "sbloccare", "set_position": "posizionare"}
 REMOTE_PLAYER_COMMANDS = {"media_play": "play", "media_pause": "pause", "media_stop": "stop", "media_next": "next", "media_previous": "previous", "turn_off": "turn_off", "volume_mute": "mute", "volume_unmute": "mute"}
 SENSITIVE_WORDS = re.compile(r"portone|cancello|garage|serratura|allarme|alarm|gate|door|lock", re.I)

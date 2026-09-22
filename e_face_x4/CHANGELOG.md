@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.21.243 — 2026-09-22
+
+- Alexa Alerts conferma la creazione con HTTP `201 Created`; e-Control ora riconosce correttamente questa risposta invece di mostrarla come errore 500.
+- La pagina Agenda elenca gli eventi Alexa reali e permette di eliminarli; le routine possono cancellare il prossimo evento per tipo.
+
 ## 2.21.242 — 2026-09-22
 
 - La creazione delle sveglie rileva dinamicamente l'endpoint Alexa regionale dell'account (`api.eu.amazonalexa.com` in Europa), evitando il timeout del nodo globale.

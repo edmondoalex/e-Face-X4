@@ -91,7 +91,7 @@ const actions = {
   cover: [['open', 'Apri'], ['close', 'Chiudi'], ['stop', 'Ferma'], ['set_position', 'Posizione %']],
   lock: [['lock', 'Blocca'], ['unlock', 'Sblocca']],
   media_player: [['media_play', 'Riproduci'], ['media_pause', 'Pausa'], ['media_stop', 'Stop'], ['media_next', 'Successivo'], ['media_previous', 'Precedente'], ['turn_off', 'Spegni stanza'], ['set_volume', 'Volume %'], ['volume_mute', 'Mute'], ['volume_unmute', 'Riattiva audio'], ['select_source', 'Seleziona sorgente'], ['remote_command', 'Tasto telecomando sorgente'], ['dnd_on', 'Attiva Non disturbare'], ['dnd_off', 'Disattiva Non disturbare'], ['tts', 'Messaggio vocale (TTS)']],
-  alexa_device: [['set_alarm', 'Imposta sveglia'], ['set_timer', 'Imposta timer'], ['set_reminder', 'Imposta promemoria']],
+  alexa_device: [['set_alarm', 'Imposta sveglia'], ['set_timer', 'Imposta timer'], ['set_reminder', 'Imposta promemoria'], ['cancel_alarm', 'Cancella prossima sveglia'], ['cancel_timer', 'Cancella prossimo timer'], ['cancel_reminder', 'Cancella prossimo promemoria']],
   climate: [['set_target', 'Temperatura °C']]
 }
 const sensitive = /portone|cancello|garage|serratura|allarme|alarm|gate|door|lock/i

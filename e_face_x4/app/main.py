@@ -77,7 +77,7 @@ from .connectors.supervisor import discover_addon_url, discover_host_url, instal
 from .media_realtime import SharedMediaRealtime
 from .demo import dashboard as demo_dashboard
 
-VERSION = os.environ.get("EFACE_VERSION", "2.21.242")
+VERSION = os.environ.get("EFACE_VERSION", "2.21.243")
 STATIC = Path(__file__).parent / "static"
 logging.basicConfig(level=logging.WARNING, format="%(asctime)s %(levelname)s [e-face-x4] %(message)s")
 _reconnect_warning_at: dict[str, float] = {}
@@ -2372,6 +2372,28 @@ def create_app() -> FastAPI:
         await home_assistant_service("eface_alexa", service_name, {"device_id": device_id, **service_data})
         return {"ok": True, "confirmed": True, "message": "Inserimento confermato da Alexa"}
 
+    @app.get("/api/home/alexa/agenda/items")
+    async def home_alexa_agenda_items(device_id: str) -> dict:
+        if not any(item["device_id"] == device_id for item in await alexa_agenda_devices()):
+            raise HTTPException(status_code=404, detail="Dispositivo Alexa non disponibile")
+        result = await home_assistant_service(
+            "eface_alexa", "list_notifications", {"device_id": device_id}, response_data=True
+        )
+        response = result.get("service_response") if isinstance(result, dict) else {}
+        return {"items": response.get("items", []) if isinstance(response, dict) else []}
+
+    @app.delete("/api/home/alexa/agenda/items/{notification_id}")
+    async def home_alexa_agenda_delete(notification_id: str, device_id: str) -> dict:
+        if not re.fullmatch(r"[A-Za-z0-9._:@-]{1,200}", notification_id):
+            raise HTTPException(status_code=400, detail="Evento Alexa non valido")
+        if not any(item["device_id"] == device_id for item in await alexa_agenda_devices()):
+            raise HTTPException(status_code=404, detail="Dispositivo Alexa non disponibile")
+        await home_assistant_service(
+            "eface_alexa", "delete_notification",
+            {"device_id": device_id, "notification_id": notification_id},
+        )
+        return {"ok": True}
+
     async def home_todo_lists() -> list[dict[str, object]]:
         states = (await home_assistant_get("states")).json()
         result = []
@@ -3368,11 +3390,15 @@ def create_app() -> FastAPI:
 
     async def routine_command(device_id: str, action: str, value: object) -> object:
         if device_id.startswith("alexa-device:"):
-            kind = {"set_alarm": "alarm", "set_timer": "timer", "set_reminder": "reminder"}.get(action)
+            kind = {"set_alarm": "alarm", "set_timer": "timer", "set_reminder": "reminder",
+                    "cancel_alarm": "alarm", "cancel_timer": "timer", "cancel_reminder": "reminder"}.get(action)
             if not kind: raise ValueError("Comando Alexa non consentito")
             ha_device_id = device_id.split(":", 1)[1]
             if not any(item["device_id"] == ha_device_id for item in await alexa_agenda_devices()):
                 raise RuntimeError("Dispositivo Alexa non disponibile")
+            if action.startswith("cancel_"):
+                await home_assistant_service("eface_alexa", "delete_next_notification", {"device_id": ha_device_id, "kind": kind})
+                return {"ok": True}
             service_name, service_data = alexa_schedule_service(kind, str(value or ""))
             await home_assistant_service("eface_alexa", service_name, {"device_id": ha_device_id, **service_data})
             return {"ok": True}

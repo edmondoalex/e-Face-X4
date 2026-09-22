@@ -41,3 +41,39 @@ create_reminder:
       required: true
       selector:
         text:
+list_notifications:
+  name: Elenca eventi Alexa
+  fields:
+    device_id:
+      required: true
+      selector:
+        device:
+          integration: alexa_devices
+delete_notification:
+  name: Elimina evento Alexa
+  fields:
+    device_id:
+      required: true
+      selector:
+        device:
+          integration: alexa_devices
+    notification_id:
+      required: true
+      selector:
+        text:
+delete_next_notification:
+  name: Elimina il prossimo evento Alexa
+  fields:
+    device_id:
+      required: true
+      selector:
+        device:
+          integration: alexa_devices
+    kind:
+      required: true
+      selector:
+        select:
+          options:
+            - alarm
+            - timer
+            - reminder
