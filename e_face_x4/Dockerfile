@@ -23,6 +23,7 @@ WORKDIR /app
 COPY requirements.txt /app/requirements.txt
 RUN "$VIRTUAL_ENV/bin/pip" install --no-cache-dir -r /app/requirements.txt
 COPY app /app/app
+COPY custom_components /app/custom_components
 COPY run.sh /app/run.sh
 RUN chmod +x /app/run.sh && "$VIRTUAL_ENV/bin/python" -m compileall -q /app/app
 

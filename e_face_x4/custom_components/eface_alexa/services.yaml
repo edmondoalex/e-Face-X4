@@ -1,0 +1,43 @@
+create_alarm:
+  name: Crea sveglia Alexa
+  fields:
+    device_id:
+      required: true
+      selector:
+        device:
+          integration: alexa_devices
+    timestamp:
+      required: true
+      selector:
+        datetime:
+create_timer:
+  name: Crea timer Alexa
+  fields:
+    device_id:
+      required: true
+      selector:
+        device:
+          integration: alexa_devices
+    duration:
+      required: true
+      selector:
+        duration:
+    label:
+      selector:
+        text:
+create_reminder:
+  name: Crea promemoria Alexa
+  fields:
+    device_id:
+      required: true
+      selector:
+        device:
+          integration: alexa_devices
+    timestamp:
+      required: true
+      selector:
+        datetime:
+    label:
+      required: true
+      selector:
+        text:

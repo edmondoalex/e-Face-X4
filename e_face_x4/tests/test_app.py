@@ -92,7 +92,7 @@ def test_health() -> None:
     response = TestClient(create_app()).get("/health")
     assert response.status_code == 200
     assert response.json()["ok"] is True
-    assert response.json()["version"] == "2.21.239"
+    assert response.json()["version"] == "2.21.240"
 
 
 def test_home_event_times_reads_saved_doorbird_motion(monkeypatch, tmp_path) -> None:
@@ -139,7 +139,7 @@ def test_intercom_is_in_sidebar_with_embedded_view() -> None:
     client_script = (static / "assets" / "intercom.js").read_text(encoding="utf-8")
     intercom_page = (static / "intercom.html").read_text(encoding="utf-8")
     assert "Tablet Control4 · interno 8291" in intercom_page
-    assert "const currentVersion = '2.21.239'" in client_script
+    assert "const currentVersion = '2.21.240'" in client_script
     assert 'id="call-ufficio" data-dial-extension="8291" data-video-capable="true"' in intercom_page
     assert "Postazione esterna · interno 8201" in intercom_page
     assert "Postazione esterna · interno ${station.sip_extension}" in client_script
@@ -346,10 +346,10 @@ def test_intercom_dashboard_stores_only_local_settings(monkeypatch, tmp_path) ->
     assert 'id="users-tool"' in page
     assert 'id="logout"' in page
     assert page.index('id="logout"') < page.index('id="tools-user-section"')
-    assert "tools-dashboard.js?v=2.21.239" in page
-    assert "tools-dashboard.css?v=2.21.239" in page
-    assert "tools.js?v=2.21.239" in page
-    assert "organization-tools.js?v=2.21.239" in page
+    assert "tools-dashboard.js?v=2.21.240" in page
+    assert "tools-dashboard.css?v=2.21.240" in page
+    assert "tools.js?v=2.21.240" in page
+    assert "organization-tools.js?v=2.21.240" in page
     tools_js = client.get("/assets/tools.js").text
     assert "document.querySelector('.tools-shell').append(shortcutsPanel)" in tools_js
     assert "data-shortcut-drag=\"category\"" in tools_js
@@ -359,7 +359,7 @@ def test_intercom_dashboard_stores_only_local_settings(monkeypatch, tmp_path) ->
     assert '<b>Accesi</b>' not in home
     assert 'id="light-on-filter"' in home
     assert "backgrounds.css?v=2.21.43" in home
-    assert "app.js?v=2.21.239" in home
+    assert "app.js?v=2.21.240" in home
     app_js = client.get("/assets/app.js").text
     assert "event.type === 'doorbird_event'" in app_js
     assert "event.type === 'home_camera_event'" in app_js
@@ -780,8 +780,8 @@ def test_tools_page_starts_with_selected_background_and_card_theme(monkeypatch, 
     home = client.get("/").text
     login = client.get("/login").text
     assert '<body class="app-theme" data-background="midnight" data-card-theme="slate">' in home
-    assert 'ui-theme-contract.css?v=2.21.239' in home
-    assert 'app.js?v=2.21.239' in home
+    assert 'ui-theme-contract.css?v=2.21.240' in home
+    assert 'app.js?v=2.21.240' in home
     assert 'energy.css?v=2.21.30' in home
     assert 'home-comfort.css?v=2.21.31' in home
     assert '<body class="login-theme" data-background="midnight" data-card-theme="slate">' in login
@@ -1150,10 +1150,10 @@ def test_x4_shell_and_brand_assets_are_served() -> None:
     assert client.get("/tools").status_code == 200
     assert "Amministrazione" in client.get("/tools").text
     css = client.get("/assets/app.css").text
-    assert "app.css?v=2.21.239" in client.get("/").text
-    assert "home-live-media.css?v=2.21.239" in client.get("/").text
-    assert "alarm-state.css?v=2.21.239" in client.get("/").text
-    assert "state-glow.css?v=2.21.239" in client.get("/").text
+    assert "app.css?v=2.21.240" in client.get("/").text
+    assert "home-live-media.css?v=2.21.240" in client.get("/").text
+    assert "alarm-state.css?v=2.21.240" in client.get("/").text
+    assert "state-glow.css?v=2.21.240" in client.get("/").text
     assert ".home-event-dialog figure img{display:block;width:auto;height:auto;max-width:100%;max-height:100%" in css
     assert ".home-event-widget img{object-fit:contain" not in css
     assert "data-home-zone-mute" in app_js

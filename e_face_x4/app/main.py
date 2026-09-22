@@ -77,7 +77,7 @@ from .connectors.supervisor import discover_addon_url, discover_host_url, instal
 from .media_realtime import SharedMediaRealtime
 from .demo import dashboard as demo_dashboard
 
-VERSION = os.environ.get("EFACE_VERSION", "2.21.239")
+VERSION = os.environ.get("EFACE_VERSION", "2.21.240")
 STATIC = Path(__file__).parent / "static"
 logging.basicConfig(level=logging.WARNING, format="%(asctime)s %(levelname)s [e-face-x4] %(message)s")
 _reconnect_warning_at: dict[str, float] = {}
@@ -2288,6 +2288,42 @@ def create_app() -> FastAPI:
         prefix = {"alarm": "imposta una sveglia per", "timer": "imposta un timer per", "reminder": "ricordami di"}[kind]
         return f"{prefix} {clean}"
 
+    def alexa_schedule_service(kind: str, value: str) -> tuple[str, dict]:
+        """Translate the compact Italian UI input into the direct HA service payload."""
+        clean = re.sub(r"[\x00-\x1f\x7f]", " ", str(value or "")).strip()
+        if kind == "timer":
+            hours = re.search(r"(\d+(?:[.,]\d+)?)\s*(?:ore?|h)\b", clean, re.I)
+            minutes = re.search(r"(\d+(?:[.,]\d+)?)\s*(?:minuti?|min)\b", clean, re.I)
+            seconds = re.search(r"(\d+(?:[.,]\d+)?)\s*(?:secondi?|sec|s)\b", clean, re.I)
+            duration = sum(
+                float(match.group(1).replace(",", ".")) * factor
+                for match, factor in ((hours, 3600), (minutes, 60), (seconds, 1)) if match
+            )
+            if duration <= 0:
+                raise HTTPException(status_code=400, detail="Scrivi una durata, per esempio 20 minuti")
+            label = re.sub(r"\b\d+(?:[.,]\d+)?\s*(?:ore?|h|minuti?|min|secondi?|sec|s)\b", "", clean, flags=re.I).strip(" ,-")
+            return "create_timer", {"duration": duration, "label": label}
+
+        clock = re.search(r"\b(?:alle?\s*)?([01]?\d|2[0-3])[:.]([0-5]\d)\b", clean, re.I)
+        if not clock:
+            raise HTTPException(status_code=400, detail="Indica l’orario, per esempio oggi alle 17:30")
+        now = datetime.now().astimezone()
+        target = now.replace(hour=int(clock.group(1)), minute=int(clock.group(2)), second=0, microsecond=0)
+        if re.search(r"\bdomani\b", clean, re.I):
+            target += timedelta(days=1)
+        elif not re.search(r"\boggi\b", clean, re.I) and target <= now:
+            target += timedelta(days=1)
+        data = {"timestamp": target.isoformat()}
+        if kind == "reminder":
+            label = re.sub(r"\b(?:oggi|domani)\b", "", clean, flags=re.I)
+            label = re.sub(r"\b(?:alle?\s*)?([01]?\d|2[0-3])[:.]([0-5]\d)\b", "", label, flags=re.I)
+            label = re.sub(r"^(?:ricordami(?:\s+di)?|promemoria(?:\s+per)?)\s*", "", label, flags=re.I).strip(" ,-")
+            if not label:
+                raise HTTPException(status_code=400, detail="Indica anche cosa deve ricordarti Alexa")
+            data["label"] = label
+            return "create_reminder", data
+        return "create_alarm", data
+
     @app.get("/api/home/alexa/agenda")
     async def home_alexa_agenda() -> dict:
         try: devices = await alexa_agenda_devices()
@@ -2332,22 +2368,9 @@ def create_app() -> FastAPI:
         devices = await alexa_agenda_devices()
         device = next((item for item in devices if item["device_id"] == device_id), None)
         if not device: raise HTTPException(status_code=404, detail="Dispositivo Alexa non disponibile")
-        command = alexa_command(kind, str(payload.get("value") or ""))
-        sensor_id = device["sensors"].get(kind)
-        before = None
-        if sensor_id:
-            try: before = (await home_assistant_get(f"states/{sensor_id}")).json().get("state")
-            except HTTPException: pass
-        await home_assistant_service("alexa_devices", "send_text_command", {"device_id": device_id, "text_command": command})
-        confirmed, state = False, before
-        if sensor_id:
-            for _ in range(6):
-                await asyncio.sleep(1)
-                try: state = (await home_assistant_get(f"states/{sensor_id}")).json().get("state")
-                except HTTPException: break
-                if state not in {None, "unknown", "unavailable", before}:
-                    confirmed = True; break
-        return {"ok": True, "confirmed": confirmed, "state": state, "message": "Alexa ha ricevuto il comando" if not confirmed else "Inserimento confermato da Alexa"}
+        service_name, service_data = alexa_schedule_service(kind, str(payload.get("value") or ""))
+        await home_assistant_service("eface_alexa", service_name, {"device_id": device_id, **service_data})
+        return {"ok": True, "confirmed": True, "message": "Inserimento confermato da Alexa"}
 
     async def home_todo_lists() -> list[dict[str, object]]:
         states = (await home_assistant_get("states")).json()
@@ -3350,7 +3373,8 @@ def create_app() -> FastAPI:
             ha_device_id = device_id.split(":", 1)[1]
             if not any(item["device_id"] == ha_device_id for item in await alexa_agenda_devices()):
                 raise RuntimeError("Dispositivo Alexa non disponibile")
-            await home_assistant_service("alexa_devices", "send_text_command", {"device_id": ha_device_id, "text_command": alexa_command(kind, str(value or ""))})
+            service_name, service_data = alexa_schedule_service(kind, str(value or ""))
+            await home_assistant_service("eface_alexa", service_name, {"device_id": ha_device_id, **service_data})
             return {"ok": True}
         if routines.HA_COVER_ID.fullmatch(device_id):
             if action not in {"open", "close", "stop", "set_position"}:

@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.21.240 — 2026-09-22
+
+- Sveglie, timer e promemoria vengono creati tramite un componente e-Control che riusa la sessione dell'integrazione ufficiale `Alexa Devices`; non dipendono da Alexa Media Player e non simulano più un dialogo vocale.
+- L'add-on installa il componente companion in Home Assistant e abilita i servizi diretti anche per le azioni delle routine e-Control.
+
 ## 2.21.239 — 2026-09-22
 
 - I comandi Alexa sono ora autosufficienti (`per`/`di`) e normalizzano orari come `17.30` in `17:30`, evitando che Alexa apra una domanda alla quale il comando testuale non può rispondere.

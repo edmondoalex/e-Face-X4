@@ -1,0 +1,10 @@
+{
+  "domain": "eface_alexa",
+  "name": "e-Control Alexa Agenda",
+  "codeowners": [],
+  "dependencies": ["alexa_devices"],
+  "documentation": "https://github.com/edmondoalex/e-Face-X4",
+  "integration_type": "service",
+  "iot_class": "cloud_push",
+  "version": "1.0.0"
+}
