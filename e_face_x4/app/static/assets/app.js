@@ -222,7 +222,20 @@ function activeMediaSourceMarkup(device, className, fallbackIcon) {
 
 function deviceGlyph(device) {
   const fallback = device.kind === 'climate' ? 'thermostat' : device.kind === 'cover' ? 'blinds-horizontal' : device.kind === 'lock' ? 'lock' : device.kind === 'media_player' ? 'speaker' : 'lightbulb'
-  return `<span class="device-glyph mdi-mask" style="${mdiStyle(device.icon, fallback)}"></span>`
+  const icon = device.kind === 'cover' ? coverStateIcon(device) : device.icon
+  return `<span class="device-glyph mdi-mask" style="${mdiStyle(icon, fallback)}"></span>`
+}
+
+function coverStateIcon(device) {
+  const state = String(device.state ?? '').trim().toUpperCase()
+  const open = ['OPEN', 'OPENING'].includes(state) || Number(device.position) > 0
+  if (!open) return device.icon
+  const icon = String(device.icon || '').toLocaleLowerCase('it')
+  if (/garage|portone/.test(icon)) return 'mdi:garage-open'
+  if (/gate|cancello/.test(icon)) return 'mdi:gate-open'
+  if (/curtain|tenda/.test(icon)) return 'mdi:curtains'
+  if (/blind/.test(icon)) return 'mdi:blinds-open'
+  return 'mdi:window-shutter-open'
 }
 
 function lockActionIcon(device, open) {
@@ -1849,6 +1862,11 @@ async function adjustActiveUiVolume(delta) {
 }
 
 async function sendDeviceCommand(deviceId, action, button, value) {
+  const device = currentDevices.find((item) => String(item.id) === String(deviceId))
+  if (device?.confirm_action && ['open', 'unlock', 'lock', 'close'].includes(action)) {
+    const operation = ['open', 'unlock'].includes(action) ? 'aprire' : 'chiudere'
+    if (!window.confirm(`Confermi di voler ${operation} ${device.name || 'questo accesso'}?`)) return false
+  }
   if (button) {
     button.disabled = true
     button.classList.remove('command-confirmed', 'command-failed')

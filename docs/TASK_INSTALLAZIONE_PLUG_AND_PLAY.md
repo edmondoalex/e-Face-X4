@@ -120,3 +120,11 @@ La configurazione manuale verificata il 13 settembre 2026 resta il riferimento t
 ## Regola visiva stati oscuranti — 22 settembre 2026
 
 Nelle liste dispositivi, uno stato aperto o in apertura di un `cover` usa il celeste (`#61d8f2`) sia per la tinta della card sia per l'icona. Il rosso resta riservato a serrature/accessi aperti, allarmi ed errori. La regola è applicata solo a `device-cover-open` e non modifica la semantica di sicurezza degli accessi.
+
+L'icona segue lo stesso stato: `OPEN`/`OPENING` o una posizione maggiore di zero selezionano la variante aperta appropriata (tapparella, garage, cancello, tenda o veneziana), mentre lo stato chiuso conserva l'icona configurata del dispositivo.
+
+## Precompilazione connettori — 22 settembre 2026
+
+L'Admin mostra nel campo endpoint il collegamento effettivamente in uso, compreso quello scoperto automaticamente. Un valore scoperto rimane però automatico finché l'installatore non lo modifica: il semplice salvataggio della scheda non deve cristallizzare l'IP del sito in un override persistente. Questo consente a un impianto nuovo di autocompilarsi dalla propria topologia senza ereditare indirizzi da un altro impianto. Per eKonex Voice locale, endpoint e ID installazione indicano esplicitamente che non sono richiesti perché gestiti dall'integrazione e-Control. I segreti non vengono mai restituiti all'interfaccia; viene mostrata soltanto la loro presenza.
+
+Nella configurazione accessi, `Chiedi conferma` è una protezione operativa del client: per `open`/`unlock`/`lock`/`close` il comando non viene inviato prima della conferma esplicita. È indipendente dal feedback del relè. Lo stato canonico viene riletto ogni due secondi mentre il pannello è aperto e usa verde per `LOCKED`, rosso per `UNLOCKED` e giallo per uno stato non interpretabile; un errore transitorio conserva l'ultimo stato affidabile.

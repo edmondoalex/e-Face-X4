@@ -77,7 +77,7 @@ from .connectors.supervisor import discover_addon_url, discover_host_url, instal
 from .media_realtime import SharedMediaRealtime
 from .demo import dashboard as demo_dashboard
 
-VERSION = os.environ.get("EFACE_VERSION", "2.21.225")
+VERSION = os.environ.get("EFACE_VERSION", "2.21.226")
 STATIC = Path(__file__).parent / "static"
 logging.basicConfig(level=logging.WARNING, format="%(asctime)s %(levelname)s [e-face-x4] %(message)s")
 _reconnect_warning_at: dict[str, float] = {}
@@ -2665,7 +2665,7 @@ def create_app() -> FastAPI:
         page = page.replace("tools-dashboard.js?v=2.21.42", "tools-dashboard.js?v=2.21.174")
         page = re.sub(r"tools-dashboard\.js\?v=[0-9.]+", f"tools-dashboard.js?v={VERSION}", page)
         page = re.sub(r"organization-tools\.js\?v=[0-9.]+", f"organization-tools.js?v={VERSION}", page)
-        page = page.replace("tools-dashboard.css?v=2.20.36", "tools-dashboard.css?v=2.21.174")
+        page = re.sub(r"tools-dashboard\.css\?v=[0-9.]+", f"tools-dashboard.css?v={VERSION}", page)
         page = page.replace("backgrounds.css?v=2.20.20", "backgrounds.css?v=2.21.43")
         page = page.replace("intercom.css?v=2.21.14", "intercom.css?v=2.21.46")
         page = page.replace("app.js?v=2.21.11", "app.js?v=2.21.29")

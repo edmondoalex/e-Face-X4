@@ -1077,8 +1077,12 @@ async function loadConnectors() {
     detected.append(detectedTitle, detectedValue)
     const enabled = field('Abilitato', '', 'checkbox')
     enabled.input.checked = connector.enabled
-    const endpoint = field('Override endpoint manuale (opzionale)', connector.base_url)
-    endpoint.input.placeholder = connector.mode === 'automatico' || connector.mode === 'locale' ? connector.effective_url : 'http://indirizzo:porta'
+    const inheritedEndpoint = ['automatico','locale'].includes(connector.mode) && Boolean(connector.effective_url)
+    const displayedEndpoint = inheritedEndpoint ? connector.effective_url : connector.base_url
+    const endpoint = field(connector.mode === 'locale' ? 'Endpoint effettivo (gestito da e-Control)' : 'Endpoint effettivo', displayedEndpoint)
+    endpoint.input.placeholder = 'http://indirizzo:porta'
+    endpoint.input.readOnly = connector.mode === 'locale'
+    if (inheritedEndpoint) endpoint.input.dataset.discovered = 'true'
     const auth = document.createElement('label')
     auth.textContent = 'Autenticazione'
     const select = document.createElement('select')
@@ -1092,7 +1096,9 @@ async function loadConnectors() {
     token.input.placeholder = connector.token_configured ? 'Già configurato' : 'Non configurato'
     const password = field('Password', '', 'password')
     password.input.placeholder = connector.password_configured ? 'Già configurata' : 'Non configurata'
-    const installation = field('ID installazione', connector.installation_id)
+    const localInstallation = connector.mode === 'locale' && !connector.installation_id
+    const installation = field('ID installazione', connector.installation_id || (localInstallation ? 'Non richiesto · collegamento locale' : ''))
+    installation.input.readOnly = localInstallation
     const grid = document.createElement('div')
     grid.className = 'admin-form-grid'
     grid.append(enabled.wrapper, endpoint.wrapper)
@@ -1105,7 +1111,9 @@ async function loadConnectors() {
     form.addEventListener('submit', async event => {
       event.preventDefault(); save.disabled = true
       try {
-        await request(`api/admin/connectors/${encodeURIComponent(connector.id)}`, {method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify({enabled:enabled.input.checked, base_url:endpoint.input.value.trim(), auth_mode:select.value || 'none', username:username.input.value.trim(), token:token.input.value, password:password.input.value, installation_id:installation.input.value.trim()})})
+        const endpointValue = inheritedEndpoint && endpoint.input.value.trim() === connector.effective_url ? connector.base_url : endpoint.input.value.trim()
+        const installationValue = localInstallation ? '' : installation.input.value.trim()
+        await request(`api/admin/connectors/${encodeURIComponent(connector.id)}`, {method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify({enabled:enabled.input.checked, base_url:endpointValue, auth_mode:select.value || 'none', username:username.input.value.trim(), token:token.input.value, password:password.input.value, installation_id:installationValue})})
         message(`${connector.name} salvato`); await loadConnectors()
       } catch (error) { message(error.message) } finally { save.disabled = false }
     })
@@ -1124,6 +1132,32 @@ const accessLabels = {
   auto:'Auto · comportamento rilevato', native_lock:'Lock nativo', relay_on_unlock:'Relè ON apre / OFF blocca',
   relay_off_unlock:'Relè OFF apre / ON blocca', cover_open_unlock:'Cover OPEN apre / CLOSE blocca', cover_close_unlock:'Cover CLOSE apre / OPEN blocca'
 }
+function accessStateClass(value) {
+  const state = String(value ?? '').trim().toUpperCase()
+  if (['UNLOCKED','UNLOCKING','OPEN','OPENING','ON','1','TRUE'].includes(state)) return 'unlocked'
+  if (['LOCKED','LOCKING','CLOSED','CLOSING','OFF','0','FALSE'].includes(state)) return 'locked'
+  return 'unknown'
+}
+
+function paintAccessState(row, value) {
+  const state = row?.querySelector('.access-device-state')
+  if (!state) return
+  state.className = `access-device-state ${accessStateClass(value)}`
+  state.textContent = `STATO RELÈ: ${value ?? '—'}`
+}
+
+let accessStateRefreshPending = false
+async function refreshAccessDeviceStates() {
+  if (accessPanel.hidden || accessStateRefreshPending) return
+  accessStateRefreshPending = true
+  try {
+    const data = await request('api/admin/access-devices')
+    for (const item of data.items || []) paintAccessState(document.querySelector(`.access-device-card[data-device-id="${CSS.escape(item.device_id)}"]`), item.state)
+  } catch (_) {
+    // Keep the last reliable state visible when a transient refresh fails.
+  } finally { accessStateRefreshPending = false }
+}
+
 async function loadAccessDevices() {
   const data = await request('api/admin/access-devices')
   $('#access-devices-status').textContent = data.status === 'online' ? `${data.items.length} dispositivi configurabili rilevati` : 'BusPro non disponibile: sono mostrati solo i profili già salvati.'
@@ -1136,7 +1170,7 @@ async function loadAccessDevices() {
     row.dataset.search = `${item.name} ${item.room} ${item.kind} ${item.entity_domain} ${item.device_id}`.toLocaleLowerCase('it')
     const info = document.createElement('div'); const name = document.createElement('strong'); name.textContent = item.name
     const detail = document.createElement('small'); detail.textContent = `${item.room || 'Senza stanza'} · ${item.entity_domain || item.kind} · ${item.device_id}`
-    const state = document.createElement('b'); state.className = 'access-device-state'; state.textContent = `STATO RELÈ: ${item.state ?? '—'}`; info.append(name, detail, state)
+    const state = document.createElement('b'); state.className = 'access-device-state'; info.append(name, detail, state)
     const enabled = field('Gestisci come accesso', '', 'checkbox'); enabled.input.checked = profile.enabled; enabled.input.dataset.accessEnabled = '1'
     const displayName = field('Nome in e-Face', profile.name || ''); displayName.input.dataset.accessName = '1'
     const behavior = document.createElement('select')
@@ -1153,10 +1187,11 @@ async function loadAccessDevices() {
     unlockedLabel.append(unlockedState); unlockedLabel.hidden = !profile.state_source_id
     stateSource.addEventListener('change', () => { unlockedLabel.hidden = !stateSource.value })
     const confirm = field('Chiedi conferma', '', 'checkbox'); confirm.input.checked = profile.confirm; confirm.input.dataset.accessConfirm = '1'
-    row.append(info, enabled.wrapper, displayName.wrapper, behavior, stateSourceLabel, unlockedLabel, confirm.wrapper); list.append(row)
+    row.append(info, enabled.wrapper, displayName.wrapper, behavior, stateSourceLabel, unlockedLabel, confirm.wrapper); list.append(row); paintAccessState(row, item.state)
   }
   filterAccessDevices()
 }
+window.setInterval(refreshAccessDeviceStates, 2000)
 
 $('#access-devices-form').addEventListener('submit', async event => {
   event.preventDefault()

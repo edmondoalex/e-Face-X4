@@ -1,5 +1,14 @@
 # Changelog
 
+## 2.21.226 — 2026-09-22
+
+- I campi endpoint dei connettori mostrano il valore effettivo rilevato anche senza override, senza trasformare automaticamente gli indirizzi del sito in configurazione persistente.
+- L'integrazione eKonex Voice locale indica esplicitamente che endpoint e ID installazione sono gestiti da e-Control.
+- Gli oscuranti aperti mostrano un'icona aperta coerente con tapparella, garage, cancello, tenda o veneziana.
+- L'opzione Chiedi conferma blocca ora realmente l'invio dei comandi di apertura/chiusura finché l'utente non conferma.
+- Lo stato relè in Admin si aggiorna ogni due secondi ed è verde quando bloccato, rosso quando aperto/sbloccato e giallo se sconosciuto.
+- Rimossa la doppia inclusione del foglio stile Admin; i fallback locali mostrano ora l'indirizzo effettivamente scoperto senza perdere la modalità automatica al salvataggio.
+
 ## 2.21.225 — 2026-09-22
 
 - Gli oscuranti aperti usano ora il celeste per card e icona; il rosso resta riservato alle serrature aperte e agli stati di allarme o errore.

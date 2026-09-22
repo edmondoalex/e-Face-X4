@@ -82,6 +82,16 @@ def test_tools_exposes_portable_connector_and_access_sections() -> None:
     assert 'id="access-devices-search"' in script
     assert "function filterAccessDevices()" in script
     assert "row.dataset.search" in script
+    assert "const displayedEndpoint = inheritedEndpoint ? connector.effective_url : connector.base_url" in script
+    assert "endpoint.input.dataset.discovered = 'true'" in script
+    assert "endpoint.input.value.trim() === connector.effective_url ? connector.base_url" in script
+    assert "Non richiesto · collegamento locale" in script
+    assert "function accessStateClass(value)" in script
+    assert "window.setInterval(refreshAccessDeviceStates, 2000)" in script
+    assert "paintAccessState(row, item.state)" in script
+    stylesheet = (Path(__file__).parents[1] / "app/static/assets/tools-dashboard.css").read_text(encoding="utf-8")
+    assert ".access-device-state.unlocked{color:#ff526d}" in stylesheet
+    assert ".access-device-state.locked{color:#72e8c8}" in stylesheet
 
 
 def test_connector_admin_api_is_protected_and_never_returns_secrets(monkeypatch, tmp_path) -> None:
