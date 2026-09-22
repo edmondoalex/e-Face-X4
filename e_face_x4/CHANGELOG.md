@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.21.224 — 2026-09-22
+
+- Serrature e accessi mostra lo stato corrente dello switch/relè e lo usa come feedback predefinito, rispettando la semantica ON/OFF normale o invertita configurata.
+- Consente facoltativamente di associare una sorgente di stato separata per impianti dotati di contatto porta/cancello.
+
 ## 2.21.223 — 2026-09-22
 
 - Serrature e accessi aggiunge una ricerca istantanea per nome, stanza, tipo e ID, con conteggio dei risultati visibili.

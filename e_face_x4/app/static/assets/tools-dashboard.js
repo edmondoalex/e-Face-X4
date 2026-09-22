@@ -1131,24 +1131,36 @@ async function loadAccessDevices() {
   for (const [device_id, profile] of Object.entries(data.profiles)) if (!byId.has(device_id)) byId.set(device_id, {device_id, name:profile.name || device_id, room:'Non rilevato', kind:'unknown', entity_domain:''})
   const list = $('#access-devices-list'); list.replaceChildren()
   for (const item of [...byId.values()].sort((a,b) => `${a.room} ${a.name}`.localeCompare(`${b.room} ${b.name}`, 'it'))) {
-    const profile = data.profiles[item.device_id] || {enabled:false, behavior:'auto', name:'', confirm:false}
+    const profile = data.profiles[item.device_id] || {enabled:false, behavior:'auto', name:'', confirm:false, state_source_id:'', unlocked_state:'on'}
     const row = document.createElement('article'); row.className = 'access-device-card'; row.dataset.deviceId = item.device_id
     row.dataset.search = `${item.name} ${item.room} ${item.kind} ${item.entity_domain} ${item.device_id}`.toLocaleLowerCase('it')
     const info = document.createElement('div'); const name = document.createElement('strong'); name.textContent = item.name
-    const detail = document.createElement('small'); detail.textContent = `${item.room || 'Senza stanza'} · ${item.entity_domain || item.kind} · ${item.device_id}`; info.append(name, detail)
-    const enabled = field('Gestisci come accesso', '', 'checkbox'); enabled.input.checked = profile.enabled
-    const displayName = field('Nome in e-Face', profile.name || '')
+    const detail = document.createElement('small'); detail.textContent = `${item.room || 'Senza stanza'} · ${item.entity_domain || item.kind} · ${item.device_id}`
+    const state = document.createElement('b'); state.className = 'access-device-state'; state.textContent = `STATO RELÈ: ${item.state ?? '—'}`; info.append(name, detail, state)
+    const enabled = field('Gestisci come accesso', '', 'checkbox'); enabled.input.checked = profile.enabled; enabled.input.dataset.accessEnabled = '1'
+    const displayName = field('Nome in e-Face', profile.name || ''); displayName.input.dataset.accessName = '1'
     const behavior = document.createElement('select')
     for (const [value,label] of Object.entries(accessLabels)) { const option=document.createElement('option'); option.value=value; option.textContent=label; option.selected=profile.behavior===value; behavior.append(option) }
-    const confirm = field('Chiedi conferma', '', 'checkbox'); confirm.input.checked = profile.confirm
-    row.append(info, enabled.wrapper, displayName.wrapper, behavior, confirm.wrapper); list.append(row)
+    behavior.dataset.accessBehavior = '1'
+    const stateSourceLabel = document.createElement('label'); stateSourceLabel.textContent = 'Fonte stato'
+    const stateSource = document.createElement('select'); stateSource.dataset.accessStateSource = '1'
+    const ownState = document.createElement('option'); ownState.value = ''; ownState.textContent = 'Stesso switch / relè'; stateSource.append(ownState)
+    for (const source of data.state_sources || []) { if (source.device_id === item.device_id) continue; const option=document.createElement('option'); option.value=source.device_id; option.textContent=`${source.room} · ${source.name} (${source.state})`; option.selected=profile.state_source_id===source.device_id; stateSource.append(option) }
+    stateSourceLabel.append(stateSource)
+    const unlockedLabel = document.createElement('label'); unlockedLabel.textContent = 'Valore che indica aperto'
+    const unlockedState = document.createElement('select'); unlockedState.dataset.accessUnlockedState = '1'
+    for (const [value,label] of [['on','ON / APERTO'],['off','OFF / CHIUSO']]) { const option=document.createElement('option'); option.value=value; option.textContent=label; option.selected=(profile.unlocked_state||'on')===value; unlockedState.append(option) }
+    unlockedLabel.append(unlockedState); unlockedLabel.hidden = !profile.state_source_id
+    stateSource.addEventListener('change', () => { unlockedLabel.hidden = !stateSource.value })
+    const confirm = field('Chiedi conferma', '', 'checkbox'); confirm.input.checked = profile.confirm; confirm.input.dataset.accessConfirm = '1'
+    row.append(info, enabled.wrapper, displayName.wrapper, behavior, stateSourceLabel, unlockedLabel, confirm.wrapper); list.append(row)
   }
   filterAccessDevices()
 }
 
 $('#access-devices-form').addEventListener('submit', async event => {
   event.preventDefault()
-  const items = [...document.querySelectorAll('.access-device-card')].map(row => ({device_id:row.dataset.deviceId, enabled:row.querySelectorAll('input[type=checkbox]')[0].checked, name:row.querySelector('input[type=text]').value.trim(), behavior:row.querySelector('select').value, confirm:row.querySelectorAll('input[type=checkbox]')[1].checked}))
+  const items = [...document.querySelectorAll('.access-device-card')].map(row => ({device_id:row.dataset.deviceId, enabled:row.querySelector('[data-access-enabled]').checked, name:row.querySelector('[data-access-name]').value.trim(), behavior:row.querySelector('[data-access-behavior]').value, state_source_id:row.querySelector('[data-access-state-source]').value, unlocked_state:row.querySelector('[data-access-unlocked-state]').value, confirm:row.querySelector('[data-access-confirm]').checked}))
   try { await request('api/admin/access-devices', {method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({items})}); message('Profili di accesso salvati'); await loadAccessDevices() } catch(error) { message(error.message) }
 })
 

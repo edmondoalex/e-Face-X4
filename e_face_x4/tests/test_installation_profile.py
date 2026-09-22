@@ -60,6 +60,19 @@ def test_access_action_translation_is_explicit() -> None:
     assert installation_profile.translate_access_action({"behavior": "auto"}, "open") == "open"
 
 
+def test_relay_profile_uses_its_own_switch_state(monkeypatch, tmp_path) -> None:
+    monkeypatch.setenv("EFACE_INSTALLATION_PROFILE", str(tmp_path / "installation.json"))
+    installation_profile.save_access_profiles({"items": [{
+        "device_id": "switch.gate", "enabled": True, "behavior": "relay_on_unlock", "name": "Cancello",
+    }]})
+    locked = normalize_snapshot({"devices": [{"entity_id": "switch.gate", "type": "lock"}], "ha_states": {"switch.gate": {"state": "LOCKED"}}})["devices"][0]
+    unlocked = normalize_snapshot({"devices": [{"entity_id": "switch.gate", "type": "lock"}], "ha_states": {"switch.gate": {"state": "ON"}}})["devices"][0]
+    assert locked["state"] == "LOCKED"
+    assert locked["access_feedback_state"] == "LOCKED"
+    assert unlocked["state"] == "UNLOCKED"
+    assert unlocked["access_feedback_state"] == "ON"
+
+
 def test_tools_exposes_portable_connector_and_access_sections() -> None:
     script = (Path(__file__).parents[1] / "app/static/assets/tools-dashboard.js").read_text(encoding="utf-8")
     assert "Connettori esterni" in script

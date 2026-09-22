@@ -114,9 +114,27 @@ def normalize_snapshot(payload: dict[str, Any]) -> dict[str, Any]:
             "battery_percent": battery if kind == "lock" else None,
             "access_behavior": str((access_profile or {}).get("behavior") or "auto"),
             "confirm_action": bool((access_profile or {}).get("confirm")),
+            "access_state_source": str((access_profile or {}).get("state_source_id") or ""),
+            "state_reliable": True,
             "rgb_group": str(raw.get("rgb_group") or "").strip(),
             "rgb_channel": str(raw.get("rgb_channel") or "").strip().lower(),
         })
+    normalized_by_id = {str(item.get("id")): item for item in normalized}
+    for item in normalized:
+        profile = configured_access.get(str(item.get("id")))
+        if not profile or not profile.get("enabled"):
+            continue
+        source_id = str(profile.get("state_source_id") or "")
+        source = normalized_by_id.get(source_id) if source_id else item
+        behavior = str(profile.get("behavior") or "auto")
+        if source is not None and (source_id or behavior.startswith("relay_")):
+            raw_feedback = source.get("state")
+            feedback = str(raw_feedback).casefold()
+            canonical = "on" if feedback in {"on", "unlocked", "open", "true", "1"} else "off" if feedback in {"off", "locked", "closed", "false", "0"} else feedback
+            expected = str(profile.get("unlocked_state") or "on").casefold() if source_id else ("off" if behavior == "relay_off_unlock" else "on")
+            item["state"] = "UNLOCKED" if canonical == expected else "LOCKED"
+            item["state_reliable"] = True
+            item["access_feedback_state"] = raw_feedback
     groups = payload.get("cover_groups") if isinstance(payload.get("cover_groups"), list) else []
     for group in groups:
         if not isinstance(group, dict):

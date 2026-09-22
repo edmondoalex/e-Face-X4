@@ -87,6 +87,8 @@ def access_profiles() -> dict[str, dict[str, Any]]:
                 "behavior": behavior,
                 "name": str(value.get("name") or "").strip()[:80],
                 "confirm": value.get("confirm") is True,
+                "state_source_id": str(value.get("state_source_id") or "").strip()[:254],
+                "unlocked_state": str(value.get("unlocked_state") or "on").strip().casefold()[:40],
             }
     return result
 
@@ -108,6 +110,8 @@ def save_access_profiles(payload: Any) -> dict[str, dict[str, Any]]:
                 "behavior": behavior,
                 "name": str(raw.get("name") or "").strip()[:80],
                 "confirm": raw.get("confirm") is True,
+                "state_source_id": str(raw.get("state_source_id") or "").strip()[:254],
+                "unlocked_state": str(raw.get("unlocked_state") or "on").strip().casefold()[:40] or "on",
             }
     profile = load()
     profile["version"] = 1

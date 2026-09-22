@@ -77,7 +77,7 @@ from .connectors.supervisor import discover_addon_url, discover_host_url, instal
 from .media_realtime import SharedMediaRealtime
 from .demo import dashboard as demo_dashboard
 
-VERSION = os.environ.get("EFACE_VERSION", "2.21.223")
+VERSION = os.environ.get("EFACE_VERSION", "2.21.224")
 STATIC = Path(__file__).parent / "static"
 logging.basicConfig(level=logging.WARNING, format="%(asctime)s %(levelname)s [e-face-x4] %(message)s")
 _reconnect_warning_at: dict[str, float] = {}
@@ -3691,11 +3691,17 @@ def create_app() -> FastAPI:
                 "room": str(item.get("room") or ""),
                 "kind": str(item.get("kind") or ""),
                 "entity_domain": str(item.get("entity_domain") or ""),
+                "state": item.get("state"),
+                "state_reliable": item.get("state_reliable") is not False,
             }
             for item in snapshot.get("items", [])
             if item.get("kind") in {"lock", "switch", "cover"}
         ]
-        return {"status": snapshot.get("status"), "items": candidates, "profiles": installation_profile.access_profiles()}
+        state_sources = [
+            {"device_id": str(item.get("id") or ""), "name": str(item.get("name") or item.get("id") or ""), "room": str(item.get("room") or ""), "state": item.get("state")}
+            for item in snapshot.get("items", []) if item.get("id") is not None and item.get("state") is not None
+        ]
+        return {"status": snapshot.get("status"), "items": candidates, "state_sources": state_sources, "profiles": installation_profile.access_profiles()}
 
     @app.put("/api/admin/access-devices")
     async def admin_save_access_devices(request: Request, payload: dict) -> dict:
