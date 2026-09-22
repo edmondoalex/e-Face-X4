@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.21.248 — 2026-09-22
+
+- Aggiunto il contatore degli eventi attivi sull'icona Agenda; il badge scompare quando non ci sono sveglie, timer o promemoria.
+- Corretta l'installazione automatica del componente `eface_alexa` sulle nuove installazioni che montano la configurazione Home Assistant in `/config` anziché `/homeassistant`.
+- Dopo una prima installazione, l'add-on verifica la registrazione dei servizi e richiede un solo riavvio automatico di Home Assistant Core quando è indispensabile, evitando cicli ai successivi avvii.
+
 ## 2.21.247 — 2026-09-22
 
 - L'anteprima di Home dinamica rappresenta ora anche l'altezza configurata dei widget e mostra chiaramente entrambe le dimensioni (`L` e `H`).
