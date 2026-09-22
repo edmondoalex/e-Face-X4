@@ -77,7 +77,7 @@ from .connectors.supervisor import discover_addon_url, discover_host_url, instal
 from .media_realtime import SharedMediaRealtime
 from .demo import dashboard as demo_dashboard
 
-VERSION = os.environ.get("EFACE_VERSION", "2.21.248")
+VERSION = os.environ.get("EFACE_VERSION", "2.21.249")
 STATIC = Path(__file__).parent / "static"
 logging.basicConfig(level=logging.WARNING, format="%(asctime)s %(levelname)s [e-face-x4] %(message)s")
 _reconnect_warning_at: dict[str, float] = {}
@@ -2378,14 +2378,30 @@ def create_app() -> FastAPI:
         return {"ok": True, "confirmed": True, "message": "Inserimento confermato da Alexa"}
 
     @app.get("/api/home/alexa/agenda/items")
-    async def home_alexa_agenda_items(device_id: str) -> dict:
-        if not any(item["device_id"] == device_id for item in await alexa_agenda_devices()):
-            raise HTTPException(status_code=404, detail="Dispositivo Alexa non disponibile")
-        result = await home_assistant_service(
-            "eface_alexa", "list_notifications", {"device_id": device_id}, response_data=True
-        )
-        response = result.get("service_response") if isinstance(result, dict) else {}
-        return {"items": response.get("items", []) if isinstance(response, dict) else []}
+    async def home_alexa_agenda_items(device_id: str | None = None) -> dict:
+        devices = await alexa_agenda_devices()
+        if device_id:
+            devices = [item for item in devices if item["device_id"] == device_id]
+            if not devices: raise HTTPException(status_code=404, detail="Dispositivo Alexa non disponibile")
+
+        async def notifications(device: dict) -> list[dict]:
+            result = await home_assistant_service(
+                "eface_alexa", "list_notifications", {"device_id": device["device_id"]}, response_data=True
+            )
+            response = result.get("service_response") if isinstance(result, dict) else {}
+            items = response.get("items", []) if isinstance(response, dict) else []
+            return [{**item, "device_id": device["device_id"], "device_name": device["name"]}
+                    for item in items if isinstance(item, dict)]
+
+        results = await asyncio.gather(*(notifications(device) for device in devices), return_exceptions=not bool(device_id))
+        merged, seen = [], set()
+        for result in results:
+            if isinstance(result, Exception): continue
+            for item in result:
+                identity = str(item.get("id") or "")
+                if not identity or identity in seen: continue
+                seen.add(identity); merged.append(item)
+        return {"items": merged}
 
     @app.delete("/api/home/alexa/agenda/items/{notification_id}")
     async def home_alexa_agenda_delete(notification_id: str, device_id: str) -> dict:

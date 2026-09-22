@@ -1,5 +1,12 @@
 # Changelog
 
+## 2.21.249 — 2026-09-22
+
+- L'Agenda rilevata legge e mostra l'elenco completo di sveglie, timer e promemoria attivi su tutti gli Echo, anziché limitarsi al prossimo evento dei sensori.
+- Le letture dei diversi dispositivi vengono eseguite in parallelo, deduplicate e associate all'Echo corretto per consentirne la cancellazione.
+- Il badge sull'icona Agenda usa il numero reale degli eventi presenti nell'elenco completo.
+- Il volume della configurazione Home Assistant viene montato esplicitamente in `/homeassistant`, eliminando differenze di percorso tra installazioni durante la copia automatica di `eface_alexa`.
+
 ## 2.21.248 — 2026-09-22
 
 - Aggiunto il contatore degli eventi attivi sull'icona Agenda; il badge scompare quando non ci sono sveglie, timer o promemoria.
