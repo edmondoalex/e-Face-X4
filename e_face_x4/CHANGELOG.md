@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.21.238 — 2026-09-22
+
+- Aggiunto il widget Agenda realmente configurabile in Home dinamica, con dimensioni dal 25% al 100%, riepilogo del prossimo evento e apertura diretta della pagina Agenda.
+- Tutti i widget espongono ora anche la scelta altezza; corretta l'associazione degli Echo usando esclusivamente le entità appartenenti all'integrazione `alexa_devices`, evitando l'errore HTTP 502 sui dispositivi omonimi di altre integrazioni.
+
 ## 2.21.237 — 2026-09-22
 
 - La scoperta automatica di Echo e agende ora accetta registri e-Control di grandi dimensioni senza chiudere la connessione WebSocket al limite predefinito di 1 MB.

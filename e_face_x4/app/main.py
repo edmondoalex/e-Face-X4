@@ -77,7 +77,7 @@ from .connectors.supervisor import discover_addon_url, discover_host_url, instal
 from .media_realtime import SharedMediaRealtime
 from .demo import dashboard as demo_dashboard
 
-VERSION = os.environ.get("EFACE_VERSION", "2.21.237")
+VERSION = os.environ.get("EFACE_VERSION", "2.21.238")
 STATIC = Path(__file__).parent / "static"
 logging.basicConfig(level=logging.WARNING, format="%(asctime)s %(levelname)s [e-face-x4] %(message)s")
 _reconnect_warning_at: dict[str, float] = {}
@@ -2271,9 +2271,12 @@ def create_app() -> FastAPI:
         for entity in entities:
             if not isinstance(entity, dict): continue
             entity_id, device_id = str(entity.get("entity_id") or ""), str(entity.get("device_id") or "")
-            if device_id and routines.ALEXA_SCHEDULE_ID.fullmatch(entity_id):
+            original = str(entity.get("original_name") or "").casefold()
+            if device_id and entity.get("platform") == "alexa_devices" and routines.ALEXA_SCHEDULE_ID.fullmatch(entity_id):
                 row = result.setdefault(device_id, {"device_id": device_id, "name": device_names.get(device_id, "Alexa"), "sensors": {}})
-                kind = next((value for value in ("alarm", "timer", "reminder") if entity_id.endswith(f"next_{value}")), "")
+                kind = ("alarm" if "alarm" in entity_id or "sveglia" in entity_id or "sveglia" in original else
+                        "timer" if "timer" in entity_id or "timer" in original else
+                        "reminder" if "reminder" in entity_id or "promemoria" in entity_id or "promemoria" in original else "")
                 if kind: row["sensors"][kind] = entity_id
         return sorted(result.values(), key=lambda item: item["name"].casefold())
 

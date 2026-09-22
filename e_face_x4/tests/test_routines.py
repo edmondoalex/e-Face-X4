@@ -758,6 +758,9 @@ def test_scenarios_and_echo_commands_follow_real_capabilities():
 
 
 def test_alexa_agenda_actions_are_validated_as_text_commands():
+    assert routines.ALEXA_SCHEDULE_ID.fullmatch("sensor.echo_spot_prossima_sveglia")
+    assert routines.ALEXA_SCHEDULE_ID.fullmatch("sensor.echo_spot_prossimo_timer")
+    assert routines.ALEXA_SCHEDULE_ID.fullmatch("sensor.echo_spot_prossimo_promemoria")
     devices = catalog() + [{"id": "alexa-device:echo-kitchen", "kind": "alexa_device", "name": "Echo Cucina",
                             "room": "Alexa", "state": "online"}]
     spec = {"name": "Sveglia mattina", "triggers": [{"type": "state", "device_id": "sensor.motion", "to": "on"}],

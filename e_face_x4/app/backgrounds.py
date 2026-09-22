@@ -11,7 +11,7 @@ SHORTCUT_CATEGORIES = ["lights", "switches", "covers", "climate", "security", "m
 DEVICE_ORGANIZATION_CATEGORIES = ["lights", "extra", "covers", "comfort", "security", "scenarios", "intercom", "media"]
 NAVIGATION_ITEMS = ["watch", "listen", "intercom", "lights", "extra", "scenarios", "covers", "comfort", "heating", "energy", "security", "shopping", "alexa-agenda"]
 LEGACY_HOME_WIDGETS = ["overview", "weather", "camera_event", "doorbell", "motion", "states", "rooms", "live"]
-NEW_HOME_WIDGETS = ["room_pulse", "lights_now", "routine_pulse", "shopping_list"]
+NEW_HOME_WIDGETS = ["room_pulse", "lights_now", "routine_pulse", "shopping_list", "agenda"]
 HOME_WIDGETS = [*LEGACY_HOME_WIDGETS, *NEW_HOME_WIDGETS]
 MIME_SUFFIX = {"image/png": ".png", "image/jpeg": ".jpg", "image/webp": ".webp"}
 

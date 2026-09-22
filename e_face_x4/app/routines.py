@@ -52,7 +52,7 @@ SENSITIVE_WORDS = re.compile(r"portone|cancello|garage|serratura|allarme|alarm|g
 SECRET_TEXT = re.compile(r"(?i)(password|token|secret|authorization)\s*[:=]\s*\S+|https?://\S+")
 BYPASS_ID = re.compile(r"switch\.e_safe_zone_[0-9]{1,3}_bypass_ctrl\Z")
 HA_COVER_ID = re.compile(r"cover\.buspro_cover_[a-z0-9_]+\Z")
-ALEXA_SCHEDULE_ID = re.compile(r"sensor\.[a-z0-9_]+_(?:next_alarm|next_timer|next_reminder)\Z")
+ALEXA_SCHEDULE_ID = re.compile(r"sensor\.[a-z0-9_]+_(?:next_alarm|next_timer|next_reminder|prossima_sveglia|prossimo_timer(?:_2)?|prossimo_promemoria(?:_2)?)\Z")
 
 
 def _path() -> Path:
