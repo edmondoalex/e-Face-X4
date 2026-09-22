@@ -9,6 +9,8 @@ from typing import Any
 import voluptuous as vol
 from yarl import URL
 
+from aioamazondevices.const.http import REFRESH_ACCESS_TOKEN, REQUEST_AGENT
+
 from homeassistant.components.alexa_devices.const import DOMAIN as ALEXA_DOMAIN
 from homeassistant.const import ATTR_DEVICE_ID
 from homeassistant.core import HomeAssistant, ServiceCall
@@ -71,22 +73,47 @@ async def _write_notification(call: ServiceCall, kind: str) -> None:
     else:
         value: datetime = call.data[ATTR_TIMESTAMP]
         when_ms = round(value.timestamp() * 1000)
-        payload.update(alarmTime=when_ms, originalTime=None)
+        payload.update(
+            alarmTime=when_ms,
+            createdDate=round(datetime.now().timestamp() * 1000),
+            originalDate=value.strftime("%Y-%m-%d"),
+            originalTime=value.strftime("%H:%M:%S.000"),
+        )
         if kind == "Alarm":
-            payload["originalLabel"] = None
+            payload["reminderLabel"] = None
         else:
             payload["reminderLabel"] = call.data[ATTR_LABEL]
 
     api = coordinator.api
     handler = api._notification_handler
-    _, response = await handler._http_wrapper.session_request(
-        HTTPMethod.PUT,
-        url=URL.joinpath(
-            handler._session_state_data.alexa_website_url, "api/notifications"
-        ),
-        input_data=payload,
-        json_data=True,
-    )
+    wrapper = handler._http_wrapper
+    state = handler._session_state_data
+    if kind == "Alarm":
+        refreshed, _ = await wrapper.refresh_data(REFRESH_ACCESS_TOKEN)
+        if not refreshed:
+            raise HomeAssistantError("Impossibile aggiornare la sessione Alexa")
+        alarm_payload = {
+            "trigger": {"scheduledTime": value.strftime("%Y-%m-%dT%H:%M:%S")},
+            "extensions": [],
+            "endpointId": f"{serial}@{device_type}",
+        }
+        _, response = await wrapper.session_request(
+            HTTPMethod.POST,
+            url=URL.joinpath(state.global_alexa_api_url, "v1/alerts/alarms"),
+            input_data=alarm_payload,
+            json_data=True,
+            extended_headers={
+                "Authorization": f"Bearer {state.login_stored_data[REFRESH_ACCESS_TOKEN]}",
+                "User-Agent": REQUEST_AGENT["Amazon"],
+            },
+        )
+    else:
+        _, response = await wrapper.session_request(
+            HTTPMethod.PUT,
+            url=URL.joinpath(state.alexa_website_url, "api/notifications/null"),
+            input_data=payload,
+            json_data=True,
+        )
     if response.status not in (200, 201):
         raise HomeAssistantError(f"Alexa ha rifiutato la richiesta ({response.status})")
     await coordinator.async_request_refresh()

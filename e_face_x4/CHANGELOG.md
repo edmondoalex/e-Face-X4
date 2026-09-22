@@ -1,5 +1,9 @@
 # Changelog
 
+## 2.21.241 — 2026-09-22
+
+- Adeguata la creazione delle sveglie al nuovo endpoint Alexa Alerts v1; timer e promemoria usano il percorso notifiche legacy con identificatore `null` richiesto da Amazon.
+
 ## 2.21.240 — 2026-09-22
 
 - Sveglie, timer e promemoria vengono creati tramite un componente e-Control che riusa la sessione dell'integrazione ufficiale `Alexa Devices`; non dipendono da Alexa Media Player e non simulano più un dialogo vocale.
