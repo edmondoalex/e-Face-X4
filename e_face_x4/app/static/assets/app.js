@@ -443,7 +443,7 @@ function renderHomeWowWidgets() {
 const shortcutCategoryLabels = {lights:'Luci',switches:'Extra',covers:'Oscuranti',climate:'Comfort',security:'Sicurezza',media:'Audio e video',sensors:'Sensori',other:'Altro'}
 function applyHomeWidgetLayout(){
   const board=$('#home-view .dashboard-grid'); if(!board)return
-  const elements={overview:$('.home-overview-summary'),weather:$('#home-weather-widget'),camera_event:$('#home-camera-event'),doorbell:$('#home-doorbell-event'),motion:$('#home-motion-event'),states:$('#widgets'),rooms:$('#room-panel'),live:$('#home-live-media'),room_pulse:$('#home-room-pulse'),lights_now:$('#home-lights-now'),routine_pulse:$('#home-routine-pulse')}
+  const elements={overview:$('.home-overview-summary'),weather:$('#home-weather-widget'),camera_event:$('#home-camera-event'),doorbell:$('#home-doorbell-event'),motion:$('#home-motion-event'),states:$('#widgets'),rooms:$('#room-panel'),live:$('#home-live-media'),room_pulse:$('#home-room-pulse'),lights_now:$('#home-lights-now'),routine_pulse:$('#home-routine-pulse'),shopping_list:$('#home-shopping-list')}
   const layout=currentHomeWidgets.length?currentHomeWidgets:[{id:'overview',visible:true,size:'wide'},{id:'states',visible:true,size:'standard'},{id:'rooms',visible:true,size:'wide'},{id:'live',visible:true,size:'wide'}]
   layout.forEach((item,index)=>{const element=elements[item.id];if(!element)return;element.dataset.homeWidget=item.id;element.dataset.widgetSize=item.size||'standard';element.dataset.widgetHeight=item.height||'standard';element.style.order=String(index);element.classList.toggle('widget-user-hidden',item.visible===false);board.append(element)})
   refreshHomeHighlights()
@@ -453,11 +453,34 @@ let homeImagesLoadedAt=0
 const weatherMeta=(code)=>{code=Number(code);if(code===0)return['Sereno','☀️','sunny'];if([1,2].includes(code))return['Poco nuvoloso','🌤️','cloudy'];if(code===3)return['Nuvoloso','☁️','cloudy'];if([45,48].includes(code))return['Nebbia','🌫️','fog'];if(code>=51&&code<=67)return['Pioggia','🌧️','rain'];if(code>=71&&code<=77)return['Neve','🌨️','snow'];if(code>=80&&code<=82)return['Rovesci','🌦️','rain'];if(code>=85&&code<=86)return['Neve','❄️','snow'];if(code>=95)return['Temporale','⛈️','storm'];return['Variabile','🌥️','cloudy']}
 function renderWeather(data){const current=data.current||{},daily=data.daily||{},meta=weatherMeta(current.weather_code),card=$('#home-weather-widget');card.dataset.weather=meta[2];$('#home-weather-place').textContent=[data.name,data.area].filter(Boolean).join(' · ');$('#home-weather-clock').textContent=new Intl.DateTimeFormat('it-IT',{hour:'2-digit',minute:'2-digit',timeZone:data.timezone||undefined}).format(new Date());$('#home-weather-icon').textContent=meta[1];$('#home-weather-state').textContent=meta[0];$('#home-weather-temperature').textContent=`${Math.round(Number(current.temperature_2m))}°`;$('#home-weather-detail').textContent=`Percepita ${Math.round(Number(current.apparent_temperature))}° · UR ${Math.round(Number(current.relative_humidity_2m))}% · Vento ${Math.round(Number(current.wind_speed_10m))} km/h`;const days=daily.time||[];$('#home-weather-forecast').innerHTML=days.slice(0,5).map((date,index)=>{const item=weatherMeta((daily.weather_code||[])[index]);const day=new Intl.DateTimeFormat('it-IT',{weekday:'short'}).format(new Date(`${date}T12:00:00`)).replace('.','').toUpperCase();return `<div><small>${day}</small><i class="weather-symbol">${item[1]}</i><span><b>${Math.round(Number((daily.temperature_2m_max||[])[index]))}°</b> ${Math.round(Number((daily.temperature_2m_min||[])[index]))}°</span></div>`}).join('')}async function refreshHomeHighlights(){
   const now=Date.now()
+  if(!$('#home-shopping-list')?.classList.contains('widget-user-hidden')) refreshHomeShoppingList(false)
   if(now-homeWeatherLoadedAt>=600000){homeWeatherLoadedAt=now;fetch(apiUrl('api/home/weather'),deviceFetchOptions({cache:'no-store'})).then(async(response)=>{if(!response.ok)throw new Error();renderWeather(await response.json())}).catch(()=>{$('#home-weather-state').textContent='Configura il meteo in Strumenti';$('#home-weather-temperature').textContent='--°';$('#home-weather-forecast').innerHTML=''})}
   if(now-homeImagesLoadedAt<15000)return;homeImagesLoadedAt=now
   ;['camera','doorbell','motion'].forEach(refreshHomeEventImage)
   refreshHomeEventTimes()
 }
+let homeShoppingBusy=false
+async function refreshHomeShoppingList(full=true){
+  if(homeShoppingBusy)return
+  homeShoppingBusy=true
+  try{
+    const response=await fetch(apiUrl('api/home/todo'),{cache:'no-store'}),data=await response.json()
+    if(!response.ok)throw new Error(data.detail||`HTTP ${response.status}`)
+    const active=(data.items||[]).filter(item=>item.status!=='completed'),completed=(data.items||[]).filter(item=>item.status==='completed')
+    $('#home-shopping-count').textContent=String(active.length)
+    $('#home-shopping-name').textContent=data.name||'Lista della spesa'
+    $('#home-shopping-preview').textContent=active.slice(0,3).map(item=>item.summary).join(' · ')||'Nessun articolo da acquistare'
+    $('#home-shopping-dialog-title').textContent=data.name||'Lista della spesa'
+    if(full)$('#home-shopping-items').innerHTML=[...active,...completed].map(item=>`<div class="home-shopping-item ${item.status==='completed'?'completed':''}" data-todo-uid="${escAttribute(item.uid)}"><button type="button" class="home-shopping-check" data-todo-complete="${item.status!=='completed'}" aria-label="${item.status==='completed'?'Ripristina':'Completa'} ${escAttribute(item.summary)}">${item.status==='completed'?'✓':'○'}</button><strong>${esc(item.summary)}</strong><button type="button" class="home-shopping-remove" data-todo-remove aria-label="Elimina ${escAttribute(item.summary)}">×</button></div>`).join('')||'<p class="home-insight-empty">La lista è vuota</p>'
+  }catch(error){$('#home-shopping-count').textContent='—';$('#home-shopping-name').textContent='Lista non disponibile';$('#home-shopping-preview').textContent=error.message;if(full)$('#home-shopping-items').innerHTML=`<p class="home-insight-empty home-shopping-error">${esc(error.message)}</p>`}
+  finally{homeShoppingBusy=false}
+}
+async function homeShoppingCommand(path,options){const response=await fetch(apiUrl(path),options),data=await response.json().catch(()=>({}));if(!response.ok)throw new Error(data.detail||`HTTP ${response.status}`);await refreshHomeShoppingList(true)}
+$('#home-shopping-list')?.addEventListener('click',async()=>{const dialog=$('#home-shopping-dialog');dialog.showModal();await refreshHomeShoppingList(true);$('#home-shopping-input').focus()})
+$('#home-shopping-close')?.addEventListener('click',()=>$('#home-shopping-dialog').close())
+$('#home-shopping-dialog')?.addEventListener('click',(event)=>{if(event.target===$('#home-shopping-dialog'))event.currentTarget.close()})
+$('#home-shopping-add')?.addEventListener('submit',async(event)=>{event.preventDefault();const input=$('#home-shopping-input'),summary=input.value.trim();if(!summary)return;try{await homeShoppingCommand('api/home/todo/items',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({summary})});input.value='';input.focus()}catch(error){notify(error.message)}})
+$('#home-shopping-items')?.addEventListener('click',async(event)=>{const row=event.target.closest('[data-todo-uid]');if(!row)return;try{if(event.target.closest('[data-todo-remove]'))await homeShoppingCommand(`api/home/todo/items/${encodeURIComponent(row.dataset.todoUid)}`,{method:'DELETE'});else{const button=event.target.closest('[data-todo-complete]');if(button)await homeShoppingCommand(`api/home/todo/items/${encodeURIComponent(row.dataset.todoUid)}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({completed:button.dataset.todoComplete==='true'})})}}catch(error){notify(error.message)}})
 function refreshHomeEventTimes(){
   fetch(apiUrl('api/home/event-times'),{cache:'no-store'}).then(response=>response.ok?response.json():Promise.reject()).then(data=>{
     for(const [kind,selector] of Object.entries({camera:'#home-camera-event',doorbell:'#home-doorbell-event',motion:'#home-motion-event'})){

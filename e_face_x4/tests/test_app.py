@@ -4,6 +4,7 @@ from fastapi.testclient import TestClient
 from starlette.websockets import WebSocketDisconnect
 import pytest
 import json
+import httpx
 from pathlib import Path
 from urllib.parse import urljoin
 
@@ -91,7 +92,7 @@ def test_health() -> None:
     response = TestClient(create_app()).get("/health")
     assert response.status_code == 200
     assert response.json()["ok"] is True
-    assert response.json()["version"] == "2.21.226"
+    assert response.json()["version"] == "2.21.227"
 
 
 def test_home_event_times_reads_saved_doorbird_motion(monkeypatch, tmp_path) -> None:
@@ -138,7 +139,7 @@ def test_intercom_is_in_sidebar_with_embedded_view() -> None:
     client_script = (static / "assets" / "intercom.js").read_text(encoding="utf-8")
     intercom_page = (static / "intercom.html").read_text(encoding="utf-8")
     assert "Tablet Control4 · interno 8291" in intercom_page
-    assert "const currentVersion = '2.21.226'" in client_script
+    assert "const currentVersion = '2.21.227'" in client_script
     assert 'id="call-ufficio" data-dial-extension="8291" data-video-capable="true"' in intercom_page
     assert "Postazione esterna · interno 8201" in intercom_page
     assert "Postazione esterna · interno ${station.sip_extension}" in client_script
@@ -345,10 +346,10 @@ def test_intercom_dashboard_stores_only_local_settings(monkeypatch, tmp_path) ->
     assert 'id="users-tool"' in page
     assert 'id="logout"' in page
     assert page.index('id="logout"') < page.index('id="tools-user-section"')
-    assert "tools-dashboard.js?v=2.21.226" in page
-    assert "tools-dashboard.css?v=2.21.226" in page
-    assert "tools.js?v=2.21.226" in page
-    assert "organization-tools.js?v=2.21.226" in page
+    assert "tools-dashboard.js?v=2.21.227" in page
+    assert "tools-dashboard.css?v=2.21.227" in page
+    assert "tools.js?v=2.21.227" in page
+    assert "organization-tools.js?v=2.21.227" in page
     tools_js = client.get("/assets/tools.js").text
     assert "document.querySelector('.tools-shell').append(shortcutsPanel)" in tools_js
     assert "data-shortcut-drag=\"category\"" in tools_js
@@ -358,7 +359,7 @@ def test_intercom_dashboard_stores_only_local_settings(monkeypatch, tmp_path) ->
     assert '<b>Accesi</b>' not in home
     assert 'id="light-on-filter"' in home
     assert "backgrounds.css?v=2.21.43" in home
-    assert "app.js?v=2.21.226" in home
+    assert "app.js?v=2.21.227" in home
     app_js = client.get("/assets/app.js").text
     assert "event.type === 'doorbird_event'" in app_js
     assert "event.type === 'home_camera_event'" in app_js
@@ -779,8 +780,8 @@ def test_tools_page_starts_with_selected_background_and_card_theme(monkeypatch, 
     home = client.get("/").text
     login = client.get("/login").text
     assert '<body class="app-theme" data-background="midnight" data-card-theme="slate">' in home
-    assert 'ui-theme-contract.css?v=2.21.226' in home
-    assert 'app.js?v=2.21.226' in home
+    assert 'ui-theme-contract.css?v=2.21.227' in home
+    assert 'app.js?v=2.21.227' in home
     assert 'energy.css?v=2.21.30' in home
     assert 'home-comfort.css?v=2.21.31' in home
     assert '<body class="login-theme" data-background="midnight" data-card-theme="slate">' in login
@@ -796,8 +797,8 @@ def test_user_appearance_persists_room_order_and_glow(monkeypatch, tmp_path) -> 
     client = TestClient(create_app())
     appearance = client.get("/api/user/appearance").json()
     assert {key: appearance[key] for key in ("card_glow", "room_order", "security_order", "security_cameras", "shortcuts")} == {"card_glow": True, "room_order": [], "security_order": ["scenarios", "areas", "zones", "locks", "cameras"], "security_cameras": [], "shortcuts": []}
-    assert [item["id"] for item in appearance["home_widgets"]] == ["overview", "weather", "camera_event", "doorbell", "motion", "states", "rooms", "live", "room_pulse", "lights_now", "routine_pulse"]
-    assert all(not item["visible"] for item in appearance["home_widgets"][-3:])
+    assert [item["id"] for item in appearance["home_widgets"]] == ["overview", "weather", "camera_event", "doorbell", "motion", "states", "rooms", "live", "room_pulse", "lights_now", "routine_pulse", "shopping_list"]
+    assert all(not item["visible"] for item in appearance["home_widgets"][-4:])
     assert appearance["home_camera_entity"] == "camera.nvr_32ch_ext_ultimo_evento"
     assert appearance["home_weather_location"] == ""
     shortcuts = [{"category": "lights", "devices": ["buspro:1", "buspro:2"]}, {"category": "climate", "devices": ["therm:1"]}]
@@ -806,8 +807,8 @@ def test_user_appearance_persists_room_order_and_glow(monkeypatch, tmp_path) -> 
     response = client.put("/api/user/appearance", json={"card_glow": False, "room_order": ["Sala", "Ufficio Alex"], "security_order": ["locks", "zones", "areas", "scenarios", "cameras"], "security_cameras": cameras, "shortcuts": shortcuts, "home_widgets": home_widgets, "home_camera_entity": "camera.nvr_32ch_ext_ultimo_evento", "home_weather_location": "Torino"})
     assert response.status_code == 200
     navigation = [{"id": key, "visible": True} for key in ["watch", "listen", "intercom", "lights", "extra", "scenarios", "covers", "comfort", "heating", "energy", "security"]]
-    expanded_widgets = [*home_widgets, *[{"id": item, "visible": False, "size": "wide" if item == "room_pulse" else "standard", "height": "standard"} for item in ("room_pulse", "lights_now", "routine_pulse")]]
-    assert client.get("/api/user/appearance").json() == {"card_glow": False, "room_order": ["Sala", "Ufficio Alex"], "security_order": ["locks", "zones", "areas", "scenarios", "cameras"], "security_cameras": cameras, "shortcuts": shortcuts, "device_organization": {}, "navigation_items": navigation, "home_widgets": expanded_widgets, "home_camera_entity": "camera.nvr_32ch_ext_ultimo_evento", "home_weather_location": "Torino"}
+    expanded_widgets = [*home_widgets, *[{"id": item, "visible": False, "size": "wide" if item == "room_pulse" else "standard", "height": "standard"} for item in ("room_pulse", "lights_now", "routine_pulse", "shopping_list")]]
+    assert client.get("/api/user/appearance").json() == {"card_glow": False, "room_order": ["Sala", "Ufficio Alex"], "security_order": ["locks", "zones", "areas", "scenarios", "cameras"], "security_cameras": cameras, "shortcuts": shortcuts, "device_organization": {}, "navigation_items": navigation, "home_widgets": expanded_widgets, "home_camera_entity": "camera.nvr_32ch_ext_ultimo_evento", "home_weather_location": "Torino", "home_todo_entity": ""}
     navigation[0]["visible"] = False
     navigation.reverse()
     assert client.put("/api/user/appearance", json={"navigation_items": navigation}).json()["navigation_items"] == navigation
@@ -856,14 +857,54 @@ def test_new_home_widgets_are_opt_in_and_present_in_the_home(monkeypatch, tmp_pa
     monkeypatch.setenv("EFACE_BACKGROUNDS", str(tmp_path / "backgrounds"))
     client = TestClient(create_app())
     widgets = client.get("/api/user/appearance").json()["home_widgets"]
-    assert [(item["id"], item["visible"]) for item in widgets[-3:]] == [
-        ("room_pulse", False), ("lights_now", False), ("routine_pulse", False)]
+    assert [(item["id"], item["visible"]) for item in widgets[-4:]] == [
+        ("room_pulse", False), ("lights_now", False), ("routine_pulse", False), ("shopping_list", False)]
     widgets[-3]["visible"] = True
     assert client.put("/api/user/appearance", json={"home_widgets": widgets}).status_code == 200
     assert client.get("/api/user/appearance").json()["home_widgets"][-3]["visible"] is True
     home = client.get("/").text
-    for widget_id in ("home-room-pulse", "home-lights-now", "home-routine-pulse"):
+    for widget_id in ("home-room-pulse", "home-lights-now", "home-routine-pulse", "home-shopping-list"):
         assert f'id="{widget_id}"' in home
+
+
+def test_home_shopping_list_discovers_and_controls_econtrol_todo(monkeypatch, tmp_path) -> None:
+    import app.main as main_module
+    monkeypatch.setenv("EFACE_BACKGROUNDS", str(tmp_path / "backgrounds"))
+    monkeypatch.setenv("SUPERVISOR_TOKEN", "redacted-test-token")
+    calls = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        calls.append((request.method, request.url.path, json.loads(request.content or b"{}")))
+        if request.method == "GET" and request.url.path.endswith("/api/states"):
+            return httpx.Response(200, json=[
+                {"entity_id": "todo.shopping_list", "state": "2", "attributes": {"friendly_name": "Shopping list"}},
+                {"entity_id": "todo.to_do_list", "state": "0", "attributes": {"friendly_name": "To-do list"}},
+                {"entity_id": "light.cucina", "state": "on", "attributes": {}},
+            ])
+        if request.url.path.endswith("/api/services/todo/get_items"):
+            return httpx.Response(200, json={"service_response": {"todo.shopping_list": {"items": [
+                {"uid": "item-1", "summary": "Latte", "status": "needs_action"},
+                {"uid": "item-2", "summary": "Pane", "status": "completed"},
+            ]}}})
+        return httpx.Response(200, json={"service_response": {}})
+
+    original = main_module.httpx.AsyncClient
+    monkeypatch.setattr(main_module.httpx, "AsyncClient", lambda **kwargs: original(transport=httpx.MockTransport(handler), **kwargs))
+    client = TestClient(main_module.create_app())
+    catalog = client.get("/api/home/todo/lists").json()
+    assert [item["entity_id"] for item in catalog["items"]] == ["todo.shopping_list", "todo.to_do_list"]
+    assert client.put("/api/user/appearance", json={"home_todo_entity": "todo.shopping_list"}).status_code == 200
+    content = client.get("/api/home/todo").json()
+    assert content["name"] == "Shopping list"
+    assert content["count"] == 1
+    assert [item["summary"] for item in content["items"]] == ["Latte", "Pane"]
+    assert client.post("/api/home/todo/items", json={"summary": "Pasta"}).status_code == 200
+    assert client.put("/api/home/todo/items/item-1", json={"completed": True}).status_code == 200
+    assert client.delete("/api/home/todo/items/item-2").status_code == 200
+    service_calls = {(method, path): body for method, path, body in calls if "/api/services/todo/" in path}
+    assert service_calls[("POST", "/core/api/services/todo/add_item")]["item"] == "Pasta"
+    assert service_calls[("POST", "/core/api/services/todo/update_item")]["status"] == "completed"
+    assert service_calls[("POST", "/core/api/services/todo/remove_item")]["item"] == "item-2"
 
 
 def test_dynamic_home_settings_are_isolated_by_device(monkeypatch, tmp_path) -> None:
@@ -990,7 +1031,7 @@ def test_x4_shell_and_brand_assets_are_served() -> None:
     assert "now-playing" not in page.text
     assert 'id="detail-view"' in page.text
     assert 'id="detail-back"' in page.text
-    assert page.text.count('<dialog') == 11
+    assert page.text.count('<dialog') == 12
     assert 'id="home-event-dialog"' in page.text
     assert 'id="media-browser-dialog"' not in page.text
     assert 'id="security-area-dialog"' in page.text
@@ -1100,10 +1141,10 @@ def test_x4_shell_and_brand_assets_are_served() -> None:
     assert client.get("/tools").status_code == 200
     assert "Amministrazione" in client.get("/tools").text
     css = client.get("/assets/app.css").text
-    assert "app.css?v=2.21.226" in client.get("/").text
-    assert "home-live-media.css?v=2.21.226" in client.get("/").text
-    assert "alarm-state.css?v=2.21.226" in client.get("/").text
-    assert "state-glow.css?v=2.21.226" in client.get("/").text
+    assert "app.css?v=2.21.227" in client.get("/").text
+    assert "home-live-media.css?v=2.21.227" in client.get("/").text
+    assert "alarm-state.css?v=2.21.227" in client.get("/").text
+    assert "state-glow.css?v=2.21.227" in client.get("/").text
     assert ".home-event-dialog figure img{display:block;width:auto;height:auto;max-width:100%;max-height:100%" in css
     assert ".home-event-widget img{object-fit:contain" not in css
     assert "data-home-zone-mute" in app_js

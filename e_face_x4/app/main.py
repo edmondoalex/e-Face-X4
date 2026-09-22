@@ -66,7 +66,7 @@ from . import installation_profile
 from .connectors.soundcloud import SoundCloudClient
 from .media_preferences import apply_preferences, load_preferences, save_preferences
 from .source_icons import delete_source_icon, hidden_source_ids, load_builtin_source_icon, load_builtin_source_icon_by_id, load_source_icon, save_source_icon, set_source_hidden
-from .backgrounds import CARD_THEMES, PRESETS, load_background, load_background_image, load_backgrounds, load_card_theme, load_card_glow, load_room_order, load_security_order, load_security_cameras, load_shortcuts, load_device_organization, load_navigation_items, load_home_widgets, load_home_camera_entity, load_home_weather_location, save_background_image, save_card_theme, save_card_glow, save_room_order, save_security_order, save_security_cameras, save_shortcuts, save_device_organization, save_navigation_items, save_home_widgets, save_home_camera_entity, save_home_weather_location, save_inherit, save_preset
+from .backgrounds import CARD_THEMES, PRESETS, load_background, load_background_image, load_backgrounds, load_card_theme, load_card_glow, load_room_order, load_security_order, load_security_cameras, load_shortcuts, load_device_organization, load_navigation_items, load_home_widgets, load_home_camera_entity, load_home_weather_location, load_home_todo_entity, save_background_image, save_card_theme, save_card_glow, save_room_order, save_security_order, save_security_cameras, save_shortcuts, save_device_organization, save_navigation_items, save_home_widgets, save_home_camera_entity, save_home_weather_location, save_home_todo_entity, save_inherit, save_preset
 from .connectors import BusproConnector, Control4MediaConnector, EThermConnector, EkonexMediaConnector, EvoiceLocalMediaConnector, KseniaConnector
 from .connectors.ksenia import normalize_ksenia
 from .connectors.local_media import LocalMediaConnector
@@ -77,7 +77,7 @@ from .connectors.supervisor import discover_addon_url, discover_host_url, instal
 from .media_realtime import SharedMediaRealtime
 from .demo import dashboard as demo_dashboard
 
-VERSION = os.environ.get("EFACE_VERSION", "2.21.226")
+VERSION = os.environ.get("EFACE_VERSION", "2.21.227")
 STATIC = Path(__file__).parent / "static"
 logging.basicConfig(level=logging.WARNING, format="%(asctime)s %(levelname)s [e-face-x4] %(message)s")
 _reconnect_warning_at: dict[str, float] = {}
@@ -2229,6 +2229,84 @@ def create_app() -> FastAPI:
         if response.status_code != 200: raise HTTPException(status_code=502, detail="Dato e-Control non disponibile")
         return response
 
+    async def home_assistant_service(domain: str, service: str, data: dict) -> dict:
+        token = str(os.environ.get("SUPERVISOR_TOKEN") or "").strip()
+        if not token: raise HTTPException(status_code=503, detail="e-Control non disponibile")
+        try:
+            async with httpx.AsyncClient(timeout=20, follow_redirects=False) as client:
+                response = await client.post(
+                    f"http://supervisor/core/api/services/{domain}/{service}?return_response",
+                    headers={"Authorization": f"Bearer {token}"}, json=data,
+                )
+        except httpx.HTTPError as exc:
+            raise HTTPException(status_code=502, detail="e-Control non risponde") from exc
+        if response.status_code != 200:
+            raise HTTPException(status_code=502, detail="Comando lista e-Control non riuscito")
+        result = response.json()
+        return result if isinstance(result, dict) else {}
+
+    async def home_todo_lists() -> list[dict[str, object]]:
+        states = (await home_assistant_get("states")).json()
+        result = []
+        for state in states if isinstance(states, list) else []:
+            entity_id = str(state.get("entity_id") or "") if isinstance(state, dict) else ""
+            if not re.fullmatch(r"todo\.[a-z0-9_]+", entity_id): continue
+            attributes = state.get("attributes") if isinstance(state.get("attributes"), dict) else {}
+            try: count = max(0, int(float(state.get("state") or 0)))
+            except (TypeError, ValueError): count = 0
+            result.append({"entity_id": entity_id, "name": str(attributes.get("friendly_name") or entity_id), "count": count})
+        return sorted(result, key=lambda item: str(item["name"]).casefold())
+
+    @app.get("/api/home/todo/lists")
+    async def home_todo_list_catalog() -> dict:
+        items = await home_todo_lists()
+        selected = load_home_todo_entity()
+        return {"items": items, "selected": selected if any(item["entity_id"] == selected for item in items) else ""}
+
+    @app.get("/api/home/todo")
+    async def home_todo() -> dict:
+        entity_id = load_home_todo_entity()
+        if not entity_id: raise HTTPException(status_code=409, detail="Scegli una lista in Home dinamica")
+        catalog = await home_todo_lists()
+        entry = next((item for item in catalog if item["entity_id"] == entity_id), None)
+        if not entry: raise HTTPException(status_code=404, detail="Lista non più disponibile in e-Control")
+        result = await home_assistant_service("todo", "get_items", {"entity_id": entity_id})
+        response = result.get("service_response") if isinstance(result.get("service_response"), dict) else result
+        payload = response.get(entity_id) if isinstance(response, dict) else {}
+        raw_items = payload.get("items") if isinstance(payload, dict) else []
+        items = []
+        for item in raw_items if isinstance(raw_items, list) else []:
+            if not isinstance(item, dict): continue
+            uid, summary = str(item.get("uid") or "").strip(), str(item.get("summary") or "").strip()
+            if uid and summary:
+                items.append({"uid": uid, "summary": summary[:500], "status": "completed" if item.get("status") == "completed" else "needs_action"})
+        return {"entity_id": entity_id, "name": entry["name"], "count": len([item for item in items if item["status"] != "completed"]), "items": items}
+
+    @app.post("/api/home/todo/items")
+    async def home_todo_add(payload: dict) -> dict:
+        entity_id, summary = load_home_todo_entity(), str(payload.get("summary") or "").strip()
+        if not entity_id: raise HTTPException(status_code=409, detail="Scegli una lista in Home dinamica")
+        if not 1 <= len(summary) <= 500: raise HTTPException(status_code=400, detail="Inserisci un articolo valido")
+        await home_assistant_service("todo", "add_item", {"entity_id": entity_id, "item": summary})
+        return {"ok": True}
+
+    @app.put("/api/home/todo/items/{uid}")
+    async def home_todo_update(uid: str, payload: dict) -> dict:
+        entity_id = load_home_todo_entity()
+        if not entity_id: raise HTTPException(status_code=409, detail="Scegli una lista in Home dinamica")
+        if not uid or len(uid) > 500: raise HTTPException(status_code=400, detail="Articolo non valido")
+        status = "completed" if payload.get("completed") is True else "needs_action"
+        await home_assistant_service("todo", "update_item", {"entity_id": entity_id, "item": uid, "status": status})
+        return {"ok": True}
+
+    @app.delete("/api/home/todo/items/{uid}")
+    async def home_todo_remove(uid: str) -> dict:
+        entity_id = load_home_todo_entity()
+        if not entity_id: raise HTTPException(status_code=409, detail="Scegli una lista in Home dinamica")
+        if not uid or len(uid) > 500: raise HTTPException(status_code=400, detail="Articolo non valido")
+        await home_assistant_service("todo", "remove_item", {"entity_id": entity_id, "item": uid})
+        return {"ok": True}
+
     async def home_assistant_camera_stream(entity_id: str) -> str:
         token = str(os.environ.get("SUPERVISOR_TOKEN") or "").strip()
         if not token: raise HTTPException(status_code=503, detail="e-Control non disponibile")
@@ -2947,7 +3025,7 @@ def create_app() -> FastAPI:
             "version": VERSION,
             "routine_active_device_ids": sorted(routine_engine.active_device_ids()),
             "backgrounds": load_backgrounds(),
-            "appearance": {"card_theme": load_card_theme(), "card_glow": load_card_glow(), "room_order": load_room_order(), "security_order": load_security_order(), "security_cameras": load_security_cameras(), "shortcuts": load_shortcuts(), "device_organization": load_device_organization(), "navigation_items": load_navigation_items(), "home_widgets": load_home_widgets(owner), "home_camera_entity": load_home_camera_entity(owner), "home_weather_location": load_home_weather_location(owner)},
+            "appearance": {"card_theme": load_card_theme(), "card_glow": load_card_glow(), "room_order": load_room_order(), "security_order": load_security_order(), "security_cameras": load_security_cameras(), "shortcuts": load_shortcuts(), "device_organization": load_device_organization(), "navigation_items": load_navigation_items(), "home_widgets": load_home_widgets(owner), "home_camera_entity": load_home_camera_entity(owner), "home_weather_location": load_home_weather_location(owner), "home_todo_entity": load_home_todo_entity()},
             "nav_icons": settings.nav_icons,
             "mode": "demo" if settings.demo_mode else "live",
             "dashboard": dashboard,
@@ -3459,7 +3537,7 @@ def create_app() -> FastAPI:
     @app.get("/api/user/appearance")
     async def user_appearance(request: Request) -> dict:
         owner = appearance_owner(request)
-        return {"card_glow": load_card_glow(), "room_order": load_room_order(), "security_order": load_security_order(), "security_cameras": load_security_cameras(), "shortcuts": load_shortcuts(), "device_organization": load_device_organization(), "navigation_items": load_navigation_items(), "home_widgets": load_home_widgets(owner), "home_camera_entity": load_home_camera_entity(owner), "home_weather_location": load_home_weather_location(owner)}
+        return {"card_glow": load_card_glow(), "room_order": load_room_order(), "security_order": load_security_order(), "security_cameras": load_security_cameras(), "shortcuts": load_shortcuts(), "device_organization": load_device_organization(), "navigation_items": load_navigation_items(), "home_widgets": load_home_widgets(owner), "home_camera_entity": load_home_camera_entity(owner), "home_weather_location": load_home_weather_location(owner), "home_todo_entity": load_home_todo_entity()}
 
     @app.put("/api/user/appearance")
     async def user_save_appearance(request: Request, payload: dict) -> dict:
@@ -3475,8 +3553,9 @@ def create_app() -> FastAPI:
             if "home_widgets" in payload: save_home_widgets(payload["home_widgets"], owner)
             if "home_camera_entity" in payload: save_home_camera_entity(payload["home_camera_entity"], owner)
             if "home_weather_location" in payload: save_home_weather_location(payload["home_weather_location"], owner)
+            if "home_todo_entity" in payload: save_home_todo_entity(payload["home_todo_entity"])
         except ValueError as exc: raise HTTPException(status_code=400, detail=str(exc))
-        return {"card_glow": load_card_glow(), "room_order": load_room_order(), "security_order": load_security_order(), "security_cameras": load_security_cameras(), "shortcuts": load_shortcuts(), "device_organization": load_device_organization(), "navigation_items": load_navigation_items(), "home_widgets": load_home_widgets(owner), "home_camera_entity": load_home_camera_entity(owner), "home_weather_location": load_home_weather_location(owner)}
+        return {"card_glow": load_card_glow(), "room_order": load_room_order(), "security_order": load_security_order(), "security_cameras": load_security_cameras(), "shortcuts": load_shortcuts(), "device_organization": load_device_organization(), "navigation_items": load_navigation_items(), "home_widgets": load_home_widgets(owner), "home_camera_entity": load_home_camera_entity(owner), "home_weather_location": load_home_weather_location(owner), "home_todo_entity": load_home_todo_entity()}
 
     @app.put("/api/user/card-theme")
     async def user_save_card_theme(payload: dict) -> dict:

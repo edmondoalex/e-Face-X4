@@ -11,7 +11,7 @@ SHORTCUT_CATEGORIES = ["lights", "switches", "covers", "climate", "security", "m
 DEVICE_ORGANIZATION_CATEGORIES = ["lights", "extra", "covers", "comfort", "security", "scenarios", "intercom", "media"]
 NAVIGATION_ITEMS = ["watch", "listen", "intercom", "lights", "extra", "scenarios", "covers", "comfort", "heating", "energy", "security"]
 LEGACY_HOME_WIDGETS = ["overview", "weather", "camera_event", "doorbell", "motion", "states", "rooms", "live"]
-NEW_HOME_WIDGETS = ["room_pulse", "lights_now", "routine_pulse"]
+NEW_HOME_WIDGETS = ["room_pulse", "lights_now", "routine_pulse", "shopping_list"]
 HOME_WIDGETS = [*LEGACY_HOME_WIDGETS, *NEW_HOME_WIDGETS]
 MIME_SUFFIX = {"image/png": ".png", "image/jpeg": ".jpg", "image/webp": ".webp"}
 
@@ -245,6 +245,15 @@ def save_home_weather_location(location: str, owner: str | None = None) -> None:
     for scoped in users.values():
         if isinstance(scoped, dict): scoped.pop("home_weather_location", None)
     _write(raw)
+
+def load_home_todo_entity() -> str:
+    value = str(_config().get("home_todo_entity") or "").strip().lower()
+    return value if re.fullmatch(r"todo\.[a-z0-9_]+", value) else ""
+
+def save_home_todo_entity(entity_id: str) -> None:
+    if not isinstance(entity_id, str) or not re.fullmatch(r"todo\.[a-z0-9_]+", entity_id.strip().lower()):
+        raise ValueError("Lista e-Control non valida")
+    raw = _config(); raw["home_todo_entity"] = entity_id.strip().lower(); _write(raw)
 
 def load_card_glow() -> bool:
     return _config().get("card_glow", True) is not False

@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.21.227 — 2026-09-22
+
+- Nuovo widget Home “Lista della spesa”: scopre tutte le liste `todo.*` esposte da e-Control, consente di scegliere quella attiva in Home dinamica e offre larghezze dal 25% al 100%.
+- La card compatta mostra conteggio e anteprima; al tocco apre un pannello ampio per aggiungere manualmente, completare, ripristinare o eliminare gli elementi, inclusa la Shopping list sincronizzata da Alexa Devices.
+
 ## 2.21.226 — 2026-09-22
 
 - I campi endpoint dei connettori mostrano il valore effettivo rilevato anche senza override, senza trasformare automaticamente gli indirizzi del sito in configurazione persistente.
