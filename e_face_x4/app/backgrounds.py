@@ -9,7 +9,7 @@ CARD_THEMES = {"graphite", "petrol", "midnight", "slate", "warm"}
 SECURITY_ORDER = ["scenarios", "areas", "zones", "locks", "cameras"]
 SHORTCUT_CATEGORIES = ["lights", "switches", "covers", "climate", "security", "media", "sensors", "other"]
 DEVICE_ORGANIZATION_CATEGORIES = ["lights", "extra", "covers", "comfort", "security", "scenarios", "intercom", "media"]
-NAVIGATION_ITEMS = ["watch", "listen", "intercom", "lights", "extra", "scenarios", "covers", "comfort", "heating", "energy", "security", "shopping"]
+NAVIGATION_ITEMS = ["watch", "listen", "intercom", "lights", "extra", "scenarios", "covers", "comfort", "heating", "energy", "security", "shopping", "alexa-agenda"]
 LEGACY_HOME_WIDGETS = ["overview", "weather", "camera_event", "doorbell", "motion", "states", "rooms", "live"]
 NEW_HOME_WIDGETS = ["room_pulse", "lights_now", "routine_pulse", "shopping_list"]
 HOME_WIDGETS = [*LEGACY_HOME_WIDGETS, *NEW_HOME_WIDGETS]
@@ -254,6 +254,15 @@ def save_home_todo_entity(entity_id: str) -> None:
     if not isinstance(entity_id, str) or not re.fullmatch(r"todo\.[a-z0-9_]+", entity_id.strip().lower()):
         raise ValueError("Lista e-Control non valida")
     raw = _config(); raw["home_todo_entity"] = entity_id.strip().lower(); _write(raw)
+
+def load_home_agenda_source() -> str:
+    value = str(_config().get("home_agenda_source") or "alexa").strip().lower()
+    return value if value in {"alexa", "econtrol"} or re.fullmatch(r"calendar\.[a-z0-9_]+", value) else "alexa"
+
+def save_home_agenda_source(value: str) -> None:
+    value = str(value or "").strip().lower()
+    if value not in {"alexa", "econtrol"} and not re.fullmatch(r"calendar\.[a-z0-9_]+", value): raise ValueError("Sorgente agenda non valida")
+    raw = _config(); raw["home_agenda_source"] = value; _write(raw)
 
 def load_card_glow() -> bool:
     return _config().get("card_glow", True) is not False

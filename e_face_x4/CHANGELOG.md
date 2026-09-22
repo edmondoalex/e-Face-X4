@@ -1,5 +1,12 @@
 # Changelog
 
+## 2.21.236 — 2026-09-22
+
+- Centrata l'icona carrello nella barra di navigazione, mantenendo il contatore sovrapposto nell'angolo.
+- Aggiunta la pagina Agenda: scopre Alexa, l'agenda interna persistente e tutte le entità `calendar.*` esposte da e-Control; la sorgente predefinita si sceglie in Home dinamica.
+- Sveglie, timer e promemoria Alexa vengono inviati con `alexa_devices.send_text_command`, ricevono la conferma vocale dell'Echo e sono disponibili anche come azioni delle Routine.
+- Gli eventi destinati a un calendario e-Control usano `calendar.create_event`; quelli interni restano persistenti nei dati dell'add-on.
+
 ## 2.21.235 — 2026-09-22
 
 - Aggiunti alle Routine i trigger temporali «Sveglia / timer / promemoria Alexa», selezionabili per singolo sensore Echo e con anticipo o ritardo da -180 a +180 minuti.

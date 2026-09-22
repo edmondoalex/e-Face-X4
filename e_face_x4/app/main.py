@@ -66,7 +66,7 @@ from . import installation_profile
 from .connectors.soundcloud import SoundCloudClient
 from .media_preferences import apply_preferences, load_preferences, save_preferences
 from .source_icons import delete_source_icon, hidden_source_ids, load_builtin_source_icon, load_builtin_source_icon_by_id, load_source_icon, save_source_icon, set_source_hidden
-from .backgrounds import CARD_THEMES, PRESETS, load_background, load_background_image, load_backgrounds, load_card_theme, load_card_glow, load_room_order, load_security_order, load_security_cameras, load_shortcuts, load_device_organization, load_navigation_items, load_home_widgets, load_home_camera_entity, load_home_weather_location, load_home_todo_entity, save_background_image, save_card_theme, save_card_glow, save_room_order, save_security_order, save_security_cameras, save_shortcuts, save_device_organization, save_navigation_items, save_home_widgets, save_home_camera_entity, save_home_weather_location, save_home_todo_entity, save_inherit, save_preset
+from .backgrounds import CARD_THEMES, PRESETS, load_background, load_background_image, load_backgrounds, load_card_theme, load_card_glow, load_room_order, load_security_order, load_security_cameras, load_shortcuts, load_device_organization, load_navigation_items, load_home_widgets, load_home_camera_entity, load_home_weather_location, load_home_todo_entity, load_home_agenda_source, save_background_image, save_card_theme, save_card_glow, save_room_order, save_security_order, save_security_cameras, save_shortcuts, save_device_organization, save_navigation_items, save_home_widgets, save_home_camera_entity, save_home_weather_location, save_home_todo_entity, save_home_agenda_source, save_inherit, save_preset
 from .connectors import BusproConnector, Control4MediaConnector, EThermConnector, EkonexMediaConnector, EvoiceLocalMediaConnector, KseniaConnector
 from .connectors.ksenia import normalize_ksenia
 from .connectors.local_media import LocalMediaConnector
@@ -77,7 +77,7 @@ from .connectors.supervisor import discover_addon_url, discover_host_url, instal
 from .media_realtime import SharedMediaRealtime
 from .demo import dashboard as demo_dashboard
 
-VERSION = os.environ.get("EFACE_VERSION", "2.21.235")
+VERSION = os.environ.get("EFACE_VERSION", "2.21.236")
 STATIC = Path(__file__).parent / "static"
 logging.basicConfig(level=logging.WARNING, format="%(asctime)s %(levelname)s [e-face-x4] %(message)s")
 _reconnect_warning_at: dict[str, float] = {}
@@ -2245,6 +2245,106 @@ def create_app() -> FastAPI:
         result = response.json()
         return result if isinstance(result, dict) else {}
 
+    async def home_assistant_registries() -> tuple[list[dict], list[dict]]:
+        """Read HA registries without exposing its token or accepting arbitrary WS commands."""
+        token = str(os.environ.get("SUPERVISOR_TOKEN") or "").strip()
+        if not token: raise HTTPException(status_code=503, detail="e-Control non disponibile")
+        try:
+            async with websockets.connect("ws://supervisor/core/websocket", open_timeout=8) as socket:
+                await socket.recv()
+                await socket.send(json.dumps({"type": "auth", "access_token": token}))
+                if json.loads(await socket.recv()).get("type") != "auth_ok": raise RuntimeError("Autenticazione e-Control fallita")
+                results = []
+                for message_id, command in ((1, "config/entity_registry/list"), (2, "config/device_registry/list")):
+                    await socket.send(json.dumps({"id": message_id, "type": command}))
+                    reply = json.loads(await asyncio.wait_for(socket.recv(), timeout=10))
+                    if not reply.get("success") or not isinstance(reply.get("result"), list): raise RuntimeError("Registro e-Control non disponibile")
+                    results.append(reply["result"])
+                return results[0], results[1]
+        except (OSError, asyncio.TimeoutError, RuntimeError, ValueError, websockets.exceptions.WebSocketException) as exc:
+            raise HTTPException(status_code=502, detail="Dispositivi Alexa non disponibili") from exc
+
+    async def alexa_agenda_devices() -> list[dict]:
+        entities, devices = await home_assistant_registries()
+        device_names = {str(item.get("id")): str(item.get("name_by_user") or item.get("name") or "Alexa") for item in devices if isinstance(item, dict)}
+        result: dict[str, dict] = {}
+        for entity in entities:
+            if not isinstance(entity, dict): continue
+            entity_id, device_id = str(entity.get("entity_id") or ""), str(entity.get("device_id") or "")
+            if device_id and routines.ALEXA_SCHEDULE_ID.fullmatch(entity_id):
+                row = result.setdefault(device_id, {"device_id": device_id, "name": device_names.get(device_id, "Alexa"), "sensors": {}})
+                kind = next((value for value in ("alarm", "timer", "reminder") if entity_id.endswith(f"next_{value}")), "")
+                if kind: row["sensors"][kind] = entity_id
+        return sorted(result.values(), key=lambda item: item["name"].casefold())
+
+    def alexa_command(kind: str, value: str) -> str:
+        clean = re.sub(r"[\x00-\x1f\x7f]", " ", str(value or "")).strip()
+        if kind not in {"alarm", "timer", "reminder"} or not 1 <= len(clean) <= 300:
+            raise HTTPException(status_code=400, detail="Comando Alexa non valido")
+        prefix = {"alarm": "imposta una sveglia", "timer": "imposta un timer di", "reminder": "ricordami"}[kind]
+        return f"{prefix} {clean}"
+
+    @app.get("/api/home/alexa/agenda")
+    async def home_alexa_agenda() -> dict:
+        try: devices = await alexa_agenda_devices()
+        except HTTPException: devices = []
+        states = (await home_assistant_get("states")).json()
+        state_map = {str(item.get("entity_id")): item for item in states if isinstance(item, dict)} if isinstance(states, list) else {}
+        for device in devices:
+            device["agenda"] = {kind: {"entity_id": entity_id, "state": (state_map.get(entity_id) or {}).get("state")}
+                                for kind, entity_id in device["sensors"].items()}
+        sources = [{"id": "alexa", "name": "Alexa", "kind": "alexa"}, {"id": "econtrol", "name": "Agenda e-Control", "kind": "internal"}]
+        sources.extend({"id": entity_id, "name": str((item.get("attributes") or {}).get("friendly_name") or entity_id), "kind": "calendar"}
+                       for entity_id, item in state_map.items() if re.fullmatch(r"calendar\.[a-z0-9_]+", entity_id))
+        internal_path = Path(os.environ.get("EFACE_DATA", "/data")) / "agenda.json"
+        try: internal = json.loads(internal_path.read_text(encoding="utf-8"))
+        except (OSError, ValueError): internal = []
+        return {"devices": devices, "sources": sources, "selected_source": load_home_agenda_source(),
+                "internal": internal if isinstance(internal, list) else []}
+
+    @app.post("/api/home/alexa/agenda")
+    async def home_alexa_agenda_create(payload: dict) -> dict:
+        source = str(payload.get("source") or load_home_agenda_source()).strip().lower()
+        device_id, kind = str(payload.get("device_id") or ""), str(payload.get("kind") or "")
+        summary = re.sub(r"[\x00-\x1f\x7f]", " ", str(payload.get("summary") or payload.get("value") or "")).strip()
+        if source != "alexa":
+            if source != "econtrol" and not re.fullmatch(r"calendar\.[a-z0-9_]+", source): raise HTTPException(status_code=400, detail="Agenda non valida")
+            try: start = datetime.fromisoformat(str(payload.get("start") or ""))
+            except ValueError as exc: raise HTTPException(status_code=400, detail="Data e ora non valide") from exc
+            if not 1 <= len(summary) <= 300: raise HTTPException(status_code=400, detail="Titolo evento non valido")
+            end = start + timedelta(hours=1)
+            if source.startswith("calendar."):
+                available = (await home_assistant_get("states")).json()
+                if source not in {str(item.get("entity_id")) for item in available if isinstance(item, dict)}: raise HTTPException(status_code=404, detail="Agenda non disponibile")
+                await home_assistant_service("calendar", "create_event", {"entity_id": source, "summary": summary, "start_date_time": start.isoformat(), "end_date_time": end.isoformat()})
+            else:
+                path = Path(os.environ.get("EFACE_DATA", "/data")) / "agenda.json"
+                try: items = json.loads(path.read_text(encoding="utf-8"))
+                except (OSError, ValueError): items = []
+                if not isinstance(items, list): items = []
+                items.append({"id": uuid.uuid4().hex, "kind": kind if kind in {"alarm", "timer", "reminder"} else "reminder", "summary": summary, "start": start.isoformat()})
+                path.parent.mkdir(parents=True, exist_ok=True); path.write_text(json.dumps(items[-500:], ensure_ascii=False), encoding="utf-8")
+            return {"ok": True, "confirmed": True, "message": "Evento inserito nell'agenda"}
+        devices = await alexa_agenda_devices()
+        device = next((item for item in devices if item["device_id"] == device_id), None)
+        if not device: raise HTTPException(status_code=404, detail="Dispositivo Alexa non disponibile")
+        command = alexa_command(kind, str(payload.get("value") or ""))
+        sensor_id = device["sensors"].get(kind)
+        before = None
+        if sensor_id:
+            try: before = (await home_assistant_get(f"states/{sensor_id}")).json().get("state")
+            except HTTPException: pass
+        await home_assistant_service("alexa_devices", "send_text_command", {"device_id": device_id, "text_command": command})
+        confirmed, state = False, before
+        if sensor_id:
+            for _ in range(6):
+                await asyncio.sleep(1)
+                try: state = (await home_assistant_get(f"states/{sensor_id}")).json().get("state")
+                except HTTPException: break
+                if state not in {None, "unknown", "unavailable", before}:
+                    confirmed = True; break
+        return {"ok": True, "confirmed": confirmed, "state": state, "message": "Alexa ha ricevuto il comando" if not confirmed else "Inserimento confermato da Alexa"}
+
     async def home_todo_lists() -> list[dict[str, object]]:
         states = (await home_assistant_get("states")).json()
         result = []
@@ -3032,7 +3132,7 @@ def create_app() -> FastAPI:
             "version": VERSION,
             "routine_active_device_ids": sorted(routine_engine.active_device_ids()),
             "backgrounds": load_backgrounds(),
-            "appearance": {"card_theme": load_card_theme(), "card_glow": load_card_glow(), "room_order": load_room_order(), "security_order": load_security_order(), "security_cameras": load_security_cameras(), "shortcuts": load_shortcuts(), "device_organization": load_device_organization(), "navigation_items": load_navigation_items(), "home_widgets": load_home_widgets(owner), "home_camera_entity": load_home_camera_entity(owner), "home_weather_location": load_home_weather_location(owner), "home_todo_entity": load_home_todo_entity()},
+            "appearance": {"card_theme": load_card_theme(), "card_glow": load_card_glow(), "room_order": load_room_order(), "security_order": load_security_order(), "security_cameras": load_security_cameras(), "shortcuts": load_shortcuts(), "device_organization": load_device_organization(), "navigation_items": load_navigation_items(), "home_widgets": load_home_widgets(owner), "home_camera_entity": load_home_camera_entity(owner), "home_weather_location": load_home_weather_location(owner), "home_todo_entity": load_home_todo_entity(), "home_agenda_source": load_home_agenda_source()},
             "nav_icons": settings.nav_icons,
             "mode": "demo" if settings.demo_mode else "live",
             "dashboard": dashboard,
@@ -3190,13 +3290,24 @@ def create_app() -> FastAPI:
             logging.warning("Sensori agenda Alexa non disponibili nel catalogo routine")
             return []
 
+    async def routine_alexa_devices(referenced: set[str] | None = None) -> list[dict]:
+        try:
+            devices = await alexa_agenda_devices()
+            rows = [{"id": f"alexa-device:{item['device_id']}", "name": item["name"], "room": "Alexa",
+                     "kind": "alexa_device", "provider": "home_assistant", "state": "online"} for item in devices]
+            return rows if referenced is None else [row for row in rows if row["id"] in referenced]
+        except HTTPException:
+            logging.warning("Dispositivi agenda Alexa non disponibili nel catalogo routine")
+            return []
+
     async def routine_devices(request: Request | None = None, referenced: set[str] | None = None) -> list[dict]:
         async def with_scenarios(items: list[dict]) -> list[dict]:
             if request is not None or (referenced and any(identifier.startswith("light-scenario:") for identifier in referenced)):
                 items.extend(await routine_scenario_items())
             extra = await asyncio.gather(routine_bypass_items(referenced if request is None else None),
                                          routine_ha_cover_items(referenced if request is None else None),
-                                         routine_alexa_schedule_items(referenced if request is None else None))
+                                         routine_alexa_schedule_items(referenced if request is None else None),
+                                         routine_alexa_devices(referenced if request is None else None))
             for group in extra:
                 items.extend(group)
             return items
@@ -3229,6 +3340,14 @@ def create_app() -> FastAPI:
         return await with_scenarios(data.get("dashboard", {}).get("devices", []))
 
     async def routine_command(device_id: str, action: str, value: object) -> object:
+        if device_id.startswith("alexa-device:"):
+            kind = {"set_alarm": "alarm", "set_timer": "timer", "set_reminder": "reminder"}.get(action)
+            if not kind: raise ValueError("Comando Alexa non consentito")
+            ha_device_id = device_id.split(":", 1)[1]
+            if not any(item["device_id"] == ha_device_id for item in await alexa_agenda_devices()):
+                raise RuntimeError("Dispositivo Alexa non disponibile")
+            await home_assistant_service("alexa_devices", "send_text_command", {"device_id": ha_device_id, "text_command": alexa_command(kind, str(value or ""))})
+            return {"ok": True}
         if routines.HA_COVER_ID.fullmatch(device_id):
             if action not in {"open", "close", "stop", "set_position"}:
                 raise ValueError("Comando cover e-Control non consentito")
@@ -3572,7 +3691,7 @@ def create_app() -> FastAPI:
     @app.get("/api/user/appearance")
     async def user_appearance(request: Request) -> dict:
         owner = appearance_owner(request)
-        return {"card_glow": load_card_glow(), "room_order": load_room_order(), "security_order": load_security_order(), "security_cameras": load_security_cameras(), "shortcuts": load_shortcuts(), "device_organization": load_device_organization(), "navigation_items": load_navigation_items(), "home_widgets": load_home_widgets(owner), "home_camera_entity": load_home_camera_entity(owner), "home_weather_location": load_home_weather_location(owner), "home_todo_entity": load_home_todo_entity()}
+        return {"card_glow": load_card_glow(), "room_order": load_room_order(), "security_order": load_security_order(), "security_cameras": load_security_cameras(), "shortcuts": load_shortcuts(), "device_organization": load_device_organization(), "navigation_items": load_navigation_items(), "home_widgets": load_home_widgets(owner), "home_camera_entity": load_home_camera_entity(owner), "home_weather_location": load_home_weather_location(owner), "home_todo_entity": load_home_todo_entity(), "home_agenda_source": load_home_agenda_source()}
 
     @app.put("/api/user/appearance")
     async def user_save_appearance(request: Request, payload: dict) -> dict:
@@ -3589,8 +3708,9 @@ def create_app() -> FastAPI:
             if "home_camera_entity" in payload: save_home_camera_entity(payload["home_camera_entity"], owner)
             if "home_weather_location" in payload: save_home_weather_location(payload["home_weather_location"], owner)
             if "home_todo_entity" in payload: save_home_todo_entity(payload["home_todo_entity"])
+            if "home_agenda_source" in payload: save_home_agenda_source(payload["home_agenda_source"])
         except ValueError as exc: raise HTTPException(status_code=400, detail=str(exc))
-        return {"card_glow": load_card_glow(), "room_order": load_room_order(), "security_order": load_security_order(), "security_cameras": load_security_cameras(), "shortcuts": load_shortcuts(), "device_organization": load_device_organization(), "navigation_items": load_navigation_items(), "home_widgets": load_home_widgets(owner), "home_camera_entity": load_home_camera_entity(owner), "home_weather_location": load_home_weather_location(owner), "home_todo_entity": load_home_todo_entity()}
+        return {"card_glow": load_card_glow(), "room_order": load_room_order(), "security_order": load_security_order(), "security_cameras": load_security_cameras(), "shortcuts": load_shortcuts(), "device_organization": load_device_organization(), "navigation_items": load_navigation_items(), "home_widgets": load_home_widgets(owner), "home_camera_entity": load_home_camera_entity(owner), "home_weather_location": load_home_weather_location(owner), "home_todo_entity": load_home_todo_entity(), "home_agenda_source": load_home_agenda_source()}
 
     @app.put("/api/user/card-theme")
     async def user_save_card_theme(payload: dict) -> dict:

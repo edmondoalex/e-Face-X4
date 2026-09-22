@@ -757,6 +757,18 @@ def test_scenarios_and_echo_commands_follow_real_capabilities():
     assert not routines.validate(spec, devices)["errors"]
 
 
+def test_alexa_agenda_actions_are_validated_as_text_commands():
+    devices = catalog() + [{"id": "alexa-device:echo-kitchen", "kind": "alexa_device", "name": "Echo Cucina",
+                            "room": "Alexa", "state": "online"}]
+    spec = {"name": "Sveglia mattina", "triggers": [{"type": "state", "device_id": "sensor.motion", "to": "on"}],
+            "steps": [{"type": "action", "device_id": "alexa-device:echo-kitchen", "action": "set_alarm", "value": "domani alle 7:30"}]}
+    review = routines.validate(spec, devices)
+    assert not review["errors"]
+    assert review["spec"]["steps"][0]["value"] == "domani alle 7:30"
+    spec["steps"][0]["value"] = ""
+    assert "mancante" in " ".join(routines.validate(spec, devices)["errors"])
+
+
 def test_activity_indicator_covers_timer_and_clears_after_last_action():
     state = {"sensor.motion": "off", "light.hall": "off"}
     activity = []

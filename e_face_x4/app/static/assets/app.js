@@ -1994,12 +1994,24 @@ async function sendRgbCommand(group, action, value, control) {
   } catch (error) { fail(error) } finally { if (control) control.disabled = false }
 }
 
+let alexaAgendaKind='alarm'
+function closeAlexaAgenda(){const view=$('#alexa-agenda-view');if(view)view.hidden=true}
+function formatAlexaAgendaState(value){if(!value||['unknown','unavailable'].includes(String(value)))return 'Nessun evento';const date=new Date(value);return Number.isNaN(date.getTime())?String(value):new Intl.DateTimeFormat('it-IT',{weekday:'short',day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'}).format(date)}
+async function loadAlexaAgenda(){
+  const select=$('#alexa-agenda-device'),sourceSelect=$('#alexa-agenda-source'),items=$('#alexa-agenda-items');items.innerHTML='<p class="alexa-agenda-empty">Aggiornamento agenda…</p>'
+  try{const response=await fetch(apiUrl('api/home/alexa/agenda'),{cache:'no-store'});const data=await response.json().catch(()=>({}));if(!response.ok)throw new Error(data.detail||`HTTP ${response.status}`);const devices=data.devices||[],selected=select.value,currentSource=sourceSelect.value;select.innerHTML='<option value="">Scegli Echo</option>'+devices.map(device=>`<option value="${escAttribute(device.device_id)}">${esc(device.name)}</option>`).join('');if(devices.some(device=>device.device_id===selected))select.value=selected;else if(devices.length===1)select.value=devices[0].device_id;sourceSelect.innerHTML=(data.sources||[]).map(source=>`<option value="${escAttribute(source.id)}">${esc(source.name)}</option>`).join('');sourceSelect.value=(data.sources||[]).some(source=>source.id===currentSource)?currentSource:data.selected_source||'alexa';syncAgendaSource();const labels={alarm:'Prossima sveglia',timer:'Prossimo timer',reminder:'Prossimo promemoria'},icons={alarm:'◷',timer:'◴',reminder:'◆'};const alexaRows=devices.flatMap(device=>Object.entries(device.agenda||{}).map(([kind,event])=>`<article class="alexa-agenda-event"><i>${icons[kind]||'◷'}</i><div><b>${esc(labels[kind]||kind)} · ${esc(device.name)}</b><span>${esc(formatAlexaAgendaState(event.state))}</span></div></article>`));const internalRows=(data.internal||[]).map(event=>`<article class="alexa-agenda-event"><i>${icons[event.kind]||'◆'}</i><div><b>${esc(event.summary)}</b><span>${esc(formatAlexaAgendaState(event.start))} · Agenda e-Control</span></div></article>`);items.innerHTML=[...internalRows,...alexaRows].join('')||'<p class="alexa-agenda-empty">Nessun evento disponibile.</p>'
+  }catch(error){items.innerHTML=`<p class="alexa-agenda-empty">${esc(error.message)}</p>`}
+}
+function syncAgendaSource(){const external=$('#alexa-agenda-source').value==='alexa';$('#alexa-agenda-device-label').hidden=!external;$('#alexa-agenda-device').required=external;$('#alexa-agenda-start-label').hidden=external;$('#alexa-agenda-start').required=!external;$('#alexa-agenda-value-label').childNodes[0].textContent=external?'Richiesta Alexa':'Titolo evento';$('#alexa-agenda-value').placeholder=external?({alarm:'es. domani alle 7:30',timer:'es. 20 minuti',reminder:'es. comprare il pane domani alle 18'}[alexaAgendaKind]):'es. Riunione o prendere la medicina'}
+function openAlexaAgenda(){closeHeating();closeIntercom();stopEnergyRefresh();applyBackground('');activeDetailIds=null;$('#home-view').hidden=true;$('#detail-view').hidden=true;$('#energy-view').hidden=true;$('#alexa-agenda-view').hidden=false;sessionStorage.setItem('eface-home-location',JSON.stringify({kind:'alexa-agenda'}));loadAlexaAgenda();window.scrollTo({top:0,behavior:'smooth'})}
+
 function closeIntercom() {
   $('#intercom-view').hidden = true
   $('#intercom-frame').contentWindow?.postMessage({type:'eface-intercom-visible',visible:false}, location.origin)
 }
 
 function openIntercom() {
+  closeAlexaAgenda()
   closeHeating()
   sessionStorage.setItem('eface-home-location', JSON.stringify({kind:'intercom'}))
   stopEnergyRefresh()
@@ -2015,6 +2027,7 @@ function openIntercom() {
 }
 
 function openDevices(title, devices, options = {}) {
+  closeAlexaAgenda()
   closeHeating()
   sessionStorage.setItem('eface-home-location', JSON.stringify({kind:'devices',title,ids:devices.map(device=>String(device.id)),options}))
   closeIntercom()
@@ -2053,6 +2066,7 @@ function openDevices(title, devices, options = {}) {
 }
 
 function openScenariosPage() {
+  closeAlexaAgenda()
   closeHeating()
   sessionStorage.setItem('eface-home-location', JSON.stringify({kind:'scenarios'}))
   closeIntercom()
@@ -2114,6 +2128,7 @@ async function sendScenarioCommand(id, action, button) {
 }
 
 function showHome() {
+  closeAlexaAgenda()
   closeHeating()
   sessionStorage.setItem('eface-home-location', JSON.stringify({kind:'home'}))
   closeIntercom()
@@ -2133,6 +2148,7 @@ function showHome() {
 }
 
 function openEnergy() {
+  closeAlexaAgenda()
   closeHeating()
   sessionStorage.setItem('eface-home-location', JSON.stringify({kind:'energy'}))
   closeIntercom()
@@ -2146,6 +2162,7 @@ function openEnergy() {
 }
 
 function openHeatingPage() {
+  closeAlexaAgenda()
   sessionStorage.setItem('eface-home-location', JSON.stringify({kind:'heating'}))
   closeIntercom()
   stopEnergyRefresh()
@@ -2475,7 +2492,13 @@ document.querySelectorAll('.rail button').forEach((button) => button.addEventLis
   if (button.dataset.view === 'heating') openHeatingPage()
   if (button.dataset.view === 'security') openDevices('Sicurezza', organizedDevices('security',currentDevices.filter((device) => deviceInCategory(device, 'security'))))
   if (button.dataset.view === 'shopping') { $('#home-shopping-dialog').showModal(); refreshHomeShoppingList(true) }
+  if (button.dataset.view === 'alexa-agenda') openAlexaAgenda()
 }))
+$('#alexa-agenda-back')?.addEventListener('click',showHome)
+$('#alexa-agenda-refresh')?.addEventListener('click',loadAlexaAgenda)
+$('#alexa-agenda-source')?.addEventListener('change',syncAgendaSource)
+document.querySelectorAll('[data-alexa-kind]').forEach(button=>button.addEventListener('click',()=>{alexaAgendaKind=button.dataset.alexaKind;document.querySelectorAll('[data-alexa-kind]').forEach(item=>item.classList.toggle('active',item===button));if($('#alexa-agenda-source').value==='alexa'){const label={alarm:['Quando','es. domani alle 7:30'],timer:['Durata','es. 20 minuti'],reminder:['Cosa e quando','es. comprare il pane domani alle 18']}[alexaAgendaKind];$('#alexa-agenda-value-label').childNodes[0].textContent=label[0];$('#alexa-agenda-value').placeholder=label[1]}else syncAgendaSource();$('#alexa-agenda-value').focus()}))
+$('#alexa-agenda-form')?.addEventListener('submit',async event=>{event.preventDefault();const submit=event.currentTarget.querySelector('[type="submit"]'),status=$('#alexa-agenda-status'),source=$('#alexa-agenda-source').value,body={source,device_id:$('#alexa-agenda-device').value,kind:alexaAgendaKind,value:$('#alexa-agenda-value').value.trim(),summary:$('#alexa-agenda-value').value.trim(),start:$('#alexa-agenda-start').value};if(!body.value||(source==='alexa'&&!body.device_id)||(source!=='alexa'&&!body.start))return;submit.disabled=true;status.textContent=source==='alexa'?'Invio ad Alexa…':'Salvataggio evento…';try{const response=await fetch(apiUrl('api/home/alexa/agenda'),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});const data=await response.json().catch(()=>({}));if(!response.ok)throw new Error(data.detail||`HTTP ${response.status}`);status.textContent=source==='alexa'?(data.confirmed?'✓ Inserimento confermato da Alexa':'✓ Comando ricevuto da Alexa; il sensore si aggiornerà a breve'):'✓ Evento inserito nell’agenda';$('#alexa-agenda-value').value='';await loadAlexaAgenda()}catch(error){status.textContent=`Errore: ${error.message}`}finally{submit.disabled=false}})
 $('#widgets').addEventListener('click', (event) => {
   const button = event.target.closest('[data-kind]')
   if (!button) return
@@ -3292,6 +3315,7 @@ Promise.all([
     if (devices.length) openDevices(savedLocation.title || 'Dispositivi', devices, savedLocation.options || {})
   } else if (savedLocation?.kind === 'scenarios') openScenariosPage()
   else if (savedLocation?.kind === 'intercom') openIntercom()
+  else if (savedLocation?.kind === 'alexa-agenda') openAlexaAgenda()
   else if (savedLocation?.kind === 'heating') openHeatingPage()
   else if (savedLocation?.kind === 'energy' || savedLocation?.kind === 'energy-dashboard') {
     openEnergy()
