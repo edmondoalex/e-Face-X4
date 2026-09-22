@@ -92,6 +92,14 @@ async def _write_notification(call: ServiceCall, kind: str) -> None:
         refreshed, _ = await wrapper.refresh_data(REFRESH_ACCESS_TOKEN)
         if not refreshed:
             raise HomeAssistantError("Impossibile aggiornare la sessione Alexa")
+        _, endpoints_response = await wrapper.session_request(
+            HTTPMethod.GET,
+            url=URL.joinpath(state.alexa_website_url, "api/endpoints"),
+        )
+        endpoints = await wrapper.response_to_json(endpoints_response, "Alexa endpoints")
+        alexa_api_url = str(endpoints.get("alexaApiUrl") or "").strip()
+        if not alexa_api_url.startswith("https://"):
+            raise HomeAssistantError("Endpoint regionale Alexa non disponibile")
         alarm_payload = {
             "trigger": {"scheduledTime": value.strftime("%Y-%m-%dT%H:%M:%S")},
             "extensions": [],
@@ -99,7 +107,7 @@ async def _write_notification(call: ServiceCall, kind: str) -> None:
         }
         _, response = await wrapper.session_request(
             HTTPMethod.POST,
-            url=URL.joinpath(state.global_alexa_api_url, "v1/alerts/alarms"),
+            url=URL.joinpath(URL(alexa_api_url), "v1/alerts/alarms"),
             input_data=alarm_payload,
             json_data=True,
             extended_headers={

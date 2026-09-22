@@ -1,5 +1,9 @@
 # Changelog
 
+## 2.21.242 — 2026-09-22
+
+- La creazione delle sveglie rileva dinamicamente l'endpoint Alexa regionale dell'account (`api.eu.amazonalexa.com` in Europa), evitando il timeout del nodo globale.
+
 ## 2.21.241 — 2026-09-22
 
 - Adeguata la creazione delle sveglie al nuovo endpoint Alexa Alerts v1; timer e promemoria usano il percorso notifiche legacy con identificatore `null` richiesto da Amazon.
