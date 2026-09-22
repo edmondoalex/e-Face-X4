@@ -116,3 +116,7 @@ Distribuire gli stessi add-on e la stessa configurazione di base in tutti gli im
 6. Segreti di impianti diversi sono isolati, revocabili e non appaiono in log, API pubbliche, documentazione o Git.
 
 La configurazione manuale verificata il 13 settembre 2026 resta il riferimento tecnico, **non** la procedura definitiva per i clienti. Vedi [INTERCOM_TURN_2026-09-13.md](INTERCOM_TURN_2026-09-13.md).
+
+## Regola visiva stati oscuranti — 22 settembre 2026
+
+Nelle liste dispositivi, uno stato aperto o in apertura di un `cover` usa il celeste (`#61d8f2`) sia per la tinta della card sia per l'icona. Il rosso resta riservato a serrature/accessi aperti, allarmi ed errori. La regola è applicata solo a `device-cover-open` e non modifica la semantica di sicurezza degli accessi.

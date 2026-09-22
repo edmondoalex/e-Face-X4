@@ -16,8 +16,10 @@
 .security-lock.security-lock-unlocked{background:linear-gradient(100deg,rgba(255,82,109,.19),transparent 72%),var(--user-card)!important}
 .page-device-list article.device-lock-closed,.page-device-list article.device-cover-closed{background:linear-gradient(100deg,rgba(101,234,174,.22),transparent 72%),var(--user-card)!important}
 .page-device-list article.device-lock-closed .device-glyph,.page-device-list article.device-cover-closed .device-glyph{color:#65eaae}
-.page-device-list article.device-lock-open,.page-device-list article.device-cover-open{background:linear-gradient(100deg,rgba(255,82,109,.22),transparent 72%),var(--user-card)!important}
-.page-device-list article.device-lock-open .device-glyph,.page-device-list article.device-cover-open .device-glyph{color:#ff526d}
+.page-device-list article.device-lock-open{background:linear-gradient(100deg,rgba(255,82,109,.22),transparent 72%),var(--user-card)!important}
+.page-device-list article.device-lock-open .device-glyph{color:#ff526d}
+.page-device-list article.device-cover-open{background:linear-gradient(100deg,rgba(97,216,242,var(--card-glow,.24)),transparent 72%),var(--user-card)!important}
+.page-device-list article.device-cover-open .device-glyph{color:#61d8f2}
 .page-device-list article.device-climate-heat .device-glyph{color:#ffc045}
 .page-device-list article.device-climate-cool .device-glyph{color:#61d8f2}
 .page-device-list article.device-light-on,.page-device-list article.device-switch-on,.page-device-list article.device-cover-open,.page-device-list article.device-climate-heat,.page-device-list article.device-climate-cool,.scenario-card.active,.security-scenario.active,.security-area,.security-lock{border:0!important;box-shadow:none!important}

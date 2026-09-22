@@ -1,5 +1,9 @@
 # Changelog
 
+## 2.21.225 — 2026-09-22
+
+- Gli oscuranti aperti usano ora il celeste per card e icona; il rosso resta riservato alle serrature aperte e agli stati di allarme o errore.
+
 ## 2.21.224 — 2026-09-22
 
 - Serrature e accessi mostra lo stato corrente dello switch/relè e lo usa come feedback predefinito, rispettando la semantica ON/OFF normale o invertita configurata.
