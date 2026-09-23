@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.21.254 — 2026-09-23
+
+- Le chiamate verso dispositivi video aprono sempre il riquadro video.
+- Le chiamate a DoorBird mostrano subito l'anteprima HTTP senza attivare la camera locale.
+- L'apertura dalla notifica mostra immediatamente il pannello chiamata e lascia il tempo alla PWA di registrare l'interno SIP prima dell'arrivo della chiamata.
+
 ## 2.21.253 — 2026-09-23
 
 - Spostato **Ripara e prova notifiche** direttamente in Intercom, dentro Impostazioni Intercom sempre aperte, così è visibile anche quando il collegamento negli Strumenti conserva un vecchio ID locale.

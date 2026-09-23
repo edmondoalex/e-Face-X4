@@ -2,7 +2,7 @@
   const $ = (selector) => document.querySelector(selector)
   const adminMode = document.documentElement.classList.contains('admin-intercom')
   const root = new URL('./', location.href)
-const currentVersion = '2.21.253'
+const currentVersion = '2.21.254'
   function newDeviceId() {
     if (typeof crypto.randomUUID === 'function') return crypto.randomUUID()
     const bytes = new Uint8Array(16)
@@ -69,7 +69,13 @@ const currentVersion = '2.21.253'
   function publishIntercomState(state) {
     if (window.parent !== window) window.parent.postMessage({type:'eface-intercom-state', state}, location.origin)
   }
-  if (pushedCaller) $('#call-status').textContent = `Chiamata da ${pushedCaller} · collegamento in corso…`
+  if (pushedCaller) {
+    $('#call-title').textContent = `Chiamata da ${pushedCaller}`
+    $('#call-status').textContent = 'Collegamento in corso…'
+    $('#call-status').hidden = false
+    $('#intercom-call-panel').hidden = false
+    $('#call-hangup').disabled = false
+  }
   async function refreshExternalStations() {
     try {
       const response = await fetch(new URL('api/intercom/external-stations', root), {cache:'no-store', credentials:'same-origin'})
@@ -111,7 +117,8 @@ const currentVersion = '2.21.253'
         dial.textContent = 'CHIAMA'
         dial.dataset.dialExtension = station.sip_extension
         dial.dataset.externalStation = station.id
-        dial.dataset.videoCapable = 'false'
+        // Le postazioni esterne hanno video HTTP e devono aprire il pannello.
+        dial.dataset.videoCapable = 'true'
         dial.dataset.stationReady = String(station.ready)
         dial.disabled = !station.ready || !phone?.isRegistered() || !!call
         if (!station.ready) dial.title = 'Configura e verifica la rotta SIP in Asterisk'
@@ -170,7 +177,7 @@ const currentVersion = '2.21.253'
         dial.textContent = 'CHIAMA'
         dial.dataset.dialExtension = tablet.extension
         dial.dataset.stationReady = String(tablet.ready)
-        dial.dataset.videoCapable = 'false'
+        dial.dataset.videoCapable = 'true'
         dial.disabled = !tablet.ready || !phone?.isRegistered() || !!call
         copy.append(title, subtitle)
         row.append(icon, copy, dial)
@@ -1020,7 +1027,8 @@ const currentVersion = '2.21.253'
     setDialButtonsDisabled(true)
     $('#call-status').textContent = 'Richiesta accesso al microfono…'
     try {
-      const videoDestination = button.dataset.videoCapable === 'true'
+      const externalStation = button.dataset.externalStation || ''
+      const videoDestination = button.dataset.videoCapable === 'true' || !!externalStation
       const targetName = button.closest('.intercom-station-row')?.querySelector('.station-copy strong')?.textContent?.trim() || button.dataset.dialExtension
       if (videoDestination) {
         document.body.classList.add('video-call-active')
@@ -1028,24 +1036,28 @@ const currentVersion = '2.21.253'
         $('#intercom-call-panel').hidden = false
         $('#intercom-video-panel').hidden = false
         $('#video-status').textContent = videoEnabled ? 'Preparazione video…' : 'Camera locale disattivata · attendo il video remoto'
+        if (externalStation) showCallDoorbirdVideo(externalStation)
         requestAnimationFrame(() => $('#intercom-video-panel').scrollIntoView({behavior:'smooth', block:'start'}))
       }
       const pushPromise = fetch(new URL(`api/intercom/push/call/${encodeURIComponent(button.dataset.dialExtension)}`, root), {method:'POST', cache:'no-store', credentials:'same-origin'})
         .then(async response => ({response, result:await response.json().catch(() => ({}))}))
         .catch(() => null)
       await prepareSpeaker()
-      const includeVideo = videoDestination && videoEnabled
+      const includeVideo = videoDestination && !externalStation && videoEnabled
       const stream = await preparedMicrophone(includeVideo)
-      if (button.dataset.externalStation) {
+      if (externalStation) {
         $('#call-status').textContent = 'Preparo la postazione esterna…'
-        const response = await fetch(new URL(`api/intercom/external-stations/${encodeURIComponent(button.dataset.externalStation)}/prepare-call`, root),
+        const response = await fetch(new URL(`api/intercom/external-stations/${encodeURIComponent(externalStation)}/prepare-call`, root),
           {method:'POST', cache:'no-store', credentials:'same-origin'})
         const result = await response.json().catch(() => ({}))
         if (!response.ok || result.extension !== button.dataset.dialExtension) throw new Error(result.detail || 'Postazione esterna non pronta')
       }
       if (!phone?.isRegistered() || call) { releaseMicrophone(); return }
       const push = await pushPromise
-      if (push?.response.ok && push.result.sent > 0) $('#call-status').textContent = 'Notifica urgente inviata, chiamo il dispositivo…'
+      if (push?.response.ok && push.result.sent > 0) {
+        $('#call-status').textContent = 'Notifica inviata, attendo il collegamento del dispositivo…'
+        await new Promise(resolve => setTimeout(resolve, 4500))
+      }
       const session=phone.call(`sip:${button.dataset.dialExtension}@asterisk`, {mediaStream:stream, mediaConstraints:{audio:true, video:stream.getVideoTracks().length > 0}, pcConfig:peerConfig(), data:{efaceTarget:button.dataset.dialExtension, efaceTargetName:targetName}})
       session._efaceTarget=button.dataset.dialExtension;session._efaceHadVideo=stream.getVideoTracks().length>0
     } catch (exception) {

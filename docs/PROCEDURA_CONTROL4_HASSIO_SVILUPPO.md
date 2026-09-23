@@ -193,4 +193,5 @@ Quando WiiM è selezionato come sorgente di una stanza Control4, WiiM è autorev
 
 - Evidenza live: Poco `8303` aveva endpoint SIP non registrato e una sottoscrizione Web Push presente; il servizio push accettava il messaggio, ma il telefono non mostrava la notifica. Una sottoscrizione salvata non prova quindi la consegna sul dispositivo, soprattutto con HyperOS/MIUI.
 - Dalla `2.21.252`, **Questo dispositivo → Ripara e prova notifiche** revoca soltanto la sottoscrizione del dispositivo corrente, ne crea una nuova dopo consenso utente, la salva e invia una prova immediata. Non leggere o stampare endpoint e chiavi push.
+- Dalla `2.21.254`, la chiamata verso una destinazione video apre subito il pannello. DoorBird usa l'anteprima HTTP senza attivare la camera locale. Dopo una push il chiamante concede 4,5 secondi alla PWA destinataria per aprirsi e registrare il proprio interno SIP prima di inviare la chiamata.
 - Limite: una PWA non può garantire l’interfaccia telefonica nativa in ogni stato energetico. Android nativo richiede un’istanza/token FCM; iOS nativo richiede PushKit e CallKit. Il MAC non identifica né risveglia un telefono Android/iOS.
