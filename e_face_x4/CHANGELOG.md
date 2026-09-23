@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.21.256 — 2026-09-23
+
+- Toccando una notifica Intercom la PWA già aperta viene portata in primo piano senza ricaricarla e senza interrompere la sessione SIP che deve mostrare RISPONDI.
+- In visualizzazione verticale l'altezza Bassa è realmente compatta: riepilogo e contatori non vengono più stirati fino a circa 200 CSS pixel.
+
 ## 2.21.255 — 2026-09-23
 
 - La revoca di un dispositivo personale elimina anche la relativa sottoscrizione push, evitando notifiche che squillano senza una chiamata SIP rispondibile.

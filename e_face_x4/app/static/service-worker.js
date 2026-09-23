@@ -1,4 +1,4 @@
-self.EFACE_SERVICE_WORKER_VERSION = '2.21.255'
+self.EFACE_SERVICE_WORKER_VERSION = '2.21.256'
 self.addEventListener('install', () => self.skipWaiting())
 self.addEventListener('activate', event => event.waitUntil(clients.claim()))
 self.addEventListener('push', event => {
@@ -18,11 +18,17 @@ self.addEventListener('notificationclick', event => {
     const target = event.notification.data.target
     const targetUrl = new URL(target)
     const windows = await clients.matchAll({type:'window', includeUncontrolled:true})
-    const current = windows.find(client => new URL(client.url).origin === targetUrl.origin)
+    const sameOrigin = windows.filter(client => new URL(client.url).origin === targetUrl.origin)
+    const current = sameOrigin.find(client => {
+      const url = new URL(client.url)
+      return url.pathname.includes('/intercom') && !url.pathname.includes('/intercom/wake/')
+    }) || sameOrigin[0]
     if (current) {
-      const navigated = await current.navigate(target)
-      await (navigated || current).focus()
-      ;(navigated || current).postMessage({type:'eface-open-intercom', target})
+      // Navigating an already running PWA destroys its WebSocket/SIP session
+      // precisely while the INVITE is arriving. Focus it and let the existing
+      // page (or its Intercom iframe) expose the answer controls instead.
+      await current.focus()
+      current.postMessage({type:'eface-open-intercom', target})
       return
     }
     await clients.openWindow(target)

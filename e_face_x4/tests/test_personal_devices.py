@@ -126,7 +126,10 @@ def test_personal_device_push_subscription_and_call(monkeypatch, tmp_path):
     assert person.get("/intercom").status_code == 200
     assert person.get(f"/{pushed['target']}", follow_redirects=False).headers["location"] == "/login"
     assert person.delete(f"/api/intercom/push/subscription/{device_id}").json() == {"enabled": False}
-    assert person.get("/service-worker.js").status_code == 200
+    worker = person.get("/service-worker.js")
+    assert worker.status_code == 200
+    assert "await current.focus()" in worker.text
+    assert "current.navigate(target)" not in worker.text
 
 
 def test_personal_device_rejects_invalid_id_and_admin(monkeypatch, tmp_path):
