@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.21.261 — 2026-09-23
+
+- Le entità Home Assistant `select` etichettate e-Face compaiono in Extra con scelta diretta dell'opzione.
+- `select`, pulsanti e switch etichettati sono disponibili nel catalogo Routine; i `select` espongono le opzioni anche per trigger, condizioni e azioni.
+
 ## 2.21.260 — 2026-09-23
 
 - Il tasto Sicurezza laterale, il contatore Sicurezza della Home e il riepilogo superiore aprono ora la stessa pagina, usando categorie, ordine e Sensoristica configurati dall'utente.

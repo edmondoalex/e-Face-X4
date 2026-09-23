@@ -30,6 +30,18 @@ def sample():
             "conditions": [], "steps": [{"type": "action", "device_id": "light.hall", "action": "on"}]}
 
 
+def test_select_is_available_as_trigger_condition_and_action():
+    feeder = {"id": "ha:select.feeder", "kind": "select", "name": "Distributore", "room": "Cucina", "state": "1",
+              "options": ["1", "2", "3"], "source_list": ["1", "2", "3"], "capabilities": {"select_source": True}}
+    spec = {"name": "Cibo", "triggers": [{"type": "state", "device_id": feeder["id"], "to": "1"}],
+            "conditions": [{"device_id": feeder["id"], "operator": "is", "value": "1"}],
+            "steps": [{"type": "action", "device_id": feeder["id"], "action": "select_source", "value": "2"}]}
+    review = routines.validate(spec, [feeder])
+    assert review["errors"] == []
+    assert review["spec"]["steps"][0]["value"] == "2"
+    assert routines.validate({**spec, "steps": [{**spec["steps"][0], "value": "9"}]}, [feeder])["errors"]
+
+
 def test_protected_cover_block_is_constrained_and_persistent():
     devices = catalog() + [
         {"id": "cover.kitchen", "kind": "cover", "name": "Finestra Cucina", "state": "closed", "position_supported": True},

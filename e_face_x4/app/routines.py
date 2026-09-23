@@ -29,6 +29,7 @@ SAFE_ACTIONS = {
     "light_scenario": {"on", "off", "run", "stop"},
     "light": {"on", "off", "brightness"},
     "switch": {"on", "off"},
+    "select": {"select_source"},
     "media_player": {"media_play", "media_pause", "media_stop", "media_next", "media_previous", "turn_off", "set_volume", "volume_mute", "volume_unmute", "select_source", "remote_command", "dnd_on", "dnd_off", "tts"},
     "alexa_device": {"set_alarm", "set_daily_alarm", "set_timer", "set_reminder", "cancel_alarm", "cancel_timer", "cancel_reminder"},
     "climate": {"set_target"},
@@ -48,7 +49,7 @@ ACTION_LABELS = {"on": "accendere", "off": "spegnere", "brightness": "regolare l
                  "dnd_on": "attivare Non disturbare su", "dnd_off": "disattivare Non disturbare su",
                  "set_alarm": "impostare una sveglia su", "set_daily_alarm": "impostare una sveglia giornaliera su", "set_timer": "impostare un timer su", "set_reminder": "impostare un promemoria su",
                  "cancel_alarm": "cancellare la prossima sveglia da", "cancel_timer": "cancellare il prossimo timer da", "cancel_reminder": "cancellare il prossimo promemoria da",
-                 "lock": "bloccare", "unlock": "sbloccare", "set_position": "posizionare", "press": "premere"}
+                 "lock": "bloccare", "unlock": "sbloccare", "set_position": "posizionare", "press": "premere", "select_option": "selezionare l'opzione su"}
 REMOTE_PLAYER_COMMANDS = {"media_play": "play", "media_pause": "pause", "media_stop": "stop", "media_next": "next", "media_previous": "previous", "turn_off": "turn_off", "volume_mute": "mute", "volume_unmute": "mute"}
 SENSITIVE_WORDS = re.compile(r"portone|cancello|garage|serratura|allarme|alarm|gate|door|lock", re.I)
 SECRET_TEXT = re.compile(r"(?i)(password|token|secret|authorization)\s*[:=]\s*\S+|https?://\S+")
@@ -807,6 +808,11 @@ def validate(payload: dict, devices: list[dict], others: list[dict] = (), *, sol
                            if device.get("provider") == "control4" else device.get("source_list") or [])
                 if not caps.get("select_source") or value not in sources:
                     errors.append(f"{device.get('name')}: sorgente non disponibile")
+                    continue
+            elif action == "select_option":
+                value = str(value or "").strip()
+                if not caps.get("select_option") or value not in (device.get("options") or []):
+                    errors.append(f"{device.get('name')}: opzione non disponibile")
                     continue
             elif action == "remote_command":
                 if not isinstance(value, dict):

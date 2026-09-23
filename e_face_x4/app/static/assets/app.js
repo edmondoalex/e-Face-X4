@@ -74,7 +74,7 @@ const mediaSections = { rooms: true, playing: true }
 const isSecurityGarage = (device) => device.kind === 'cover' && /garage|portone/i.test(`${device.icon || ''} ${device.name || ''}`)
 function defaultDeviceCategory(device) {
   if (device.kind === 'light') return 'lights'
-  if (device.kind === 'switch') return 'extra'
+  if (['switch','select','button'].includes(device.kind)) return 'extra'
   if (device.kind === 'cover') return 'covers'
   if (['climate','temp','temperature','humidity','air','air_quality'].includes(device.kind)) return 'comfort'
   if (['sensor','binary_sensor'].includes(device.kind)) return 'sensors'
@@ -397,7 +397,7 @@ function renderOpenStatePanels() {
 function renderHomeStatusCounters() {
   const statusCounters = [
     { kind: 'lights', label: 'Luci', icon: 'mdi:lightbulb', color: 'yellow', devices: currentDevices.filter((device) => device.kind === 'light'), active: (device) => lightIsOn(device) },
-    { kind: 'extra', label: 'Extra', icon: 'mdi:power-socket-eu', color: 'red', devices: currentDevices.filter((device) => device.kind === 'switch'), active: stateIsActive },
+    { kind: 'extra', label: 'Extra', icon: 'mdi:power-socket-eu', color: 'red', devices: currentDevices.filter((device) => ['switch','select','button'].includes(device.kind)), active: stateIsActive },
     { kind: 'covers', label: 'Oscuranti', icon: 'mdi:blinds-horizontal', color: 'cyan', devices: currentDevices.filter((device) => device.kind === 'cover'), active: (device) => stateIsActive(device) || Number(device.position) > 0 },
     { kind: 'security', label: 'Sicurezza', icon: 'mdi:shield-home', color: 'red', devices: securityDevices(), active: (device) => ['OPEN','OPENING','UNLOCKED','ARMED','ALARM','TAMPER','ON','1','TRUE'].includes(String(device.state ?? '').trim().toUpperCase()) },
     { kind: 'shortcuts', label: 'Scorciatoie', icon: 'mdi:gesture-tap-button', color: 'cyan', devices: shortcutDevices(), active: () => true },
@@ -1517,6 +1517,8 @@ function deviceActions(device, options = {}) {
     return `<div class="device-actions"><button data-action="open">${garage ? 'APRI' : 'SU'}</button><button data-action="stop">STOP</button><button data-action="close">${garage ? 'CHIUDI' : 'GIÙ'}</button></div>`
   }
   if (device.kind === 'lock') return `<div class="device-actions"><button data-action="unlock" aria-label="Apri ${esc(device.name)}" title="Apri"><span class="mdi-mask" style="${mdiStyle(lockActionIcon(device, true), 'lock-open-outline')}"></span>APRI</button><button data-action="lock" aria-label="Chiudi ${esc(device.name)}" title="Chiudi"><span class="mdi-mask" style="${mdiStyle(lockActionIcon(device, false), 'lock-outline')}"></span>CHIUDI</button></div>`
+  if (device.kind === 'select') return `<label class="device-select-control">Comando<select data-select-option aria-label="Comando ${esc(device.name)}">${(device.options || []).map(option => `<option value="${escAttribute(option)}" ${String(option) === String(device.state) ? 'selected' : ''}>${esc(option)}</option>`).join('')}</select></label>`
+  if (device.kind === 'button') return `<div class="device-actions"><button data-action="press">ESEGUI</button></div>`
   if (device.kind === 'climate') {
     const target = Number(device.target_temperature)
     const value = Number.isFinite(target) ? target : 20
@@ -2524,7 +2526,7 @@ $('#widgets').addEventListener('click', (event) => {
   if (!button) return
   if (button.dataset.kind === 'shortcuts') { openDevices('Scorciatoie', shortcutDevices(), {shortcuts:true}); return }
   if (button.dataset.kind === 'security') { openSecurityPage(); return }
-  const map = { lights: ['light'], extra: ['switch'], covers: ['cover'], comfort: ['climate', 'temp', 'temperature', 'humidity', 'air', 'air_quality'] }
+  const map = { lights: ['light'], extra: ['switch','select','button'], covers: ['cover'], comfort: ['climate', 'temp', 'temperature', 'humidity', 'air', 'air_quality'] }
   const kinds = map[button.dataset.kind] || []
   openDevices(button.dataset.label || 'Dispositivi', currentDevices.filter((device) => kinds.includes(device.kind)), { filters: true, lights: button.dataset.kind === 'lights' })
 })
@@ -3242,6 +3244,7 @@ $('#device-list').addEventListener('change', (event) => {
   if (event.target.matches('[data-rgb-color]')) sendRgbCommand(card.dataset.rgbGroup, 'color', event.target.value, event.target)
   if (event.target.matches('[data-media-volume]')) sendDeviceCommand(card.dataset.deviceId, 'set_volume', event.target, event.target.value)
   if (event.target.matches('select[data-media-source]')) sendDeviceCommand(card.dataset.deviceId, 'select_source', event.target, event.target.value)
+  if (event.target.matches('[data-select-option]')) sendDeviceCommand(card.dataset.deviceId, 'select_option', event.target, event.target.value)
 })
 $('.home-title').addEventListener('click', showHome)
 $('#rooms-toggle').addEventListener('click', (event) => {

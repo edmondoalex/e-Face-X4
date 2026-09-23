@@ -54,6 +54,8 @@ def normalize_labeled_entities(
             capabilities = {"lock": True, "unlock": True}
         elif kind == "button":
             capabilities = {"press": True}
+        elif kind == "select":
+            capabilities = {"select_option": True, "select_source": True}
         item = {
             "id": f"ha:{entity_id}", "registry_id": entity_id, "entity_id": entity_id,
             "state_key": entity_id,
@@ -70,5 +72,8 @@ def normalize_labeled_entities(
         if kind == "cover":
             item["position"] = attributes.get("current_position")
             item["position_supported"] = bool(features & 4)
+        if kind == "select":
+            item["options"] = [str(value) for value in attributes.get("options", []) if isinstance(value, (str, int, float))]
+            item["source_list"] = list(item["options"])
         result.append(item)
     return sorted(result, key=lambda item: (str(item["room"]).casefold(), str(item["name"]).casefold()))

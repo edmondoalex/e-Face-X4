@@ -78,7 +78,7 @@ from .media_realtime import SharedMediaRealtime
 from .demo import dashboard as demo_dashboard
 from .ha_labeled import normalize_labeled_entities
 
-VERSION = os.environ.get("EFACE_VERSION", "2.21.260")
+VERSION = os.environ.get("EFACE_VERSION", "2.21.261")
 STATIC = Path(__file__).parent / "static"
 logging.basicConfig(level=logging.WARNING, format="%(asctime)s %(levelname)s [e-face-x4] %(message)s")
 _reconnect_warning_at: dict[str, float] = {}
@@ -4194,6 +4194,8 @@ def create_app() -> FastAPI:
                 ("cover", "stop"): ("cover", "stop_cover"), ("cover", "set_position"): ("cover", "set_cover_position"),
                 ("lock", "lock"): ("lock", "lock"), ("lock", "unlock"): ("lock", "unlock"),
                 ("button", "press"): ("button", "press"),
+                ("select", "select_option"): ("select", "select_option"),
+                ("select", "select_source"): ("select", "select_option"),
             }
             service, body = services.get((kind, operation)), {"entity_id": entity_id}
             if operation in {"brightness", "set_position"}:
@@ -4204,6 +4206,11 @@ def create_app() -> FastAPI:
                     service, body["brightness_pct"] = ("light", "turn_on"), round(value)
                 elif operation == "set_position" and kind == "cover":
                     body["position"] = round(value)
+            if operation in {"select_option", "select_source"} and kind == "select":
+                value = str(payload.get("value") or "").strip()
+                if not value or value not in entity.get("options", []):
+                    raise HTTPException(status_code=400, detail="Opzione non disponibile")
+                body["option"] = value
             if not service:
                 raise HTTPException(status_code=400, detail="Comando non disponibile per questa entità")
             await home_assistant_service(service[0], service[1], body)

@@ -88,6 +88,8 @@ const actions = {
   light_scenario: [['on', 'Attiva'], ['off', 'Disattiva'], ['run', 'Esegui'], ['stop', 'Ferma']],
   light: [['on', 'Accendi'], ['off', 'Spegni'], ['brightness', 'Luminosità %']],
   switch: [['on', 'Accendi'], ['off', 'Spegni']],
+  select: [['select_source', 'Seleziona opzione']],
+  button: [['press', 'Esegui']],
   cover: [['open', 'Apri'], ['close', 'Chiudi'], ['stop', 'Ferma'], ['set_position', 'Posizione %']],
   lock: [['lock', 'Blocca'], ['unlock', 'Sblocca']],
   media_player: [['media_play', 'Riproduci'], ['media_pause', 'Pausa'], ['media_stop', 'Stop'], ['media_next', 'Successivo'], ['media_previous', 'Precedente'], ['turn_off', 'Spegni stanza'], ['set_volume', 'Volume %'], ['volume_mute', 'Mute'], ['volume_unmute', 'Riattiva audio'], ['select_source', 'Seleziona sorgente'], ['remote_command', 'Tasto telecomando sorgente'], ['dnd_on', 'Attiva Non disturbare'], ['dnd_off', 'Disattiva Non disturbare'], ['tts', 'Messaggio vocale (TTS)']],
@@ -118,13 +120,13 @@ function remoteFields(deviceId, sourceId = 0, command = '', trigger = true) {
 }
 const valuesFor = deviceId => {
   const device = devices.find(item => item.id === deviceId)
-  const byKind = {light:['on','off'], light_scenario: [...(device?.capabilities?.onoff ? ['on','off'] : []),'command_on','command_off','running','idle'], switch:['on','off'], binary_sensor:['on','off'], cover:['open','closed','opening','closing'], media_player:['playing','paused','idle','off','standby','buffering','unavailable'], lock:['locked','unlocked'], climate:['heat','cool','auto','off'], alarm_zone:['closed','active','tamper','masked','bypassed'], alarm_partition:['disarmed','armed','alarm','tamper']}
+  const byKind = {light:['on','off'], light_scenario: [...(device?.capabilities?.onoff ? ['on','off'] : []),'command_on','command_off','running','idle'], switch:['on','off'], binary_sensor:['on','off'], select:device?.options||[], cover:['open','closed','opening','closing'], media_player:['playing','paused','idle','off','standby','buffering','unavailable'], lock:['locked','unlocked'], climate:['heat','cool','auto','off'], alarm_zone:['closed','active','tamper','masked','bypassed'], alarm_partition:['disarmed','armed','alarm','tamper']}
   return [...new Set([...(byKind[device?.kind] || []), String(device?.state ?? '').toLowerCase()].filter(Boolean))]
 }
 const stateLabels = {closed:'Chiuso', active:'Attivo / rilevato', running:'Avvio scenario', command_on:'Accendi scenario (comando)', command_off:'Spegni scenario (comando)', tamper:'Sabotaggio', masked:'Mascherato', bypassed:'Escluso', disarmed:'Disinserito', armed:'Inserito', alarm:'Allarme'}
 const stateSelect = (deviceId, selected) => {
   const values = valuesFor(deviceId)
-  if (!values.length || !['light','light_scenario','switch','binary_sensor','cover','media_player','lock','climate','alarm_zone','alarm_partition'].includes(devices.find(item => item.id === deviceId)?.kind)) {
+  if (!values.length || !['light','light_scenario','switch','binary_sensor','select','cover','media_player','lock','climate','alarm_zone','alarm_partition'].includes(devices.find(item => item.id === deviceId)?.kind)) {
     return `<input data-field="value" value="${escapeHtml(selected || '')}" placeholder="${values.length ? `Stato attuale: ${escapeHtml(values[0])}` : 'Stato del dispositivo'}" aria-label="Stato del dispositivo">`
   }
   if (selected && !values.includes(selected)) values.push(selected)
@@ -164,7 +166,7 @@ function collectStepRow(row) {
   if (type === 'check') return {type,device_id:row.querySelector('[data-field="device"]').value,operator:row.querySelector('[data-field="operator"]').value,value:row.querySelector('[data-field="value"]').value}
   const action = row.querySelector('[data-field="action"]').value
   const value = row.querySelector('[data-field="action-value"]')?.value
-  return {type:'action',device_id:row.querySelector('[data-field="device"]').value,action,value:action === 'remote_command' ? {source_id:Number(row.querySelector('[data-field="remote-source"]')?.value || 0),command:row.querySelector('[data-field="remote-command"]')?.value || ''} : value === undefined || value === '' ? null : ['tts','select_source','set_alarm','set_daily_alarm','set_timer','set_reminder'].includes(action) ? value : Number(value)}
+  return {type:'action',device_id:row.querySelector('[data-field="device"]').value,action,value:action === 'remote_command' ? {source_id:Number(row.querySelector('[data-field="remote-source"]')?.value || 0),command:row.querySelector('[data-field="remote-command"]')?.value || ''} : value === undefined || value === '' ? null : ['tts','select_source','select_option','set_alarm','set_daily_alarm','set_timer','set_reminder'].includes(action) ? value : Number(value)}
 }
 function collect() {
   if (!draft) return

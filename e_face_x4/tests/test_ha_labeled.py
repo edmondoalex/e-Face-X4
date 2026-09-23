@@ -31,3 +31,15 @@ def test_disabled_labeled_entity_is_not_imported():
         [{"entity_id": "sensor.disabled", "labels": ["wanted"], "disabled_by": "user"}], [], [],
         [{"label_id": "wanted", "name": "e-Face"}],
     ) == []
+
+
+def test_labeled_select_exposes_options_for_ui_and_routines():
+    items = normalize_labeled_entities(
+        [{"entity_id": "select.feeder", "state": "2", "attributes": {"friendly_name": "Distributore", "options": ["1", "2", "3"]}}],
+        [{"entity_id": "select.feeder", "labels": ["wanted"], "disabled_by": None}], [], [],
+        [{"label_id": "wanted", "name": "e-Face"}],
+    )
+    assert items[0]["kind"] == "select"
+    assert items[0]["options"] == ["1", "2", "3"]
+    assert items[0]["source_list"] == ["1", "2", "3"]
+    assert items[0]["capabilities"] == {"select_option": True, "select_source": True}
