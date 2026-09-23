@@ -63,7 +63,7 @@ let energyRefreshRunning = false
 let energyMasterInitialized = false
 let energyMasterColors = []
 let energyMasterPending = { signature:'', confirmations:0 }
-const securitySections = { areas: false, zones: false, cameras: true }
+const securitySections = { areas: false, zones: false, sensors: false, cameras: true }
 let currentSecurityOrder = ['scenarios', 'areas', 'zones', 'locks', 'cameras']
 let currentSecurityCameras = []
 let currentShortcuts = []
@@ -713,7 +713,7 @@ function wheelColor(event) {
 }
 
 function renderDeviceList(devices) {
-  if (devices.length && devices.every((device) => ['lock','alarm_partition','alarm_zone','alarm_scenario','alarm_system'].includes(device.kind) || isSecurityGarage(device))) {
+  if (devices.length && devices.every((device) => ['lock','alarm_partition','alarm_zone','alarm_scenario','alarm_system','sensor','binary_sensor'].includes(device.kind) || isSecurityGarage(device))) {
     renderSecurityDevices(devices)
     return
   }
@@ -736,8 +736,9 @@ function renderSecurityDevices(devices) {
   const zones = devices.filter((device) => device.kind === 'alarm_zone')
   const scenarios = devices.filter((device) => device.kind === 'alarm_scenario')
   const locks = devices.filter((device) => device.kind === 'lock' || isSecurityGarage(device))
+  const sensors = devices.filter((device) => ['sensor','binary_sensor'].includes(device.kind))
   const system = devices.find((device) => device.kind === 'alarm_system')
-  const issueCount = [...partitions, ...zones].filter((item) => ['ALARM','TAMPER'].includes(String(item.state).toUpperCase())).length
+  const issueCount = [...partitions, ...zones].filter((item) => ['ALARM','TAMPER'].includes(String(item.state).toUpperCase())).length + sensors.filter(stateIsActive).length
   const memoryCount = partitions.filter((area) => area.alarm_memory || area.tamper_memory).length
   const armedCount = partitions.filter((area) => area.state === 'ARMED').length
   const hasInstant = partitions.some((area) => area.state === 'ARMED' && area.arm_mode === 'instant')
@@ -777,6 +778,11 @@ function renderSecurityDevices(devices) {
     const batteryMarkup = battery === null ? '' : `<span class="security-lock-battery ${battery <= 20 ? 'low' : ''}" title="Batteria ${battery}%"><i class="mdi-mask" style="${mdiStyle(battery <= 20 ? 'mdi:battery-alert-variant-outline' : 'mdi:battery', 'battery')}"></i>${battery}%</span>`
     return `<article class="security-lock security-lock-${stateClass}" data-device-id="${esc(device.id)}">${deviceGlyph(device)}<div class="security-lock-name"><strong>${esc(device.name)}</strong><small>${esc(device.room)}</small></div><b>${esc(stateLabel(device))}${batteryMarkup}</b>${deviceActions(device)}</article>`
   }).join('')
+  const sensorCards = sensors.map((device) => {
+    const active = stateIsActive(device)
+    const icon = device.icon || (device.device_class === 'moisture' ? 'mdi:water-alert' : 'mdi:access-point')
+    return `<article class="security-lock security-lock-${active ? 'unlocked' : 'locked'}" data-device-id="${esc(device.id)}">${deviceGlyph({...device,icon})}<div class="security-lock-name"><strong>${esc(device.name)}</strong><small>${esc(device.room)}</small></div><b>${esc(stateLabel(device))}</b></article>`
+  }).join('')
   const scenarioCards = scenarios.map((device) => { const disarm = device.category === 'DISARM'; const partial = device.category === 'PARTIAL'; const active = String(device.id) === activeScenarioId; return `<button class="security-scenario ${disarm ? 'disarm' : partial ? 'partial' : 'arm'} ${active ? 'active' : ''}" data-security-scenario data-device-id="${esc(device.id)}" data-action="execute"><span class="mdi-mask" style="${mdiStyle(disarm ? 'mdi:shield-off-outline' : partial ? 'mdi:shield-half-full' : 'mdi:shield-lock-outline', 'shield-key-outline')}"></span><strong>${esc(device.name)}</strong></button>` }).join('')
   const cameraCards = currentSecurityCameras.map((camera) => {
     const entity = /^camera\.[a-z0-9_]+$/.test(camera.preview_url||camera.url)
@@ -787,12 +793,15 @@ function renderSecurityDevices(devices) {
     scenarios: scenarios.length ? `<section class="security-section"><h3>Scenari di inserimento</h3><div class="security-scenario-grid">${scenarioCards}</div></section>` : '',
     areas: partitions.length ? section('areas', 'Stato aree', areaCards, 'security-area-grid') : '',
     zones: zones.length ? section('zones', 'Zone', zoneCards, 'security-zone-grid') : '',
+    sensors: sensors.length ? section('sensors', 'Sensoristica', sensorCards, 'security-zone-grid') : '',
     locks: locks.length ? `<section class="security-section"><h3>Accessi e portoni</h3><div class="security-zone-grid">${lockCards}</div></section>` : '',
     cameras: currentSecurityCameras.length ? section('cameras', 'Videocamere', cameraCards, 'security-camera-grid') : ''
   }
   const container = $('#device-list')
   const desired = document.createElement('div')
-  desired.innerHTML = summary + currentSecurityOrder.map((key) => blocks[key] || '').join('')
+  const securityOrder = currentSecurityOrder.flatMap((key) => key === 'zones' ? ['zones','sensors'] : [key])
+  if (!securityOrder.includes('sensors')) securityOrder.push('sensors')
+  desired.innerHTML = summary + securityOrder.map((key) => blocks[key] || '').join('')
   const nextChildren = [...desired.children]
   // Preserve unchanged cards: replacing the whole list on every state update restarts their visual transitions.
   nextChildren.forEach((next, index) => {

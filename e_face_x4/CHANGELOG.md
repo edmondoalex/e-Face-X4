@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.21.258 — 2026-09-23
+
+- La pagina Sicurezza include una sezione `Sensoristica`, richiudibile e chiusa per impostazione predefinita, per i sensori ai quali è assegnato il flag Tutta la sicurezza.
+- I sensori di sicurezza attivi contribuiscono al riepilogo degli eventi in corso senza perdere le sezioni specializzate di aree, zone, accessi e videocamere.
+
 ## 2.21.257 — 2026-09-23
 
 - Importazione diretta e performante delle entità Home Assistant con etichetta `e-Face`, applicata all'entità o al dispositivo: registri/aree sono memorizzati per 60 secondi mentre gli stati restano aggiornati nello snapshot.
