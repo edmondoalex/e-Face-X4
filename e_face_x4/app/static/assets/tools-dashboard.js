@@ -1231,8 +1231,18 @@ async function initialize() {
     const phoneLink = document.createElement('button')
     phoneLink.type = 'button'
     phoneLink.className = 'tool-card'
-    phoneLink.innerHTML = '<span><svg viewBox="0 0 24 24" aria-hidden="true" style="width:30px;height:30px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round"><path d="M5 7v5M9 5v9M13 4v11M17 5v9M21 7v5M5 18c4.5 3 9.5 3 14 0"/></svg></span><div><b>Videocitofono</b><small>Nome e suoneria di questo dispositivo</small></div><i>›</i>'
-    phoneLink.addEventListener('click', () => openDeviceSound(status).catch(error => message(error.message)))
+    phoneLink.innerHTML = '<span><svg viewBox="0 0 24 24" aria-hidden="true" style="width:30px;height:30px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round"><path d="M5 7v5M9 5v9M13 4v11M17 5v9M21 7v5M5 18c4.5 3 9.5 3 14 0"/></svg></span><div><b>Questo dispositivo</b><small>Suoneria e notifiche Intercom</small></div><i>›</i>'
+    phoneLink.addEventListener('click', async () => {
+      try { await openDeviceSound(status) }
+      catch (error) {
+        if (error.message.includes('Dispositivo personale non trovato')) {
+          localStorage.removeItem(`eface-personal-device-id-${status.user}`)
+          location.href = api('intercom')
+          return
+        }
+        message(error.message)
+      }
+    })
     $('#tools-user-section .tools-grid').append(phoneLink)
   }
   $('#tools-admin-nav').hidden = status.enabled && status.role !== 'admin'

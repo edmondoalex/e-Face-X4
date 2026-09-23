@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.21.253 — 2026-09-23
+
+- Spostato **Ripara e prova notifiche** direttamente in Intercom, dentro Impostazioni Intercom sempre aperte, così è visibile anche quando il collegamento negli Strumenti conserva un vecchio ID locale.
+- La riparazione usa l’ID e l’interno ottenuti dal pulsante COLLEGA del dispositivo corrente, evitando l’errore “Dispositivo personale non trovato”.
+- Rinominata la scheda Strumenti da “Videocitofono” a **Questo dispositivo**.
+
 ## 2.21.252 — 2026-09-23
 
 - Aggiunto in Questo dispositivo il comando **Ripara e prova notifiche**, che revoca una sottoscrizione Web Push obsoleta, ne crea una nuova e invia subito una prova al dispositivo corrente.

@@ -2,7 +2,7 @@
   const $ = (selector) => document.querySelector(selector)
   const adminMode = document.documentElement.classList.contains('admin-intercom')
   const root = new URL('./', location.href)
-const currentVersion = '2.21.252'
+const currentVersion = '2.21.253'
   function newDeviceId() {
     if (typeof crypto.randomUUID === 'function') return crypto.randomUUID()
     const bytes = new Uint8Array(16)
@@ -896,6 +896,41 @@ const currentVersion = '2.21.252'
       throw new Error(`Microfono non disponibile: ${exception.name || exception.message}`)
     }
   }
+
+  function pushKeyBytes(value) {
+    const padding = '='.repeat((4 - value.length % 4) % 4)
+    return Uint8Array.from(atob((value + padding).replace(/-/g, '+').replace(/_/g, '/')), character => character.charCodeAt(0))
+  }
+
+  $('#repair-push').addEventListener('click', async event => {
+    const button = event.currentTarget
+    const statusLine = $('#push-repair-status')
+    button.disabled = true
+    statusLine.textContent = 'Rigenero la registrazione notifiche…'
+    try {
+      if (!currentDeviceId || !/^83\d{2}$/.test(ownExtension)) throw new Error('Prima premi COLLEGA per registrare questo dispositivo')
+      if (!('serviceWorker' in navigator) || !('PushManager' in window) || !window.isSecureContext) throw new Error('Apri e-Face installata tramite HTTPS')
+      if (Notification.permission === 'denied') throw new Error('Abilita le notifiche nelle impostazioni Android di Chrome/e-Face')
+      if (Notification.permission !== 'granted' && await Notification.requestPermission() !== 'granted') throw new Error('Autorizzazione notifiche non concessa')
+      const registration = await navigator.serviceWorker.register(new URL('service-worker.js', root), {scope:new URL('./', root).pathname})
+      await navigator.serviceWorker.ready
+      const previous = await registration.pushManager.getSubscription()
+      await fetch(new URL(`api/intercom/push/subscription/${encodeURIComponent(currentDeviceId)}`, root), {method:'DELETE', credentials:'same-origin'}).catch(() => null)
+      if (previous) await previous.unsubscribe()
+      const keyResponse = await fetch(new URL('api/intercom/push/key', root), {cache:'no-store', credentials:'same-origin'})
+      const keyData = await keyResponse.json().catch(() => ({}))
+      if (!keyResponse.ok || !keyData.public_key) throw new Error(keyData.detail || 'Chiave notifiche non disponibile')
+      const subscription = await registration.pushManager.subscribe({userVisibleOnly:true, applicationServerKey:pushKeyBytes(keyData.public_key)})
+      const saveResponse = await fetch(new URL(`api/intercom/push/subscription/${encodeURIComponent(currentDeviceId)}`, root), {method:'PUT', credentials:'same-origin', headers:{'Content-Type':'application/json'}, body:JSON.stringify(subscription.toJSON())})
+      if (!saveResponse.ok) throw new Error((await saveResponse.json().catch(() => ({}))).detail || 'Registrazione notifiche non salvata')
+      const testResponse = await fetch(new URL(`api/intercom/push/call/${encodeURIComponent(ownExtension)}`, root), {method:'POST', credentials:'same-origin'})
+      const test = await testResponse.json().catch(() => ({}))
+      if (!testResponse.ok || !test.sent) throw new Error(test.detail || 'Il servizio push non ha accettato la prova')
+      statusLine.textContent = '✓ Registrazione nuova: notifica di prova inviata.'
+    } catch (exception) {
+      statusLine.textContent = `Errore: ${exception.message}`
+    } finally { button.disabled = false }
+  })
 
   $('#sip-connect').addEventListener('click', async () => {
     let password = $('#sip-password').value
