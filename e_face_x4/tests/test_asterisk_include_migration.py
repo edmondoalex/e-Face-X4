@@ -46,7 +46,7 @@ def test_failed_reload_restores_original_and_keeps_backup(tmp_path) -> None:
     assert len(calls) == 2
 
 
-def test_migration_refuses_drift_and_unowned_include(tmp_path) -> None:
+def test_migration_refuses_rollback_drift_and_adopts_one_existing_include(tmp_path) -> None:
     migration = prepared(tmp_path)
     migration.install(lambda: None)
     migration.custom.write_bytes(migration.custom.read_bytes() + b"; local user change\n")
@@ -55,7 +55,10 @@ def test_migration_refuses_drift_and_unowned_include(tmp_path) -> None:
 
     another = prepared(tmp_path / "other")
     another.custom.write_bytes(another.custom.read_bytes() + another.line + b"\n")
-    with pytest.raises(RuntimeError, match="non gestito"):
+    assert another.install(lambda: pytest.fail("reload called")) is False
+
+    another.custom.write_bytes(another.custom.read_bytes() + another.line + b"\n")
+    with pytest.raises(RuntimeError, match="duplicato"):
         another.install(lambda: pytest.fail("reload called"))
 
 

@@ -74,13 +74,12 @@ def test_prepare_restores_interrupted_transaction_without_losing_include(tmp_pat
     assert custom.read_bytes().count(b"#include ") == 1
 
 
-def test_prepare_fails_closed_if_custom_changes_after_migration(tmp_path) -> None:
+def test_prepare_preserves_later_custom_changes_when_include_is_unique(tmp_path) -> None:
     root = tmp_path / "config" / "asterisk"
     custom = root / "custom" / "pjsip_custom.conf"
     custom.parent.mkdir(parents=True)
     custom.write_bytes(b"; pre-existing\n")
     prepare_before_asterisk(root)
     custom.write_bytes(custom.read_bytes() + b"; user edit\n")
-    with pytest.raises(RuntimeError, match="non gestito"):
-        prepare_before_asterisk(root)
+    assert prepare_before_asterisk(root) is False
     assert custom.read_bytes().endswith(b"; user edit\n")

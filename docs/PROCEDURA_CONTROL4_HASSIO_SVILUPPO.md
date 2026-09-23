@@ -182,3 +182,9 @@ L'agente non deve aspettare un promemoria dell'utente: nello stesso turno in cui
 - Estensione `2.21.213`: e-HDL pubblica anche la variante discovery `group_{id}_no_pct`, che comanda lo stesso gruppo fisico con OPEN/CLOSE/STOP raw senza percentuale. La sonda HA ha trovato 7 entità corrispondenti; e-Face espone quindi 7 schede aggiuntive `cover-group-no-pct:{id}` con posizione sempre assente e preferenze di visibilità/ordine indipendenti, senza scrivere nuovi gruppi e-HDL né creare stanze.
 
 Quando WiiM è selezionato come sorgente di una stanza Control4, WiiM è autorevole soltanto per metadati e trasporto. Volume e mute devono essere letti e comandati tramite Control4, stanza per stanza. Il master multiroom applica un delta relativo: 40/50 con +10 deve produrre 50/60, mai due valori uguali. Il contratto eseguibile è documentato in `e_face_x4/docs/TASK_VOLUME_MASTER_PROPORZIONALE.md` e protetto dai test.
+
+## Bootstrap e-voip / Asterisk (23/09/2026)
+
+- Evidenza live: dopo l’aggiornamento dell’add-on, il bootstrap ha trovato nel PJSIP persistente l’include e-Face già presente ma non più identico alla fotografia del vecchio backup; il controllo precedente arrestava il PBX pur senza dover modificare il file.
+- Regola: se è presente esattamente una riga include verso `/config/asterisk/eface/pjsip.conf`, il bootstrap la adotta senza riscrivere configurazione o backup. Include duplicati restano un errore; il rollback resta fail-closed e richiede ancora corrispondenza esatta con il backup.
+- Controllo ripetibile: eseguire `python -m pytest tests/test_asterisk_include_migration.py tests/test_asterisk_provisioner_startup.py -q`, quindi verificare dopo il deploy stato add-on, `core waitfullybooted` e presenza dell’endpoint gestito senza stampare contenuti PJSIP o credenziali.

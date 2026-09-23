@@ -64,8 +64,12 @@ class PjsipIncludeMigration:
         current = self.custom.read_bytes()
         lines = [line.strip() for line in current.splitlines()]
         if self.line in lines:
-            if not self.backup.is_file() or current != self._with_include(self.backup.read_bytes()):
-                raise RuntimeError("Include e-Face già presente ma non gestito da questa migrazione")
+            if lines.count(self.line) != 1:
+                raise RuntimeError("Include e-Face duplicato nel file PJSIP custom")
+            # The include itself is the startup invariant. Existing installations
+            # may contain later user/upstream additions or may predate the owned
+            # backup. Never rewrite those files merely to recover provenance;
+            # rollback remains fail-closed unless an exact backup is available.
             return False
         if self.backup.exists():
             original = self.backup.read_bytes()
