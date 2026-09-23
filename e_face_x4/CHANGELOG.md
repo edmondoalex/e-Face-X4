@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.21.252 — 2026-09-23
+
+- Aggiunto in Questo dispositivo il comando **Ripara e prova notifiche**, che revoca una sottoscrizione Web Push obsoleta, ne crea una nuova e invia subito una prova al dispositivo corrente.
+- Esposto l’interno del dispositivo nella risposta autenticata delle preferenze, così la PWA può verificare la consegna senza chiedere MAC o identificativi tecnici all’utente.
+
 ## 2.21.251 — 2026-09-23
 
 - Rimosso il bordo anomalo dalle card Home Lista della spesa e Agenda, anche con tema utente e negli stati hover/focus.

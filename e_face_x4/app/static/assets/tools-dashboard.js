@@ -897,13 +897,14 @@ const deviceSoundPanel = document.createElement('section')
 deviceSoundPanel.id = 'personal-device-sound-config'
 deviceSoundPanel.className = 'media-config admin-dashboard-panel'
 deviceSoundPanel.hidden = true
-deviceSoundPanel.innerHTML = '<header><button type="button" aria-label="Torna a Utente">‹</button><div><small>UTENTE</small><h2>Questo dispositivo</h2></div></header><form class="admin-form"><div class="admin-info"><b>Identità e suoneria Intercom</b><p>Queste preferenze valgono soltanto sul cellulare, tablet o PC in uso.</p></div><div class="admin-form-grid"><label>Nome dispositivo<input name="name" maxlength="64" required></label><label>Suoneria<select name="ringtone"><option value="classic">Classica</option><option value="double">Doppio tono</option><option value="soft">Delicata</option></select></label><label>Volume suoneria <output name="volume_output">80%</output><input name="ring_volume" type="range" min="0" max="100" step="5"></label><label><span><input name="vibration" type="checkbox"> Vibrazione</span></label><label><span><input name="silent" type="checkbox"> Modalità silenziosa</span></label><label><span><input name="push_enabled" type="checkbox"> Ricevi chiamate con e-Face chiusa</span><small>Richiede HTTPS, installazione PWA e autorizzazione notifiche.</small></label></div><div class="admin-form-actions"><button type="button" data-preview>PROVA SUONERIA</button><button type="submit">SALVA</button></div></form>'
+deviceSoundPanel.innerHTML = '<header><button type="button" aria-label="Torna a Utente">‹</button><div><small>UTENTE</small><h2>Questo dispositivo</h2></div></header><form class="admin-form"><div class="admin-info"><b>Identità e suoneria Intercom</b><p>Queste preferenze valgono soltanto sul cellulare, tablet o PC in uso.</p></div><div class="admin-form-grid"><label>Nome dispositivo<input name="name" maxlength="64" required></label><label>Suoneria<select name="ringtone"><option value="classic">Classica</option><option value="double">Doppio tono</option><option value="soft">Delicata</option></select></label><label>Volume suoneria <output name="volume_output">80%</output><input name="ring_volume" type="range" min="0" max="100" step="5"></label><label><span><input name="vibration" type="checkbox"> Vibrazione</span></label><label><span><input name="silent" type="checkbox"> Modalità silenziosa</span></label><label><span><input name="push_enabled" type="checkbox"> Ricevi chiamate con e-Face chiusa</span><small>Richiede HTTPS, installazione PWA e autorizzazione notifiche.</small></label></div><div class="admin-form-actions"><button type="button" data-preview>PROVA SUONERIA</button><button type="button" data-repair-push class="secondary">RIPARA E PROVA NOTIFICHE</button><button type="submit">SALVA</button></div><div data-push-status class="admin-status" role="status"></div></form>'
 document.body.append(deviceSoundPanel)
 const deviceSoundForm = deviceSoundPanel.querySelector('form')
 deviceSoundForm.elements.ringtone.innerHTML = '<option value="doorbell">Videocitofono</option><option value="dingdong">Din-don</option><option value="double">Campanello doppio</option><option value="bell">Campana</option><option value="classic">Classica</option><option value="soft">Delicata</option>'
 deviceSoundForm.elements.silent.closest('label').insertAdjacentHTML('afterend','<label><span><input name="dnd" type="checkbox"> DND · Non disturbare</span><small>Esclude questo dispositivo dalle chiamate di gruppo.</small></label>')
 deviceSoundForm.elements.dnd.closest('label').insertAdjacentHTML('afterend','<label><span><input name="video_enabled" type="checkbox"> Video Intercom</span><small data-video-hint>Usa la camera nelle chiamate verso dispositivi compatibili.</small></label><label>Camera preferita<select name="camera_facing"><option value="user">Frontale</option><option value="environment">Posteriore</option></select></label>')
 let currentPersonalDeviceId = ''
+let currentPersonalExtension = ''
 function previewDeviceSound() {
   if (deviceSoundForm.elements.silent.checked) return message('Modalità silenziosa attiva')
   const AudioContextClass = window.AudioContext || window.webkitAudioContext
@@ -922,6 +923,7 @@ async function openDeviceSound(status) {
   currentPersonalDeviceId = localStorage.getItem(`eface-personal-device-id-${status.user}`) || ''
   if (!currentPersonalDeviceId) return message('Apri prima Intercom su questo dispositivo per registrarlo')
   const data = await request(`api/intercom/personal-device/${encodeURIComponent(currentPersonalDeviceId)}/preferences`)
+  currentPersonalExtension = String(data.extension || data.username || '')
   for (const key of ['name','ringtone','ring_volume']) deviceSoundForm.elements[key].value = data[key]
   deviceSoundForm.elements.vibration.checked = data.vibration
   deviceSoundForm.elements.silent.checked = data.silent
@@ -966,6 +968,30 @@ async function savePushPreference(enabled) {
     await subscription.unsubscribe()
   }
 }
+deviceSoundForm.querySelector('[data-repair-push]').addEventListener('click', async event => {
+  const button = event.currentTarget
+  const status = deviceSoundForm.querySelector('[data-push-status]')
+  button.disabled = true
+  status.textContent = 'Rigenero la registrazione notifiche…'
+  try {
+    if (!currentPersonalDeviceId || !/^83\d{2}$/.test(currentPersonalExtension)) throw new Error('Dispositivo Intercom non registrato')
+    if (!('serviceWorker' in navigator) || !('PushManager' in window) || !window.isSecureContext) throw new Error('Apri e-Face installata tramite HTTPS')
+    if (Notification.permission === 'denied') throw new Error('Notifiche bloccate: abilitarle nelle impostazioni Android di Chrome/e-Face')
+    if (Notification.permission !== 'granted' && await Notification.requestPermission() !== 'granted') throw new Error('Autorizzazione notifiche non concessa')
+    const registration = await navigator.serviceWorker.ready
+    const previous = await registration.pushManager.getSubscription()
+    await request(`api/intercom/push/subscription/${encodeURIComponent(currentPersonalDeviceId)}`, {method:'DELETE'}).catch(() => null)
+    if (previous) await previous.unsubscribe()
+    const {public_key:publicKey} = await request('api/intercom/push/key')
+    const subscription = await registration.pushManager.subscribe({userVisibleOnly:true, applicationServerKey:pushKeyBytes(publicKey)})
+    await request(`api/intercom/push/subscription/${encodeURIComponent(currentPersonalDeviceId)}`, {method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify(subscription.toJSON())})
+    const result = await request(`api/intercom/push/call/${encodeURIComponent(currentPersonalExtension)}`, {method:'POST'})
+    deviceSoundForm.elements.push_enabled.checked = true
+    status.textContent = result.sent > 0 ? '✓ Registrazione nuova: notifica di prova inviata.' : 'Registrazione creata, ma il servizio push non ha accettato la prova.'
+  } catch (error) {
+    status.textContent = `Errore: ${error.message}`
+  } finally { button.disabled = false }
+})
 deviceSoundForm.addEventListener('submit', async event => {
   event.preventDefault()
   try {

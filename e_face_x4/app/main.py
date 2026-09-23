@@ -77,7 +77,7 @@ from .connectors.supervisor import discover_addon_url, discover_host_url, instal
 from .media_realtime import SharedMediaRealtime
 from .demo import dashboard as demo_dashboard
 
-VERSION = os.environ.get("EFACE_VERSION", "2.21.251")
+VERSION = os.environ.get("EFACE_VERSION", "2.21.252")
 STATIC = Path(__file__).parent / "static"
 logging.basicConfig(level=logging.WARNING, format="%(asctime)s %(levelname)s [e-face-x4] %(message)s")
 _reconnect_warning_at: dict[str, float] = {}
@@ -1923,7 +1923,7 @@ def create_app() -> FastAPI:
         record = personal_devices.load().get(device_id)
         if not owner or not record or record["owner"] != owner:
             raise HTTPException(status_code=404, detail="Dispositivo personale non trovato")
-        return JSONResponse({"device_id": device_id, "name": record["name"], **personal_devices.preferences(record)}, headers={"Cache-Control": "no-store, private"})
+        return JSONResponse({"device_id": device_id, "extension": record["extension"], "name": record["name"], **personal_devices.preferences(record)}, headers={"Cache-Control": "no-store, private"})
 
     @app.put("/api/intercom/personal-device/{device_id}/preferences")
     async def update_personal_device_preferences(device_id: str, request: Request, payload: dict) -> Response:

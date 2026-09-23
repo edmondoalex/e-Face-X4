@@ -188,3 +188,9 @@ Quando WiiM è selezionato come sorgente di una stanza Control4, WiiM è autorev
 - Evidenza live: dopo l’aggiornamento dell’add-on, il bootstrap ha trovato nel PJSIP persistente l’include e-Face già presente ma non più identico alla fotografia del vecchio backup; il controllo precedente arrestava il PBX pur senza dover modificare il file.
 - Regola: se è presente esattamente una riga include verso `/config/asterisk/eface/pjsip.conf`, il bootstrap la adotta senza riscrivere configurazione o backup. Include duplicati restano un errore; il rollback resta fail-closed e richiede ancora corrispondenza esatta con il backup.
 - Controllo ripetibile: eseguire `python -m pytest tests/test_asterisk_include_migration.py tests/test_asterisk_provisioner_startup.py -q`, quindi verificare dopo il deploy stato add-on, `core waitfullybooted` e presenza dell’endpoint gestito senza stampare contenuti PJSIP o credenziali.
+
+## Ripristino Web Push PWA Intercom (23/09/2026)
+
+- Evidenza live: Poco `8303` aveva endpoint SIP non registrato e una sottoscrizione Web Push presente; il servizio push accettava il messaggio, ma il telefono non mostrava la notifica. Una sottoscrizione salvata non prova quindi la consegna sul dispositivo, soprattutto con HyperOS/MIUI.
+- Dalla `2.21.252`, **Questo dispositivo → Ripara e prova notifiche** revoca soltanto la sottoscrizione del dispositivo corrente, ne crea una nuova dopo consenso utente, la salva e invia una prova immediata. Non leggere o stampare endpoint e chiavi push.
+- Limite: una PWA non può garantire l’interfaccia telefonica nativa in ogni stato energetico. Android nativo richiede un’istanza/token FCM; iOS nativo richiede PushKit e CallKit. Il MAC non identifica né risveglia un telefono Android/iOS.

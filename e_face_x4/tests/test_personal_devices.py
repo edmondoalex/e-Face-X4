@@ -76,7 +76,9 @@ def test_personal_device_api_provisions_and_revokes_individually(monkeypatch, tm
     dnd = person.put(f"/api/intercom/personal-device/{device_id}/preferences", json={"name":"Poco Mario","ringtone":"soft","ring_volume":55,"vibration":False,"silent":False,"dnd":True})
     assert dnd.json()["dnd"] is True
     assert "8302" not in next(group for group in remote_groups["groups"] if group["extension"] == "8290")["members"]
-    assert person.get(f"/api/intercom/personal-device/{device_id}/preferences").json()["name"] == "Poco Mario"
+    current_preferences = person.get(f"/api/intercom/personal-device/{device_id}/preferences").json()
+    assert current_preferences["name"] == "Poco Mario"
+    assert current_preferences["extension"] == "8302"
     assert admin.put(f"/api/admin/intercom/personal-devices/{device_id}", json={"name": "Telefono Mario"}).status_code == 200
     assert person.post("/api/intercom/sip/personal-device", json=payload).json()["name"] == "Telefono Mario"
     assert admin.delete(f"/api/admin/intercom/personal-devices/{device_id}").json() == {"removed": True}
