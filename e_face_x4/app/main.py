@@ -77,7 +77,7 @@ from .connectors.supervisor import discover_addon_url, discover_host_url, instal
 from .media_realtime import SharedMediaRealtime
 from .demo import dashboard as demo_dashboard
 
-VERSION = os.environ.get("EFACE_VERSION", "2.21.254")
+VERSION = os.environ.get("EFACE_VERSION", "2.21.255")
 STATIC = Path(__file__).parent / "static"
 logging.basicConfig(level=logging.WARNING, format="%(asctime)s %(levelname)s [e-face-x4] %(message)s")
 _reconnect_warning_at: dict[str, float] = {}
@@ -2088,7 +2088,6 @@ def create_app() -> FastAPI:
                 raise HTTPException(status_code=404, detail="Dispositivo non trovato")
             old = records[device_id]
             username = personal_devices.asterisk_username(device_id)
-            personal_devices.revoke_id(device_id)
             try:
                 await provisioner_client.request("DELETE", f"/v1/phones/{username}")
             except RuntimeError as exc:
@@ -2103,6 +2102,14 @@ def create_app() -> FastAPI:
                     "password": old["password"], "name": old["name"],
                 })
                 raise
+            # Revoke only after Asterisk and the inventory are consistent, then
+            # remove the matching push subscription so a deleted endpoint cannot
+            # keep ringing without having a SIP account able to answer.
+            personal_devices.revoke_id(device_id)
+            subscriptions = push_notifications.load()
+            if device_id in subscriptions:
+                subscriptions.pop(device_id)
+                push_notifications.save(subscriptions)
         return JSONResponse({"removed": True}, headers={"Cache-Control": "no-store, private"})
 
     @app.get("/api/admin/intercom/sip/accounts")

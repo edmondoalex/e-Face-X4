@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.21.255 — 2026-09-23
+
+- La revoca di un dispositivo personale elimina anche la relativa sottoscrizione push, evitando notifiche che squillano senza una chiamata SIP rispondibile.
+- La revoca viene registrata soltanto dopo la rimozione corretta dell'interno e dell'inventario, evitando stati parziali.
+
 ## 2.21.254 — 2026-09-23
 
 - Le chiamate verso dispositivi video aprono sempre il riquadro video.

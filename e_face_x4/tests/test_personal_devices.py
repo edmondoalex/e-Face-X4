@@ -2,7 +2,7 @@ import uuid
 
 from fastapi.testclient import TestClient
 
-from app import personal_devices, provisioner_client
+from app import personal_devices, provisioner_client, push_notifications
 from app.main import create_app
 from app.user_auth import create_account, create_admin
 from asterisk_provisioner.managed_config import ManagedConfig
@@ -35,6 +35,7 @@ def test_personal_device_api_provisions_and_revokes_individually(monkeypatch, tm
     monkeypatch.setenv("EFACE_AUTH_DIR", str(tmp_path / "auth"))
     monkeypatch.setenv("EFACE_PERSONAL_DEVICES", str(tmp_path / "devices.json"))
     monkeypatch.setenv("EFACE_SIP_ACCOUNTS", str(tmp_path / "legacy.json"))
+    monkeypatch.setenv("EFACE_PUSH_DIR", str(tmp_path / "push"))
     remote = {}
     remote_groups = {"groups": []}
 
@@ -81,8 +82,10 @@ def test_personal_device_api_provisions_and_revokes_individually(monkeypatch, tm
     assert current_preferences["extension"] == "8302"
     assert admin.put(f"/api/admin/intercom/personal-devices/{device_id}", json={"name": "Telefono Mario"}).status_code == 200
     assert person.post("/api/intercom/sip/personal-device", json=payload).json()["name"] == "Telefono Mario"
+    push_notifications.save({device_id: {"owner": "mario", "subscription": {"endpoint": "https://push.example.test/id"}}})
     assert admin.delete(f"/api/admin/intercom/personal-devices/{device_id}").json() == {"removed": True}
     assert personal_devices.load() == {}
+    assert push_notifications.load() == {}
     assert remote == {}
     assert person.post("/api/intercom/sip/personal-device", json=payload).status_code == 403
 
