@@ -22,9 +22,10 @@ def assert_ready(config_root: Path) -> ManagedConfig:
     """Read-only check that persisted config and running Asterisk agree."""
     config = ManagedConfig(config_root / "eface")
     migration = PjsipIncludeMigration(config_root)
-    if config.pending.exists() or not migration.backup.is_file() or not migration.custom.is_file():
+    if config.pending.exists() or not migration.custom.is_file():
         raise RuntimeError("Provisioner non preparato o transazione incompleta")
-    if migration.custom.read_bytes() != migration._with_include(migration.backup.read_bytes()):
+    include_lines = [line.strip() for line in migration.custom.read_bytes().splitlines()]
+    if include_lines.count(migration.line) != 1:
         raise RuntimeError("Include PJSIP persistente non valido")
     if not config.pjsip.is_file() or config.pjsip.read_text(encoding="utf-8") != render(config.load()):
         raise RuntimeError("Configurazione PJSIP e-Face non riconciliata")

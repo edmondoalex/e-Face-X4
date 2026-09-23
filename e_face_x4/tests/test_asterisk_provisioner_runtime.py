@@ -28,7 +28,7 @@ def test_runtime_accepts_reconciled_empty_state(tmp_path, monkeypatch) -> None:
     assert runtime.assert_ready(root).load() == {}
 
 
-def test_runtime_refuses_modified_include_or_generated_config(tmp_path, monkeypatch) -> None:
+def test_runtime_accepts_later_custom_changes_but_refuses_bad_generated_config(tmp_path, monkeypatch) -> None:
     root = prepared(tmp_path, monkeypatch)
     config = ManagedConfig(root / "eface")
     config.pjsip.write_text("broken", encoding="utf-8")
@@ -37,6 +37,10 @@ def test_runtime_refuses_modified_include_or_generated_config(tmp_path, monkeypa
     config.reconcile_file()
     custom = root / "custom" / "pjsip_custom.conf"
     custom.write_bytes(custom.read_bytes() + b"; extra\n")
+    assert runtime.assert_ready(root).load() == {}
+
+    include = runtime.PjsipIncludeMigration(root).line
+    custom.write_bytes(custom.read_bytes() + include + b"\n")
     with pytest.raises(RuntimeError, match="Include"):
         runtime.assert_ready(root)
 

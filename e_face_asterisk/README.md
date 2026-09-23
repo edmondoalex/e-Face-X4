@@ -24,6 +24,8 @@ La versione `6.2.0-eface.12` introduce il nome pubblico **e-voip for e-face x4**
 
 La versione `6.2.0-eface.13` rende idempotente il bootstrap quando nel file PJSIP persistente è già presente esattamente un include e-Face. Il bootstrap non riscrive il file e non richiede un vecchio backup per avviarsi; continua invece a rifiutare include duplicati e il rollback resta consentito soltanto con un backup esatto.
 
+La versione `6.2.0-eface.14` applica la stessa regola idempotente al controllo runtime del provisioner: richiede un solo include e-Face e una configurazione generata coerente, ma non blocca il servizio per altre aggiunte persistenti legittime nel file PJSIP custom.
+
 Verifica isolata del 14/09/2026: immagine costruita sull'host HA come `eface-asterisk-lab:b3f07ae`; compilazione dei moduli nell'immagine riuscita; con rete isolata il controllo pre-avvio passa, con rete host rifiuta correttamente la porta 5060 già occupata dall'Asterisk corrente. **Nessun add-on della variante installato o avviato.** Dopo la prova, Asterisk 6.2.0 ed e-Face 2.21.7 risultano ancora `started`. Questa è una prova di build e del guardiano porte, non di registrazione SIP o audio.
 
 Il Dockerfile estende l'immagine upstream senza ricompilare Asterisk, copia il codice provisioner nell'immagine e aggiunge un hook dopo l'inizializzazione upstream, prima del servizio Asterisk. Stato, configurazione PJSIP, backup, certificato TLS e token rimangono solo nel volume persistente `/config/asterisk/eface`. Il servizio HTTPS parte soltanto se `eface_provisioner_enabled` è vero e `eface_provisioner_bind_ip` è impostato a un IPv4 privato esplicito; non è esposto via Ingress. Pairing e-Face, firewall e migrazione delle opzioni/configurazioni esistenti non sono ancora completati.
