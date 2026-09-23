@@ -232,6 +232,11 @@ def save_home_widgets(items: list[dict[str, object]], owner: str | None = None) 
     raw = _config()
     if owner:
         users = raw.get("user_appearance") if isinstance(raw.get("user_appearance"), dict) else {}; scoped = users.get(owner) if isinstance(users.get(owner), dict) else {}; scoped["home_widgets"] = clean; users[owner] = scoped; raw["user_appearance"] = users
+        if ":device:" in owner:
+            account_owner = owner.split(":device:", 1)[0]
+            account = users.get(account_owner) if isinstance(users.get(account_owner), dict) else {}
+            account["home_widgets"] = clean
+            users[account_owner] = account
     else: raw["home_widgets"] = clean
     _write(raw)
 

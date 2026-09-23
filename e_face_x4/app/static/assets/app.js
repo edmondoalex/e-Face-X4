@@ -90,6 +90,8 @@ function deviceInCategory(device, category) {
 function organizedDevices(category, devices) {
   return [...devices].sort((a,b)=>(currentDeviceOrganization[String(a.id)]?.orders?.[category]??Number.MAX_SAFE_INTEGER)-(currentDeviceOrganization[String(b.id)]?.orders?.[category]??Number.MAX_SAFE_INTEGER)||String(a.name||'').localeCompare(String(b.name||''),'it'))
 }
+function securityDevices(){return organizedDevices('security',currentDevices.filter(device=>deviceInCategory(device,'security')))}
+function openSecurityPage(){openDevices('Sicurezza',securityDevices(),{security:true})}
 const mediaTransportOverrides = new Map()
 const homeLiveMuteTargets = new Map()
 let mediaVolumeDragging = false
@@ -397,7 +399,7 @@ function renderHomeStatusCounters() {
     { kind: 'lights', label: 'Luci', icon: 'mdi:lightbulb', color: 'yellow', devices: currentDevices.filter((device) => device.kind === 'light'), active: (device) => lightIsOn(device) },
     { kind: 'extra', label: 'Extra', icon: 'mdi:power-socket-eu', color: 'red', devices: currentDevices.filter((device) => device.kind === 'switch'), active: stateIsActive },
     { kind: 'covers', label: 'Oscuranti', icon: 'mdi:blinds-horizontal', color: 'cyan', devices: currentDevices.filter((device) => device.kind === 'cover'), active: (device) => stateIsActive(device) || Number(device.position) > 0 },
-    { kind: 'security', label: 'Sicurezza', icon: 'mdi:shield-home', color: 'red', devices: currentDevices.filter((device) => ['lock','alarm_partition','alarm_zone'].includes(device.kind) || isSecurityGarage(device)), active: (device) => ['OPEN','OPENING','UNLOCKED','ARMED','ALARM','TAMPER'].includes(String(device.state ?? '').trim().toUpperCase()) },
+    { kind: 'security', label: 'Sicurezza', icon: 'mdi:shield-home', color: 'red', devices: securityDevices(), active: (device) => ['OPEN','OPENING','UNLOCKED','ARMED','ALARM','TAMPER','ON','1','TRUE'].includes(String(device.state ?? '').trim().toUpperCase()) },
     { kind: 'shortcuts', label: 'Scorciatoie', icon: 'mdi:gesture-tap-button', color: 'cyan', devices: shortcutDevices(), active: () => true },
   ]
   $('#widgets').innerHTML = statusCounters.map((counter) => {
@@ -2507,7 +2509,7 @@ document.querySelectorAll('.rail button').forEach((button) => button.addEventLis
   if (button.dataset.view === 'sensors') openDevices('Sensori', organizedDevices('sensors',currentDevices.filter((device) => deviceInCategory(device, 'sensors'))), { filters: true })
   if (button.dataset.view === 'energy') openEnergy()
   if (button.dataset.view === 'heating') openHeatingPage()
-  if (button.dataset.view === 'security') openDevices('Sicurezza', organizedDevices('security',currentDevices.filter((device) => deviceInCategory(device, 'security'))), { security: true })
+  if (button.dataset.view === 'security') openSecurityPage()
   if (button.dataset.view === 'shopping') { $('#home-shopping-dialog').showModal(); refreshHomeShoppingList(true) }
   if (button.dataset.view === 'alexa-agenda') openAlexaAgenda()
 }))
@@ -2521,12 +2523,13 @@ $('#widgets').addEventListener('click', (event) => {
   const button = event.target.closest('[data-kind]')
   if (!button) return
   if (button.dataset.kind === 'shortcuts') { openDevices('Scorciatoie', shortcutDevices(), {shortcuts:true}); return }
-  const map = { lights: ['light'], extra: ['switch'], covers: ['cover'], security: ['lock','alarm_partition','alarm_zone','alarm_scenario','alarm_system'], comfort: ['climate', 'temp', 'temperature', 'humidity', 'air', 'air_quality'] }
+  if (button.dataset.kind === 'security') { openSecurityPage(); return }
+  const map = { lights: ['light'], extra: ['switch'], covers: ['cover'], comfort: ['climate', 'temp', 'temperature', 'humidity', 'air', 'air_quality'] }
   const kinds = map[button.dataset.kind] || []
   openDevices(button.dataset.label || 'Dispositivi', currentDevices.filter((device) => kinds.includes(device.kind)), { filters: true, lights: button.dataset.kind === 'lights' })
 })
 $('#home-comfort-summary').addEventListener('click', () => openDevices('Comfort', currentDevices.filter((device) => ['climate', 'temp', 'temperature', 'humidity', 'air', 'air_quality'].includes(device.kind)), { filters: true }))
-$('#home-security-summary').addEventListener('click', () => openDevices('Sicurezza', currentDevices.filter((device) => ['lock','alarm_partition','alarm_zone','alarm_scenario','alarm_system'].includes(device.kind) || isSecurityGarage(device))))
+$('#home-security-summary').addEventListener('click', openSecurityPage)
 $('#detail-view').addEventListener('click', (event) => {
   if ([$('#detail-view'), $('#device-list'), $('#scenario-panel')].includes(event.target)) showHome()
 })

@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.21.260 — 2026-09-23
+
+- Il tasto Sicurezza laterale, il contatore Sicurezza della Home e il riepilogo superiore aprono ora la stessa pagina, usando categorie, ordine e Sensoristica configurati dall'utente.
+- La configurazione della Home dinamica conserva anche un recupero per account: un refresh forzato non ripristina più il layout predefinito se cambia l'identificatore locale del browser.
+
 ## 2.21.259 — 2026-09-23
 
 - Ripristinato il renderer a gruppi della pagina Sicurezza quando contiene sensori Home Assistant etichettati.
