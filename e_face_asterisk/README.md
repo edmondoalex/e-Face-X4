@@ -1,4 +1,6 @@
-# Asterisk e-Face X4 — variante di laboratorio
+# e-voip for e-face x4
+
+Centralino VoIP PBX per e-Face X4.
 
 Variante locale basata sull'immagine TECH7Fox `6.2.0`, con provisioner SIP e-Face in un servizio s6 separato. Lo slug `asterisk_eface` crea un volume `/config` distinto da quello dell'add-on Asterisk esistente: non avviare i due PBX insieme. Il boot è `manual_only` e il provisioner è disattivato per default. Il guardiano pre-avvio rifiuta la porta SIP 5060/UDP occupata; le porte HTTP sono riservate dall'upstream durante cont-init e non sono un test affidabile di un secondo PBX.
 
@@ -17,6 +19,8 @@ La versione `6.2.0-eface.9` aggiunge i gruppi Intercom amministrati da e-Face (`
 La versione `6.2.0-eface.10` abilita H.264 e VP8 anche sugli endpoint WebRTC personali. Le chiamate miste mantengono sempre Opus/alaw/ulaw e negoziano il video soltanto con il ramo che lo supporta; i proxy Control4 e DoorBird audio-only non vengono modificati.
 
 La versione `6.2.0-eface.11` attende fino a 45 secondi il completamento del boot Asterisk prima di avviare il provisioner. Il controllo resta fail-closed, ma non termina più durante la normale inizializzazione concorrente del PBX.
+
+La versione `6.2.0-eface.12` introduce il nome pubblico **e-voip for e-face x4** e il relativo logo VoIP PBX. Lo slug `asterisk_eface` e il volume persistente restano invariati: il rebranding non crea una seconda installazione e non sposta la configurazione Asterisk esistente.
 
 Verifica isolata del 14/09/2026: immagine costruita sull'host HA come `eface-asterisk-lab:b3f07ae`; compilazione dei moduli nell'immagine riuscita; con rete isolata il controllo pre-avvio passa, con rete host rifiuta correttamente la porta 5060 già occupata dall'Asterisk corrente. **Nessun add-on della variante installato o avviato.** Dopo la prova, Asterisk 6.2.0 ed e-Face 2.21.7 risultano ancora `started`. Questa è una prova di build e del guardiano porte, non di registrazione SIP o audio.
 
