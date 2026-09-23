@@ -449,7 +449,7 @@ function renderHomePetFeeders() {
   if (!card || card.classList.contains('widget-user-hidden')) return
   const feeders = currentDevices.filter(device => device.kind === 'select' && /feed|feeder|pet|gatt|cibo/i.test(`${device.id} ${device.entity_id || ''} ${device.name || ''}`))
   $('#home-pet-feeder-count').textContent = `${feeders.length} ${feeders.length === 1 ? 'FEEDER' : 'FEEDER'}`
-  $('#home-pet-feeder-list').innerHTML = feeders.map(device => `<article class="home-feeder-row" data-device-id="${escAttribute(device.id)}"><span class="mdi-mask" style="${mdiStyle('mdi:cat','cat')}"></span><span><strong>${esc(device.name || 'Feeder gatti')}</strong><small>${esc(device.room || 'Casa')}</small></span><select data-home-feeder-option aria-label="Quantità ${escAttribute(device.name || 'feeder')}">${(device.options || []).map(option => `<option value="${escAttribute(option)}" ${String(option) === String(device.state) ? 'selected' : ''}>${esc(option)}</option>`).join('')}</select></article>`).join('') || '<p class="home-insight-empty">Aggiungi l’etichetta e-Face al feeder in Home Assistant</p>'
+  $('#home-pet-feeder-list').innerHTML = feeders.map(device => `<article class="home-feeder-row" data-device-id="${escAttribute(device.id)}"><span class="mdi-mask" style="${mdiStyle('mdi:cat','cat')}"></span><span><strong>${esc(device.name || 'Feeder gatti')}</strong><small>${esc(device.room || 'Casa')}</small></span><div class="home-feeder-command"><select data-home-feeder-option aria-label="Quantità ${escAttribute(device.name || 'feeder')}">${(device.options || []).map(option => `<option value="${escAttribute(option)}" ${String(option) === String(device.state) ? 'selected' : ''}>${esc(option)}</option>`).join('')}</select><button type="button" data-home-feeder-run>EROGA</button></div></article>`).join('') || '<p class="home-insight-empty">Aggiungi l’etichetta e-Face al feeder in Home Assistant</p>'
 }
 
 const shortcutCategoryLabels = {lights:'Luci',switches:'Extra',covers:'Oscuranti',climate:'Comfort',security:'Sicurezza',media:'Audio e video',sensors:'Sensori',other:'Altro'}
@@ -1526,7 +1526,7 @@ function deviceActions(device, options = {}) {
     return `<div class="device-actions"><button data-action="open">${garage ? 'APRI' : 'SU'}</button><button data-action="stop">STOP</button><button data-action="close">${garage ? 'CHIUDI' : 'GIÙ'}</button></div>`
   }
   if (device.kind === 'lock') return `<div class="device-actions"><button data-action="unlock" aria-label="Apri ${esc(device.name)}" title="Apri"><span class="mdi-mask" style="${mdiStyle(lockActionIcon(device, true), 'lock-open-outline')}"></span>APRI</button><button data-action="lock" aria-label="Chiudi ${esc(device.name)}" title="Chiudi"><span class="mdi-mask" style="${mdiStyle(lockActionIcon(device, false), 'lock-outline')}"></span>CHIUDI</button></div>`
-  if (device.kind === 'select') return `<label class="device-select-control">Comando<select data-select-option aria-label="Comando ${esc(device.name)}">${(device.options || []).map(option => `<option value="${escAttribute(option)}" ${String(option) === String(device.state) ? 'selected' : ''}>${esc(option)}</option>`).join('')}</select></label>`
+  if (device.kind === 'select') return `<div class="device-select-control"><label>Comando<select data-select-option aria-label="Comando ${esc(device.name)}">${(device.options || []).map(option => `<option value="${escAttribute(option)}" ${String(option) === String(device.state) ? 'selected' : ''}>${esc(option)}</option>`).join('')}</select></label><button type="button" data-select-execute>ESEGUI</button></div>`
   if (device.kind === 'button') return `<div class="device-actions"><button data-action="press">ESEGUI</button></div>`
   if (device.kind === 'climate') {
     const target = Number(device.target_temperature)
@@ -2552,6 +2552,13 @@ $('#rooms').addEventListener('click', (event) => {
   openDevices(button.dataset.room, currentDevices.filter((device) => device.room.toLocaleLowerCase('it') === button.dataset.room.toLocaleLowerCase('it')), {room:button.dataset.room, filters:true})
 })
 $('#home-view').addEventListener('click', (event) => {
+  const feederRun = event.target.closest('[data-home-feeder-run]')
+  if (feederRun) {
+    const card = feederRun.closest('[data-device-id]')
+    const select = card?.querySelector('[data-home-feeder-option]')
+    if (card && select) sendDeviceCommand(card.dataset.deviceId, 'select_option', feederRun, select.value)
+    return
+  }
   const roomButton = event.target.closest('[data-pulse-room]')
   if (roomButton) {
     const room = roomButton.dataset.pulseRoom
@@ -2562,11 +2569,6 @@ $('#home-view').addEventListener('click', (event) => {
   if (!deviceButton) return
   const device = currentDevices.find(item => String(item.id) === deviceButton.dataset.pulseDevice)
   if (device) openDevices(device.room || device.name || 'Dispositivo', [device], {room:device.room || undefined, filters:true})
-})
-$('#home-view').addEventListener('change', (event) => {
-  const select = event.target.closest('[data-home-feeder-option]')
-  const card = select?.closest('[data-device-id]')
-  if (select && card) sendDeviceCommand(card.dataset.deviceId, 'select_option', select, select.value)
 })
 async function toggleHomeLiveMute(button){
   const id=String(button.dataset.homeZoneMute)
@@ -2975,6 +2977,12 @@ $('#device-list').addEventListener('click', (event) => {
   }
   const button = event.target.closest('[data-action]')
   const card = event.target.closest('[data-device-id]')
+  const selectExecute = event.target.closest('[data-select-execute]')
+  if (selectExecute && card) {
+    const select = card.querySelector('[data-select-option]')
+    if (select) sendDeviceCommand(card.dataset.deviceId, 'select_option', selectExecute, select.value)
+    return
+  }
   const sectionToggle = event.target.closest('[data-security-toggle]')
   if (sectionToggle) {
     securitySections[sectionToggle.dataset.securityToggle] = sectionToggle.getAttribute('aria-expanded') !== 'true'
@@ -3258,7 +3266,6 @@ $('#device-list').addEventListener('change', (event) => {
   if (event.target.matches('[data-rgb-color]')) sendRgbCommand(card.dataset.rgbGroup, 'color', event.target.value, event.target)
   if (event.target.matches('[data-media-volume]')) sendDeviceCommand(card.dataset.deviceId, 'set_volume', event.target, event.target.value)
   if (event.target.matches('select[data-media-source]')) sendDeviceCommand(card.dataset.deviceId, 'select_source', event.target, event.target.value)
-  if (event.target.matches('[data-select-option]')) sendDeviceCommand(card.dataset.deviceId, 'select_option', event.target, event.target.value)
 })
 $('.home-title').addEventListener('click', showHome)
 $('#rooms-toggle').addEventListener('click', (event) => {

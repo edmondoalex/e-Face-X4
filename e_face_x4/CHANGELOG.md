@@ -1,5 +1,9 @@
 # Changelog
 
+## 2.21.263 — 2026-09-23
+
+- Il feeder usa ora un pulsante EROGA separato: i comandi momentanei come START restano sempre eseguibili anche dopo l'aggiornamento dello stato.
+
 ## 2.21.262 — 2026-09-23
 
 - Aggiunto alla Home dinamica il widget Feeder gatti, con icona gatto e comando diretto delle opzioni del distributore etichettato e-Face.
