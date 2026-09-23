@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.21.259 — 2026-09-23
+
+- Ripristinato il renderer a gruppi della pagina Sicurezza quando contiene sensori Home Assistant etichettati.
+- `Ordina sicurezza` include il gruppo Sensoristica, consente di posizionarlo tra gli altri gruppi e di aprirlo per ordinare i singoli sensori.
+
 ## 2.21.258 — 2026-09-23
 
 - La pagina Sicurezza include una sezione `Sensoristica`, richiudibile e chiusa per impostazione predefinita, per i sensori ai quali è assegnato il flag Tutta la sicurezza.

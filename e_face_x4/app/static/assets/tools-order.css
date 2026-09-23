@@ -28,6 +28,7 @@
 }
 
 .drag-handle:active { cursor: grabbing; }
+.security-sensor-order{margin:12px 0;padding:14px;border:1px solid var(--line);border-radius:12px;background:rgba(7,35,40,.7)}.security-sensor-order>header{display:flex;align-items:center;justify-content:space-between}.security-sensor-order>div{display:grid;gap:7px}.security-sensor-order-row{display:grid;grid-template-columns:42px minmax(0,1fr);align-items:center;padding:8px;border:1px solid rgba(255,255,255,.1);border-radius:8px;background:rgba(255,255,255,.04)}.security-sensor-order-row span b,.security-sensor-order-row span small{display:block}.security-sensor-order-row span small{color:var(--muted)}.sensor-drag-handle{width:36px;height:42px;border:0;color:#d8e4e6;background:transparent;font-size:22px;touch-action:none}.security-sensor-order-row.dragging{opacity:.55;background:#21575d}.room-order-row [data-security-sensors-open]{position:static;margin-left:auto;padding:7px 10px}
 
 .control4-form { display: grid; gap: 12px; padding: 16px; border: 1px solid var(--line); border-radius: 13px; background: rgba(7,35,40,.9); }
 .control4-form label { display: grid; gap: 6px; color: var(--muted); }

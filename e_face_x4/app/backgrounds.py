@@ -6,7 +6,7 @@ from urllib.parse import urlsplit
 
 PRESETS = {"teal", "midnight", "graphite", "ocean", "warm"}
 CARD_THEMES = {"graphite", "petrol", "midnight", "slate", "warm"}
-SECURITY_ORDER = ["scenarios", "areas", "zones", "locks", "cameras"]
+SECURITY_ORDER = ["scenarios", "areas", "zones", "sensors", "locks", "cameras"]
 SHORTCUT_CATEGORIES = ["lights", "switches", "covers", "climate", "security", "media", "sensors", "other"]
 DEVICE_ORGANIZATION_CATEGORIES = ["lights", "extra", "covers", "comfort", "sensors", "security", "scenarios", "intercom", "media"]
 NAVIGATION_ITEMS = ["watch", "listen", "intercom", "lights", "extra", "scenarios", "covers", "comfort", "sensors", "heating", "energy", "security", "shopping", "alexa-agenda"]
@@ -72,6 +72,10 @@ def load_security_order() -> list[str]:
     value = _config().get("security_order")
     if isinstance(value, list) and all(isinstance(item, str) for item in value):
         if len(value) == len(SECURITY_ORDER) and set(value) == set(SECURITY_ORDER): return value
+        legacy = ["scenarios", "areas", "zones", "locks", "cameras"]
+        if len(value) == len(legacy) and set(value) == set(legacy):
+            index = value.index("zones") + 1
+            return [*value[:index], "sensors", *value[index:]]
         previous = [item for item in SECURITY_ORDER if item != "cameras"]
         if len(value) == len(previous) and set(value) == set(previous): return [*value, "cameras"]
     return SECURITY_ORDER.copy()

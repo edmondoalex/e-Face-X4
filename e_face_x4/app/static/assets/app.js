@@ -64,7 +64,7 @@ let energyMasterInitialized = false
 let energyMasterColors = []
 let energyMasterPending = { signature:'', confirmations:0 }
 const securitySections = { areas: false, zones: false, sensors: false, cameras: true }
-let currentSecurityOrder = ['scenarios', 'areas', 'zones', 'locks', 'cameras']
+let currentSecurityOrder = ['scenarios', 'areas', 'zones', 'sensors', 'locks', 'cameras']
 let currentSecurityCameras = []
 let currentShortcuts = []
 let currentHomeWidgets = []
@@ -799,9 +799,7 @@ function renderSecurityDevices(devices) {
   }
   const container = $('#device-list')
   const desired = document.createElement('div')
-  const securityOrder = currentSecurityOrder.flatMap((key) => key === 'zones' ? ['zones','sensors'] : [key])
-  if (!securityOrder.includes('sensors')) securityOrder.push('sensors')
-  desired.innerHTML = summary + securityOrder.map((key) => blocks[key] || '').join('')
+  desired.innerHTML = summary + currentSecurityOrder.map((key) => blocks[key] || '').join('')
   const nextChildren = [...desired.children]
   // Preserve unchanged cards: replacing the whole list on every state update restarts their visual transitions.
   nextChildren.forEach((next, index) => {
@@ -1440,6 +1438,7 @@ function renderActiveDeviceList() {
   if (signature === lastDetailSignature && $('#device-list').childElementCount) return
   lastDetailSignature = signature
   if (shortcutViewOpen) renderShortcutDevices()
+  else if (sectionFilterMode === 'security') renderSecurityDevices(devices)
   else renderDeviceList(devices)
   syncRoutineActivity()
 }
@@ -2058,7 +2057,7 @@ function openDevices(title, devices, options = {}) {
   activeDetailIds = new Set(devices.map((device) => String(device.id)))
   lastDetailSignature = ''
   $('#detail-title').textContent = title
-  sectionFilterMode = 'devices'
+  sectionFilterMode = options.security ? 'security' : 'devices'
   sectionFilterDevices = devices
   lightFilterRoom = ''
   lightFilterActive = false
@@ -2508,7 +2507,7 @@ document.querySelectorAll('.rail button').forEach((button) => button.addEventLis
   if (button.dataset.view === 'sensors') openDevices('Sensori', organizedDevices('sensors',currentDevices.filter((device) => deviceInCategory(device, 'sensors'))), { filters: true })
   if (button.dataset.view === 'energy') openEnergy()
   if (button.dataset.view === 'heating') openHeatingPage()
-  if (button.dataset.view === 'security') openDevices('Sicurezza', organizedDevices('security',currentDevices.filter((device) => deviceInCategory(device, 'security'))))
+  if (button.dataset.view === 'security') openDevices('Sicurezza', organizedDevices('security',currentDevices.filter((device) => deviceInCategory(device, 'security'))), { security: true })
   if (button.dataset.view === 'shopping') { $('#home-shopping-dialog').showModal(); refreshHomeShoppingList(true) }
   if (button.dataset.view === 'alexa-agenda') openAlexaAgenda()
 }))
