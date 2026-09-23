@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.21.262 — 2026-09-23
+
+- Aggiunto alla Home dinamica il widget Feeder gatti, con icona gatto e comando diretto delle opzioni del distributore etichettato e-Face.
+- Il widget può essere ordinato, nascosto e dimensionato in larghezza e altezza da Strumenti → Home dinamica.
+
 ## 2.21.261 — 2026-09-23
 
 - Le entità Home Assistant `select` etichettate e-Face compaiono in Extra con scelta diretta dell'opzione.

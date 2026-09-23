@@ -78,7 +78,7 @@ from .media_realtime import SharedMediaRealtime
 from .demo import dashboard as demo_dashboard
 from .ha_labeled import normalize_labeled_entities
 
-VERSION = os.environ.get("EFACE_VERSION", "2.21.261")
+VERSION = os.environ.get("EFACE_VERSION", "2.21.262")
 STATIC = Path(__file__).parent / "static"
 logging.basicConfig(level=logging.WARNING, format="%(asctime)s %(levelname)s [e-face-x4] %(message)s")
 _reconnect_warning_at: dict[str, float] = {}

@@ -441,12 +441,21 @@ function renderHomeWowWidgets() {
   $('#home-routine-pulse-count').textContent = `${affected.length} ${affected.length === 1 ? 'DISPOSITIVO' : 'DISPOSITIVI'}`
   $('#home-routine-pulse').classList.toggle('is-running', affected.length > 0)
   $('#home-routine-pulse-list').innerHTML = affected.slice(0, 6).map(device => `<button type="button" class="home-running-device" data-pulse-device="${escAttribute(device.id)}"><span class="home-running-ring"></span><span><strong>${esc(device.name || device.id)}</strong><small>${esc(device.room || 'Casa')} · ${esc(stateLabel(device))}</small></span></button>`).join('') || '<p class="home-insight-empty">Nessuna routine in esecuzione</p>'
+  renderHomePetFeeders()
+}
+
+function renderHomePetFeeders() {
+  const card = $('#home-pet-feeder')
+  if (!card || card.classList.contains('widget-user-hidden')) return
+  const feeders = currentDevices.filter(device => device.kind === 'select' && /feed|feeder|pet|gatt|cibo/i.test(`${device.id} ${device.entity_id || ''} ${device.name || ''}`))
+  $('#home-pet-feeder-count').textContent = `${feeders.length} ${feeders.length === 1 ? 'FEEDER' : 'FEEDER'}`
+  $('#home-pet-feeder-list').innerHTML = feeders.map(device => `<article class="home-feeder-row" data-device-id="${escAttribute(device.id)}"><span class="mdi-mask" style="${mdiStyle('mdi:cat','cat')}"></span><span><strong>${esc(device.name || 'Feeder gatti')}</strong><small>${esc(device.room || 'Casa')}</small></span><select data-home-feeder-option aria-label="Quantità ${escAttribute(device.name || 'feeder')}">${(device.options || []).map(option => `<option value="${escAttribute(option)}" ${String(option) === String(device.state) ? 'selected' : ''}>${esc(option)}</option>`).join('')}</select></article>`).join('') || '<p class="home-insight-empty">Aggiungi l’etichetta e-Face al feeder in Home Assistant</p>'
 }
 
 const shortcutCategoryLabels = {lights:'Luci',switches:'Extra',covers:'Oscuranti',climate:'Comfort',security:'Sicurezza',media:'Audio e video',sensors:'Sensori',other:'Altro'}
 function applyHomeWidgetLayout(){
   const board=$('#home-view .dashboard-grid'); if(!board)return
-  const elements={overview:$('.home-overview-summary'),weather:$('#home-weather-widget'),camera_event:$('#home-camera-event'),doorbell:$('#home-doorbell-event'),motion:$('#home-motion-event'),states:$('#widgets'),rooms:$('#room-panel'),live:$('#home-live-media'),room_pulse:$('#home-room-pulse'),lights_now:$('#home-lights-now'),routine_pulse:$('#home-routine-pulse'),shopping_list:$('#home-shopping-list'),agenda:$('#home-agenda')}
+  const elements={overview:$('.home-overview-summary'),weather:$('#home-weather-widget'),camera_event:$('#home-camera-event'),doorbell:$('#home-doorbell-event'),motion:$('#home-motion-event'),states:$('#widgets'),rooms:$('#room-panel'),live:$('#home-live-media'),room_pulse:$('#home-room-pulse'),lights_now:$('#home-lights-now'),routine_pulse:$('#home-routine-pulse'),shopping_list:$('#home-shopping-list'),agenda:$('#home-agenda'),pet_feeder:$('#home-pet-feeder')}
   const layout=currentHomeWidgets.length?currentHomeWidgets:[{id:'overview',visible:true,size:'wide'},{id:'states',visible:true,size:'standard'},{id:'rooms',visible:true,size:'wide'},{id:'live',visible:true,size:'wide'}]
   layout.forEach((item,index)=>{const element=elements[item.id];if(!element)return;element.dataset.homeWidget=item.id;element.dataset.widgetSize=item.size||'standard';element.dataset.widgetHeight=item.height||'standard';element.style.order=String(index);element.classList.toggle('widget-user-hidden',item.visible===false);board.append(element)})
   refreshHomeHighlights()
@@ -2553,6 +2562,11 @@ $('#home-view').addEventListener('click', (event) => {
   if (!deviceButton) return
   const device = currentDevices.find(item => String(item.id) === deviceButton.dataset.pulseDevice)
   if (device) openDevices(device.room || device.name || 'Dispositivo', [device], {room:device.room || undefined, filters:true})
+})
+$('#home-view').addEventListener('change', (event) => {
+  const select = event.target.closest('[data-home-feeder-option]')
+  const card = select?.closest('[data-device-id]')
+  if (select && card) sendDeviceCommand(card.dataset.deviceId, 'select_option', select, select.value)
 })
 async function toggleHomeLiveMute(button){
   const id=String(button.dataset.homeZoneMute)

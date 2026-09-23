@@ -11,7 +11,7 @@ SHORTCUT_CATEGORIES = ["lights", "switches", "covers", "climate", "security", "m
 DEVICE_ORGANIZATION_CATEGORIES = ["lights", "extra", "covers", "comfort", "sensors", "security", "scenarios", "intercom", "media"]
 NAVIGATION_ITEMS = ["watch", "listen", "intercom", "lights", "extra", "scenarios", "covers", "comfort", "sensors", "heating", "energy", "security", "shopping", "alexa-agenda"]
 LEGACY_HOME_WIDGETS = ["overview", "weather", "camera_event", "doorbell", "motion", "states", "rooms", "live"]
-NEW_HOME_WIDGETS = ["room_pulse", "lights_now", "routine_pulse", "shopping_list", "agenda"]
+NEW_HOME_WIDGETS = ["room_pulse", "lights_now", "routine_pulse", "shopping_list", "agenda", "pet_feeder"]
 HOME_WIDGETS = [*LEGACY_HOME_WIDGETS, *NEW_HOME_WIDGETS]
 DEFAULT_HOME_WIDGETS = [
     {"id": "overview", "visible": True, "size": "wide", "height": "short"},
@@ -26,6 +26,7 @@ DEFAULT_HOME_WIDGETS = [
     {"id": "routine_pulse", "visible": True, "size": "quarter", "height": "short"},
     {"id": "shopping_list", "visible": True, "size": "quarter", "height": "short"},
     {"id": "agenda", "visible": True, "size": "quarter", "height": "short"},
+    {"id": "pet_feeder", "visible": True, "size": "quarter", "height": "short"},
     {"id": "room_pulse", "visible": False, "size": "wide", "height": "standard"},
 ]
 MIME_SUFFIX = {"image/png": ".png", "image/jpeg": ".jpg", "image/webp": ".webp"}
