@@ -13,6 +13,21 @@ NAVIGATION_ITEMS = ["watch", "listen", "intercom", "lights", "extra", "scenarios
 LEGACY_HOME_WIDGETS = ["overview", "weather", "camera_event", "doorbell", "motion", "states", "rooms", "live"]
 NEW_HOME_WIDGETS = ["room_pulse", "lights_now", "routine_pulse", "shopping_list", "agenda"]
 HOME_WIDGETS = [*LEGACY_HOME_WIDGETS, *NEW_HOME_WIDGETS]
+DEFAULT_HOME_WIDGETS = [
+    {"id": "overview", "visible": True, "size": "wide", "height": "short"},
+    {"id": "states", "visible": True, "size": "wide", "height": "short"},
+    {"id": "live", "visible": True, "size": "wide", "height": "short"},
+    {"id": "weather", "visible": True, "size": "quarter", "height": "standard"},
+    {"id": "camera_event", "visible": True, "size": "quarter", "height": "uniform"},
+    {"id": "doorbell", "visible": True, "size": "quarter", "height": "uniform"},
+    {"id": "motion", "visible": True, "size": "quarter", "height": "uniform"},
+    {"id": "rooms", "visible": True, "size": "wide", "height": "short"},
+    {"id": "lights_now", "visible": True, "size": "quarter", "height": "short"},
+    {"id": "routine_pulse", "visible": True, "size": "quarter", "height": "short"},
+    {"id": "shopping_list", "visible": True, "size": "quarter", "height": "short"},
+    {"id": "agenda", "visible": True, "size": "quarter", "height": "short"},
+    {"id": "room_pulse", "visible": False, "size": "wide", "height": "standard"},
+]
 MIME_SUFFIX = {"image/png": ".png", "image/jpeg": ".jpg", "image/webp": ".webp"}
 
 def _directory() -> Path: return Path(os.environ.get("EFACE_BACKGROUNDS", "/data/backgrounds"))
@@ -179,7 +194,7 @@ def load_home_widgets(owner: str | None = None) -> list[dict[str, object]]:
     if owner and not isinstance(value, list): value = account.get("home_widgets")
     if owner and not isinstance(value, list): value = raw.get("home_widgets")
     if not isinstance(value, list):
-        return [{"id": item, "visible": item not in NEW_HOME_WIDGETS, "size": "wide" if item in {"overview", "rooms", "live", "room_pulse"} else "standard", "height": "standard"} for item in HOME_WIDGETS]
+        return [dict(item) for item in DEFAULT_HOME_WIDGETS]
     clean, seen = [], set()
     for item in value:
         if not isinstance(item, dict) or item.get("id") not in HOME_WIDGETS or item["id"] in seen: continue

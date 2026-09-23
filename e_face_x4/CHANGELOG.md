@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.21.251 — 2026-09-23
+
+- Rimosso il bordo anomalo dalle card Home Lista della spesa e Agenda, anche con tema utente e negli stati hover/focus.
+- Impostato per le nuove installazioni il layout Home richiesto: riepiloghi larghi e bassi, meteo/eventi su quattro colonne, Ambienti largo e le quattro card finali al 25% in altezza bassa.
+- Le disposizioni Home già salvate restano invariate.
+
 ## 2.21.250 — 2026-09-22
 
 - Corretto il primo riavvio automatico dopo l'installazione di `eface_alexa`: ora usa l'azione Home Assistant autorizzata `homeassistant.restart`, invece dell'endpoint Supervisor non disponibile con il ruolo standard dell'add-on.

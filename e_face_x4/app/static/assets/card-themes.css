@@ -41,6 +41,10 @@ body[data-card-theme] .alexa-agenda-card{
   background:var(--user-card)!important;
   box-shadow:0 16px 38px rgba(0,0,0,.28)!important
 }
+body[data-card-theme] .home-shopping-card,
+body[data-card-theme] .home-agenda-card{
+  border-color:transparent!important
+}
 body[data-card-theme] .home-shopping-dialog>header,
 body[data-card-theme] .alexa-agenda-event{
   background:var(--user-card-soft)!important
@@ -80,7 +84,9 @@ body[data-card-theme] .home-shopping-art b{
 body[data-card-theme] .home-shopping-card:hover,
 body[data-card-theme] .home-agenda-card:hover,
 body[data-card-theme] .home-shopping-card:focus-visible,
-body[data-card-theme] .home-agenda-card:focus-visible,
+body[data-card-theme] .home-agenda-card:focus-visible{
+  border-color:transparent!important
+}
 body[data-card-theme] .alexa-agenda-card input:focus,
 body[data-card-theme] .alexa-agenda-card select:focus{
   border-color:var(--user-card-accent)!important
