@@ -34,6 +34,7 @@ SAFE_ACTIONS = {
     "climate": {"set_target"},
     "cover": {"open", "close", "stop", "set_position"},
     "lock": {"lock", "unlock"},
+    "button": {"press"},
 }
 ACTION_STATES = {"on": "on", "off": "off", "open": "open", "close": "closed", "lock": "locked", "unlock": "unlocked", "media_play": "playing",
                  "media_pause": "paused", "media_stop": "idle", "turn_off": "off"}
@@ -47,7 +48,7 @@ ACTION_LABELS = {"on": "accendere", "off": "spegnere", "brightness": "regolare l
                  "dnd_on": "attivare Non disturbare su", "dnd_off": "disattivare Non disturbare su",
                  "set_alarm": "impostare una sveglia su", "set_daily_alarm": "impostare una sveglia giornaliera su", "set_timer": "impostare un timer su", "set_reminder": "impostare un promemoria su",
                  "cancel_alarm": "cancellare la prossima sveglia da", "cancel_timer": "cancellare il prossimo timer da", "cancel_reminder": "cancellare il prossimo promemoria da",
-                 "lock": "bloccare", "unlock": "sbloccare", "set_position": "posizionare"}
+                 "lock": "bloccare", "unlock": "sbloccare", "set_position": "posizionare", "press": "premere"}
 REMOTE_PLAYER_COMMANDS = {"media_play": "play", "media_pause": "pause", "media_stop": "stop", "media_next": "next", "media_previous": "previous", "turn_off": "turn_off", "volume_mute": "mute", "volume_unmute": "mute"}
 SENSITIVE_WORDS = re.compile(r"portone|cancello|garage|serratura|allarme|alarm|gate|door|lock", re.I)
 SECRET_TEXT = re.compile(r"(?i)(password|token|secret|authorization)\s*[:=]\s*\S+|https?://\S+")

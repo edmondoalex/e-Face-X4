@@ -77,6 +77,7 @@ function defaultDeviceCategory(device) {
   if (device.kind === 'switch') return 'extra'
   if (device.kind === 'cover') return 'covers'
   if (['climate','temp','temperature','humidity','air','air_quality'].includes(device.kind)) return 'comfort'
+  if (['sensor','binary_sensor'].includes(device.kind)) return 'sensors'
   if (['alarm_scenario'].includes(device.kind)) return 'scenarios'
   if (['lock','alarm_partition','alarm_zone','alarm_system'].includes(device.kind) || isSecurityGarage(device)) return 'security'
   if (['media','media_player','camera','doorbell'].includes(device.kind)) return 'media'
@@ -2495,6 +2496,7 @@ document.querySelectorAll('.rail button').forEach((button) => button.addEventLis
   if (button.dataset.view === 'scenarios') openScenariosPage()
   if (button.dataset.view === 'covers') openDevices('Oscuranti', organizedDevices('covers',currentDevices.filter((device) => deviceInCategory(device, 'covers'))), { filters: true })
   if (button.dataset.view === 'comfort') openDevices('Comfort', organizedDevices('comfort',currentDevices.filter((device) => deviceInCategory(device, 'comfort'))), { filters: true })
+  if (button.dataset.view === 'sensors') openDevices('Sensori', organizedDevices('sensors',currentDevices.filter((device) => deviceInCategory(device, 'sensors'))), { filters: true })
   if (button.dataset.view === 'energy') openEnergy()
   if (button.dataset.view === 'heating') openHeatingPage()
   if (button.dataset.view === 'security') openDevices('Sicurezza', organizedDevices('security',currentDevices.filter((device) => deviceInCategory(device, 'security'))))

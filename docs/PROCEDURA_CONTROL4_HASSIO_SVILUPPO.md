@@ -197,3 +197,10 @@ Quando WiiM è selezionato come sorgente di una stanza Control4, WiiM è autorev
 - Dalla `2.21.255`, la revoca di un dispositivo personale elimina anche la sua sottoscrizione push e viene persistita soltanto dopo la rimozione riuscita dell'interno: una push senza interno SIP produce squillo ma non può mostrare un tasto RISPONDI funzionante.
 - Dalla `2.21.256`, il click sulla push non deve chiamare `Client.navigate()` su una PWA già aperta: la navigazione chiude WebSocket e registrazione SIP durante l'INVITE. Usare `focus()` e `postMessage()`; aprire una nuova finestra soltanto quando non esiste alcun client e-Face.
 - Limite: una PWA non può garantire l’interfaccia telefonica nativa in ogni stato energetico. Android nativo richiede un’istanza/token FCM; iOS nativo richiede PushKit e CallKit. Il MAC non identifica né risveglia un telefono Android/iOS.
+
+## Entità Home Assistant etichettate e-Face (23/09/2026)
+
+- Dalla `2.21.257`, e-Face legge direttamente i registri Home Assistant e importa un'entità quando l'etichetta denominata `e-Face` è applicata all'entità oppure al dispositivo che la contiene. Non dipende da e-HDL per questo percorso.
+- I registri entità/dispositivi/aree/etichette sono memorizzati in memoria per 60 secondi; gli stati vengono invece letti a ogni snapshot. La stanza iniziale deriva dall'area HA, mentre nome, stanza e icona possono essere sovrascritti in Strumenti > Ordina dispositivi.
+- Prima di ogni comando e-Face verifica nuovamente che l'entità sia ancora nel catalogo etichettato e consente soltanto servizi espliciti per luce, switch/input boolean, cover, lock e button. Sensori e binary sensor restano di sola lettura ma sono disponibili come trigger e condizioni nelle Routine.
+- Controllo ripetibile senza mutare l'impianto: interrogare via WebSocket `config/label_registry/list`, `config/entity_registry/list`, `config/device_registry/list` e `config/area_registry/list`, poi `/api/states`; stampare soltanto ID, nome, stanza e tipo delle entità selezionate, mai il token Supervisor. Regressione locale: `python -m pytest tests/test_ha_labeled.py -q`.

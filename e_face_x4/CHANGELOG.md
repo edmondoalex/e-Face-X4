@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.21.257 — 2026-09-23
+
+- Importazione diretta e performante delle entità Home Assistant con etichetta `e-Face`, applicata all'entità o al dispositivo: registri/aree sono memorizzati per 60 secondi mentre gli stati restano aggiornati nello snapshot.
+- Le entità importate compaiono nella nuova sezione Sensori, in UI e nel catalogo Routine; i domini comandabili passano esclusivamente dai servizi Home Assistant consentiti e vengono ricontrollati contro l'etichetta prima del comando.
+- Ordina dispositivi ora consente anche nome, stanza e icona personalizzati e aggiunge il flag Sensori.
+
 ## 2.21.256 — 2026-09-23
 
 - Toccando una notifica Intercom la PWA già aperta viene portata in primo piano senza ricaricarla e senza interrompere la sessione SIP che deve mostrare RISPONDI.

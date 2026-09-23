@@ -76,8 +76,9 @@ from .connectors.control4_media import cached_control4_icon, cached_control4_ico
 from .connectors.supervisor import discover_addon_url, discover_host_url, installed_addons
 from .media_realtime import SharedMediaRealtime
 from .demo import dashboard as demo_dashboard
+from .ha_labeled import normalize_labeled_entities
 
-VERSION = os.environ.get("EFACE_VERSION", "2.21.256")
+VERSION = os.environ.get("EFACE_VERSION", "2.21.257")
 STATIC = Path(__file__).parent / "static"
 logging.basicConfig(level=logging.WARNING, format="%(asctime)s %(levelname)s [e-face-x4] %(message)s")
 _reconnect_warning_at: dict[str, float] = {}
@@ -187,6 +188,8 @@ def create_app() -> FastAPI:
     app.state.routine_ksenia_task = None
     app.state.routine_ksenia_snapshot = None
     app.state.routine_ksenia_snapshot_at = 0.0
+    app.state.ha_eface_registry_cache = None
+    app.state.ha_eface_registry_cache_at = 0.0
 
     @app.on_event("shutdown")
     async def close_shared_media_realtime() -> None:
@@ -2271,6 +2274,52 @@ def create_app() -> FastAPI:
         except (OSError, asyncio.TimeoutError, RuntimeError, ValueError, websockets.exceptions.WebSocketException) as exc:
             raise HTTPException(status_code=502, detail="Dispositivi Alexa non disponibili") from exc
 
+    async def home_assistant_eface_entities() -> list[dict]:
+        """Discover labelled HA entities cheaply: registries are cached, states remain current."""
+        token = str(os.environ.get("SUPERVISOR_TOKEN") or "").strip()
+        if not token:
+            return []
+        now = time.monotonic()
+        registries = app.state.ha_eface_registry_cache
+        if registries is None or now - app.state.ha_eface_registry_cache_at >= 60:
+            try:
+                async with websockets.connect("ws://supervisor/core/websocket", open_timeout=8, max_size=16 * 1024 * 1024) as socket:
+                    await socket.recv()
+                    await socket.send(json.dumps({"type": "auth", "access_token": token}))
+                    if json.loads(await socket.recv()).get("type") != "auth_ok":
+                        raise RuntimeError("Autenticazione e-Control fallita")
+                    registries = []
+                    commands = ("config/entity_registry/list", "config/device_registry/list", "config/area_registry/list", "config/label_registry/list")
+                    for message_id, command in enumerate(commands, 1):
+                        await socket.send(json.dumps({"id": message_id, "type": command}))
+                        reply = json.loads(await asyncio.wait_for(socket.recv(), timeout=10))
+                        if not reply.get("success") or not isinstance(reply.get("result"), list):
+                            raise RuntimeError("Registro e-Control non disponibile")
+                        registries.append(reply["result"])
+                app.state.ha_eface_registry_cache = registries
+                app.state.ha_eface_registry_cache_at = now
+            except (OSError, asyncio.TimeoutError, RuntimeError, ValueError, websockets.exceptions.WebSocketException):
+                logging.warning("Catalogo etichetta e-Face non disponibile")
+                return []
+        try:
+            states = (await home_assistant_get("states")).json()
+            if not isinstance(states, list):
+                return []
+            return normalize_labeled_entities(states, *registries)
+        except (HTTPException, ValueError, TypeError):
+            logging.warning("Stati delle entità e-Face non disponibili")
+            return []
+
+    def apply_device_organization(devices: list[dict]) -> None:
+        organization = load_device_organization()
+        for device in devices:
+            configured = organization.get(str(device.get("id")))
+            if not configured:
+                continue
+            for key in ("name", "room", "icon"):
+                if configured.get(key):
+                    device[key] = configured[key]
+
     async def alexa_agenda_devices() -> list[dict]:
         entities, devices = await home_assistant_registries()
         device_names = {str(item.get("id")): str(item.get("name_by_user") or item.get("name") or "Alexa") for item in devices if isinstance(item, dict)}
@@ -3136,6 +3185,7 @@ def create_app() -> FastAPI:
         wiim_task = asyncio.create_task(WiiMClient(wiim_config["host"]).snapshot()) if wiim_config.get("enabled") and wiim_config.get("host") else None
         skyq_config = skyq_settings.load()
         skyq_task = asyncio.create_task(skyq_connector.snapshot(skyq_config)) if skyq_config.get("enabled") and skyq_config.get("host") else None
+        ha_eface_task = asyncio.create_task(home_assistant_eface_entities())
         providers = list(await asyncio.gather(*(connector.snapshot() for connector in connectors)))
         if settings.evoice.enabled:
             providers.append(await app.state.evoice_realtime.get_snapshot())
@@ -3154,6 +3204,8 @@ def create_app() -> FastAPI:
                 skyq_connector.overlay_control4(providers, await skyq_task, skyq_config)
             except Exception:
                 pass
+        ha_eface_items = await ha_eface_task
+        providers.append({"id": "home_assistant", "name": "Home Assistant · etichetta e-Face", "status": "online", "items": ha_eface_items})
         dashboard = demo_dashboard() if settings.demo_mode else {"rooms": [], "widgets": [], "media": None}
         dashboard.setdefault("home", {})["name"] = settings.home_name
         if not settings.demo_mode:
@@ -3168,6 +3220,7 @@ def create_app() -> FastAPI:
             ksenia = next((item for item in providers if item.get("id") == "ksenia" and item.get("status") in {"online", "stale"}), None)
             if isinstance(ksenia, dict):
                 dashboard["devices"].extend(ksenia.get("items", []))
+            dashboard["devices"].extend(ha_eface_items)
             for media in (item for item in providers if item.get("id") in {"control4", "evoice", "wiim"} and item.get("status") in {"online", "stale"}):
                 media_items = media.get("items", [])
                 dashboard["devices"].extend(media_items)
@@ -3179,6 +3232,7 @@ def create_app() -> FastAPI:
                         "artist": selected.get("artist"), "room": selected.get("room"),
                         "volume": selected.get("volume") or 0,
                     }
+            apply_device_organization(dashboard["devices"])
             room_map = {str(room.get("name", "")).casefold(): room for room in dashboard["rooms"] if isinstance(room, dict)}
             for device in dashboard["devices"]:
                 if device.get("kind") in {"alarm_partition", "alarm_scenario", "alarm_system"} or device.get("category") in {"cover_group", "cover_group_no_pct"}:
@@ -3417,6 +3471,8 @@ def create_app() -> FastAPI:
         return await with_scenarios(data.get("dashboard", {}).get("devices", []))
 
     async def routine_command(device_id: str, action: str, value: object) -> object:
+        if device_id.startswith("ha:"):
+            return await device_command_impl(device_id, {"action": action, "value": value})
         if device_id.startswith("alexa-device:"):
             kind = {"set_alarm": "alarm", "set_daily_alarm": "alarm", "set_timer": "timer", "set_reminder": "reminder",
                     "cancel_alarm": "alarm", "cancel_timer": "timer", "cancel_reminder": "reminder"}.get(action)
@@ -4125,6 +4181,33 @@ def create_app() -> FastAPI:
     async def device_command_impl(device_id: str, payload: dict) -> dict:
         settings = load_settings()
         operation = str(payload.get("action") or "")
+        if device_id.startswith("ha:"):
+            entity_id = device_id[3:]
+            entity = next((item for item in await home_assistant_eface_entities() if item.get("entity_id") == entity_id), None)
+            if not entity:
+                raise HTTPException(status_code=404, detail="Entità e-Face non disponibile o etichetta rimossa")
+            domain, kind = str(entity.get("entity_domain") or ""), str(entity.get("kind") or "")
+            services = {
+                ("light", "on"): ("light", "turn_on"), ("light", "off"): ("light", "turn_off"),
+                ("switch", "on"): (domain, "turn_on"), ("switch", "off"): (domain, "turn_off"),
+                ("cover", "open"): ("cover", "open_cover"), ("cover", "close"): ("cover", "close_cover"),
+                ("cover", "stop"): ("cover", "stop_cover"), ("cover", "set_position"): ("cover", "set_cover_position"),
+                ("lock", "lock"): ("lock", "lock"), ("lock", "unlock"): ("lock", "unlock"),
+                ("button", "press"): ("button", "press"),
+            }
+            service, body = services.get((kind, operation)), {"entity_id": entity_id}
+            if operation in {"brightness", "set_position"}:
+                value = payload.get("value")
+                if isinstance(value, bool) or not isinstance(value, (int, float)) or not 0 <= value <= 100:
+                    raise HTTPException(status_code=400, detail="Valore percentuale non valido")
+                if operation == "brightness" and kind == "light":
+                    service, body["brightness_pct"] = ("light", "turn_on"), round(value)
+                elif operation == "set_position" and kind == "cover":
+                    body["position"] = round(value)
+            if not service:
+                raise HTTPException(status_code=400, detail="Comando non disponibile per questa entità")
+            await home_assistant_service(service[0], service[1], body)
+            return {"ok": True, "provider": "home_assistant"}
         wiim_actions = {
             "media_play": "play", "media_pause": "pause", "media_stop": "stop",
             "media_next": "next", "media_previous": "previous", "set_volume": "volume",

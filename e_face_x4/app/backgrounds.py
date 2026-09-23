@@ -8,8 +8,8 @@ PRESETS = {"teal", "midnight", "graphite", "ocean", "warm"}
 CARD_THEMES = {"graphite", "petrol", "midnight", "slate", "warm"}
 SECURITY_ORDER = ["scenarios", "areas", "zones", "locks", "cameras"]
 SHORTCUT_CATEGORIES = ["lights", "switches", "covers", "climate", "security", "media", "sensors", "other"]
-DEVICE_ORGANIZATION_CATEGORIES = ["lights", "extra", "covers", "comfort", "security", "scenarios", "intercom", "media"]
-NAVIGATION_ITEMS = ["watch", "listen", "intercom", "lights", "extra", "scenarios", "covers", "comfort", "heating", "energy", "security", "shopping", "alexa-agenda"]
+DEVICE_ORGANIZATION_CATEGORIES = ["lights", "extra", "covers", "comfort", "sensors", "security", "scenarios", "intercom", "media"]
+NAVIGATION_ITEMS = ["watch", "listen", "intercom", "lights", "extra", "scenarios", "covers", "comfort", "sensors", "heating", "energy", "security", "shopping", "alexa-agenda"]
 LEGACY_HOME_WIDGETS = ["overview", "weather", "camera_event", "doorbell", "motion", "states", "rooms", "live"]
 NEW_HOME_WIDGETS = ["room_pulse", "lights_now", "routine_pulse", "shopping_list", "agenda"]
 HOME_WIDGETS = [*LEGACY_HOME_WIDGETS, *NEW_HOME_WIDGETS]
@@ -156,6 +156,9 @@ def load_device_organization() -> dict[str, dict[str, object]]:
         orders = item.get("orders") if isinstance(item.get("orders"), dict) else {}
         clean_orders = {key: max(0, int(value)) for key, value in orders.items() if key in ["devices", *DEVICE_ORGANIZATION_CATEGORIES] and isinstance(value, int)}
         result[device_id] = {"visible": item.get("visible") is not False, "categories": list(dict.fromkeys(clean_categories)), "orders": clean_orders}
+        for key, limit in (("name", 100), ("room", 100), ("icon", 80)):
+            text = str(item.get(key) or "").strip()
+            if text: result[device_id][key] = text[:limit]
     return result
 
 def save_device_organization(value: dict[str, dict[str, object]]) -> None:
@@ -168,6 +171,10 @@ def save_device_organization(value: dict[str, dict[str, object]]) -> None:
         orders = item.get("orders") if isinstance(item.get("orders"), dict) else {}
         if any(key not in ["devices", *DEVICE_ORGANIZATION_CATEGORIES] or not isinstance(order, int) or order < 0 for key, order in orders.items()): raise ValueError("Ordine dispositivo non valido")
         clean[device_id] = {"visible": item.get("visible") is not False, "categories": list(dict.fromkeys(categories)), "orders": orders}
+        for key, pattern, limit in (("name", r"[^\x00-\x1f\x7f]{1,100}", 100), ("room", r"[^\x00-\x1f\x7f]{1,100}", 100), ("icon", r"mdi:[a-z0-9_-]{1,64}", 80)):
+            text = str(item.get(key) or "").strip()
+            if text and not re.fullmatch(pattern, text, re.I): raise ValueError(f"{key.capitalize()} dispositivo non valido")
+            if text: clean[device_id][key] = text[:limit]
     raw = _config(); raw["device_organization"] = clean; _write(raw)
 
 def load_navigation_items() -> list[dict[str, object]]:
