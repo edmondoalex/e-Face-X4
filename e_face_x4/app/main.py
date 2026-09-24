@@ -78,7 +78,7 @@ from .media_realtime import SharedMediaRealtime
 from .demo import dashboard as demo_dashboard
 from .ha_labeled import normalize_labeled_entities
 
-VERSION = os.environ.get("EFACE_VERSION", "2.21.265")
+VERSION = os.environ.get("EFACE_VERSION", "2.21.266")
 STATIC = Path(__file__).parent / "static"
 logging.basicConfig(level=logging.WARNING, format="%(asctime)s %(levelname)s [e-face-x4] %(message)s")
 _reconnect_warning_at: dict[str, float] = {}
@@ -2457,7 +2457,24 @@ def create_app() -> FastAPI:
                 identity = str(item.get("id") or "")
                 if not identity or identity in seen: continue
                 seen.add(identity); merged.append(item)
-        return {"items": merged}
+        states = (await home_assistant_get("states")).json()
+        calendars = [item for item in states if isinstance(item, dict)
+                     and re.fullmatch(r"calendar\.[a-z0-9_]+", str(item.get("entity_id") or ""))]
+        today = datetime.now().astimezone().replace(hour=0, minute=0, second=0, microsecond=0)
+        end = today + timedelta(days=366)
+
+        async def calendar_events(calendar: dict) -> list[dict]:
+            entity_id = str(calendar["entity_id"])
+            path = (f"calendars/{quote(entity_id, safe='')}?start={quote(today.isoformat(), safe='')}"
+                    f"&end={quote(end.isoformat(), safe='')}")
+            response = (await home_assistant_get(path)).json()
+            name = str((calendar.get("attributes") or {}).get("friendly_name") or entity_id)
+            return [{**event, "entity_id": entity_id, "calendar_name": name}
+                    for event in response if isinstance(event, dict)] if isinstance(response, list) else []
+
+        calendar_results = await asyncio.gather(*(calendar_events(calendar) for calendar in calendars), return_exceptions=True)
+        calendar_items = [event for result in calendar_results if not isinstance(result, Exception) for event in result]
+        return {"items": merged, "calendar_items": calendar_items}
 
     @app.delete("/api/home/alexa/agenda/items/{notification_id}")
     async def home_alexa_agenda_delete(notification_id: str, device_id: str) -> dict:
@@ -2486,6 +2503,25 @@ def create_app() -> FastAPI:
         temporary = path.with_suffix(".tmp")
         temporary.write_text(json.dumps(remaining, ensure_ascii=False), encoding="utf-8")
         temporary.replace(path)
+        return {"ok": True}
+
+    @app.delete("/api/home/alexa/agenda/calendar/{entity_id}/{event_uid}")
+    async def home_calendar_agenda_delete(entity_id: str, event_uid: str) -> dict:
+        if not re.fullmatch(r"calendar\.[a-z0-9_]+", entity_id) or not 1 <= len(event_uid) <= 500:
+            raise HTTPException(status_code=400, detail="Evento calendario non valido")
+        token = str(os.environ.get("SUPERVISOR_TOKEN") or "").strip()
+        if not token: raise HTTPException(status_code=503, detail="e-Control non disponibile")
+        try:
+            async with websockets.connect("ws://supervisor/core/websocket", open_timeout=8) as socket:
+                await socket.recv()
+                await socket.send(json.dumps({"type": "auth", "access_token": token}))
+                if json.loads(await socket.recv()).get("type") != "auth_ok": raise RuntimeError("Autenticazione fallita")
+                await socket.send(json.dumps({"id": 1, "type": "calendar/event/delete",
+                                              "entity_id": entity_id, "uid": event_uid}))
+                reply = json.loads(await asyncio.wait_for(socket.recv(), timeout=15))
+                if not reply.get("success"): raise RuntimeError(str((reply.get("error") or {}).get("message") or "Cancellazione non supportata"))
+        except (OSError, ValueError, RuntimeError, asyncio.TimeoutError, websockets.WebSocketException) as exc:
+            raise HTTPException(status_code=502, detail=f"Impossibile eliminare l’evento: {exc}") from exc
         return {"ok": True}
 
     async def home_todo_lists() -> list[dict[str, object]]:

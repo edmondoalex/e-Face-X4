@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.21.266 — 2026-09-24
+
+- Gli eventi delle entità Home Assistant `calendar.*` compaiono ora nell'elenco Agenda e nel relativo contatore insieme ad Alexa e all'agenda interna.
+- L'elenco identifica il calendario di origine e, quando Home Assistant fornisce l'UID, consente la cancellazione tramite la X.
+
 ## 2.21.265 — 2026-09-24
 
 - Il badge Agenda usa lo stesso elenco reale mostrato nella pagina e non viene più sovrascritto dai sensori sintetici durante il refresh.
