@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from typing import Any
+import re
 
 
 LABEL_NAMES = {"e-face", "eface", "e_face"}
@@ -73,7 +74,10 @@ def normalize_labeled_entities(
             item["position"] = attributes.get("current_position")
             item["position_supported"] = bool(features & 4)
         if kind == "select":
-            item["options"] = [str(value) for value in attributes.get("options", []) if isinstance(value, (str, int, float))]
+            options = [str(value) for value in attributes.get("options", []) if isinstance(value, (str, int, float))]
+            if re.search(r"(?:aqara.*pet.*feeder|pet.*feeder|feeder.*feed)", entity_id, re.I):
+                options = [value for value in options if value.strip().casefold() != "start"]
+            item["options"] = options
             item["source_list"] = list(item["options"])
         result.append(item)
     return sorted(result, key=lambda item: (str(item["room"]).casefold(), str(item["name"]).casefold()))

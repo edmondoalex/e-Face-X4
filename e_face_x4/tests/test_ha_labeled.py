@@ -43,3 +43,13 @@ def test_labeled_select_exposes_options_for_ui_and_routines():
     assert items[0]["options"] == ["1", "2", "3"]
     assert items[0]["source_list"] == ["1", "2", "3"]
     assert items[0]["capabilities"] == {"select_option": True, "select_source": True}
+
+
+def test_aqara_feeder_start_option_is_not_exposed():
+    items = normalize_labeled_entities(
+        [{"entity_id": "select.aqara_pet_feeder_c1_feed", "state": "start", "attributes": {"options": ["START"]}}],
+        [{"entity_id": "select.aqara_pet_feeder_c1_feed", "labels": ["wanted"], "disabled_by": None}], [], [],
+        [{"label_id": "wanted", "name": "e-Face"}],
+    )
+    assert items[0]["options"] == []
+    assert items[0]["source_list"] == []

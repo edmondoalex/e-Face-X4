@@ -1,5 +1,9 @@
 # Changelog
 
+## 2.21.264 — 2026-09-24
+
+- Rimossa l'opzione START non funzionante dal feeder Aqara nel widget, in Extra e nelle azioni Routine.
+
 ## 2.21.263 — 2026-09-23
 
 - Il feeder usa ora un pulsante EROGA separato: i comandi momentanei come START restano sempre eseguibili anche dopo l'aggiornamento dello stato.
