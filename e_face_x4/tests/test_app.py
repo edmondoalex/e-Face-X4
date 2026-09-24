@@ -92,7 +92,7 @@ def test_health() -> None:
     response = TestClient(create_app()).get("/health")
     assert response.status_code == 200
     assert response.json()["ok"] is True
-    assert response.json()["version"] == "2.21.264"
+    assert response.json()["version"] == "2.21.265"
 
 
 def test_home_event_times_reads_saved_doorbird_motion(monkeypatch, tmp_path) -> None:
@@ -139,7 +139,7 @@ def test_intercom_is_in_sidebar_with_embedded_view() -> None:
     client_script = (static / "assets" / "intercom.js").read_text(encoding="utf-8")
     intercom_page = (static / "intercom.html").read_text(encoding="utf-8")
     assert "Tablet Control4 · interno 8291" in intercom_page
-    assert "const currentVersion = '2.21.264'" in client_script
+    assert "const currentVersion = '2.21.265'" in client_script
     assert 'id="call-ufficio" data-dial-extension="8291" data-video-capable="true"' in intercom_page
     assert "Postazione esterna · interno 8201" in intercom_page
     assert "Postazione esterna · interno ${station.sip_extension}" in client_script
@@ -351,10 +351,10 @@ def test_intercom_dashboard_stores_only_local_settings(monkeypatch, tmp_path) ->
     assert 'id="users-tool"' in page
     assert 'id="logout"' in page
     assert page.index('id="logout"') < page.index('id="tools-user-section"')
-    assert "tools-dashboard.js?v=2.21.264" in page
-    assert "tools-dashboard.css?v=2.21.264" in page
-    assert "tools.js?v=2.21.264" in page
-    assert "organization-tools.js?v=2.21.264" in page
+    assert "tools-dashboard.js?v=2.21.265" in page
+    assert "tools-dashboard.css?v=2.21.265" in page
+    assert "tools.js?v=2.21.265" in page
+    assert "organization-tools.js?v=2.21.265" in page
     tools_js = client.get("/assets/tools.js").text
     assert "document.querySelector('.tools-shell').append(shortcutsPanel)" in tools_js
     assert "data-shortcut-drag=\"category\"" in tools_js
@@ -367,7 +367,7 @@ def test_intercom_dashboard_stores_only_local_settings(monkeypatch, tmp_path) ->
     assert '<b>Accesi</b>' not in home
     assert 'id="light-on-filter"' in home
     assert "backgrounds.css?v=2.21.43" in home
-    assert "app.js?v=2.21.264" in home
+    assert "app.js?v=2.21.265" in home
     app_js = client.get("/assets/app.js").text
     assert "event.type === 'doorbird_event'" in app_js
     assert "event.type === 'home_camera_event'" in app_js
@@ -375,8 +375,8 @@ def test_intercom_dashboard_stores_only_local_settings(monkeypatch, tmp_path) ->
     assert "function hasAlexaAgendaEvent(value)" in app_js
     assert ".filter(([,event])=>hasAlexaAgendaEvent(event.state))" in app_js
     assert "Nessuna sveglia, timer o promemoria attivo." in app_js
-    assert "async function loadAlexaNotificationItems()" in app_js
-    assert "setAgendaNavCount(active.length)" in app_js
+    assert "async function loadAlexaNotificationItems(agendaData=null)" in app_js
+    assert "setAgendaNavCount(alexaRows.length+internalRows.length)" in app_js
     assert "data-alexa-device=" in app_js
 
 
@@ -794,8 +794,8 @@ def test_tools_page_starts_with_selected_background_and_card_theme(monkeypatch, 
     home = client.get("/").text
     login = client.get("/login").text
     assert '<body class="app-theme" data-background="midnight" data-card-theme="slate">' in home
-    assert 'ui-theme-contract.css?v=2.21.264' in home
-    assert 'app.js?v=2.21.264' in home
+    assert 'ui-theme-contract.css?v=2.21.265' in home
+    assert 'app.js?v=2.21.265' in home
     assert 'energy.css?v=2.21.30' in home
     assert 'home-comfort.css?v=2.21.31' in home
     assert '<body class="login-theme" data-background="midnight" data-card-theme="slate">' in login
@@ -903,6 +903,21 @@ def test_new_home_widgets_use_the_installation_default_and_are_present(monkeypat
     assert "scheduleHomeShoppingRefresh" in script
     assert "function setAgendaNavCount(count)" in script
     assert "setAgendaNavCount(events.length)" in script
+
+
+def test_internal_agenda_event_can_be_deleted(monkeypatch, tmp_path) -> None:
+    monkeypatch.setenv("EFACE_DATA", str(tmp_path))
+    event_id = "a" * 32
+    other_id = "b" * 32
+    (tmp_path / "agenda.json").write_text(json.dumps([
+        {"id": event_id, "kind": "reminder", "summary": "Da eliminare", "start": "2026-09-24T10:00:00+02:00"},
+        {"id": other_id, "kind": "alarm", "summary": "Da conservare", "start": "2026-09-25T08:00:00+02:00"},
+    ]), encoding="utf-8")
+    client = TestClient(create_app())
+    assert client.delete(f"/api/home/alexa/agenda/internal/{event_id}").json() == {"ok": True}
+    saved = json.loads((tmp_path / "agenda.json").read_text(encoding="utf-8"))
+    assert [item["id"] for item in saved] == [other_id]
+    assert client.delete(f"/api/home/alexa/agenda/internal/{event_id}").status_code == 404
 
 
 def test_home_shopping_list_discovers_and_controls_econtrol_todo(monkeypatch, tmp_path) -> None:
@@ -1182,10 +1197,10 @@ def test_x4_shell_and_brand_assets_are_served() -> None:
     assert client.get("/tools").status_code == 200
     assert "Amministrazione" in client.get("/tools").text
     css = client.get("/assets/app.css").text
-    assert "app.css?v=2.21.264" in client.get("/").text
-    assert "home-live-media.css?v=2.21.264" in client.get("/").text
-    assert "alarm-state.css?v=2.21.264" in client.get("/").text
-    assert "state-glow.css?v=2.21.264" in client.get("/").text
+    assert "app.css?v=2.21.265" in client.get("/").text
+    assert "home-live-media.css?v=2.21.265" in client.get("/").text
+    assert "alarm-state.css?v=2.21.265" in client.get("/").text
+    assert "state-glow.css?v=2.21.265" in client.get("/").text
     assert '[data-home-widget][data-widget-height="short"]{height:auto!important;min-height:76px!important;max-height:120px!important' in css
     assert ".home-event-dialog figure img{display:block;width:auto;height:auto;max-width:100%;max-height:100%" in css
     assert ".home-event-widget img{object-fit:contain" not in css

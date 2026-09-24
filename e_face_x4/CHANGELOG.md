@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.21.265 — 2026-09-24
+
+- Il badge Agenda usa lo stesso elenco reale mostrato nella pagina e non viene più sovrascritto dai sensori sintetici durante il refresh.
+- L'elenco riunisce eventi Alexa ed e-Control, indica sorgente e tipo e offre la cancellazione con × per entrambe le sorgenti.
+- La sorgente locale è ora chiamata “Agenda interna e-Face”, distinta chiaramente dalle entità `calendar.*` di Home Assistant.
+
 ## 2.21.264 — 2026-09-24
 
 - Rimossa l'opzione START non funzionante dal feeder Aqara nel widget, in Extra e nelle azioni Routine.

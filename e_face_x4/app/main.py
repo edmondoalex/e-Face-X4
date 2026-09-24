@@ -78,7 +78,7 @@ from .media_realtime import SharedMediaRealtime
 from .demo import dashboard as demo_dashboard
 from .ha_labeled import normalize_labeled_entities
 
-VERSION = os.environ.get("EFACE_VERSION", "2.21.264")
+VERSION = os.environ.get("EFACE_VERSION", "2.21.265")
 STATIC = Path(__file__).parent / "static"
 logging.basicConfig(level=logging.WARNING, format="%(asctime)s %(levelname)s [e-face-x4] %(message)s")
 _reconnect_warning_at: dict[str, float] = {}
@@ -2389,7 +2389,7 @@ def create_app() -> FastAPI:
         for device in devices:
             device["agenda"] = {kind: {"entity_id": entity_id, "state": (state_map.get(entity_id) or {}).get("state")}
                                 for kind, entity_id in device["sensors"].items()}
-        sources = [{"id": "alexa", "name": "Alexa", "kind": "alexa"}, {"id": "econtrol", "name": "Agenda e-Control", "kind": "internal"}]
+        sources = [{"id": "alexa", "name": "Alexa", "kind": "alexa"}, {"id": "econtrol", "name": "Agenda interna e-Face", "kind": "internal"}]
         sources.extend({"id": entity_id, "name": str((item.get("attributes") or {}).get("friendly_name") or entity_id), "kind": "calendar"}
                        for entity_id, item in state_map.items() if re.fullmatch(r"calendar\.[a-z0-9_]+", entity_id))
         internal_path = Path(os.environ.get("EFACE_DATA", "/data")) / "agenda.json"
@@ -2469,6 +2469,23 @@ def create_app() -> FastAPI:
             "eface_alexa", "delete_notification",
             {"device_id": device_id, "notification_id": notification_id},
         )
+        return {"ok": True}
+
+    @app.delete("/api/home/alexa/agenda/internal/{event_id}")
+    async def home_internal_agenda_delete(event_id: str) -> dict:
+        if not re.fullmatch(r"[a-f0-9]{32}", event_id):
+            raise HTTPException(status_code=400, detail="Evento e-Control non valido")
+        path = Path(os.environ.get("EFACE_DATA", "/data")) / "agenda.json"
+        try: items = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, ValueError): items = []
+        if not isinstance(items, list): items = []
+        remaining = [item for item in items if not isinstance(item, dict) or str(item.get("id") or "") != event_id]
+        if len(remaining) == len(items):
+            raise HTTPException(status_code=404, detail="Evento e-Control non trovato")
+        path.parent.mkdir(parents=True, exist_ok=True)
+        temporary = path.with_suffix(".tmp")
+        temporary.write_text(json.dumps(remaining, ensure_ascii=False), encoding="utf-8")
+        temporary.replace(path)
         return {"ok": True}
 
     async def home_todo_lists() -> list[dict[str, object]]:
