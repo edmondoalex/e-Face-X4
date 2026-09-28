@@ -76,6 +76,9 @@ def normalize_labeled_entities(
         if kind == "select":
             options = [str(value) for value in attributes.get("options", []) if isinstance(value, (str, int, float))]
             if re.search(r"(?:aqara.*pet.*feeder|pet.*feeder|feeder.*feed)", entity_id, re.I):
+                start_option = next((value for value in options if value.strip().casefold() == "start"), None)
+                if start_option:
+                    item["direct_select_option"] = start_option
                 options = [value for value in options if value.strip().casefold() != "start"]
             item["options"] = options
             item["source_list"] = list(item["options"])

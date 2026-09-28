@@ -1,5 +1,9 @@
 # Changelog
 
+## 2.21.275 — 2026-09-28
+
+- Feeder Aqara: rimosso il selettore vuoto e collegato `EROGA` direttamente all'opzione tecnica `START`, mantenendola nascosta nell'interfaccia.
+
 ## 2.21.274 — 2026-09-28
 
 - Disabilitati selezione testo, menu contestuale, trascinamento e callout del browser durante l'uso touch dell'interfaccia; i campi di scrittura restano modificabili.

@@ -452,7 +452,7 @@ function renderHomePetFeeders() {
   if (!card || card.classList.contains('widget-user-hidden')) return
   const feeders = currentDevices.filter(device => device.kind === 'select' && /feed|feeder|pet|gatt|cibo/i.test(`${device.id} ${device.entity_id || ''} ${device.name || ''}`))
   $('#home-pet-feeder-count').textContent = `${feeders.length} ${feeders.length === 1 ? 'FEEDER' : 'FEEDER'}`
-  $('#home-pet-feeder-list').innerHTML = feeders.map(device => { const options=device.options||[]; const command=options.length?`<div class="home-feeder-command"><select data-home-feeder-option aria-label="Quantità ${escAttribute(device.name || 'feeder')}">${options.map(option => `<option value="${escAttribute(option)}" ${String(option) === String(device.state) ? 'selected' : ''}>${esc(option)}</option>`).join('')}</select><button type="button" data-home-feeder-run>EROGA</button></div>`:'<small class="home-feeder-unavailable">Comando non disponibile</small>'; return `<article class="home-feeder-row" data-device-id="${escAttribute(device.id)}"><span class="mdi-mask" style="${mdiStyle('mdi:cat','cat')}"></span><span><strong>${esc(device.name || 'Feeder gatti')}</strong><small>${esc(device.room || 'Casa')}</small></span>${command}</article>` }).join('') || '<p class="home-insight-empty">Aggiungi l’etichetta e-Face al feeder in e-Control</p>'
+  $('#home-pet-feeder-list').innerHTML = feeders.map(device => { const directOption=device.direct_select_option||''; const command=directOption?`<div class="home-feeder-command home-feeder-command-direct"><button type="button" data-home-feeder-run data-feeder-option="${escAttribute(directOption)}">EROGA</button></div>`:'<small class="home-feeder-unavailable">Comando non disponibile</small>'; return `<article class="home-feeder-row" data-device-id="${escAttribute(device.id)}"><span class="mdi-mask" style="${mdiStyle('mdi:cat','cat')}"></span><span><strong>${esc(device.name || 'Feeder gatti')}</strong><small>${esc(device.room || 'Casa')}</small></span>${command}</article>` }).join('') || '<p class="home-insight-empty">Aggiungi l’etichetta e-Face al feeder in e-Control</p>'
 }
 
 const shortcutCategoryLabels = {lights:'Luci',switches:'Extra',covers:'Oscuranti',climate:'Comfort',security:'Sicurezza',media:'Audio e video',sensors:'Sensori',other:'Altro'}
@@ -2603,8 +2603,8 @@ $('#home-view').addEventListener('click', (event) => {
   const feederRun = event.target.closest('[data-home-feeder-run]')
   if (feederRun) {
     const card = feederRun.closest('[data-device-id]')
-    const select = card?.querySelector('[data-home-feeder-option]')
-    if (card && select) sendDeviceCommand(card.dataset.deviceId, 'select_option', feederRun, select.value)
+    const option = feederRun.dataset.feederOption
+    if (card && option) sendDeviceCommand(card.dataset.deviceId, 'select_option', feederRun, option)
     return
   }
   if (event.type === 'intercom_command') {

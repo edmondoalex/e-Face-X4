@@ -78,7 +78,7 @@ from .media_realtime import SharedMediaRealtime
 from .demo import dashboard as demo_dashboard
 from .ha_labeled import normalize_labeled_entities
 
-VERSION = os.environ.get("EFACE_VERSION", "2.21.274")
+VERSION = os.environ.get("EFACE_VERSION", "2.21.275")
 STATIC = Path(__file__).parent / "static"
 logging.basicConfig(level=logging.WARNING, format="%(asctime)s %(levelname)s [e-face-x4] %(message)s")
 _reconnect_warning_at: dict[str, float] = {}
@@ -4407,7 +4407,10 @@ def create_app() -> FastAPI:
                     body["position"] = round(value)
             if operation in {"select_option", "select_source"} and kind == "select":
                 value = str(payload.get("value") or "").strip()
-                if not value or value not in entity.get("options", []):
+                allowed_options = [*entity.get("options", [])]
+                if entity.get("direct_select_option"):
+                    allowed_options.append(entity["direct_select_option"])
+                if not value or value not in allowed_options:
                     raise HTTPException(status_code=400, detail="Opzione non disponibile")
                 body["option"] = value
             if not service:

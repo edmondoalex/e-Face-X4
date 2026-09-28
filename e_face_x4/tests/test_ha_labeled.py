@@ -53,3 +53,4 @@ def test_aqara_feeder_start_option_is_not_exposed():
     )
     assert items[0]["options"] == []
     assert items[0]["source_list"] == []
+    assert items[0]["direct_select_option"] == "START"
