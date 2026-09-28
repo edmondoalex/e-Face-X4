@@ -78,7 +78,7 @@ from .media_realtime import SharedMediaRealtime
 from .demo import dashboard as demo_dashboard
 from .ha_labeled import normalize_labeled_entities
 
-VERSION = os.environ.get("EFACE_VERSION", "2.21.275")
+VERSION = os.environ.get("EFACE_VERSION", "2.21.276")
 STATIC = Path(__file__).parent / "static"
 logging.basicConfig(level=logging.WARNING, format="%(asctime)s %(levelname)s [e-face-x4] %(message)s")
 _reconnect_warning_at: dict[str, float] = {}
@@ -190,6 +190,10 @@ def create_app() -> FastAPI:
     app.state.routine_ksenia_snapshot_at = 0.0
     app.state.ha_eface_registry_cache = None
     app.state.ha_eface_registry_cache_at = 0.0
+    app.state.security_camera_images = {}
+    app.state.security_camera_snapshot_failures = 0
+    app.state.security_camera_snapshot_retry_at = 0.0
+    app.state.security_camera_snapshot_gate = asyncio.Semaphore(2)
     app.state.intercom_state = "idle"
 
     @app.on_event("shutdown")
@@ -2639,11 +2643,35 @@ def create_app() -> FastAPI:
         entity_id = str((camera or {}).get("preview_url") or (camera or {}).get("url") or "")
         if not re.fullmatch(r"camera\.[a-z0-9_]+", entity_id):
             raise HTTPException(status_code=404, detail="Entità videocamera non configurata")
-        response = await home_assistant_get(f"camera_proxy/{entity_id}")
-        media_type = artwork_media_type(response.headers.get("content-type", ""), response.content)
-        if not media_type or len(response.content) > 5_000_000:
-            raise HTTPException(status_code=415, detail="Immagine videocamera non valida")
-        return Response(response.content, media_type=media_type, headers={"Cache-Control":"no-store, private", "X-Content-Type-Options":"nosniff"})
+        now = time.monotonic()
+        cached = app.state.security_camera_images.get(entity_id)
+        if cached and now - cached[0] < 20:
+            return Response(cached[1], media_type=cached[2], headers={"Cache-Control":"private, max-age=10", "X-Content-Type-Options":"nosniff"})
+        if now < app.state.security_camera_snapshot_retry_at:
+            if cached and now - cached[0] < 300:
+                return Response(cached[1], media_type=cached[2], headers={"Cache-Control":"private, max-age=10", "X-Content-Type-Options":"nosniff", "X-Eface-Camera-Stale":"1"})
+            raise HTTPException(status_code=503, detail="Anteprime temporaneamente sospese per lasciare libera la diretta")
+        token = str(os.environ.get("SUPERVISOR_TOKEN") or "").strip()
+        if not token: raise HTTPException(status_code=503, detail="e-Control non disponibile")
+        try:
+            async with app.state.security_camera_snapshot_gate:
+                if time.monotonic() < app.state.security_camera_snapshot_retry_at:
+                    raise HTTPException(status_code=503, detail="Anteprime temporaneamente sospese per lasciare libera la diretta")
+                async with httpx.AsyncClient(timeout=httpx.Timeout(3.0, connect=2.0), follow_redirects=False, trust_env=False) as client:
+                    response = await client.get(f"http://supervisor/core/api/camera_proxy/{entity_id}", headers={"Authorization": f"Bearer {token}"})
+            if response.status_code != 200: raise RuntimeError(f"HTTP {response.status_code}")
+            media_type = artwork_media_type(response.headers.get("content-type", ""), response.content)
+            if not media_type or len(response.content) > 5_000_000: raise RuntimeError("immagine non valida")
+            app.state.security_camera_images[entity_id] = (time.monotonic(), response.content, media_type)
+            app.state.security_camera_snapshot_failures = 0
+            return Response(response.content, media_type=media_type, headers={"Cache-Control":"private, max-age=10", "X-Content-Type-Options":"nosniff"})
+        except (httpx.HTTPError, RuntimeError):
+            app.state.security_camera_snapshot_failures += 1
+            if app.state.security_camera_snapshot_failures >= 2:
+                app.state.security_camera_snapshot_retry_at = time.monotonic() + 30
+            if cached and now - cached[0] < 300:
+                return Response(cached[1], media_type=cached[2], headers={"Cache-Control":"private, max-age=10", "X-Content-Type-Options":"nosniff", "X-Eface-Camera-Stale":"1"})
+            raise HTTPException(status_code=502, detail="Anteprima videocamera non disponibile")
 
     @app.get("/api/security/cameras/{camera_id}/stream")
     async def security_camera_stream(camera_id: str) -> dict[str, str]:
@@ -2679,12 +2707,7 @@ def create_app() -> FastAPI:
         entity_id = str(entity or "").strip()
         if not re.fullmatch(r"camera\.[a-z0-9_]+", entity_id):
             raise HTTPException(status_code=400, detail="Inserisci un'entità camera.* valida")
-        try:
-            response = await home_assistant_get(f"camera_proxy/{entity_id}")
-        except HTTPException:
-            fallback = str((camera or {}).get("video_url") or "")
-            if fallback == entity_id or not re.fullmatch(r"camera\.[a-z0-9_]+", fallback): raise
-            response = await home_assistant_get(f"camera_proxy/{fallback}")
+        response = await home_assistant_get(f"camera_proxy/{entity_id}")
         media_type = artwork_media_type(response.headers.get("content-type", ""), response.content)
         if not media_type or len(response.content) > 5_000_000:
             raise HTTPException(status_code=415, detail="Immagine videocamera non valida")

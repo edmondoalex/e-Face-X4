@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.21.276 — 2026-09-28
+
+- Videocamere: anteprime protette da cache, timeout breve e circuito di sospensione per non saturare Home Assistant/NVR.
+- Diretta HLS: URL Ingress normalizzato, prefetch iniziale e timeout di avvio esplicito; le anteprime si fermano mentre si apre il live.
+- Rimossa un'eccezione nel fallback di prova anteprima della pagina amministrativa.
+
 ## 2.21.275 — 2026-09-28
 
 - Feeder Aqara: rimosso il selettore vuoto e collegato `EROGA` direttamente all'opzione tecnica `START`, mantenendola nascosta nell'interfaccia.
