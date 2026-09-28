@@ -1,5 +1,9 @@
 # Changelog
 
+## 2.21.274 — 2026-09-28
+
+- Disabilitati selezione testo, menu contestuale, trascinamento e callout del browser durante l'uso touch dell'interfaccia; i campi di scrittura restano modificabili.
+
 ## 2.21.273 — 2026-09-28
 
 - Corretta la direzione dell'animazione irrigazione: acqua e gocce partono dallo sprinkler centrale e si espandono verso l'esterno.

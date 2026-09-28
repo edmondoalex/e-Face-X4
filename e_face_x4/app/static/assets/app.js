@@ -1,5 +1,8 @@
 import { initHeating, openHeating as showHeating, closeHeating } from './heating.js?v=2.21.209'
 const $ = (selector) => document.querySelector(selector)
+document.addEventListener('contextmenu',event=>{if(!event.target.closest('input,textarea,[contenteditable="true"]'))event.preventDefault()})
+document.addEventListener('selectstart',event=>{if(!event.target.closest('input,textarea,[contenteditable="true"]'))event.preventDefault()})
+document.addEventListener('dragstart',event=>event.preventDefault())
 initHeating()
 const deviceScope = (() => { const key='eface-device-scope-v1'; let value=localStorage.getItem(key); if(!/^[A-Za-z0-9_-]{16,64}$/.test(value||'')){value=(crypto.randomUUID?.()||`${Date.now()}-${Math.random()}`).replaceAll('-','');localStorage.setItem(key,value)} return value })()
 const deviceFetchOptions = (options={}) => ({...options,headers:{...(options.headers||{}),'X-Eface-Device':deviceScope}})
