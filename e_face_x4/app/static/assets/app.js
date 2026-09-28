@@ -449,7 +449,7 @@ function renderHomePetFeeders() {
   if (!card || card.classList.contains('widget-user-hidden')) return
   const feeders = currentDevices.filter(device => device.kind === 'select' && /feed|feeder|pet|gatt|cibo/i.test(`${device.id} ${device.entity_id || ''} ${device.name || ''}`))
   $('#home-pet-feeder-count').textContent = `${feeders.length} ${feeders.length === 1 ? 'FEEDER' : 'FEEDER'}`
-  $('#home-pet-feeder-list').innerHTML = feeders.map(device => { const options=device.options||[]; const command=options.length?`<div class="home-feeder-command"><select data-home-feeder-option aria-label="Quantità ${escAttribute(device.name || 'feeder')}">${options.map(option => `<option value="${escAttribute(option)}" ${String(option) === String(device.state) ? 'selected' : ''}>${esc(option)}</option>`).join('')}</select><button type="button" data-home-feeder-run>EROGA</button></div>`:'<small class="home-feeder-unavailable">Comando non disponibile</small>'; return `<article class="home-feeder-row" data-device-id="${escAttribute(device.id)}"><span class="mdi-mask" style="${mdiStyle('mdi:cat','cat')}"></span><span><strong>${esc(device.name || 'Feeder gatti')}</strong><small>${esc(device.room || 'Casa')}</small></span>${command}</article>` }).join('') || '<p class="home-insight-empty">Aggiungi l’etichetta e-Face al feeder in Home Assistant</p>'
+  $('#home-pet-feeder-list').innerHTML = feeders.map(device => { const options=device.options||[]; const command=options.length?`<div class="home-feeder-command"><select data-home-feeder-option aria-label="Quantità ${escAttribute(device.name || 'feeder')}">${options.map(option => `<option value="${escAttribute(option)}" ${String(option) === String(device.state) ? 'selected' : ''}>${esc(option)}</option>`).join('')}</select><button type="button" data-home-feeder-run>EROGA</button></div>`:'<small class="home-feeder-unavailable">Comando non disponibile</small>'; return `<article class="home-feeder-row" data-device-id="${escAttribute(device.id)}"><span class="mdi-mask" style="${mdiStyle('mdi:cat','cat')}"></span><span><strong>${esc(device.name || 'Feeder gatti')}</strong><small>${esc(device.room || 'Casa')}</small></span>${command}</article>` }).join('') || '<p class="home-insight-empty">Aggiungi l’etichetta e-Face al feeder in e-Control</p>'
 }
 
 const shortcutCategoryLabels = {lights:'Luci',switches:'Extra',covers:'Oscuranti',climate:'Comfort',security:'Sicurezza',media:'Audio e video',sensors:'Sensori',other:'Altro'}
@@ -2040,13 +2040,22 @@ async function loadAlexaNotificationItems(agendaData=null){
     const alexaRows=active.map(item=>{const when=item.scheduled_time?formatAlexaAgendaState(item.scheduled_time):item.alarm_time?formatAlexaAgendaState(new Date(Number(item.alarm_time)).toISOString()):item.remaining_ms?`${Math.ceil(Number(item.remaining_ms)/60000)} minuti`:'Programma attivo',device=item.device_name?` · ${item.device_name}`:'';return `<article class="alexa-agenda-event"><i>${icons[item.kind]||'◷'}</i><div><b>${esc(item.label||labels[item.kind]||'Evento Alexa')}</b><span>${esc(labels[item.kind]||item.kind)} · Alexa · ${esc(when)}${esc(device)}</span></div><button type="button" data-alexa-delete="${escAttribute(item.id)}" data-alexa-device="${escAttribute(item.device_id||'')}" aria-label="Elimina ${escAttribute(labels[item.kind]||'evento')}">×</button></article>`})
     const internal=(agendaData.internal||[]).filter(event=>hasAlexaAgendaEvent(event.start))
     const internalRows=internal.map(event=>`<article class="alexa-agenda-event"><i>${icons[event.kind]||'◆'}</i><div><b>${esc(event.summary)}</b><span>${esc(labels[event.kind]||event.kind||'Evento')} · Agenda interna e-Face · ${esc(formatAlexaAgendaState(event.start))}</span></div><button type="button" data-internal-agenda-delete="${escAttribute(event.id||'')}" aria-label="Elimina evento interno">×</button></article>`)
-    const calendarRows=(data.calendar_items||[]).map(event=>{const uid=event.uid||event.id||'',remove=uid?`<button type="button" data-calendar-delete="${escAttribute(uid)}" data-calendar-entity="${escAttribute(event.entity_id||'')}" aria-label="Elimina evento calendario">×</button>`:'';return `<article class="alexa-agenda-event"><i>◆</i><div><b>${esc(event.summary||'Evento calendario')}</b><span>Calendario · ${esc(event.calendar_name||event.entity_id||'Home Assistant')} · ${esc(formatAlexaAgendaState(calendarEventStart(event)))}</span></div>${remove}</article>`})
+    const calendarRows=(data.calendar_items||[]).map(event=>{const uid=event.uid||event.id||'',remove=uid?`<button type="button" data-calendar-delete="${escAttribute(uid)}" data-calendar-entity="${escAttribute(event.entity_id||'')}" aria-label="Elimina evento calendario">×</button>`:'';return `<article class="alexa-agenda-event"><i>◆</i><div><b>${esc(event.summary||'Evento calendario')}</b><span>Calendario · ${esc(event.calendar_name||event.entity_id||'e-Control')} · ${esc(formatAlexaAgendaState(calendarEventStart(event)))}</span></div>${remove}</article>`})
     const rows=[...alexaRows,...internalRows,...calendarRows].sort((left,right)=>{const a=left.match(/data-agenda-time="([^"]*)"/),b=right.match(/data-agenda-time="([^"]*)"/);return String(a?.[1]||'').localeCompare(String(b?.[1]||''))})
     setAgendaNavCount(rows.length);items.innerHTML=rows.join('')||'<p class="alexa-agenda-empty">Nessun evento Alexa, interno o calendario attivo.</p>'
   }catch(error){items.innerHTML=`<p class="alexa-agenda-empty">${esc(error.message)}</p>`}
 }
 function syncAgendaSource(){const external=$('#alexa-agenda-source').value==='alexa';$('#alexa-agenda-repeat-label').hidden=!(external&&alexaAgendaKind==='alarm');$('#alexa-agenda-device-label').hidden=!external;$('#alexa-agenda-device').required=external;$('#alexa-agenda-start-label').hidden=external;$('#alexa-agenda-start').required=!external;$('#alexa-agenda-value-label').childNodes[0].textContent=external?'Richiesta Alexa':'Titolo evento';$('#alexa-agenda-value').placeholder=external?({alarm:'es. domani alle 7:30',timer:'es. 20 minuti',reminder:'es. comprare il pane domani alle 18'}[alexaAgendaKind]):'es. Riunione o prendere la medicina'}
-function openAlexaAgenda(){closeHeating();closeIntercom();stopEnergyRefresh();applyBackground('');activeDetailIds=null;$('#home-view').hidden=true;$('#detail-view').hidden=true;$('#energy-view').hidden=true;$('#alexa-agenda-view').hidden=false;sessionStorage.setItem('eface-home-location',JSON.stringify({kind:'alexa-agenda'}));loadAlexaAgenda();window.scrollTo({top:0,behavior:'smooth'})}
+function openAlexaAgenda(){closeHeating();closeIntercom();closeIrrigation();stopEnergyRefresh();applyBackground('');activeDetailIds=null;$('#home-view').hidden=true;$('#detail-view').hidden=true;$('#energy-view').hidden=true;$('#alexa-agenda-view').hidden=false;sessionStorage.setItem('eface-home-location',JSON.stringify({kind:'alexa-agenda'}));loadAlexaAgenda();window.scrollTo({top:0,behavior:'smooth'})}
+
+function closeIrrigation(){ $('#irrigation-view').hidden = true }
+function openIrrigation(){
+  closeAlexaAgenda();closeHeating();closeIntercom();stopEnergyRefresh();applyBackground('');activeDetailIds=null
+  $('#home-view').hidden=true;$('#detail-view').hidden=true;$('#energy-view').hidden=true;$('#irrigation-view').hidden=false
+  sessionStorage.setItem('eface-home-location',JSON.stringify({kind:'irrigation'}))
+  if(!$('#irrigation-frame').getAttribute('src')) $('#irrigation-frame').src=apiUrl('api/edry/')
+  window.scrollTo({top:0,behavior:'smooth'})
+}
 
 function closeIntercom() {
   $('#intercom-view').hidden = true
@@ -2191,6 +2200,7 @@ function showHome() {
 }
 
 function openEnergy() {
+  closeIrrigation()
   closeAlexaAgenda()
   closeHeating()
   sessionStorage.setItem('eface-home-location', JSON.stringify({kind:'energy'}))
@@ -2209,6 +2219,7 @@ function openHeatingPage() {
   sessionStorage.setItem('eface-home-location', JSON.stringify({kind:'heating'}))
   closeIntercom()
   stopEnergyRefresh()
+  closeIrrigation()
   applyBackground('')
   activeDetailIds = null
   $('#home-view').hidden = true
@@ -2519,6 +2530,7 @@ function applyRealtimeEvent(event) {
 }
 
 document.querySelectorAll('.rail button').forEach((button) => button.addEventListener('click', () => {
+  if (button.dataset.view !== 'irrigation') closeIrrigation()
   document.querySelectorAll('.rail button').forEach((item) => item.classList.remove('active'))
   button.classList.add('active')
   document.querySelector('main').classList.remove('app-view')
@@ -2533,6 +2545,7 @@ document.querySelectorAll('.rail button').forEach((button) => button.addEventLis
   if (button.dataset.view === 'comfort') openDevices('Comfort', organizedDevices('comfort',currentDevices.filter((device) => deviceInCategory(device, 'comfort'))), { filters: true })
   if (button.dataset.view === 'sensors') openDevices('Sensori', organizedDevices('sensors',currentDevices.filter((device) => deviceInCategory(device, 'sensors'))), { filters: true })
   if (button.dataset.view === 'energy') openEnergy()
+  if (button.dataset.view === 'irrigation') openIrrigation()
   if (button.dataset.view === 'heating') openHeatingPage()
   if (button.dataset.view === 'security') openSecurityPage()
   if (button.dataset.view === 'shopping') { $('#home-shopping-dialog').showModal(); refreshHomeShoppingList(true) }
@@ -2633,6 +2646,8 @@ $('#home-live-media-list').addEventListener('input',(event)=>{const input=event.
 $('#home-live-media-list').addEventListener('change',(event)=>{const input=event.target.closest('.home-live-volume input');if(!input)return;input.matches('[data-home-zone-volume]')?setHomeZoneVolume(input):setSessionVolume(input)})
 $('#detail-back').addEventListener('click', showHome)
 $('#energy-back').addEventListener('click', () => activeEnergyDashboard ? showEnergyPicker() : showHome())
+$('#irrigation-back').addEventListener('click', showHome)
+$('#irrigation-reload').addEventListener('click', () => { $('#irrigation-frame').src=`${apiUrl('api/edry/')}?refresh=${Date.now()}` })
 $('#intercom-back').addEventListener('click', showHome)
 $('#intercom-frame').addEventListener('load', () => {
   $('#intercom-frame').contentWindow?.postMessage({type:'eface-intercom-visible',visible:!$('#intercom-view').hidden}, location.origin)
@@ -3383,6 +3398,7 @@ Promise.all([
   else if (savedLocation?.kind === 'intercom') openIntercom()
   else if (savedLocation?.kind === 'alexa-agenda') openAlexaAgenda()
   else if (savedLocation?.kind === 'heating') openHeatingPage()
+  else if (savedLocation?.kind === 'irrigation') openIrrigation()
   else if (savedLocation?.kind === 'energy' || savedLocation?.kind === 'energy-dashboard') {
     openEnergy()
     if (savedLocation.kind === 'energy-dashboard' && savedLocation.id) openEnergyDashboard(savedLocation.id, savedLocation.name || 'Dashboard energia')

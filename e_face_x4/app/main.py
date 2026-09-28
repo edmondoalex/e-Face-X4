@@ -78,7 +78,7 @@ from .media_realtime import SharedMediaRealtime
 from .demo import dashboard as demo_dashboard
 from .ha_labeled import normalize_labeled_entities
 
-VERSION = os.environ.get("EFACE_VERSION", "2.21.267")
+VERSION = os.environ.get("EFACE_VERSION", "2.21.268")
 STATIC = Path(__file__).parent / "static"
 logging.basicConfig(level=logging.WARNING, format="%(asctime)s %(levelname)s [e-face-x4] %(message)s")
 _reconnect_warning_at: dict[str, float] = {}
@@ -3220,6 +3220,52 @@ def create_app() -> FastAPI:
         headers = {"Cache-Control": upstream.headers.get("cache-control", "no-cache")}
         return Response(upstream.content, status_code=upstream.status_code, media_type=upstream.headers.get("content-type"), headers=headers)
 
+    async def edry_base_url() -> str:
+        settings = load_settings()
+        discovered, host_url = await asyncio.gather(
+            discover_addon_url("irrigazione_dashboard_v2", 1977, settings.request_timeout_s),
+            discover_host_url(1977, settings.request_timeout_s),
+        )
+        base_url = discovered or host_url
+        if not base_url:
+            raise HTTPException(status_code=503, detail="e-Dry non disponibile")
+        return base_url.rstrip("/")
+
+    async def edry_json(method: str, path: str, payload: dict | None = None) -> dict:
+        base_url = await edry_base_url()
+        async with httpx.AsyncClient(timeout=15, follow_redirects=False, trust_env=False) as client:
+            response = await client.request(method, f"{base_url}/{path.lstrip('/')}", json=payload)
+            response.raise_for_status()
+            data = response.json()
+        return data if isinstance(data, dict) else {}
+
+    @app.api_route("/api/edry/{proxy_path:path}", methods=["GET", "POST", "PUT", "DELETE"], include_in_schema=False)
+    async def edry_proxy(proxy_path: str, request: Request) -> Response:
+        clean_path = str(proxy_path or "").lstrip("/")
+        if ".." in clean_path.split("/"):
+            raise HTTPException(status_code=400, detail="Percorso e-Dry non valido")
+        base_url = await edry_base_url()
+        target = f"{base_url}/{clean_path}"
+        if request.url.query:
+            target += f"?{request.url.query}"
+        headers = {key: request.headers[key] for key in ("accept", "content-type") if key in request.headers}
+        try:
+            async with httpx.AsyncClient(timeout=30, follow_redirects=False, trust_env=False) as client:
+                upstream = await client.request(request.method, target, headers=headers, content=await request.body())
+        except httpx.HTTPError as exc:
+            raise HTTPException(status_code=502, detail="e-Dry non raggiungibile") from exc
+        content = upstream.content
+        content_type = upstream.headers.get("content-type", "application/octet-stream")
+        if "text/html" in content_type:
+            page = content.decode(upstream.encoding or "utf-8", errors="replace")
+            prefix = str(request.scope.get("root_path") or "").rstrip("/") + "/api/edry/"
+            page = page.replace("<head>", f'<head><base href="{prefix}">', 1)
+            page = page.replace("'/api/", "'api/").replace('"/api/', '"api/')
+            content = page.encode("utf-8")
+            content_type = "text/html; charset=utf-8"
+        response_headers = {"Cache-Control": upstream.headers.get("cache-control", "no-cache")}
+        return Response(content, status_code=upstream.status_code, headers=response_headers, media_type=content_type.split(";", 1)[0])
+
     @app.get("/api/bootstrap")
     async def bootstrap(request: Request) -> dict:
         owner = appearance_owner(request)
@@ -3485,6 +3531,35 @@ def create_app() -> FastAPI:
             logging.warning("Dispositivi agenda Alexa non disponibili nel catalogo routine")
             return []
 
+    async def routine_edry_items(referenced: set[str] | None = None) -> list[dict]:
+        if referenced is not None and not any(identifier.startswith("edry:") for identifier in referenced):
+            return []
+        try:
+            state = await edry_json("GET", "api/irrigazione/state")
+        except (HTTPException, httpx.HTTPError, ValueError, TypeError):
+            logging.warning("e-Dry non disponibile nel catalogo routine")
+            return []
+        items = [{"id": "edry:controller", "name": "Centralina e-Dry", "room": "Irrigazione",
+                  "kind": "irrigation_controller", "provider": "e-dry",
+                  "state": "running" if state.get("active_zone") or (state.get("quick_sequence") or {}).get("active") else "idle",
+                  "zones": [zone.get("id") for zone in state.get("zones", []) if isinstance(zone, dict)]}]
+        for zone in state.get("zones", []):
+            if not isinstance(zone, dict) or zone.get("id") is None:
+                continue
+            items.append({"id": f"edry:zone:{zone['id']}", "name": str(zone.get("name") or f"Zona {zone['id']}"),
+                          "room": "Irrigazione", "kind": "irrigation_zone", "provider": "e-dry",
+                          "state": "on" if zone.get("is_on") or str(zone.get("state")).lower() == "on" else "off",
+                          "zone_id": zone["id"], "entity_id": zone.get("switch"),
+                          "duration": zone.get("duration_effective") or zone.get("duration_smart") or zone.get("duration")})
+        for program in state.get("programs", []):
+            if not isinstance(program, dict) or program.get("program_id") is None:
+                continue
+            program_state = "running" if program.get("running") else "enabled" if program.get("enabled") else "disabled"
+            items.append({"id": f"edry:program:{program['program_id']}", "name": str(program.get("name") or f"Programma {program['program_id']}"),
+                          "room": "Irrigazione", "kind": "irrigation_program", "provider": "e-dry",
+                          "state": program_state, "program_id": program["program_id"]})
+        return items if referenced is None else [item for item in items if item["id"] in referenced]
+
     async def routine_devices(request: Request | None = None, referenced: set[str] | None = None) -> list[dict]:
         async def with_scenarios(items: list[dict]) -> list[dict]:
             if request is not None or (referenced and any(identifier.startswith("light-scenario:") for identifier in referenced)):
@@ -3492,7 +3567,8 @@ def create_app() -> FastAPI:
             extra = await asyncio.gather(routine_bypass_items(referenced if request is None else None),
                                          routine_ha_cover_items(referenced if request is None else None),
                                          routine_alexa_schedule_items(referenced if request is None else None),
-                                         routine_alexa_devices(referenced if request is None else None))
+                                         routine_alexa_devices(referenced if request is None else None),
+                                         routine_edry_items(referenced if request is None else None))
             for group in extra:
                 items.extend(group)
             if referenced is None or "intercom:console" in referenced:
@@ -3528,6 +3604,28 @@ def create_app() -> FastAPI:
         return await with_scenarios(data.get("dashboard", {}).get("devices", []))
 
     async def routine_command(device_id: str, action: str, value: object) -> object:
+        if device_id.startswith("edry:"):
+            if value is not None:
+                raise ValueError("Il comando e-Dry non accetta un valore")
+            items = {item["id"]: item for item in await routine_edry_items({device_id})}
+            item = items.get(device_id)
+            if not item:
+                raise RuntimeError("Entità e-Dry non disponibile")
+            if item["kind"] == "irrigation_zone" and action in {"irrigation_start", "irrigation_stop"}:
+                payload = {"zone_id": item["zone_id"], "entity_id": item.get("entity_id")}
+                if action == "irrigation_start":
+                    payload["duration"] = item.get("duration") or 1
+                return await edry_json("POST", f"api/irrigazione/zone/{'start' if action == 'irrigation_start' else 'stop'}", payload)
+            if item["kind"] == "irrigation_program" and action == "irrigation_program_stop":
+                return await edry_json("POST", "api/programs/stop", {"program_id": item["program_id"]})
+            if item["kind"] == "irrigation_controller":
+                if action in {"irrigation_program_enable", "irrigation_program_disable"}:
+                    return await edry_json("POST", "api/programs/enabled", {"enabled": action.endswith("enable")})
+                if action == "irrigation_sequence_start":
+                    return await edry_json("POST", "api/irrigazione/sequence/start", {"zones": item.get("zones", []), "duration": 0})
+                if action == "irrigation_stop_all":
+                    return await edry_json("POST", "api/irrigazione/stop_all", {})
+            raise ValueError("Comando e-Dry non consentito")
         if device_id == "intercom:console":
             if action not in {"open_intercom", "hangup_intercom"} or value is not None:
                 raise ValueError("Comando Intercom non consentito")

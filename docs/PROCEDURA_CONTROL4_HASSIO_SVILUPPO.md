@@ -211,3 +211,11 @@ Quando WiiM è selezionato come sorgente di una stanza Control4, WiiM è autorev
 - Le azioni affidabili senza scegliere arbitrariamente un terminale sono `open_intercom` e `hangup_intercom`: vengono diffuse alle UI e-Face connesse tramite il canale realtime. Non avviare automaticamente chiamate verso interni da tutte le UI, perché più browser SIP registrati potrebbero originare chiamate duplicate e i browser possono bloccare microfono/autoplay.
 - Il click su accessi e tastierino deve avere precedenza sui gesti di trascinamento: un `pointercancel` non può lasciare uno stato che scarti il click successivo. Mantenere target touch di almeno 48 px per APRI/CHIUDI e almeno 56 px per i tasti PIN.
 - Regressione ripetibile senza chiamate o movimenti fisici: `python -m pytest tests/test_app.py tests/test_routines.py -q` e `node --check` sugli asset `app.js`, `intercom.js` e `routine-tools.js`. La verifica audio/video e il comando fisico di accessi restano prove manuali.
+
+## Connettore e-Dry Irrigazione (28/09/2026)
+
+- Evidenza live in sola lettura: l'add-on `e-Dry Irrigazione` espone sulla porta interna 1977 la dashboard originale e `GET /api/irrigazione/state`; lo snapshot verificato contiene zone, programmi, sequenza rapida, meteo e progressi. e-Face non duplica questa configurazione.
+- La pagina Irrigazione usa un proxy interno ristretto all'add-on scoperto dal Supervisor, riscrive soltanto i riferimenti API assoluti della pagina e conserva compatibilità con Ingress. Non accetta host o URL forniti dal browser.
+- Il catalogo Routine normalizza `edry:zone:{id}`, `edry:program:{id}` e `edry:controller`. Tutti sono disponibili per trigger e condizioni di stato. Le azioni ammesse sono limitate ai comandi e-Dry verificati: avvio/arresto zona, arresto programma, abilitazione globale programmi, sequenza completa e stop generale.
+- I trigger di stato seguono il polling già protetto del motore Routine; non viene creato un secondo scheduler. Prima di ogni azione il target viene riletto dallo snapshot e-Dry live.
+- Controllo ripetibile senza irrigare: leggere `GET /api/irrigazione/state`, verificare il catalogo Routine e caricare la dashboard tramite il proxy. I test di avvio zona, sequenza e stop mutano l'impianto e richiedono una prova manuale esplicita.

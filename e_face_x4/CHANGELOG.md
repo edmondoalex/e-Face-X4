@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.21.268 — 2026-09-28
+
+- Aggiunta la pagina Irrigazione con la dashboard originale e-Dry integrata tramite proxy interno compatibile con Home Assistant Ingress.
+- Esposte nel catalogo Routine le zone, i programmi e la centralina e-Dry per trigger, condizioni e azioni supportate.
+- Aggiunta Irrigazione alle sezioni ordinabili della barra laterale e mantenuto il ritorno alla pagina dopo un aggiornamento.
+
 ## 2.21.267 — 2026-09-28
 
 - Le Routine espongono eventi Intercom (chiamata in arrivo, collegata, terminata e offline), lo stato Intercom come condizione e le azioni Apri Intercom/Termina chiamata.

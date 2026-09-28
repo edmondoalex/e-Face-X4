@@ -95,7 +95,10 @@ const actions = {
   media_player: [['media_play', 'Riproduci'], ['media_pause', 'Pausa'], ['media_stop', 'Stop'], ['media_next', 'Successivo'], ['media_previous', 'Precedente'], ['turn_off', 'Spegni stanza'], ['set_volume', 'Volume %'], ['volume_mute', 'Mute'], ['volume_unmute', 'Riattiva audio'], ['select_source', 'Seleziona sorgente'], ['remote_command', 'Tasto telecomando sorgente'], ['dnd_on', 'Attiva Non disturbare'], ['dnd_off', 'Disattiva Non disturbare'], ['tts', 'Messaggio vocale (TTS)']],
   alexa_device: [['set_alarm', 'Imposta sveglia'], ['set_daily_alarm', 'Imposta sveglia tutti i giorni'], ['set_timer', 'Imposta timer'], ['set_reminder', 'Imposta promemoria'], ['cancel_alarm', 'Cancella prossima sveglia'], ['cancel_timer', 'Cancella prossimo timer'], ['cancel_reminder', 'Cancella prossimo promemoria']],
   climate: [['set_target', 'Temperatura °C']],
-  intercom: [['open_intercom', 'Apri Intercom'], ['hangup_intercom', 'Termina chiamata']]
+  intercom: [['open_intercom', 'Apri Intercom'], ['hangup_intercom', 'Termina chiamata']],
+  irrigation_zone: [['irrigation_start', 'Avvia irrigazione'], ['irrigation_stop', 'Ferma irrigazione']],
+  irrigation_program: [['irrigation_program_stop', 'Ferma programma']],
+  irrigation_controller: [['irrigation_program_enable', 'Abilita programmi'], ['irrigation_program_disable', 'Disabilita programmi'], ['irrigation_sequence_start', 'Avvia sequenza completa'], ['irrigation_stop_all', 'Ferma tutto']]
 }
 const sensitive = /portone|cancello|garage|serratura|allarme|alarm|gate|door|lock/i
 const safeDevices = () => devices.filter(item => { const identity = [item.id, item.entity_id, item.name, item.room].join(' '); return (!catalogFilters.hide_readonly_actions || actions[item.kind]) && (item.kind === 'lock' || item.kind === 'cover' || !catalogFilters.block_sensitive_names || (!sensitive.test(identity) && !/porta/i.test(identity))) })
@@ -121,13 +124,13 @@ function remoteFields(deviceId, sourceId = 0, command = '', trigger = true) {
 }
 const valuesFor = deviceId => {
   const device = devices.find(item => item.id === deviceId)
-  const byKind = {light:['on','off'], light_scenario: [...(device?.capabilities?.onoff ? ['on','off'] : []),'command_on','command_off','running','idle'], switch:['on','off'], binary_sensor:['on','off'], select:device?.options||[], cover:['open','closed','opening','closing'], media_player:['playing','paused','idle','off','standby','buffering','unavailable'], lock:['locked','unlocked'], climate:['heat','cool','auto','off'], alarm_zone:['closed','active','tamper','masked','bypassed'], alarm_partition:['disarmed','armed','alarm','tamper'], intercom:['idle','available','ringing','active']}
+  const byKind = {light:['on','off'], light_scenario: [...(device?.capabilities?.onoff ? ['on','off'] : []),'command_on','command_off','running','idle'], switch:['on','off'], binary_sensor:['on','off'], select:device?.options||[], cover:['open','closed','opening','closing'], media_player:['playing','paused','idle','off','standby','buffering','unavailable'], lock:['locked','unlocked'], climate:['heat','cool','auto','off'], alarm_zone:['closed','active','tamper','masked','bypassed'], alarm_partition:['disarmed','armed','alarm','tamper'], intercom:['idle','available','ringing','active'], irrigation_zone:['on','off'], irrigation_program:['running','enabled','disabled','idle'], irrigation_controller:['running','idle']}
   return [...new Set([...(byKind[device?.kind] || []), String(device?.state ?? '').toLowerCase()].filter(Boolean))]
 }
 const stateLabels = {closed:'Chiuso', active:'Attivo / chiamata collegata', available:'Disponibile', ringing:'Chiamata in arrivo', idle:'Offline / inattivo', running:'Avvio scenario', command_on:'Accendi scenario (comando)', command_off:'Spegni scenario (comando)', tamper:'Sabotaggio', masked:'Mascherato', bypassed:'Escluso', disarmed:'Disinserito', armed:'Inserito', alarm:'Allarme'}
 const stateSelect = (deviceId, selected) => {
   const values = valuesFor(deviceId)
-  if (!values.length || !['light','light_scenario','switch','binary_sensor','select','cover','media_player','lock','climate','alarm_zone','alarm_partition','intercom'].includes(devices.find(item => item.id === deviceId)?.kind)) {
+  if (!values.length || !['light','light_scenario','switch','binary_sensor','select','cover','media_player','lock','climate','alarm_zone','alarm_partition','intercom','irrigation_zone','irrigation_program','irrigation_controller'].includes(devices.find(item => item.id === deviceId)?.kind)) {
     return `<input data-field="value" value="${escapeHtml(selected || '')}" placeholder="${values.length ? `Stato attuale: ${escapeHtml(values[0])}` : 'Stato del dispositivo'}" aria-label="Stato del dispositivo">`
   }
   if (selected && !values.includes(selected)) values.push(selected)

@@ -37,6 +37,9 @@ SAFE_ACTIONS = {
     "lock": {"lock", "unlock"},
     "button": {"press"},
     "intercom": {"open_intercom", "hangup_intercom"},
+    "irrigation_zone": {"irrigation_start", "irrigation_stop"},
+    "irrigation_program": {"irrigation_program_stop"},
+    "irrigation_controller": {"irrigation_program_enable", "irrigation_program_disable", "irrigation_sequence_start", "irrigation_stop_all"},
 }
 ACTION_STATES = {"on": "on", "off": "off", "open": "open", "close": "closed", "lock": "locked", "unlock": "unlocked", "media_play": "playing",
                  "media_pause": "paused", "media_stop": "idle", "turn_off": "off"}
@@ -52,6 +55,10 @@ ACTION_LABELS = {"on": "accendere", "off": "spegnere", "brightness": "regolare l
                  "cancel_alarm": "cancellare la prossima sveglia da", "cancel_timer": "cancellare il prossimo timer da", "cancel_reminder": "cancellare il prossimo promemoria da",
                  "lock": "bloccare", "unlock": "sbloccare", "set_position": "posizionare", "press": "premere", "select_option": "selezionare l'opzione su",
                  "open_intercom": "aprire la pagina Intercom su", "hangup_intercom": "terminare la chiamata su"}
+ACTION_LABELS.update({"irrigation_start": "avviare irrigazione su", "irrigation_stop": "fermare irrigazione su",
+                      "irrigation_program_enable": "abilitare", "irrigation_program_disable": "disabilitare",
+                      "irrigation_program_stop": "fermare", "irrigation_sequence_start": "avviare la sequenza su",
+                      "irrigation_stop_all": "fermare tutta l'irrigazione su"})
 REMOTE_PLAYER_COMMANDS = {"media_play": "play", "media_pause": "pause", "media_stop": "stop", "media_next": "next", "media_previous": "previous", "turn_off": "turn_off", "volume_mute": "mute", "volume_unmute": "mute"}
 SENSITIVE_WORDS = re.compile(r"portone|cancello|garage|serratura|allarme|alarm|gate|door|lock", re.I)
 SECRET_TEXT = re.compile(r"(?i)(password|token|secret|authorization)\s*[:=]\s*\S+|https?://\S+")
