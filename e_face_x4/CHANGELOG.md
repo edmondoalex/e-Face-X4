@@ -1,5 +1,9 @@
 # Changelog
 
+## 2.21.272 — 2026-09-28
+
+- L'icona Irrigazione ora raffigura un irrigatore sul prato; archi d'acqua e gocce compaiono esclusivamente durante l'irrigazione.
+
 ## 2.21.271 — 2026-09-28
 
 - La voce Irrigazione mostra gocce animate mentre e-Dry è attivo, il numero della zona a sinistra e quello del programma in esecuzione a destra.
