@@ -36,6 +36,7 @@ SAFE_ACTIONS = {
     "cover": {"open", "close", "stop", "set_position"},
     "lock": {"lock", "unlock"},
     "button": {"press"},
+    "intercom": {"open_intercom", "hangup_intercom"},
 }
 ACTION_STATES = {"on": "on", "off": "off", "open": "open", "close": "closed", "lock": "locked", "unlock": "unlocked", "media_play": "playing",
                  "media_pause": "paused", "media_stop": "idle", "turn_off": "off"}
@@ -49,7 +50,8 @@ ACTION_LABELS = {"on": "accendere", "off": "spegnere", "brightness": "regolare l
                  "dnd_on": "attivare Non disturbare su", "dnd_off": "disattivare Non disturbare su",
                  "set_alarm": "impostare una sveglia su", "set_daily_alarm": "impostare una sveglia giornaliera su", "set_timer": "impostare un timer su", "set_reminder": "impostare un promemoria su",
                  "cancel_alarm": "cancellare la prossima sveglia da", "cancel_timer": "cancellare il prossimo timer da", "cancel_reminder": "cancellare il prossimo promemoria da",
-                 "lock": "bloccare", "unlock": "sbloccare", "set_position": "posizionare", "press": "premere", "select_option": "selezionare l'opzione su"}
+                 "lock": "bloccare", "unlock": "sbloccare", "set_position": "posizionare", "press": "premere", "select_option": "selezionare l'opzione su",
+                 "open_intercom": "aprire la pagina Intercom su", "hangup_intercom": "terminare la chiamata su"}
 REMOTE_PLAYER_COMMANDS = {"media_play": "play", "media_pause": "pause", "media_stop": "stop", "media_next": "next", "media_previous": "previous", "turn_off": "turn_off", "volume_mute": "mute", "volume_unmute": "mute"}
 SENSITIVE_WORDS = re.compile(r"portone|cancello|garage|serratura|allarme|alarm|gate|door|lock", re.I)
 SECRET_TEXT = re.compile(r"(?i)(password|token|secret|authorization)\s*[:=]\s*\S+|https?://\S+")
@@ -650,7 +652,7 @@ def validate(payload: dict, devices: list[dict], others: list[dict] = (), *, sol
         if not isinstance(raw, dict):
             errors.append("Attivazione non valida")
             continue
-        trigger_fields = {"time": {"type", "at"}, "doorbird": {"type", "event"}, "sun": {"type", "event", "offset_minutes"},
+        trigger_fields = {"time": {"type", "at"}, "doorbird": {"type", "event"}, "intercom": {"type", "event"}, "sun": {"type", "event", "offset_minutes"},
                           "alexa_schedule": {"type", "device_id", "offset_minutes"},
                           "remote": {"type", "device_id", "source_id", "command"}, "state": {"type", "device_id", "to"}}
         trigger_kind = raw.get("type") if isinstance(raw.get("type"), str) else ""
@@ -669,6 +671,12 @@ def validate(payload: dict, devices: list[dict], others: list[dict] = (), *, sol
                 errors.append("Evento DoorBird non valido")
             else:
                 triggers.append({"type": "doorbird", "event": event})
+        elif raw.get("type") == "intercom":
+            event = str(raw.get("event") or "")
+            if event not in {"ringing", "active", "available", "idle"}:
+                errors.append("Evento Intercom non valido")
+            else:
+                triggers.append({"type": "intercom", "event": event})
         elif raw.get("type") == "sun":
             rule = _solar_rule(raw, errors)
             if rule:
@@ -945,6 +953,8 @@ def validate(payload: dict, devices: list[dict], others: list[dict] = (), *, sol
             descriptions.append(f"alle {trigger['at']}")
         elif trigger["type"] == "doorbird":
             descriptions.append("quando suona DoorBird" if trigger["event"] == "doorbell" else "quando DoorBird rileva movimento")
+        elif trigger["type"] == "intercom":
+            descriptions.append({"ringing": "quando arriva una chiamata Intercom", "active": "quando una chiamata Intercom viene collegata", "available": "quando termina una chiamata Intercom", "idle": "quando Intercom va offline"}[trigger["event"]])
         elif trigger["type"] == "sun":
             descriptions.append(f"a {'alba' if trigger['event'] == 'sunrise' else 'tramonto'} {trigger['offset_minutes']:+d} minuti")
         elif trigger["type"] == "remote":
@@ -1322,6 +1332,21 @@ class Engine:
             self.external_cooldowns[key] = now
             self._start(routine, "DoorBird: chiamata" if event == "doorbell" else "DoorBird: movimento",
                         f"doorbird:{event}:{_now()}", devices)
+
+    async def intercom_event(self, event: str) -> None:
+        if event not in {"ringing", "active", "available", "idle"}:
+            return
+        matching = [routine for routine in list_routines(enabled_only=True) if any(
+            trigger.get("type") == "intercom" and trigger.get("event") == event
+            for trigger in routine["spec"]["triggers"])]
+        if not matching:
+            return
+        devices = await self._snapshot_for(matching)
+        if "intercom:console" in devices:
+            devices["intercom:console"] = {**devices["intercom:console"], "state": event}
+        labels = {"ringing": "Chiamata in arrivo", "active": "Chiamata collegata", "available": "Chiamata terminata", "idle": "Intercom offline"}
+        for routine in matching:
+            self._start(routine, f"Intercom: {labels[event]}", f"intercom:{event}:{uuid.uuid4()}", devices)
 
     async def remote_event(self, device_id: str, source_id: int, command: str) -> None:
         matching = [routine for routine in list_routines(enabled_only=True) if any(

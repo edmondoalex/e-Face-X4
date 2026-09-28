@@ -30,6 +30,29 @@ def sample():
             "conditions": [], "steps": [{"type": "action", "device_id": "light.hall", "action": "on"}]}
 
 
+def test_intercom_trigger_condition_and_actions_are_supported():
+    intercom = {"id": "intercom:console", "kind": "intercom", "name": "Intercom e-Face", "room": "Intercom", "state": "available"}
+    spec = {"name": "Chiamata Intercom", "triggers": [{"type": "intercom", "event": "ringing"}],
+            "conditions": [{"device_id": "intercom:console", "operator": "is", "value": "ringing"}],
+            "steps": [{"type": "action", "device_id": "intercom:console", "action": "open_intercom"},
+                      {"type": "action", "device_id": "intercom:console", "action": "hangup_intercom"}]}
+    review = routines.validate(spec, [intercom])
+    assert review["errors"] == []
+    assert review["spec"]["triggers"] == [{"type": "intercom", "event": "ringing"}]
+    assert routines.validate({**spec, "triggers": [{"type": "intercom", "event": "unknown"}]}, [intercom])["errors"]
+
+    calls = []
+    async def snapshot(): return [intercom]
+    async def command(device_id, action, value): calls.append((device_id, action, value))
+    saved = routines.save("alice", "alice", None, review["spec"], True, None)
+    engine = routines.Engine(snapshot, command)
+    async def run():
+        await engine.intercom_event("ringing")
+        await asyncio.wait_for(engine.running[saved["id"]], 2)
+    asyncio.run(run())
+    assert calls == [("intercom:console", "open_intercom", None), ("intercom:console", "hangup_intercom", None)]
+
+
 def test_select_is_available_as_trigger_condition_and_action():
     feeder = {"id": "ha:select.feeder", "kind": "select", "name": "Distributore", "room": "Cucina", "state": "1",
               "options": ["1", "2", "3"], "source_list": ["1", "2", "3"], "capabilities": {"select_source": True}}

@@ -2,7 +2,7 @@
   const $ = (selector) => document.querySelector(selector)
   const adminMode = document.documentElement.classList.contains('admin-intercom')
   const root = new URL('./', location.href)
-const currentVersion = '2.21.266'
+const currentVersion = '2.21.267'
   function newDeviceId() {
     if (typeof crypto.randomUUID === 'function') return crypto.randomUUID()
     const bytes = new Uint8Array(16)
@@ -376,7 +376,12 @@ const currentVersion = '2.21.266'
     }
   })
   window.addEventListener('message', (event) => {
-    if (event.origin !== location.origin || event.source !== window.parent || event.data?.type !== 'eface-intercom-visible') return
+    if (event.origin !== location.origin || event.source !== window.parent) return
+    if (event.data?.type === 'eface-intercom-command' && event.data.action === 'hangup') {
+      if (call) $('#call-hangup').click()
+      return
+    }
+    if (event.data?.type !== 'eface-intercom-visible') return
     intercomVisible = !!event.data.visible
     if (intercomVisible) {
       startDoorbirdVideo()

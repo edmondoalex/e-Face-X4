@@ -78,7 +78,7 @@ from .media_realtime import SharedMediaRealtime
 from .demo import dashboard as demo_dashboard
 from .ha_labeled import normalize_labeled_entities
 
-VERSION = os.environ.get("EFACE_VERSION", "2.21.266")
+VERSION = os.environ.get("EFACE_VERSION", "2.21.267")
 STATIC = Path(__file__).parent / "static"
 logging.basicConfig(level=logging.WARNING, format="%(asctime)s %(levelname)s [e-face-x4] %(message)s")
 _reconnect_warning_at: dict[str, float] = {}
@@ -190,6 +190,7 @@ def create_app() -> FastAPI:
     app.state.routine_ksenia_snapshot_at = 0.0
     app.state.ha_eface_registry_cache = None
     app.state.ha_eface_registry_cache_at = 0.0
+    app.state.intercom_state = "idle"
 
     @app.on_event("shutdown")
     async def close_shared_media_realtime() -> None:
@@ -3494,6 +3495,9 @@ def create_app() -> FastAPI:
                                          routine_alexa_devices(referenced if request is None else None))
             for group in extra:
                 items.extend(group)
+            if referenced is None or "intercom:console" in referenced:
+                items.append({"id": "intercom:console", "name": "Intercom e-Face", "room": "Intercom",
+                              "kind": "intercom", "provider": "e-face", "state": app.state.intercom_state})
             return items
         if request is None:
             settings = load_settings()
@@ -3524,6 +3528,11 @@ def create_app() -> FastAPI:
         return await with_scenarios(data.get("dashboard", {}).get("devices", []))
 
     async def routine_command(device_id: str, action: str, value: object) -> object:
+        if device_id == "intercom:console":
+            if action not in {"open_intercom", "hangup_intercom"} or value is not None:
+                raise ValueError("Comando Intercom non consentito")
+            await broadcast_realtime({"type": "intercom_command", "data": {"action": action}})
+            return {"ok": True}
         if device_id.startswith("ha:"):
             return await device_command_impl(device_id, {"action": action, "value": value})
         if device_id.startswith("alexa-device:"):
@@ -3593,6 +3602,19 @@ def create_app() -> FastAPI:
             await routine_engine.remote_event(device_id, source_id, command)
         except Exception as exc:
             logging.warning("Media remote routine event delayed: %s", exc)
+
+    @app.post("/api/intercom/runtime-state")
+    async def intercom_runtime_state(request: Request, payload: dict) -> dict:
+        routine_owner(request)
+        state = str(payload.get("state") or "")
+        if state not in {"idle", "available", "ringing", "active"}:
+            raise HTTPException(status_code=400, detail="Stato Intercom non valido")
+        changed = state != app.state.intercom_state
+        app.state.intercom_state = state
+        if changed:
+            await routine_engine.intercom_event(state)
+            await broadcast_realtime({"type": "intercom_state", "data": {"state": state}})
+        return {"ok": True, "changed": changed}
 
     @app.on_event("startup")
     async def start_routine_engine() -> None:

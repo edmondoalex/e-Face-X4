@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.21.267 — 2026-09-28
+
+- Le Routine espongono eventi Intercom (chiamata in arrivo, collegata, terminata e offline), lo stato Intercom come condizione e le azioni Apri Intercom/Termina chiamata.
+- I pulsanti di accessi, portoni e tastierino sicurezza hanno aree touch più ampie e non vengono più scartati da uno stato residuo del gesto di scorrimento.
+
 ## 2.21.266 — 2026-09-24
 
 - Gli eventi delle entità Home Assistant `calendar.*` compaiono ora nell'elenco Agenda e nel relativo contatore insieme ad Alexa e all'agenda interna.

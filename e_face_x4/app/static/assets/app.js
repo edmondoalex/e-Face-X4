@@ -2573,6 +2573,11 @@ $('#home-view').addEventListener('click', (event) => {
     if (card && select) sendDeviceCommand(card.dataset.deviceId, 'select_option', feederRun, select.value)
     return
   }
+  if (event.type === 'intercom_command') {
+    if (event.data?.action === 'open_intercom') openIntercom()
+    else if (event.data?.action === 'hangup_intercom') $('#intercom-frame').contentWindow?.postMessage({type:'eface-intercom-command',action:'hangup'},location.origin)
+    return
+  }
   const roomButton = event.target.closest('[data-pulse-room]')
   if (roomButton) {
     const room = roomButton.dataset.pulseRoom
@@ -2899,7 +2904,7 @@ $('#device-list').addEventListener('click', (event) => {
     return
   }
   if (Date.now() < recentDragSuppressUntil && event.target.closest('[data-recent-key]')) { event.preventDefault(); return }
-  if (devicePointerGesture?.moved) { devicePointerGesture = null; return }
+  if (devicePointerGesture?.moved && !event.target.closest('button,[data-pin-key]')) { devicePointerGesture = null; return }
   const recentButton = event.target.closest('[data-recent-key]')
   if (recentButton) return selectRecentlyPlayed(recentButton)
   const mediaSectionToggle = event.target.closest('[data-media-section-toggle]')
@@ -3047,6 +3052,7 @@ $('#device-list').addEventListener('click', (event) => {
   devicePointerGesture = null
 })
 $('#device-list').addEventListener('pointerdown', (event) => {
+  if (event.target.closest('button,[data-pin-key]')) { devicePointerGesture = null; return }
   const strip = event.target.closest('.media-recent-strip')
   if (strip && event.pointerType === 'mouse' && event.button === 0) {
     recentDrag = { strip, pointerId: event.pointerId, x: event.clientX, left: strip.scrollLeft, moved: false }
@@ -3074,7 +3080,7 @@ $('#device-list').addEventListener('pointerup', (event) => {
   if (recentDrag.strip.hasPointerCapture(event.pointerId)) recentDrag.strip.releasePointerCapture(event.pointerId)
   recentDrag = null
 })
-$('#device-list').addEventListener('pointercancel', () => { recentDrag = null; devicePointerGesture = { moved: true } }, { passive: true })
+$('#device-list').addEventListener('pointercancel', () => { recentDrag = null; devicePointerGesture = null }, { passive: true })
 $('#device-list').addEventListener('keydown', (event) => {
   const navigator = event.target.closest('[data-msp-open]')
   if (navigator && (event.key === 'Enter' || event.key === ' ')) {
@@ -3340,6 +3346,7 @@ window.addEventListener('message', (event) => {
 })
 window.addEventListener('message', (event) => {
   if (event.origin !== location.origin || event.source !== $('#intercom-frame').contentWindow || event.data?.type !== 'eface-intercom-state') return
+  fetch(apiUrl('api/intercom/runtime-state'),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({state:event.data.state})}).catch(()=>{})
   const button=document.querySelector('[data-view="intercom"]')
   button.dataset.intercomState=['idle','available','ringing','active'].includes(event.data.state)?event.data.state:'idle'
   button.title={idle:'Intercom non collegato',available:'Intercom disponibile',ringing:'Chiamata in arrivo',active:'Intercomunicazione attiva'}[button.dataset.intercomState]

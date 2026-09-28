@@ -94,7 +94,8 @@ const actions = {
   lock: [['lock', 'Blocca'], ['unlock', 'Sblocca']],
   media_player: [['media_play', 'Riproduci'], ['media_pause', 'Pausa'], ['media_stop', 'Stop'], ['media_next', 'Successivo'], ['media_previous', 'Precedente'], ['turn_off', 'Spegni stanza'], ['set_volume', 'Volume %'], ['volume_mute', 'Mute'], ['volume_unmute', 'Riattiva audio'], ['select_source', 'Seleziona sorgente'], ['remote_command', 'Tasto telecomando sorgente'], ['dnd_on', 'Attiva Non disturbare'], ['dnd_off', 'Disattiva Non disturbare'], ['tts', 'Messaggio vocale (TTS)']],
   alexa_device: [['set_alarm', 'Imposta sveglia'], ['set_daily_alarm', 'Imposta sveglia tutti i giorni'], ['set_timer', 'Imposta timer'], ['set_reminder', 'Imposta promemoria'], ['cancel_alarm', 'Cancella prossima sveglia'], ['cancel_timer', 'Cancella prossimo timer'], ['cancel_reminder', 'Cancella prossimo promemoria']],
-  climate: [['set_target', 'Temperatura °C']]
+  climate: [['set_target', 'Temperatura °C']],
+  intercom: [['open_intercom', 'Apri Intercom'], ['hangup_intercom', 'Termina chiamata']]
 }
 const sensitive = /portone|cancello|garage|serratura|allarme|alarm|gate|door|lock/i
 const safeDevices = () => devices.filter(item => { const identity = [item.id, item.entity_id, item.name, item.room].join(' '); return (!catalogFilters.hide_readonly_actions || actions[item.kind]) && (item.kind === 'lock' || item.kind === 'cover' || !catalogFilters.block_sensitive_names || (!sensitive.test(identity) && !/porta/i.test(identity))) })
@@ -120,13 +121,13 @@ function remoteFields(deviceId, sourceId = 0, command = '', trigger = true) {
 }
 const valuesFor = deviceId => {
   const device = devices.find(item => item.id === deviceId)
-  const byKind = {light:['on','off'], light_scenario: [...(device?.capabilities?.onoff ? ['on','off'] : []),'command_on','command_off','running','idle'], switch:['on','off'], binary_sensor:['on','off'], select:device?.options||[], cover:['open','closed','opening','closing'], media_player:['playing','paused','idle','off','standby','buffering','unavailable'], lock:['locked','unlocked'], climate:['heat','cool','auto','off'], alarm_zone:['closed','active','tamper','masked','bypassed'], alarm_partition:['disarmed','armed','alarm','tamper']}
+  const byKind = {light:['on','off'], light_scenario: [...(device?.capabilities?.onoff ? ['on','off'] : []),'command_on','command_off','running','idle'], switch:['on','off'], binary_sensor:['on','off'], select:device?.options||[], cover:['open','closed','opening','closing'], media_player:['playing','paused','idle','off','standby','buffering','unavailable'], lock:['locked','unlocked'], climate:['heat','cool','auto','off'], alarm_zone:['closed','active','tamper','masked','bypassed'], alarm_partition:['disarmed','armed','alarm','tamper'], intercom:['idle','available','ringing','active']}
   return [...new Set([...(byKind[device?.kind] || []), String(device?.state ?? '').toLowerCase()].filter(Boolean))]
 }
-const stateLabels = {closed:'Chiuso', active:'Attivo / rilevato', running:'Avvio scenario', command_on:'Accendi scenario (comando)', command_off:'Spegni scenario (comando)', tamper:'Sabotaggio', masked:'Mascherato', bypassed:'Escluso', disarmed:'Disinserito', armed:'Inserito', alarm:'Allarme'}
+const stateLabels = {closed:'Chiuso', active:'Attivo / chiamata collegata', available:'Disponibile', ringing:'Chiamata in arrivo', idle:'Offline / inattivo', running:'Avvio scenario', command_on:'Accendi scenario (comando)', command_off:'Spegni scenario (comando)', tamper:'Sabotaggio', masked:'Mascherato', bypassed:'Escluso', disarmed:'Disinserito', armed:'Inserito', alarm:'Allarme'}
 const stateSelect = (deviceId, selected) => {
   const values = valuesFor(deviceId)
-  if (!values.length || !['light','light_scenario','switch','binary_sensor','select','cover','media_player','lock','climate','alarm_zone','alarm_partition'].includes(devices.find(item => item.id === deviceId)?.kind)) {
+  if (!values.length || !['light','light_scenario','switch','binary_sensor','select','cover','media_player','lock','climate','alarm_zone','alarm_partition','intercom'].includes(devices.find(item => item.id === deviceId)?.kind)) {
     return `<input data-field="value" value="${escapeHtml(selected || '')}" placeholder="${values.length ? `Stato attuale: ${escapeHtml(values[0])}` : 'Stato del dispositivo'}" aria-label="Stato del dispositivo">`
   }
   if (selected && !values.includes(selected)) values.push(selected)
@@ -175,7 +176,7 @@ function collect() {
   draft.triggers = [...$('[data-routine-triggers]').children].map(row => {
     const type = row.querySelector('[data-field="type"]').value
     return type === 'time' ? {type, at: row.querySelector('[data-field="at"]')?.value || ''}
-      : type === 'doorbird' ? {type, event: row.querySelector('[data-field="event"]')?.value || ''}
+      : ['doorbird','intercom'].includes(type) ? {type, event: row.querySelector('[data-field="event"]')?.value || ''}
       : type === 'sun' ? {type, event: row.querySelector('[data-field="sun-event"]')?.value || 'sunrise', offset_minutes: Number(row.querySelector('[data-field="sun-offset"]')?.value ?? 0)}
       : type === 'alexa_schedule' ? {type, device_id:row.querySelector('[data-field="device"]')?.value || '', offset_minutes:Number(row.querySelector('[data-field="alexa-offset"]')?.value ?? 0)}
       : type === 'remote' ? {type, device_id:row.querySelector('[data-field="device"]')?.value || '', source_id:Number(row.querySelector('[data-field="remote-source"]')?.value || 0), command:row.querySelector('[data-field="remote-command"]')?.value || ''}
@@ -198,6 +199,7 @@ function renderEditor() {
   $('[data-routine-name]').value = draft.name || ''
   $('[data-routine-mode]').value = draft.mode || 'single'
   $('[data-routine-triggers]').innerHTML = draft.triggers.map((item, index) => `<div class="routine-block" data-index="${index}"><select data-field="type"><option value="state" ${item.type === 'state' ? 'selected' : ''}>Quando cambia un dispositivo</option><option value="time" ${item.type === 'time' ? 'selected' : ''}>A un orario</option><option value="sun" ${item.type === 'sun' ? 'selected' : ''}>Alba / Tramonto</option><option value="alexa_schedule" ${item.type === 'alexa_schedule' ? 'selected' : ''}>Sveglia / timer / promemoria Alexa</option><option value="remote" ${item.type === 'remote' ? 'selected' : ''}>Tasto telecomando e-Face</option><option value="doorbird" ${item.type === 'doorbird' ? 'selected' : ''}>Evento DoorBird</option></select>${item.type === 'time' ? `<input data-field="at" type="time" value="${escapeHtml(item.at || '')}">` : item.type === 'doorbird' ? `<select data-field="event"><option value="doorbell" ${item.event === 'doorbell' ? 'selected' : ''}>Chiamata</option><option value="motionsensor" ${item.event === 'motionsensor' ? 'selected' : ''}>Movimento</option></select>` : item.type === 'sun' ? solarFields(item) : item.type === 'alexa_schedule' ? alexaScheduleFields(item) : item.type === 'remote' ? `${deviceField(item.device_id,'media')}${remoteFields(item.device_id,item.source_id,item.command)}` : `${deviceField(item.device_id)}${stateSelect(item.device_id, item.to)}`}<div class="routine-move"><button type="button" class="drag-handle routine-drag" data-routine-drag aria-label="Trascina per riordinare l'attivazione" title="Trascina per riordinare">☰</button><button type="button" data-routine-duplicate-row="trigger" aria-label="Duplica attivazione" title="Duplica">⧉</button><button type="button" data-routine-remove="trigger" aria-label="Rimuovi">×</button></div></div>`).join('')
+  ;[...$('[data-routine-triggers]').children].forEach((row,index)=>{const select=row.querySelector('[data-field="type"]'),item=draft.triggers[index];select.insertAdjacentHTML('beforeend',`<option value="intercom" ${item.type==='intercom'?'selected':''}>Evento Intercom</option>`);if(item.type==='intercom'){[...row.children].filter(child=>child!==select&&!child.classList.contains('routine-move')).forEach(child=>child.remove());select.insertAdjacentHTML('afterend',`<select data-field="event"><option value="ringing" ${item.event==='ringing'?'selected':''}>Chiamata in arrivo</option><option value="active" ${item.event==='active'?'selected':''}>Chiamata collegata</option><option value="available" ${item.event==='available'?'selected':''}>Chiamata terminata</option><option value="idle" ${item.event==='idle'?'selected':''}>Intercom offline</option></select>`)}})
   $('[data-routine-conditions]').innerHTML = draft.conditions.map((item, index) => conditionRow(item, index, 'condition')).join('')
   $('[data-routine-steps]').innerHTML = draft.steps.map((item, index) => renderStepRow(item, index)).join('')
   if (document.querySelector('#tools-admin-nav')?.hidden) panel.querySelectorAll('[data-routine-add="protected_cover"],[data-choose-add-step="protected_cover"]').forEach(button => { button.hidden = true })
@@ -536,7 +538,7 @@ panel.addEventListener('change', event => {
   const row = field.closest('[data-index]')
   const index = Number(row?.dataset.index)
   if (row?.parentElement.matches('[data-routine-triggers]')) {
-    if (field.dataset.field === 'type') draft.triggers[index] = field.value === 'time' ? {type:'time',at:'18:00'} : field.value === 'sun' ? {type:'sun',event:'sunrise',offset_minutes:0} : field.value === 'alexa_schedule' ? {type:'alexa_schedule',device_id:'',offset_minutes:0} : field.value === 'remote' ? {type:'remote',device_id:'',source_id:0,command:''} : field.value === 'doorbird' ? {type:'doorbird',event:'doorbell'} : {type:'state',device_id:'',to:''}
+    if (field.dataset.field === 'type') draft.triggers[index] = field.value === 'time' ? {type:'time',at:'18:00'} : field.value === 'sun' ? {type:'sun',event:'sunrise',offset_minutes:0} : field.value === 'alexa_schedule' ? {type:'alexa_schedule',device_id:'',offset_minutes:0} : field.value === 'remote' ? {type:'remote',device_id:'',source_id:0,command:''} : field.value === 'doorbird' ? {type:'doorbird',event:'doorbell'} : field.value === 'intercom' ? {type:'intercom',event:'ringing'} : {type:'state',device_id:'',to:''}
     else if (field.dataset.field === 'device' && draft.triggers[index].type === 'remote') { draft.triggers[index].source_id = 0; draft.triggers[index].command = '' }
     else if (field.dataset.field === 'device') draft.triggers[index].to = ''
     else if (field.dataset.field === 'remote-source') draft.triggers[index].command = ''
