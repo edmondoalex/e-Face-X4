@@ -1,5 +1,9 @@
 # Changelog
 
+## 2.21.273 — 2026-09-28
+
+- Corretta la direzione dell'animazione irrigazione: acqua e gocce partono dallo sprinkler centrale e si espandono verso l'esterno.
+
 ## 2.21.272 — 2026-09-28
 
 - L'icona Irrigazione ora raffigura un irrigatore sul prato; archi d'acqua e gocce compaiono esclusivamente durante l'irrigazione.
