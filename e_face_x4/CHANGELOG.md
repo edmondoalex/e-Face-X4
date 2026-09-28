@@ -1,5 +1,9 @@
 # Changelog
 
+## 2.21.270 — 2026-09-28
+
+- Ridisegnata l'icona Irrigazione della barra laterale con goccia azzurra e germoglio verde, coerente con lo stile e-Face.
+
 ## 2.21.269 — 2026-09-28
 
 - Corretto il prefisso API della dashboard e-Dry integrata: zone, programmi, meteo e comandi vengono ora caricati attraverso il proxy e-Face anche sotto Ingress.
