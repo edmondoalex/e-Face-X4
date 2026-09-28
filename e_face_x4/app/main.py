@@ -78,7 +78,7 @@ from .media_realtime import SharedMediaRealtime
 from .demo import dashboard as demo_dashboard
 from .ha_labeled import normalize_labeled_entities
 
-VERSION = os.environ.get("EFACE_VERSION", "2.21.270")
+VERSION = os.environ.get("EFACE_VERSION", "2.21.271")
 STATIC = Path(__file__).parent / "static"
 logging.basicConfig(level=logging.WARNING, format="%(asctime)s %(levelname)s [e-face-x4] %(message)s")
 _reconnect_warning_at: dict[str, float] = {}
@@ -3238,6 +3238,24 @@ def create_app() -> FastAPI:
             response.raise_for_status()
             data = response.json()
         return data if isinstance(data, dict) else {}
+
+    @app.get("/api/user/edry/status")
+    async def edry_status(request: Request) -> dict:
+        state = await edry_json("GET", "api/irrigazione/state")
+        zones = [item for item in state.get("zones", []) if isinstance(item, dict)]
+        programs = [item for item in state.get("programs", []) if isinstance(item, dict)]
+        active_zone = state.get("active_zone")
+        zone_id = active_zone.get("id") if isinstance(active_zone, dict) else active_zone
+        if zone_id in (None, ""):
+            active = next((item for item in zones if item.get("is_on") or str(item.get("state") or "").lower() == "on"), None)
+            zone_id = active.get("id") if active else None
+        running_program = next((item for item in programs if item.get("running")), None)
+        quick = state.get("quick_sequence") if isinstance(state.get("quick_sequence"), dict) else {}
+        if zone_id in (None, "") and quick.get("active"):
+            zone_id = quick.get("current_zone_id")
+        return {"active": zone_id not in (None, "") or bool(quick.get("active")) or running_program is not None,
+                "zone_id": zone_id, "program_id": running_program.get("program_id") if running_program else None,
+                "quick_sequence": bool(quick.get("active"))}
 
     @app.api_route("/api/edry/{proxy_path:path}", methods=["GET", "POST", "PUT", "DELETE"], include_in_schema=False)
     async def edry_proxy(proxy_path: str, request: Request) -> Response:

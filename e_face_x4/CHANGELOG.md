@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.21.271 — 2026-09-28
+
+- La voce Irrigazione mostra gocce animate mentre e-Dry è attivo, il numero della zona a sinistra e quello del programma in esecuzione a destra.
+- Lo stato sintetico e-Dry viene aggiornato automaticamente ogni tre secondi senza ricaricare la pagina e senza inviare comandi all'impianto.
+
 ## 2.21.270 — 2026-09-28
 
 - Ridisegnata l'icona Irrigazione della barra laterale con goccia azzurra e germoglio verde, coerente con lo stile e-Face.

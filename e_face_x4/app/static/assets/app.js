@@ -2049,11 +2049,29 @@ function syncAgendaSource(){const external=$('#alexa-agenda-source').value==='al
 function openAlexaAgenda(){closeHeating();closeIntercom();closeIrrigation();stopEnergyRefresh();applyBackground('');activeDetailIds=null;$('#home-view').hidden=true;$('#detail-view').hidden=true;$('#energy-view').hidden=true;$('#alexa-agenda-view').hidden=false;sessionStorage.setItem('eface-home-location',JSON.stringify({kind:'alexa-agenda'}));loadAlexaAgenda();window.scrollTo({top:0,behavior:'smooth'})}
 
 function closeIrrigation(){ $('#irrigation-view').hidden = true }
+let irrigationNavLoading=false
+async function refreshIrrigationNav(){
+  if(irrigationNavLoading)return
+  irrigationNavLoading=true
+  try{
+    const response=await fetch(apiUrl('api/user/edry/status'),{cache:'no-store'})
+    if(!response.ok)throw new Error(`HTTP ${response.status}`)
+    const state=await response.json(),button=document.querySelector('[data-view="irrigation"]')
+    const zone=$('#irrigation-zone-badge'),program=$('#irrigation-program-badge')
+    button.classList.toggle('irrigating',Boolean(state.active))
+    zone.hidden=state.zone_id===null||state.zone_id===undefined||state.zone_id===''
+    program.hidden=state.program_id===null||state.program_id===undefined||state.program_id===''
+    if(!zone.hidden)zone.textContent=String(state.zone_id)
+    if(!program.hidden)program.textContent=String(state.program_id)
+    button.title=state.active?`Irrigazione attiva${zone.hidden?'':` · zona ${state.zone_id}`}${program.hidden?'':` · programma ${state.program_id}`}`:'Irrigazione e-Dry'
+  }catch(_){}finally{irrigationNavLoading=false}
+}
 function openIrrigation(){
   closeAlexaAgenda();closeHeating();closeIntercom();stopEnergyRefresh();applyBackground('');activeDetailIds=null
   $('#home-view').hidden=true;$('#detail-view').hidden=true;$('#energy-view').hidden=true;$('#irrigation-view').hidden=false
   sessionStorage.setItem('eface-home-location',JSON.stringify({kind:'irrigation'}))
   if(!$('#irrigation-frame').getAttribute('src')) $('#irrigation-frame').src=apiUrl('api/edry/')
+  refreshIrrigationNav()
   window.scrollTo({top:0,behavior:'smooth'})
 }
 
@@ -3396,6 +3414,7 @@ setInterval(() => {
 }, 30000)
 setInterval(refresh, 60000)
 setInterval(() => { if (!document.hidden) refreshHomeHighlights() }, 15000)
+setInterval(() => { if (!document.hidden) refreshIrrigationNav() }, 3000)
 setInterval(() => {
   if (!document.hidden && (activeMediaSessions().length || $('#media-sessions-dialog')?.open || $('#media-zones-dialog')?.open)) refresh()
 }, 5000)
