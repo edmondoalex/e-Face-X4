@@ -78,7 +78,7 @@ from .media_realtime import SharedMediaRealtime
 from .demo import dashboard as demo_dashboard
 from .ha_labeled import normalize_labeled_entities
 
-VERSION = os.environ.get("EFACE_VERSION", "2.21.268")
+VERSION = os.environ.get("EFACE_VERSION", "2.21.269")
 STATIC = Path(__file__).parent / "static"
 logging.basicConfig(level=logging.WARNING, format="%(asctime)s %(levelname)s [e-face-x4] %(message)s")
 _reconnect_warning_at: dict[str, float] = {}
@@ -3258,9 +3258,17 @@ def create_app() -> FastAPI:
         content_type = upstream.headers.get("content-type", "application/octet-stream")
         if "text/html" in content_type:
             page = content.decode(upstream.encoding or "utf-8", errors="replace")
-            prefix = str(request.scope.get("root_path") or "").rstrip("/") + "/api/edry/"
-            page = page.replace("<head>", f'<head><base href="{prefix}">', 1)
-            page = page.replace("'/api/", "'api/").replace('"/api/', '"api/')
+            # e-Dry normally builds API URLs from the HA ingress root. Inside
+            # e-Face it must instead keep the current /api/edry prefix. The
+            # expression is deliberately relative so the browser also keeps
+            # Home Assistant's opaque ingress prefix.
+            page = re.sub(
+                r"const INGRESS_PREFIX = \(\(\) => \{.*?\}\)\(\);",
+                'const INGRESS_PREFIX = window.location.origin + window.location.pathname.replace(/\\/$/, "");',
+                page,
+                count=1,
+                flags=re.S,
+            )
             content = page.encode("utf-8")
             content_type = "text/html; charset=utf-8"
         response_headers = {"Cache-Control": upstream.headers.get("cache-control", "no-cache")}

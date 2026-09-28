@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.21.269 — 2026-09-28
+
+- Corretto il prefisso API della dashboard e-Dry integrata: zone, programmi, meteo e comandi vengono ora caricati attraverso il proxy e-Face anche sotto Ingress.
+- Ripristinati i loghi relativi e-Dry/Ekonex e sostituita l'icona generica con un'icona irrigazione dedicata.
+- Rimossa la barra di scorrimento interna: l'iframe segue l'altezza del contenuto e lo scorrimento resta affidato alla pagina e-Face.
+
 ## 2.21.268 — 2026-09-28
 
 - Aggiunta la pagina Irrigazione con la dashboard originale e-Dry integrata tramite proxy interno compatibile con Home Assistant Ingress.

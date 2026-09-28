@@ -2648,6 +2648,21 @@ $('#detail-back').addEventListener('click', showHome)
 $('#energy-back').addEventListener('click', () => activeEnergyDashboard ? showEnergyPicker() : showHome())
 $('#irrigation-back').addEventListener('click', showHome)
 $('#irrigation-reload').addEventListener('click', () => { $('#irrigation-frame').src=`${apiUrl('api/edry/')}?refresh=${Date.now()}` })
+let irrigationFrameObserver=null
+function syncIrrigationFrameHeight(){
+  const frame=$('#irrigation-frame')
+  try{
+    const doc=frame.contentDocument
+    if(!doc?.documentElement||!doc.body)return
+    doc.documentElement.style.overflow='hidden';doc.body.style.overflow='hidden'
+    frame.style.height=`${Math.max(doc.documentElement.scrollHeight,doc.body.scrollHeight,900)}px`
+  }catch(_){}
+}
+$('#irrigation-frame').addEventListener('load',()=>{
+  irrigationFrameObserver?.disconnect();syncIrrigationFrameHeight()
+  try{const doc=$('#irrigation-frame').contentDocument;irrigationFrameObserver=new ResizeObserver(syncIrrigationFrameHeight);irrigationFrameObserver.observe(doc.documentElement);irrigationFrameObserver.observe(doc.body)}catch(_){}
+  ;[150,500,1200,2500,5000].forEach(delay=>setTimeout(syncIrrigationFrameHeight,delay))
+})
 $('#intercom-back').addEventListener('click', showHome)
 $('#intercom-frame').addEventListener('load', () => {
   $('#intercom-frame').contentWindow?.postMessage({type:'eface-intercom-visible',visible:!$('#intercom-view').hidden}, location.origin)
