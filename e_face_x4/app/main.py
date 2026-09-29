@@ -78,7 +78,7 @@ from .media_realtime import SharedMediaRealtime
 from .demo import dashboard as demo_dashboard
 from .ha_labeled import normalize_labeled_entities
 
-VERSION = os.environ.get("EFACE_VERSION", "2.21.276")
+VERSION = os.environ.get("EFACE_VERSION", "2.21.277")
 STATIC = Path(__file__).parent / "static"
 logging.basicConfig(level=logging.WARNING, format="%(asctime)s %(levelname)s [e-face-x4] %(message)s")
 _reconnect_warning_at: dict[str, float] = {}
@@ -191,9 +191,11 @@ def create_app() -> FastAPI:
     app.state.ha_eface_registry_cache = None
     app.state.ha_eface_registry_cache_at = 0.0
     app.state.security_camera_images = {}
+    app.state.security_camera_image_tasks = set()
     app.state.security_camera_snapshot_failures = 0
     app.state.security_camera_snapshot_retry_at = 0.0
     app.state.security_camera_snapshot_gate = asyncio.Semaphore(2)
+    app.state.security_camera_cache_dir = Path(os.environ.get("EFACE_CAMERA_CACHE", "/data/camera-previews"))
     app.state.intercom_state = "idle"
 
     @app.on_event("shutdown")
@@ -2637,41 +2639,71 @@ def create_app() -> FastAPI:
         response = await home_assistant_get(f"camera_proxy/{load_home_camera_entity(appearance_owner(request))}")
         return Response(response.content, media_type=response.headers.get("content-type", "image/jpeg"), headers={"Cache-Control":"no-store, private"})
 
+    def cached_security_camera_image(entity_id: str) -> tuple[float, bytes, str] | None:
+        cached = app.state.security_camera_images.get(entity_id)
+        if cached: return cached
+        path = app.state.security_camera_cache_dir / f"{hashlib.sha256(entity_id.encode()).hexdigest()}.img"
+        try:
+            content = path.read_bytes()
+            media_type = artwork_media_type("", content)
+            if not media_type or len(content) > 5_000_000: return None
+            cached = (path.stat().st_mtime, content, media_type)
+            app.state.security_camera_images[entity_id] = cached
+            return cached
+        except OSError:
+            return None
+
+    async def refresh_security_camera_image(entity_id: str) -> tuple[float, bytes, str] | None:
+        if entity_id in app.state.security_camera_image_tasks or time.monotonic() < app.state.security_camera_snapshot_retry_at:
+            return None
+        app.state.security_camera_image_tasks.add(entity_id)
+        token = str(os.environ.get("SUPERVISOR_TOKEN") or "").strip()
+        if not token:
+            app.state.security_camera_image_tasks.discard(entity_id)
+            return None
+        try:
+            async with app.state.security_camera_snapshot_gate:
+                if time.monotonic() < app.state.security_camera_snapshot_retry_at: return None
+                async with httpx.AsyncClient(timeout=httpx.Timeout(3.0, connect=2.0), follow_redirects=False, trust_env=False) as client:
+                    response = await client.get(f"http://supervisor/core/api/camera_proxy/{entity_id}", headers={"Authorization": f"Bearer {token}"})
+            if response.status_code != 200: raise RuntimeError(f"HTTP {response.status_code}")
+            media_type = artwork_media_type(response.headers.get("content-type", ""), response.content)
+            if not media_type or len(response.content) > 5_000_000: raise RuntimeError("immagine non valida")
+            cached = (time.time(), response.content, media_type)
+            app.state.security_camera_images[entity_id] = cached
+            directory = app.state.security_camera_cache_dir
+            directory.mkdir(parents=True, exist_ok=True)
+            path = directory / f"{hashlib.sha256(entity_id.encode()).hexdigest()}.img"
+            temporary = path.with_suffix(f".{uuid.uuid4().hex}.tmp")
+            temporary.write_bytes(response.content)
+            os.replace(temporary, path)
+            app.state.security_camera_snapshot_failures = 0
+            return cached
+        except (httpx.HTTPError, RuntimeError, OSError):
+            app.state.security_camera_snapshot_failures += 1
+            if app.state.security_camera_snapshot_failures >= 2:
+                app.state.security_camera_snapshot_retry_at = time.monotonic() + 30
+            return None
+        finally:
+            app.state.security_camera_image_tasks.discard(entity_id)
+
     @app.get("/api/security/cameras/{camera_id}/image")
     async def security_camera_image(camera_id: str) -> Response:
         camera = next((item for item in load_security_cameras() if item.get("id") == camera_id), None)
         entity_id = str((camera or {}).get("preview_url") or (camera or {}).get("url") or "")
         if not re.fullmatch(r"camera\.[a-z0-9_]+", entity_id):
             raise HTTPException(status_code=404, detail="Entità videocamera non configurata")
-        now = time.monotonic()
-        cached = app.state.security_camera_images.get(entity_id)
-        if cached and now - cached[0] < 20:
-            return Response(cached[1], media_type=cached[2], headers={"Cache-Control":"private, max-age=10", "X-Content-Type-Options":"nosniff"})
-        if now < app.state.security_camera_snapshot_retry_at:
-            if cached and now - cached[0] < 300:
-                return Response(cached[1], media_type=cached[2], headers={"Cache-Control":"private, max-age=10", "X-Content-Type-Options":"nosniff", "X-Eface-Camera-Stale":"1"})
-            raise HTTPException(status_code=503, detail="Anteprime temporaneamente sospese per lasciare libera la diretta")
-        token = str(os.environ.get("SUPERVISOR_TOKEN") or "").strip()
-        if not token: raise HTTPException(status_code=503, detail="e-Control non disponibile")
-        try:
-            async with app.state.security_camera_snapshot_gate:
-                if time.monotonic() < app.state.security_camera_snapshot_retry_at:
-                    raise HTTPException(status_code=503, detail="Anteprime temporaneamente sospese per lasciare libera la diretta")
-                async with httpx.AsyncClient(timeout=httpx.Timeout(3.0, connect=2.0), follow_redirects=False, trust_env=False) as client:
-                    response = await client.get(f"http://supervisor/core/api/camera_proxy/{entity_id}", headers={"Authorization": f"Bearer {token}"})
-            if response.status_code != 200: raise RuntimeError(f"HTTP {response.status_code}")
-            media_type = artwork_media_type(response.headers.get("content-type", ""), response.content)
-            if not media_type or len(response.content) > 5_000_000: raise RuntimeError("immagine non valida")
-            app.state.security_camera_images[entity_id] = (time.monotonic(), response.content, media_type)
-            app.state.security_camera_snapshot_failures = 0
-            return Response(response.content, media_type=media_type, headers={"Cache-Control":"private, max-age=10", "X-Content-Type-Options":"nosniff"})
-        except (httpx.HTTPError, RuntimeError):
-            app.state.security_camera_snapshot_failures += 1
-            if app.state.security_camera_snapshot_failures >= 2:
-                app.state.security_camera_snapshot_retry_at = time.monotonic() + 30
-            if cached and now - cached[0] < 300:
-                return Response(cached[1], media_type=cached[2], headers={"Cache-Control":"private, max-age=10", "X-Content-Type-Options":"nosniff", "X-Eface-Camera-Stale":"1"})
+        cached = cached_security_camera_image(entity_id)
+        stale = bool(cached and time.time() - cached[0] >= 20)
+        if stale and entity_id not in app.state.security_camera_image_tasks and time.monotonic() >= app.state.security_camera_snapshot_retry_at:
+            asyncio.create_task(refresh_security_camera_image(entity_id))
+        if not cached:
+            cached = await refresh_security_camera_image(entity_id)
+        if not cached:
             raise HTTPException(status_code=502, detail="Anteprima videocamera non disponibile")
+        headers = {"Cache-Control":"private, max-age=10", "X-Content-Type-Options":"nosniff"}
+        if stale: headers["X-Eface-Camera-Stale"] = "1"
+        return Response(cached[1], media_type=cached[2], headers=headers)
 
     @app.get("/api/security/cameras/{camera_id}/stream")
     async def security_camera_stream(camera_id: str) -> dict[str, str]:

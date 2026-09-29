@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.21.277 — 2026-09-29
+
+- Le ultime anteprime valide delle telecamere vengono conservate su disco e restano disponibili anche dopo refresh e riavvii.
+- Il rinnovo usa un'immagine di prova: uno snapshot fallito non sostituisce più una miniatura valida con una card nera.
+- Le immagini in cache vengono restituite subito mentre l'aggiornamento avviene in background.
+
 ## 2.21.276 — 2026-09-28
 
 - Videocamere: anteprime protette da cache, timeout breve e circuito di sospensione per non saturare Home Assistant/NVR.

@@ -557,9 +557,11 @@ function refreshNextSecurityCameraThumbnail(){
   const image=images[securityCameraRefreshCursor++]
   if(image.dataset.refreshing==='1')return
   image.dataset.refreshing='1'
-  const done=()=>{delete image.dataset.refreshing;image.removeEventListener('load',done);image.removeEventListener('error',done)}
-  image.addEventListener('load',done);image.addEventListener('error',done)
-  image.src=cameraRefreshUrl(image.src)
+  const probe=new Image()
+  const done=()=>{delete image.dataset.refreshing;probe.onload=null;probe.onerror=null}
+  probe.onload=()=>{image.src=probe.src;image.closest('.security-camera')?.classList.remove('unavailable');done()}
+  probe.onerror=done
+  probe.src=cameraRefreshUrl(image.src)
 }
 setInterval(refreshNextSecurityCameraThumbnail,10000)
 $('#home-event-dialog')?.addEventListener('close',()=>{$('#home-event-dialog-image').removeAttribute('src')})
