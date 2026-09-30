@@ -2183,8 +2183,11 @@ async function loadScenarios() {
     const response = await fetch(apiUrl('api/scenarios'), { cache: 'no-store' })
     if (!response.ok) throw new Error(`HTTP ${response.status}`)
     currentScenarios = organizedDevices('scenarios',((await response.json()).items || []).filter((scenario)=>currentDeviceOrganization[String(scenario.id)]?.visible!==false))
-    configureLightFilters(currentScenarios)
-    renderScenarios()
+    if ($('#scenario-panel').hidden) updateNavigationStates()
+    else {
+      configureLightFilters(currentScenarios)
+      renderScenarios()
+    }
   } catch (error) { fail(error) }
 }
 
@@ -2199,7 +2202,7 @@ function renderScenarios() {
     if (scenario.run_enabled) controls.push(`<button data-scenario-action="${scenario.running ? 'stop' : 'run'}">${scenario.running ? 'STOP' : 'ESEGUI'}</button>`)
     if (scenario.onoff_enabled) controls.push(`<button data-scenario-action="${active ? 'off' : 'on'}">${active ? 'SPEGNI' : 'ACCENDI'}</button>`)
     return `<article class="scenario-card ${active ? 'active' : ''}" data-scenario-id="${esc(scenario.id)}"><span class="scenario-glyph mdi-mask" style="${mdiStyle('mdi:creation', 'creation')}"></span><div><strong>${esc(scenario.name)}</strong><small>${scenario.lights} luci · ${scenario.covers} cover</small></div><div class="scenario-actions">${controls.join('')}</div></article>`
-  }).join('') || '<span class="empty-state">Nessuno scenario configurato in e-HDL</span>'
+  }).join('') || '<span class="empty-state">Nessuno scenario configurato in e-Control HUB</span>'
 }
 
 async function sendScenarioCommand(id, action, button) {
@@ -2466,7 +2469,11 @@ function connectRealtime() {
   realtimeSocket.onmessage = (message) => {
     try { applyRealtimeEvent(JSON.parse(message.data)) } catch (_) {}
   }
-  realtimeSocket.onopen = () => fetch(apiUrl('api/user/routines/active'), {cache:'no-store'}).then(response => response.ok ? response.json() : null).then(data => {if(data){routineActiveDeviceIds = new Set((data.device_ids || []).map(String)); syncRoutineActivity()}}).catch(() => {})
+  realtimeSocket.onopen = () => {
+    refresh()
+    loadScenarios()
+    fetch(apiUrl('api/user/routines/active'), {cache:'no-store'}).then(response => response.ok ? response.json() : null).then(data => {if(data){routineActiveDeviceIds = new Set((data.device_ids || []).map(String)); syncRoutineActivity()}}).catch(() => {})
+  }
   realtimeSocket.onclose = () => {
     realtimeSocket = null
     clearTimeout(realtimeRetry)
@@ -2547,8 +2554,8 @@ function applyRealtimeEvent(event) {
     if (scenario) {
       if (data.state !== undefined) scenario.state = data.state
       if (data.running !== undefined) scenario.running = data.running
-      renderScenarios()
-    }
+      $('#scenario-panel').hidden ? updateNavigationStates() : renderScenarios()
+    } else loadScenarios()
     return
   }
   const key = data.entity_id || [data.subnet_id, data.device_id, data.channel].join('.')
@@ -3405,7 +3412,7 @@ $('#wiim-queue-list').addEventListener('click', async (event) => {
     $('#wiim-queue-list').querySelectorAll('button').forEach((item) => item.classList.toggle('active', item === button)); setTimeout(refresh, 500)
   } catch (error) { fail(error) }
 })
-document.addEventListener('visibilitychange', () => { if (!document.hidden) { homeImagesLoadedAt=0; refreshHomeHighlights(); refresh(); connectRealtime() } })
+document.addEventListener('visibilitychange', () => { if (!document.hidden) { homeImagesLoadedAt=0; refreshHomeHighlights(); refresh(); loadScenarios(); connectRealtime() } })
 navigator.serviceWorker?.addEventListener('message', (event) => {
   if (event.data?.type === 'eface-open-intercom') openIntercom()
 })

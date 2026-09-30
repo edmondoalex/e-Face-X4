@@ -3,15 +3,15 @@ const card = document.createElement('button')
 card.id = 'scenarios-tool'
 card.type = 'button'
 card.className = 'tool-card'
-card.innerHTML = '<span>✦</span><div><b>Scenari</b><small>Crea e modifica gli scenari luce e tapparelle HDL</small></div><i>›</i>'
+card.innerHTML = '<span>✦</span><div><b>Scenari</b><small>Crea e modifica gli scenari luce e tapparelle di e-Control HUB</small></div><i>›</i>'
 document.querySelector('#tools-user-section .tools-grid').append(card)
 
 const panel = document.createElement('section')
 panel.id = 'scenarios-config'
 panel.className = 'media-config scenario-studio'
 panel.hidden = true
-panel.innerHTML = `<header><button type="button" data-scene-back aria-label="Torna a Strumenti">‹</button><div><small>STRUMENTI UTENTE · e-HDL</small><h2>Scenari</h2></div><button type="button" data-scene-reload title="Rileggi da HDL">↻</button></header>
-<div class="scene-hero"><div><small>SCENE STUDIO</small><h3>La tua casa, in un gesto.</h3><p>Combina luci, dimmer e tapparelle. Le modifiche vengono salvate direttamente in e-HDL e compaiono nella pagina Scenari.</p></div><div data-scene-stats></div></div>
+panel.innerHTML = `<header><button type="button" data-scene-back aria-label="Torna a Strumenti">‹</button><div><small>STRUMENTI UTENTE · e-Control HUB</small><h2>Scenari</h2></div><button type="button" data-scene-reload title="Rileggi da e-Control HUB">↻</button></header>
+<div class="scene-hero"><div><small>SCENE STUDIO</small><h3>La tua casa, in un gesto.</h3><p>Combina luci, dimmer e tapparelle. Le modifiche vengono salvate direttamente in e-Control HUB e compaiono nella pagina Scenari.</p></div><div data-scene-stats></div></div>
 <details class="scene-tutorial"><summary><span>COME SI CREA UNO SCENARIO</span><strong>Guida rapida alle voci</strong><i>⌄</i></summary><div class="scene-tutorial-grid"><div><b>1 · Dai un nome</b><p>Scegli un nome riconoscibile. <em>RUN</em> esegue la scena con un impulso; <em>ON/OFF</em> la espone come interruttore. Puoi usarli insieme.</p></div><div><b>2 · Scegli cosa cambia</b><p>Aggiungi luci, dimmer, cover o gruppi cover. Per ogni luce scegli Accendi/Spegni e, se disponibile, la luminosità da 0 a 255. Per le cover scegli Apri, Chiudi, Stop o una posizione percentuale.</p></div><div><b>3 · Regola le cover</b><p>“Apertura graduale” distribuisce il movimento nel tempo; “due fasi” apre prima alla percentuale scelta e prosegue dopo l’attesa. Le combinazioni HDL richiamano un tasto BusPro tramite subnet, dispositivo e numero tasto.</p></div><div><b>4 · Decidi quando</b><p>Il trigger automatico può usare orario, alba, tramonto o sveglia. L’offset sposta alba/tramonto: valore negativo prima, positivo dopo. Un pulsante e-Control può avviare la scena anche manualmente.</p></div><div><b>5 · Salva e prova</b><p>Salva per rendere lo scenario persistente e visibile a tutti. I pulsanti Esegui, Ferma, ON e OFF inviano comandi reali: usali solo quando vuoi azionare l’impianto.</p></div></div></details>
 <div class="scene-layout"><aside class="scene-library"><div class="scene-library-head"><b>I TUOI SCENARI</b><button type="button" data-scene-new>+ Nuovo</button></div><input type="search" data-scene-filter placeholder="Cerca scenario" aria-label="Cerca scenario"><div data-scene-list></div></aside>
 <div class="scene-workspace"><div data-scene-editor><p>Caricamento scenari…</p></div></div></div><p data-scene-message class="scene-message" role="status" aria-live="polite"></p>`
@@ -78,7 +78,7 @@ function renderAdvanced(){
 function render(){
   renderList()
   if(!draft){$('[data-scene-editor]').innerHTML='<p>Seleziona uno scenario.</p>';return}
-  $('[data-scene-editor]').innerHTML=`<div class="scene-editor-top"><div><small>${currentId?'MODIFICA SCENARIO':'NUOVO SCENARIO'}</small><h3>${esc(draft.name||'Dai un nome alla tua scena')}</h3><p>Salvato in e-HDL · visibile a tutti gli utenti</p></div><span class="scene-state ${draft.running?'running':''}">${draft.running?'IN CORSO':currentId?'ESISTENTE':'BOZZA'}</span></div>
+  $('[data-scene-editor]').innerHTML=`<div class="scene-editor-top"><div><small>${currentId?'MODIFICA SCENARIO':'NUOVO SCENARIO'}</small><h3>${esc(draft.name||'Dai un nome alla tua scena')}</h3><p>Salvato in e-Control HUB · visibile a tutti gli utenti</p></div><span class="scene-state ${draft.running?'running':''}">${draft.running?'IN CORSO':currentId?'ESISTENTE':'BOZZA'}</span></div>
     <section class="scene-section"><div class="scene-section-heading"><div><small>01 · IDENTITÀ</small><h3>Nome e modalità</h3></div></div><label class="scene-name">Nome scenario<input data-scene-field="name" maxlength="80" value="${esc(draft.name)}" placeholder="Es. Cinema serale"></label><div class="scene-mode-grid">${check('run_enabled','Impulso RUN',draft.run_enabled)}${check('onoff_enabled','Interruttore ON/OFF',draft.onoff_enabled)}</div></section>
     ${renderSelected()}${renderTrigger()}${renderAdvanced()}
     <div class="scene-footer"><div data-scene-review>${draft.items.length} luci · ${draft.covers.length} tapparelle · ${draft.combination_targets.length} combinazioni</div><div><button type="button" data-scene-duplicate ${currentId?'':'hidden'}>DUPLICA</button><button type="button" data-scene-delete class="danger" ${currentId?'':'hidden'}>ELIMINA</button><button type="button" data-scene-save class="primary">SALVA SCENARIO</button></div></div>
@@ -119,7 +119,7 @@ async function save(){
     const result=await request(`api/user/scenarios/editor${currentId?`/${encodeURIComponent(currentId)}`:''}`,json(currentId?'PUT':'POST',{revision,spec:draft}))
     currentId=String(result.item?.id||currentId)
     await load(true)
-    message('Scenario salvato in e-HDL. È disponibile anche nella pagina Scenari.')
+    message('Scenario salvato in e-Control HUB. È disponibile anche nella pagina Scenari.')
   }catch(error){message(error.message,true)}finally{busy=false;$('[data-scene-save]').disabled=false}
 }
 card.addEventListener('click',async()=>{if(!panel.hidden){return}panel.hidden=false;document.body.style.overflow='hidden';try{await load(true)}catch(error){$('[data-scene-editor]').innerHTML=`<p class="scene-error">${esc(error.message)}</p>`}})
@@ -128,7 +128,7 @@ panel.addEventListener('change',event=>{if(event.target.matches('[data-scene-fie
 panel.addEventListener('click',async event=>{
   const button=event.target.closest('button');if(!button)return
   if(button.hasAttribute('data-scene-back')){if(dirty&&!confirm('Chiudere senza salvare le modifiche?'))return;panel.hidden=true;document.body.style.overflow='';return}
-  if(button.hasAttribute('data-scene-reload')){if(dirty&&!confirm('Ricaricare e perdere le modifiche?'))return;try{await load(true);message('Scenari aggiornati da e-HDL.')}catch(error){message(error.message,true)}return}
+  if(button.hasAttribute('data-scene-reload')){if(dirty&&!confirm('Ricaricare e perdere le modifiche?'))return;try{await load(true);message('Scenari aggiornati da e-Control HUB.')}catch(error){message(error.message,true)}return}
   if(button.hasAttribute('data-scene-new'))return edit('')
   if(button.dataset.sceneSelect!==undefined)return edit(button.dataset.sceneSelect)
   if(button.dataset.sceneTargetFilter){targetFilter=button.dataset.sceneTargetFilter;$('.scene-target-filters .active')?.classList.remove('active');button.classList.add('active');renderCatalog();return}
@@ -137,9 +137,9 @@ panel.addEventListener('click',async event=>{
   if(button.hasAttribute('data-scene-add-combo')){draft.combination_targets.push({subnet_id:1,device_id:1,switch_number:1});dirty=true;render();return}
   if(button.hasAttribute('data-scene-save'))return save()
   if(button.hasAttribute('data-scene-duplicate')){const original=draft.name;currentId='';revision='';draft=structuredClone(draft);draft.name=`${original} · copia`.slice(0,80);dirty=true;render();return}
-  if(button.hasAttribute('data-scene-delete')){if(!currentId||!confirm(`Eliminare definitivamente lo scenario «${draft.name}» da e-HDL?`))return;try{await request(`api/user/scenarios/editor/${encodeURIComponent(currentId)}?revision=${encodeURIComponent(revision)}`,{method:'DELETE'});currentId='';await load(false);message('Scenario eliminato da e-HDL.')}catch(error){message(error.message,true)}return}
+  if(button.hasAttribute('data-scene-delete')){if(!currentId||!confirm(`Eliminare definitivamente lo scenario «${draft.name}» da e-Control HUB?`))return;try{await request(`api/user/scenarios/editor/${encodeURIComponent(currentId)}?revision=${encodeURIComponent(revision)}`,{method:'DELETE'});currentId='';await load(false);message('Scenario eliminato da e-Control HUB.')}catch(error){message(error.message,true)}return}
   if(button.dataset.sceneCommand){if(!confirm(`Eseguire ora «${button.textContent.trim()}» su ${draft.name}?`))return;try{await request(`api/scenarios/${encodeURIComponent(currentId)}/command`,json('POST',{action:button.dataset.sceneCommand}));message('Comando inviato.');setTimeout(()=>load(true).catch(()=>{}),600)}catch(error){message(error.message,true)}return}
   if(button.hasAttribute('data-scene-trigger-new')){const name=prompt('Nome del nuovo pulsante trigger e-Control');if(!name?.trim())return;try{const created=await request('api/admin/scenario-triggers',json('POST',{name:name.trim()}));catalog.ha_triggers.push(created);draft.ha_trigger_enabled=true;draft.ha_trigger_id=created.id;dirty=true;render();message('Pulsante e-Control creato e associato. Salva lo scenario per collegarlo.')}catch(error){message(error.message,true)}}
   if(button.dataset.sceneTriggerRename){const current=catalog.ha_triggers.find(item=>item.id===button.dataset.sceneTriggerRename);if(!current)return;const name=prompt('Nuovo nome del pulsante e-Control',current.name);if(!name?.trim())return;try{await request(`api/admin/scenario-triggers/${encodeURIComponent(current.id)}`,json('PUT',{name:name.trim()}));current.name=name.trim();render();message('Pulsante e-Control rinominato.')}catch(error){message(error.message,true)}return}
-  if(button.dataset.sceneTriggerDelete){const id=button.dataset.sceneTriggerDelete;const trigger=catalog.ha_triggers.find(item=>item.id===id);const linked=catalog.items.filter(item=>item.ha_trigger_enabled&&item.ha_trigger_id===id);if(!trigger||!confirm(`Eliminare il pulsante e-Control «${trigger.name}»?${linked.length?` Sarà scollegato da ${linked.length} scenari.`:''}`))return;try{await request(`api/admin/scenario-triggers/${encodeURIComponent(id)}?force=${linked.length?'true':'false'}`,{method:'DELETE'});if(draft.ha_trigger_id===id){draft.ha_trigger_id='';draft.ha_trigger_enabled=false;dirty=true}await load(true);message('Pulsante e-Control eliminato. Gli scenari associati sono stati scollegati in e-HDL.')}catch(error){message(error.message,true)}}
+  if(button.dataset.sceneTriggerDelete){const id=button.dataset.sceneTriggerDelete;const trigger=catalog.ha_triggers.find(item=>item.id===id);const linked=catalog.items.filter(item=>item.ha_trigger_enabled&&item.ha_trigger_id===id);if(!trigger||!confirm(`Eliminare il pulsante e-Control «${trigger.name}»?${linked.length?` Sarà scollegato da ${linked.length} scenari.`:''}`))return;try{await request(`api/admin/scenario-triggers/${encodeURIComponent(id)}?force=${linked.length?'true':'false'}`,{method:'DELETE'});if(draft.ha_trigger_id===id){draft.ha_trigger_id='';draft.ha_trigger_enabled=false;dirty=true}await load(true);message('Pulsante e-Control eliminato. Gli scenari associati sono stati scollegati in e-Control HUB.')}catch(error){message(error.message,true)}}
 })

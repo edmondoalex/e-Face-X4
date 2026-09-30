@@ -21,13 +21,13 @@ Prima di modificare identità, ruoli, API, eventi, licenze, pairing, cloud/local
 ## Handoff corrente
 
 - Data: 2026-09-30
-- Obiettivo: mantenere sincronizzati in tempo reale gli stati e-HDL su tutte le interfacce e-Face aperte.
-- Risultato: rimossa la connessione e-HDL indipendente per ogni browser; la connessione centrale già dotata di riconnessione distribuisce ora in fan-out gli eventi sanitizzati di luci, cover, sensori e scenari a tutti i client e notifica anche i cambi d'inventario.
-- File modificati: `e_face_x4/app/main.py`, file di versione e test del componente, `e_face_x4/CHANGELOG.md`, `EKONEX_PLATFORM_SYNC.md`.
-- Test eseguiti: `node --check app/static/assets/app.js`; `python -m pytest tests/test_app.py -q` (133 test superati); regressione dedicata al fan-out centrale; controllo integrità diff.
+- Obiettivo: completare la sincronizzazione generale degli indicatori fra interfacce e rinominare localmente il connettore multi-bus in `e-Control HUB`.
+- Risultato: oltre al fan-out realtime centrale, ogni client riconcilia snapshot completo e scenari a connessione, riconnessione e ritorno in primo piano; gli scenari vengono caricati anche senza aprire la pagina. Tutte le diciture visibili locali usano `e-Control HUB`, mantenendo invariati slug, provider ID ed endpoint.
+- File modificati: codice UI/backend e connettore del componente, traduzione e documentazione utente locale, file di versione e test, `e_face_x4/CHANGELOG.md`, `EKONEX_PLATFORM_SYNC.md`.
+- Test eseguiti: `node --check app/static/assets/app.js`; suite completa `tests/test_app.py`; regressioni dedicate al fan-out, alla riconciliazione generale e al nuovo nome; controllo integrità diff.
 - Contratti/versioni usati: Platform governance 1.0; API compatibility policy 1.0; Identity draft-1; Event draft-1; Licensing draft-1.
 - Change ID: nessuno; nessuna modifica trasversale proposta o implementata.
-- Compatibilità: invariati formato degli eventi e API browser; nessuna modifica a contratti condivisi o dati persistenti.
+- Compatibilità: invariati formato eventi, API, slug `e_hdl_buspro_mqtt`, provider ID `buspro` e dati persistenti; nessuna modifica a contratti condivisi.
 - Dipendenze da altri componenti: nessuna nuova dipendenza; usa il WebSocket e-HDL già esistente.
 - Attività richieste agli altri Codex: nessuna.
-- Rischi o decisioni ancora aperte: prova contemporanea su almeno due interfacce fisiche dopo il rilascio; nessuna proposta CHANGE necessaria.
+- Rischi o decisioni ancora aperte: il rebranding tecnico del componente e-Control HUB resta trasversale e richiederebbe una proposta CHANGE; qui è stato applicato solo il nome visibile locale. Resta la prova contemporanea su almeno due interfacce fisiche.

@@ -20,16 +20,16 @@ Esempio: `http://IP_HOME_ASSISTANT:8130`.
 Nella scheda **Configurazione**, la sezione **Icone navigazione** permette di impostare le icone
 di Guarda, Ascolta, Luci, Oscuranti, Comfort e Sicurezza usando identificatori `mdi:...`.
 Le icone dei singoli dispositivi vengono invece ereditate automaticamente dalla configurazione
-di e-HDL BusPro MQTT.
+di e-Control HUB.
 
-## Collegamento e-HDL BusPro MQTT
+## Collegamento e-Control HUB
 
 Disattivare la modalitÃ  demo solo quando almeno un connettore reale Ã¨ stato configurato.
 Per il primo connettore impostare:
 
 - `buspro.enabled`: abilita il collegamento;
 - `buspro.base_url`: indirizzo locale dell'add-on, normalmente `http://IP_HOME_ASSISTANT:8124`;
-- `buspro.token`: valorizzare solo se e-HDL BusPro MQTT utilizza autenticazione token.
+- `buspro.token`: valorizzare solo se e-Control HUB utilizza autenticazione token.
 
 Il token resta nel file delle opzioni dell'add-on e non viene restituito al browser.
 

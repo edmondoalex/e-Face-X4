@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.21.282 — 2026-09-30
+
+- Il connettore multi-bus viene presentato nell'interfaccia, nei messaggi e nella documentazione come `e-Control HUB`; slug, provider ID ed endpoint tecnici restano invariati per retrocompatibilità.
+- Tutti gli indicatori di navigazione vengono riconciliati con lo snapshot completo alla connessione, alla riconnessione e al ritorno in primo piano; gli scenari vengono inizializzati anche senza aprire la relativa pagina.
+
 ## 2.21.281 — 2026-09-30
 
 - Gli eventi e-HDL usano una singola connessione centrale con riconnessione automatica e vengono distribuiti a tutti i client e-Face: luci, cover e scenari restano sincronizzati in tempo reale tra tablet e browser differenti.

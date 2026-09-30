@@ -78,7 +78,7 @@ from .media_realtime import SharedMediaRealtime
 from .demo import dashboard as demo_dashboard
 from .ha_labeled import normalize_labeled_entities
 
-VERSION = os.environ.get("EFACE_VERSION", "2.21.281")
+VERSION = os.environ.get("EFACE_VERSION", "2.21.282")
 STATIC = Path(__file__).parent / "static"
 logging.basicConfig(level=logging.WARNING, format="%(asctime)s %(levelname)s [e-face-x4] %(message)s")
 _reconnect_warning_at: dict[str, float] = {}
@@ -4251,7 +4251,7 @@ def create_app() -> FastAPI:
         require_admin(request)
         settings = load_settings()
         labels = {
-            "buspro": "e-HDL BusPro MQTT",
+            "buspro": "e-Control HUB",
             "evoice": "eKonex Voice",
             "etherm": "e-Therm",
             "thermomind": "ThermoMIND",
@@ -4648,13 +4648,13 @@ def create_app() -> FastAPI:
                 raise HTTPException(status_code=400, detail=str(exc))
         config = await resolved_provider(settings.buspro, "e_hdl_buspro_mqtt", 8124, settings.request_timeout_s)
         if not config.enabled or not config.base_url:
-            raise HTTPException(status_code=503, detail="Connettore e-HDL non disponibile")
+            raise HTTPException(status_code=503, detail="Connettore e-Control HUB non disponibile")
         try:
             return await BusproConnector(config, settings.request_timeout_s).command(device_id, str(payload.get("action") or ""), payload.get("value"))
         except httpx.HTTPStatusError as exc:
-            raise HTTPException(status_code=502, detail=f"e-HDL ha risposto HTTP {exc.response.status_code}")
+            raise HTTPException(status_code=502, detail=f"e-Control HUB ha risposto HTTP {exc.response.status_code}")
         except httpx.HTTPError:
-            raise HTTPException(status_code=502, detail="e-HDL non raggiungibile")
+            raise HTTPException(status_code=502, detail="e-Control HUB non raggiungibile")
         except ValueError as exc:
             raise HTTPException(status_code=400, detail=str(exc))
 
@@ -4978,7 +4978,7 @@ def create_app() -> FastAPI:
         settings = load_settings()
         config = await resolved_provider(settings.buspro, "e_hdl_buspro_mqtt", 8124, settings.request_timeout_s)
         if not config.enabled or not config.base_url:
-            raise HTTPException(status_code=503, detail="Connettore e-HDL non disponibile")
+            raise HTTPException(status_code=503, detail="Connettore e-Control HUB non disponibile")
         return settings, config
 
     async def scenario_editor_data() -> tuple[dict, list, list, list, dict]:
@@ -4992,7 +4992,7 @@ def create_app() -> FastAPI:
                 response.raise_for_status()
             scenarios_raw, devices_raw, groups_raw, triggers_raw, status_raw = (response.json() for response in responses)
         except (httpx.HTTPError, ValueError, AttributeError) as exc:
-            raise HTTPException(502, "Catalogo scenari e-HDL non disponibile") from exc
+            raise HTTPException(502, "Catalogo scenari e-Control HUB non disponibile") from exc
         return (scenarios_raw, devices_raw, groups_raw.get("groups", []), triggers_raw.get("items", []), status_raw)
 
     @app.get("/api/user/scenarios/editor")
@@ -5025,10 +5025,10 @@ def create_app() -> FastAPI:
                 response = await client.request(method, target, headers=headers, json=spec)
             result = response.json()
         except (httpx.HTTPError, ValueError) as exc:
-            raise HTTPException(502, "Salvataggio scenario e-HDL non riuscito") from exc
+            raise HTTPException(502, "Salvataggio scenario e-Control HUB non riuscito") from exc
         if response.status_code >= 400:
             raise HTTPException(response.status_code if response.status_code < 500 else 502,
-                                str(result.get("detail") or "Scenario rifiutato da e-HDL")[:200])
+                                str(result.get("detail") or "Scenario rifiutato da e-Control HUB")[:200])
         return {"item": result, "revision": scenario_editor.fingerprint(result)}
 
     @app.post("/api/user/scenarios/editor")
@@ -5058,13 +5058,13 @@ def create_app() -> FastAPI:
                 response = await client.delete(f"{config.base_url}/api/user/light_scenarios/{scenario_id}", headers=headers)
             response.raise_for_status()
         except httpx.HTTPError as exc:
-            raise HTTPException(502, "Eliminazione scenario e-HDL non riuscita") from exc
+            raise HTTPException(502, "Eliminazione scenario e-Control HUB non riuscita") from exc
         return {"ok": True}
 
     async def admin_scenario_trigger_request(method: str, trigger_id: str | None = None, name: str | None = None) -> dict:
         host = await discover_host_url(8125, load_settings().request_timeout_s)
         if not host:
-            raise HTTPException(503, "Porta amministrativa e-HDL non disponibile")
+            raise HTTPException(503, "Porta amministrativa e-Control HUB non disponibile")
         target = f"{host}/api/scenario_ha_triggers"
         if trigger_id:
             target += f"/{trigger_id}"
@@ -5074,7 +5074,7 @@ def create_app() -> FastAPI:
             response.raise_for_status()
             return response.json()
         except (httpx.HTTPError, ValueError) as exc:
-            raise HTTPException(502, "Gestione trigger HA e-HDL non riuscita") from exc
+            raise HTTPException(502, "Gestione trigger HA e-Control HUB non riuscita") from exc
 
     @app.post("/api/admin/scenario-triggers")
     async def scenario_ha_trigger_create(request: Request, payload: dict) -> dict:
@@ -5122,7 +5122,7 @@ def create_app() -> FastAPI:
             raw_items = items_response.json().get("items", [])
             status = status_response.json()
         except (httpx.HTTPError, ValueError, AttributeError):
-            raise HTTPException(status_code=502, detail="Scenari e-HDL non disponibili")
+            raise HTTPException(status_code=502, detail="Scenari e-Control HUB non disponibili")
         states = status.get("states", {}) if isinstance(status, dict) else {}
         running = status.get("running", {}) if isinstance(status, dict) else {}
         return {"items": [
@@ -5157,7 +5157,7 @@ def create_app() -> FastAPI:
                 response.raise_for_status()
             return {"ok": True}
         except httpx.HTTPError:
-            raise HTTPException(status_code=502, detail="Comando scenario e-HDL fallito")
+            raise HTTPException(status_code=502, detail="Comando scenario e-Control HUB fallito")
 
     @app.get("/{path:path}", include_in_schema=False)
     async def frontend(path: str) -> HTMLResponse:

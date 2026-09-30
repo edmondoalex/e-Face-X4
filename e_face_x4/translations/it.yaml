@@ -29,7 +29,7 @@ configuration:
       security:
         name: Sicurezza
   buspro:
-    name: e-HDL BusPro MQTT
+    name: e-Control HUB
     description: Collegamento all'add-on che gestisce l'impianto BusPro.
     fields:
       enabled:

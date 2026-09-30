@@ -1,4 +1,4 @@
-"""Validate the complete e-HDL light-scenario editing contract."""
+"""Validate the complete e-Control HUB light-scenario editing contract."""
 from __future__ import annotations
 
 import hashlib

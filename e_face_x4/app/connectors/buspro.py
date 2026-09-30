@@ -41,7 +41,7 @@ def normalize_snapshot(payload: dict[str, Any]) -> dict[str, Any]:
     for index, raw in enumerate(devices):
         if not isinstance(raw, dict):
             continue
-        # e-HDL stores BusPro outputs as type=light, but category=Switch belongs to Extra.
+        # e-Control HUB stores BusPro outputs as type=light, but category=Switch belongs to Extra.
         raw_kind = str(raw.get("type") or raw.get("domain") or "light").strip().lower()
         category = str(raw.get("category") or raw.get("page") or "").strip()
         entity_domain = str(raw.get("entity_id") or "").split(".", 1)[0].lower()
@@ -182,7 +182,7 @@ def normalize_snapshot(payload: dict[str, Any]) -> dict[str, Any]:
 
 class BusproConnector(Connector):
     id = "buspro"
-    label = "e-HDL BusPro MQTT"
+    label = "e-Control HUB"
 
     def __init__(self, config: ProviderConfig, timeout_s: float) -> None:
         self.config = config
@@ -246,7 +246,7 @@ class BusproConnector(Connector):
                 brightness_value = max(1, min(255, int(value)))
             except (TypeError, ValueError):
                 raise ValueError("luminosità non valida")
-        # Commands may take longer than snapshots because e-HDL waits for Home
+        # Commands may take longer than snapshots because e-Control HUB waits for Home
         # Assistant to execute and confirm the requested service call.
         async with httpx.AsyncClient(timeout=max(12.0, self.timeout_s), follow_redirects=False) as client:
             snapshot_response = await client.get(f"{self.config.base_url}/api/user/snapshot", headers=self._headers())
