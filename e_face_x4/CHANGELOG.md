@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.21.278 — 2026-09-30
+
+- Le barre animate delle sessioni audio/video e il punto LIVE ora si fermano quando la riproduzione è in pausa; la card indica esplicitamente `IN PAUSA`.
+- L'icona Energia nella barra laterale aggiorna autonomamente il proprio stato ogni dieci secondi e al ritorno dell'app in primo piano, senza richiedere l'apertura della dashboard Energia.
+
 ## 2.21.277 — 2026-09-29
 
 - Le ultime anteprime valide delle telecamere vengono conservate su disco e restano disponibili anche dopo refresh e riavvii.

@@ -64,6 +64,7 @@ let activeEnergyDashboard = null
 let energyRefreshTimer = null
 let energyRefreshRunning = false
 let energyMasterInitialized = false
+let energyMasterRefreshTimer = null
 let energyMasterColors = []
 let energyMasterPending = { signature:'', confirmations:0 }
 const securitySections = { areas: false, zones: false, sensors: false, cameras: true }
@@ -343,7 +344,7 @@ function render(data) {
     if (!override.state && !Object.hasOwn(override, 'muted') && !Object.hasOwn(override, 'volume')) mediaTransportOverrides.delete(String(device.id))
   })
   updateGlobalMediaSession()
-  if (!energyMasterInitialized) { energyMasterInitialized = true; loadEnergyDashboards(false) }
+  if (!energyMasterInitialized) { energyMasterInitialized = true; startEnergyMasterRefresh() }
   if (!mediaVolumeUiLocked()) renderHomeMediaSessions()
   updateNavigationStates()
   if (activeDetailIds && !$('#detail-view').hidden) {
@@ -1389,9 +1390,13 @@ function renderHomeMediaSessions() {
   if (!host || !list) return
   const sessions = activeMediaSessions()
   host.hidden = sessions.length === 0
+  host.classList.toggle('paused', sessions.length > 0 && sessions.every(({player}) => !['playing','buffering'].includes(String(player.state || '').toLowerCase())))
   $('#home-live-media-count').textContent = `${sessions.length} ${sessions.length === 1 ? 'SESSIONE' : 'SESSIONI'}`
   list.innerHTML = sessions.map(({ player, members }) => {
     const video = player.active_experience === 'watch'
+    const playbackState = String(player.state || '').toLowerCase()
+    const playing = ['playing','buffering'].includes(playbackState)
+    const playbackLabel = playing ? 'IN RIPRODUZIONE' : playbackState === 'paused' ? 'IN PAUSA' : 'FERMO'
     const activeSource = (player.source_options || []).find((source) => Number(source.source_id) === Number(player.active_source_id) || source.label === player.source)
     const sourceId = Number(player.active_source_id || activeSource?.source_id || 0)
     const appArtwork = skyQAppArtwork(player, 'home-live-art')
@@ -1415,7 +1420,7 @@ function renderHomeMediaSessions() {
     const roomPower = player.capabilities?.turn_off ? `<button type="button" class="home-live-room-power" data-home-room-power="${esc(player.id)}" aria-label="Spegni ${esc(player.room||player.name)}" title="Spegni ${esc(player.room||player.name)}"><span class="mdi-mask" style="${mdiStyle('mdi:power','power')}"></span></button>` : ''
     const transport=`<div class="home-live-transport">${channel('channel_down','Canale precedente')}${roomPower}${action('media_previous','skip-previous','Precedente',player.capabilities?.previous)}${String(player.state).toLowerCase()==='playing'?action('media_pause','pause','Pausa',player.capabilities?.pause):action('media_play','play','Riproduci',player.capabilities?.play)}${action('media_next','skip-next','Successivo',player.capabilities?.next)}${action('media_stop','stop','Stop',player.capabilities?.stop)}${channel('channel_up','Canale successivo')}</div>`
     const context = [...new Set([player.source, player.artist, rooms].map(value => String(value || '').trim()).filter(Boolean))]
-    return `<article class="home-live-session ${video ? 'video' : 'audio'}" data-home-session="${esc(player.id)}">${artwork}<button type="button" class="home-live-open"><span class="home-live-info"><small>${video ? 'VIDEO' : 'AUDIO'} IN RIPRODUZIONE</small><strong>${esc(player.title || player.source || player.name)}</strong><span>${esc(context.join(' · '))}</span></span></button><div class="home-live-controls">${zoneSlider}${masterSlider}${transport}</div><i class="home-live-eq" aria-hidden="true"><b></b><b></b><b></b><b></b><b></b><b></b><b></b><b></b></i></article>`
+    return `<article class="home-live-session ${video ? 'video' : 'audio'} ${playing ? 'playing' : 'paused'}" data-home-session="${esc(player.id)}">${artwork}<button type="button" class="home-live-open"><span class="home-live-info"><small>${video ? 'VIDEO' : 'AUDIO'} ${playbackLabel}</small><strong>${esc(player.title || player.source || player.name)}</strong><span>${esc(context.join(' · '))}</span></span></button><div class="home-live-controls">${zoneSlider}${masterSlider}${transport}</div><i class="home-live-eq ${playing ? 'playing' : 'paused'}" aria-hidden="true"><b></b><b></b><b></b><b></b><b></b><b></b><b></b><b></b></i></article>`
   }).join('')
 }
 
@@ -2266,6 +2271,18 @@ function stopEnergyRefresh() {
   clearInterval(energyRefreshTimer)
   energyRefreshTimer = null
 }
+
+function startEnergyMasterRefresh() {
+  clearInterval(energyMasterRefreshTimer)
+  loadEnergyDashboards(false)
+  energyMasterRefreshTimer = setInterval(() => {
+    if (!document.hidden && ($('#energy-view')?.hidden || activeEnergyDashboard)) loadEnergyDashboards(false)
+  }, 10000)
+}
+
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden && energyMasterInitialized) loadEnergyDashboards(false)
+})
 
 function startEnergyRefresh() {
   stopEnergyRefresh()
