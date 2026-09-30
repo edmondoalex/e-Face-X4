@@ -60,3 +60,4 @@ Prima di modificare identità, ruoli, API, eventi, licenze, pairing, cloud/local
 - Versione candidata: `2.21.290`.
 - Test: sintassi dei client `app.js` e `tools.js` valida; sei regressioni mirate superate.
 - Contratti condivisi: invariati. Nessun nuovo push o deploy.
+- Push autorizzato ed eseguito: `origin/main` aggiornato da `1fdf8e0` a `90fc494`, includendo `14ed232` e `90fc494`. Installazione add-on non eseguita.
