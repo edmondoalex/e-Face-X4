@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.21.284 — 2026-09-30
+
+- La risoluzione dell'host tramite Supervisor usa una cache condivisa con single-flight: i proxy e le dashboard non interrogano più `/network/info` per ogni richiesta o asset.
+- Il monitor dell'anteprima Home usa un trigger Home Assistant filtrato sulla sola entità selezionata, anziché decodificare tutti gli eventi `state_changed` dell'impianto.
+- Il monitor telecamera viene sospeso quando non esistono interfacce realtime collegate.
+
 ## 2.21.283 — 2026-09-30
 
 - Il registro Home Assistant usa una sola lettura WebSocket condivisa, con cache e single-flight tra catalogo e agenda.

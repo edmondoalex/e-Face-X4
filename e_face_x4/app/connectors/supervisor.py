@@ -1,10 +1,24 @@
 from __future__ import annotations
 
+import asyncio
 import os
+import time
 from typing import Any
 
 import httpx
 import ipaddress
+
+
+_host_cache: dict[int, tuple[float, str]] = {}
+_host_tasks: dict[int, asyncio.Task[str]] = {}
+HOST_CACHE_TTL = 300.0
+HOST_FAILURE_TTL = 30.0
+
+
+def clear_discovery_cache() -> None:
+    """Clear process-local discovery state (also useful for isolated tests)."""
+    _host_cache.clear()
+    _host_tasks.clear()
 
 
 def find_addon_url(payload: dict[str, Any], target_slug: str, port: int) -> str:
@@ -65,7 +79,12 @@ async def discover_host_url(port: int, timeout_s: float) -> str:
     token = str(os.environ.get("SUPERVISOR_TOKEN") or "").strip()
     if not token:
         return ""
-    try:
+    now = time.monotonic()
+    cached = _host_cache.get(port)
+    if cached and now - cached[0] < (HOST_CACHE_TTL if cached[1] else HOST_FAILURE_TTL):
+        return cached[1]
+
+    async def fetch() -> str:
         async with httpx.AsyncClient(timeout=timeout_s, follow_redirects=False) as client:
             response = await client.get(
                 "http://supervisor/network/info",
@@ -74,5 +93,17 @@ async def discover_host_url(port: int, timeout_s: float) -> str:
             response.raise_for_status()
             payload = response.json()
         return find_host_url(payload, port) if isinstance(payload, dict) else ""
+
+    task = _host_tasks.get(port)
+    if task is None or task.done():
+        task = asyncio.create_task(fetch())
+        _host_tasks[port] = task
+    try:
+        result = await asyncio.shield(task)
     except (httpx.HTTPError, ValueError):
-        return ""
+        result = cached[1] if cached else ""
+    finally:
+        if _host_tasks.get(port) is task and task.done():
+            _host_tasks.pop(port, None)
+    _host_cache[port] = (time.monotonic(), result)
+    return result

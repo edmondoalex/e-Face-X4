@@ -22,12 +22,12 @@ Prima di modificare identità, ruoli, API, eventi, licenze, pairing, cloud/local
 
 - Data: 2026-09-30
 - Obiettivo: eseguire `CHANGE-2026-008` fino al gate del commit locale, eliminando i loop CPU/log di e-Face.
-- Risultato: il catalogo Home Assistant usa una lettura WebSocket condivisa con cache e single-flight; il widget Agenda e le notifiche Alexa hanno limiti di frequenza, cache e backoff esponenziale; le richieste Supervisor non autorizzate a `/addons` sono state rimosse; la riconnessione realtime browser usa backoff con jitter. Il commit `31f95f2` è stato pubblicato e la candidata `2.21.283` installata: Supervisor la riporta `started`, aggiornata e senza errori pertinenti nei log recenti.
+- Risultato: dopo il riscontro live sulla `2.21.283`, la candidata locale `2.21.284` aggiunge cache e single-flight per `/network/info`, filtra lato Home Assistant il monitor della sola telecamera selezionata e lo sospende quando non esistono client realtime. La `2.21.283` resta installata; nessun ulteriore push o deploy è stato eseguito.
 - File modificati: backend e connettore Supervisor del componente, client web, file di versione, changelog, test e `EKONEX_PLATFORM_SYNC.md`.
-- Test eseguiti: `node --check app/static/assets/app.js`; `python -m compileall -q app`; suite completa `373 passed`; test mirati per assenza `/addons`, cache/single-flight, frequenza Agenda e backoff; `git diff --check`.
+- Test eseguiti: `node --check app/static/assets/app.js`; `python -m compileall -q app`; suite completa `375 passed`; test concorrente con 20 richieste simultanee ridotte a una chiamata Supervisor; test del monitor telecamera filtrato e sospendibile; `git diff --check`.
 - Contratti/versioni usati: Platform governance 1.0; API compatibility policy 1.0; Identity draft-1; Event draft-1; Licensing draft-1.
 - Change ID: `CHANGE-2026-008`; nessun contratto condiviso modificato.
 - Compatibilità: invariati API pubbliche, formato eventi, slug, provider ID e dati persistenti.
 - Dipendenze da altri componenti: nessuna nuova dipendenza; restano usati solo gli endpoint Home Assistant/Supervisor già ammessi.
 - Attività richieste agli altri Codex: nessuna.
-- Rischi o decisioni ancora aperte: il primo campionamento post-installazione ha mostrato CPU variabile circa 18–33%, quindi il criterio sotto il 10% non è ancora soddisfatto e richiede una diagnosi separata dell'attività residua. Nessun loop recente `/addons` o Alexa `Bad Request` è stato rilevato.
+- Rischi o decisioni ancora aperte: la riduzione sotto il 10% deve essere verificata per almeno 5 minuti soltanto dopo revisione e installazione autorizzata della `2.21.284`; i test locali non dimostrano il consumo CPU dell'impianto reale.

@@ -78,7 +78,7 @@ from .media_realtime import SharedMediaRealtime
 from .demo import dashboard as demo_dashboard
 from .ha_labeled import normalize_labeled_entities
 
-VERSION = os.environ.get("EFACE_VERSION", "2.21.283")
+VERSION = os.environ.get("EFACE_VERSION", "2.21.284")
 STATIC = Path(__file__).parent / "static"
 logging.basicConfig(level=logging.WARNING, format="%(asctime)s %(levelname)s [e-face-x4] %(message)s")
 _reconnect_warning_at: dict[str, float] = {}
@@ -319,22 +319,26 @@ def create_app() -> FastAPI:
                 app.state.doorbird_monitor_tasks.append(asyncio.create_task(monitor_doorbird(station, account)))
 
     async def monitor_home_camera() -> None:
-        """Keep one shared HA event stream and notify every connected e-Face UI."""
+        """Subscribe server-side only to the selected camera while UIs are connected."""
         delay = 2
         connector = LocalMediaConnector(load_settings().request_timeout_s)
         while True:
             socket = None
             try:
+                entity_id = load_home_camera_entity()
+                if not entity_id or not app.state.realtime_clients:
+                    return
                 socket = await connector._connect_websocket()
-                await socket.send(json.dumps({"id": 901, "type": "subscribe_events", "event_type": "state_changed"}))
+                await socket.send(json.dumps({
+                    "id": 901, "type": "subscribe_trigger",
+                    "trigger": {"platform": "state", "entity_id": entity_id},
+                }))
                 while True:
                     message = json.loads(await socket.recv())
                     if message.get("type") != "event":
                         continue
-                    data = message.get("event", {}).get("data", {})
-                    if str(data.get("entity_id") or "") == load_home_camera_entity():
-                        delay = 2
-                        await broadcast_realtime({"type": "home_camera_event", "data": {"entity_id": data["entity_id"]}})
+                    delay = 2
+                    await broadcast_realtime({"type": "home_camera_event", "data": {"entity_id": entity_id}})
             except asyncio.CancelledError:
                 raise
             except Exception as exc:
@@ -4920,6 +4924,8 @@ def create_app() -> FastAPI:
             await websocket.close(code=1008)
             return
         await websocket.accept()
+        queue: asyncio.Queue[dict] = asyncio.Queue(maxsize=100)
+        app.state.realtime_clients.add(queue)
         if app.state.home_camera_monitor_task is None or app.state.home_camera_monitor_task.done():
             app.state.home_camera_monitor_task = asyncio.create_task(monitor_home_camera())
         settings = load_settings()
@@ -4927,9 +4933,6 @@ def create_app() -> FastAPI:
             resolved_provider(settings.etherm, "e_therm_plus_ks", 8080, settings.request_timeout_s),
             resolved_provider(settings.ksenia, "ksenia_lares_addon", 8080, settings.request_timeout_s),
         )
-        queue: asyncio.Queue[dict] = asyncio.Queue(maxsize=100)
-        app.state.realtime_clients.add(queue)
-
         async def etherm_events() -> None:
             headers = EThermConnector(etherm, settings.request_timeout_s).headers()
             async with httpx.AsyncClient(timeout=None, follow_redirects=False) as client:
@@ -5016,6 +5019,9 @@ def create_app() -> FastAPI:
                 pass
         finally:
             app.state.realtime_clients.discard(queue)
+            if not app.state.realtime_clients and app.state.home_camera_monitor_task:
+                app.state.home_camera_monitor_task.cancel()
+                app.state.home_camera_monitor_task = None
             for task in tasks:
                 task.cancel()
             if evoice_queue is not None:
