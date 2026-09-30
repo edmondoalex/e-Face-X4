@@ -61,3 +61,11 @@ Prima di modificare identità, ruoli, API, eventi, licenze, pairing, cloud/local
 - Test: sintassi dei client `app.js` e `tools.js` valida; sei regressioni mirate superate.
 - Contratti condivisi: invariati. Nessun nuovo push o deploy.
 - Push autorizzato ed eseguito: `origin/main` aggiornato da `1fdf8e0` a `90fc494`, includendo `14ed232` e `90fc494`. Installazione add-on non eseguita.
+
+## Handoff aggiuntivo — ordine Scorciatoie controllato dall'utente
+
+- Data: 2026-09-30
+- Evidenza live: l'editor salvava `Sistema di sicurezza` come primo elemento, ma il renderer `2.21.290` riordinava le sottosezioni per tipo; durante bootstrap incompleti un salvataggio poteva inoltre perdere ID selezionati.
+- Correzione: master, sottosezioni e schede seguono l'ordine salvato; la sottosezione è posizionata in base al primo suo elemento trascinato. Gli ID selezionati temporaneamente assenti vengono preservati e il rilascio del drag è acquisito anche fuori dall'elenco.
+- Versione: `2.21.291`; test mirati `6 passed`, sintassi JavaScript valida.
+- Contratti condivisi invariati; pubblicazione autorizzata dall'utente.

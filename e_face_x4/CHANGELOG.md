@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.21.291 — 2026-09-30
+
+- L'ordine dei master, delle sottosezioni Sicurezza e delle schede nelle Scorciatoie segue il trascinamento salvato dall'utente, senza precedenze imposte dal renderer.
+- Il salvataggio preserva gli ID selezionati che risultano temporaneamente assenti da un bootstrap incompleto e conclude il trascinamento anche quando il puntatore viene rilasciato fuori dall'elenco.
+
 ## 2.21.290 — 2026-09-30
 
 - Nelle Scorciatoie il gruppo cover è presentato come `Varchi`; Sicurezza separa serrature e portoni, scenari, partizioni, zone e altri elementi nell'ordine operativo richiesto.

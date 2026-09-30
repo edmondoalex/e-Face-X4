@@ -438,7 +438,7 @@ async function openShortcutEditor(){try{await loadShortcutAdmin();shortcutsPanel
 window.efaceOpenShortcutOrder=openShortcutEditor
 shortcutsCard.addEventListener('click',openShortcutEditor)
 $('#shortcuts-back').addEventListener('click',()=>{shortcutsPanel.hidden=true})
-function syncShortcutGroups(){shortcutGroups=[...$('#shortcuts-order-list').querySelectorAll('[data-shortcut-category]')].map((section)=>({category:section.dataset.shortcutCategory,devices:[...section.querySelectorAll('[data-shortcut-device]')].filter((row)=>row.querySelector('input').checked).map((row)=>row.dataset.shortcutDevice)}))}
+function syncShortcutGroups(){const previous=new Map(shortcutGroups.map(group=>[group.category,group.devices]));const rendered=new Set([...$('#shortcuts-order-list').querySelectorAll('[data-shortcut-device]')].map(row=>row.dataset.shortcutDevice));shortcutGroups=[...$('#shortcuts-order-list').querySelectorAll('[data-shortcut-category]')].map((section)=>{const category=section.dataset.shortcutCategory;const selected=[...section.querySelectorAll('[data-shortcut-device]')].filter((row)=>row.querySelector('input').checked).map((row)=>row.dataset.shortcutDevice);const temporarilyMissing=(previous.get(category)||[]).filter(id=>!rendered.has(id));return {category,devices:[...new Set([...selected,...temporarilyMissing])]}})}
 $('#shortcuts-order-list').addEventListener('change',syncShortcutGroups)
 $('#shortcuts-order-list').addEventListener('click',(event)=>{const toggle=event.target.closest('[data-shortcut-admin-toggle]');if(!toggle)return;const category=toggle.closest('[data-shortcut-category]').dataset.shortcutCategory;if(expandedShortcutAdminGroups.has(category))expandedShortcutAdminGroups.delete(category);else expandedShortcutAdminGroups.add(category);renderShortcutAdmin()})
 let draggedShortcut=null
@@ -447,6 +447,8 @@ $('#shortcuts-order-list').addEventListener('pointermove',(event)=>{if(!draggedS
 const finishShortcutDrag=()=>{if(!draggedShortcut)return;draggedShortcut.classList.remove('dragging');draggedShortcut=null;syncShortcutGroups();renderShortcutAdmin()}
 $('#shortcuts-order-list').addEventListener('pointerup',finishShortcutDrag)
 $('#shortcuts-order-list').addEventListener('pointercancel',finishShortcutDrag)
+document.addEventListener('pointerup',finishShortcutDrag)
+document.addEventListener('pointercancel',finishShortcutDrag)
 $('#shortcuts-order-list').addEventListener('keydown',(event)=>{const handle=event.target.closest('[data-shortcut-drag]');if(!handle||!['ArrowUp','ArrowDown'].includes(event.key))return;event.preventDefault();const row=handle.dataset.shortcutDrag==='category'?handle.closest('[data-shortcut-category]'):handle.closest('[data-shortcut-device]');const sibling=event.key==='ArrowUp'?row.previousElementSibling:row.nextElementSibling;if(!sibling||sibling.matches('[data-shortcut-device]')!==row.matches('[data-shortcut-device]'))return;row.parentElement.insertBefore(row,event.key==='ArrowUp'?sibling:sibling.nextSibling);syncShortcutGroups();renderShortcutAdmin()})
 $('#shortcuts-save').addEventListener('click',async()=>{try{const response=await fetch(apiUrl('../api/user/appearance'),{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({shortcuts:shortcutGroups})});if(!response.ok)throw new Error((await response.json()).detail);notice('Scorciatoie salvate');shortcutsPanel.hidden=true}catch(error){notice(error.message)}})
 
