@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.21.287 — 2026-09-30
+
+- Se la diretta HLS non parte, il visualizzatore passa a fotogrammi realmente aggiornati ogni tre secondi invece di lasciare congelata l'ultima anteprima.
+- Il refresh rapido viene attivato soltanto con il visualizzatore aperto e forza una nuova immagine al massimo ogni due secondi.
+
 ## 2.21.286 — 2026-09-30
 
 - Il controllo periodico delle Routine legge soltanto i dispositivi effettivamente referenziati, invece di ricostruire l'intero bootstrap di BusPro, Control4, Ksenia, Home Assistant, WiiM e Sky Q ogni otto secondi.

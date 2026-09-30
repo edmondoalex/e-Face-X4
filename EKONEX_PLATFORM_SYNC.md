@@ -22,12 +22,12 @@ Prima di modificare identità, ruoli, API, eventi, licenze, pairing, cloud/local
 
 - Data: 2026-09-30
 - Obiettivo: eseguire `CHANGE-2026-008` fino al gate del commit locale, eliminando i loop CPU/log di e-Face.
-- Risultato: la candidata locale `2.21.286` conserva cache/single-flight Supervisor, monitor telecamera filtrato e avvio HLS resiliente. In aggiunta elimina lo snapshot globale che il motore Routine eseguiva ogni otto secondi: il tick usa ora soltanto le entità referenziate e risolve Alexa, e-Dry, HA e scenari prima di ricadere sul bootstrap completo. La versione installata riportata dal work order è `2.21.284`; nessun nuovo push o deploy è stato eseguito in questa sessione.
+- Risultato: la candidata locale `2.21.287` conserva tutte le ottimizzazioni CPU e l'avvio HLS resiliente. Se la diretta non parte, il visualizzatore passa ora a fotogrammi realmente aggiornati ogni tre secondi, con lettura fresca limitata a una ogni due secondi e attiva soltanto finché la finestra resta aperta. La versione installata riportata dal work order è `2.21.284`; nessun nuovo push o deploy è stato eseguito in questa sessione.
 - File modificati: backend e connettore Supervisor del componente, client web, file di versione, changelog, test e `EKONEX_PLATFORM_SYNC.md`.
-- Test eseguiti: `node --check app/static/assets/app.js`; `python -m compileall -q app`; suite completa `376 passed`; regressione che vieta al tick periodico lo snapshot completo e verifica gli ID selezionati; test cache Supervisor, monitor telecamera e HLS invariati; `git diff --check`.
+- Test eseguiti: `node --check app/static/assets/app.js`; suite completa precedente `376 passed`; dopo il fallback fotogrammi, tre regressioni mirate versione/cache-buster/monitor-HLS superate. Un riesame completo di `test_app.py` è stato interrotto perché non avanzava nell'ambiente locale, senza errori prodotti.
 - Contratti/versioni usati: Platform governance 1.0; API compatibility policy 1.0; Identity draft-1; Event draft-1; Licensing draft-1.
 - Change ID: `CHANGE-2026-008`; nessun contratto condiviso modificato.
 - Compatibilità: invariati API pubbliche, formato eventi, slug, provider ID e dati persistenti.
 - Dipendenze da altri componenti: nessuna nuova dipendenza; restano usati solo gli endpoint Home Assistant/Supervisor già ammessi.
 - Attività richieste agli altri Codex: nessuna.
-- Rischi o decisioni ancora aperte: media CPU sotto il 10% e avvio HLS con un solo clic devono essere verificati su Windows e Android dopo revisione e installazione autorizzata della `2.21.286`; i test locali non dimostrano il consumo CPU o la resa video dell'impianto reale.
+- Rischi o decisioni ancora aperte: media CPU sotto il 10%, avvio HLS con un solo clic e movimento del fallback a fotogrammi devono essere verificati su Windows e Android dopo revisione e installazione autorizzata della `2.21.287`.

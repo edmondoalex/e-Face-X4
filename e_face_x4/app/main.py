@@ -78,7 +78,7 @@ from .media_realtime import SharedMediaRealtime
 from .demo import dashboard as demo_dashboard
 from .ha_labeled import normalize_labeled_entities
 
-VERSION = os.environ.get("EFACE_VERSION", "2.21.286")
+VERSION = os.environ.get("EFACE_VERSION", "2.21.287")
 STATIC = Path(__file__).parent / "static"
 logging.basicConfig(level=logging.WARNING, format="%(asctime)s %(levelname)s [e-face-x4] %(message)s")
 _reconnect_warning_at: dict[str, float] = {}
@@ -2739,12 +2739,16 @@ def create_app() -> FastAPI:
             app.state.security_camera_image_tasks.discard(entity_id)
 
     @app.get("/api/security/cameras/{camera_id}/image")
-    async def security_camera_image(camera_id: str) -> Response:
+    async def security_camera_image(camera_id: str, live: bool = False) -> Response:
         camera = next((item for item in load_security_cameras() if item.get("id") == camera_id), None)
         entity_id = str((camera or {}).get("preview_url") or (camera or {}).get("url") or "")
         if not re.fullmatch(r"camera\.[a-z0-9_]+", entity_id):
             raise HTTPException(status_code=404, detail="Entità videocamera non configurata")
         cached = cached_security_camera_image(entity_id)
+        if live and (not cached or time.time() - cached[0] >= 2):
+            refreshed = await refresh_security_camera_image(entity_id)
+            if refreshed:
+                cached = refreshed
         stale = bool(cached and time.time() - cached[0] >= 20)
         if stale and entity_id not in app.state.security_camera_image_tasks and time.monotonic() >= app.state.security_camera_snapshot_retry_at:
             asyncio.create_task(refresh_security_camera_image(entity_id))

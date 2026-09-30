@@ -544,8 +544,8 @@ let cameraOpenGeneration=0
 let hlsLibraryPromise=null
 function loadHlsLibrary(){if(window.Hls)return Promise.resolve(window.Hls);if(hlsLibraryPromise)return hlsLibraryPromise;hlsLibraryPromise=new Promise((resolve,reject)=>{const script=document.createElement('script');script.src='assets/hls-1.7.3.min.js';script.onload=()=>resolve(window.Hls);script.onerror=()=>reject(new Error('Player HLS non caricato'));document.head.append(script)});return hlsLibraryPromise}
 function stopHomeEventRefresh(){cameraOpenGeneration++;clearInterval(homeEventRefreshTimer);homeEventRefreshTimer=null;homeEventRefreshBusy=false;if(cameraHls){cameraHls.destroy();cameraHls=null}if(homeEventObjectUrl){URL.revokeObjectURL(homeEventObjectUrl);homeEventObjectUrl=''}}
-function cameraRefreshUrl(source){const url=new URL(source,location.href);url.searchParams.set('v',Date.now());return url.href}
-async function refreshOpenCamera(source){if(homeEventRefreshBusy)return;homeEventRefreshBusy=true;try{const response=await fetch(cameraRefreshUrl(source),{cache:'no-store'});if(!response.ok)throw new Error(`HTTP ${response.status}`);const nextUrl=URL.createObjectURL(await response.blob());const viewer=$('#home-event-dialog-image');const previous=homeEventObjectUrl;viewer.onload=()=>{if(previous)URL.revokeObjectURL(previous)};viewer.src=nextUrl;homeEventObjectUrl=nextUrl}catch(error){console.warn('Aggiornamento videocamera non disponibile',error)}finally{homeEventRefreshBusy=false}}
+function cameraRefreshUrl(source,live=false){const url=new URL(source,location.href);url.searchParams.set('v',Date.now());if(live)url.searchParams.set('live','true');return url.href}
+async function refreshOpenCamera(source){if(homeEventRefreshBusy)return;homeEventRefreshBusy=true;try{const response=await fetch(cameraRefreshUrl(source,true),{cache:'no-store'});if(!response.ok)throw new Error(`HTTP ${response.status}`);const nextUrl=URL.createObjectURL(await response.blob());const viewer=$('#home-event-dialog-image');const previous=homeEventObjectUrl;viewer.onload=()=>{if(previous)URL.revokeObjectURL(previous)};viewer.src=nextUrl;homeEventObjectUrl=nextUrl}catch(error){console.warn('Aggiornamento videocamera non disponibile',error)}finally{homeEventRefreshBusy=false}}
 async function openHomeEventViewer(card){
   const image=card.querySelector('img');if(!image?.src)return
   const dialog=$('#home-event-dialog'),viewer=$('#home-event-dialog-image');let video=$('#home-event-dialog-video')
@@ -566,7 +566,7 @@ async function openHomeEventViewer(card){
         if(generation!==cameraOpenGeneration)return;await video.play()
       }
       if(generation===cameraOpenGeneration)$('#home-event-dialog-source').textContent='VIDEO LIVE'
-    }catch(error){if(generation!==cameraOpenGeneration)return;if(cameraHls){cameraHls.destroy();cameraHls=null}video.pause();video.removeAttribute('src');video.load();video.hidden=true;viewer.hidden=false;$('#home-event-dialog-source').textContent='FOTOGRAMMI · LIVE NON DISPONIBILE';notify(`Video live non disponibile: ${error.message}`)}
+    }catch(error){if(generation!==cameraOpenGeneration)return;if(cameraHls){cameraHls.destroy();cameraHls=null}video.pause();video.removeAttribute('src');video.load();video.hidden=true;viewer.hidden=false;$('#home-event-dialog-source').textContent='FOTOGRAMMI AGGIORNATI · LIVE NON DISPONIBILE';refreshOpenCamera(image.src);homeEventRefreshTimer=setInterval(()=>refreshOpenCamera(image.src),3000);notify(`Video live non disponibile: ${error.message}`)}
   }else if(card.matches('[data-security-camera-entity]')){refreshOpenCamera(image.src);homeEventRefreshTimer=setInterval(()=>refreshOpenCamera(image.src),5000)}
 }
 for(const selector of ['#home-camera-event','#home-doorbell-event','#home-motion-event'])$(selector)?.addEventListener('click',(event)=>openHomeEventViewer(event.currentTarget))
