@@ -1270,7 +1270,7 @@ class Engine:
         if not routines:
             self.previous = {}
             return
-        devices = {str(item.get("id")): item for item in await self.snapshot() if item.get("id") is not None}
+        devices = await self._snapshot_for(routines)
         current = {identifier: _state(item) for identifier, item in devices.items()}
         local = datetime.now(ZoneInfo("Europe/Rome"))
         sun = {}

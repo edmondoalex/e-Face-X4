@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.21.286 — 2026-09-30
+
+- Il controllo periodico delle Routine legge soltanto i dispositivi effettivamente referenziati, invece di ricostruire l'intero bootstrap di BusPro, Control4, Ksenia, Home Assistant, WiiM e Sky Q ogni otto secondi.
+- Le sorgenti specializzate di Routine vengono risolte prima del fallback completo, evitando snapshot globali per trigger e azioni Alexa, e-Dry, HA e scenari già disponibili.
+
 ## 2.21.285 — 2026-09-30
 
 - L'apertura delle dirette HLS attende il tempo reale di avvio della telecamera, con retry controllati del manifest fino a 40 secondi, invece di fallire dopo il primo timeout di 10 secondi.

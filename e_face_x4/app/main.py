@@ -78,7 +78,7 @@ from .media_realtime import SharedMediaRealtime
 from .demo import dashboard as demo_dashboard
 from .ha_labeled import normalize_labeled_entities
 
-VERSION = os.environ.get("EFACE_VERSION", "2.21.285")
+VERSION = os.environ.get("EFACE_VERSION", "2.21.286")
 STATIC = Path(__file__).parent / "static"
 logging.basicConfig(level=logging.WARNING, format="%(asctime)s %(levelname)s [e-face-x4] %(message)s")
 _reconnect_warning_at: dict[str, float] = {}
@@ -3727,13 +3727,16 @@ def create_app() -> FastAPI:
                     ksenia_items = ksenia.get("items", []) if ksenia.get("status") == "online" else []
                 items.extend(ksenia_items)
                 known.update(str(item.get("id")) for item in ksenia_items)
-            if items and {identifier for identifier in referenced if not identifier.startswith("light-scenario:")}.issubset(known):
-                return await with_scenarios(items)
+            items = await with_scenarios(items)
+            known = {str(item.get("id")) for item in items if item.get("id") is not None}
+            if {identifier for identifier in referenced if not identifier.startswith("light-scenario:")}.issubset(known):
+                return items
         if request is None:
             request = Request({"type": "http", "method": "GET", "path": "/api/bootstrap", "headers": [],
                                "query_string": b"", "scheme": "http", "server": ("localhost", 8099)})
         data = await bootstrap(request)
-        return await with_scenarios(data.get("dashboard", {}).get("devices", []))
+        items = await with_scenarios(data.get("dashboard", {}).get("devices", []))
+        return list({str(item.get("id")): item for item in items if item.get("id") is not None}.values())
 
     async def routine_command(device_id: str, action: str, value: object) -> object:
         if device_id.startswith("edry:"):

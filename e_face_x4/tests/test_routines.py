@@ -880,6 +880,31 @@ def test_engine_runs_only_on_state_transition_and_logs_device():
     assert runs[0]["modified_by"] == "alice"
 
 
+def test_periodic_tick_uses_only_referenced_device_snapshot():
+    full_calls = 0
+    selected_calls = []
+
+    async def full_snapshot():
+        nonlocal full_calls
+        full_calls += 1
+        return catalog()
+
+    async def selected_snapshot(device_ids):
+        selected_calls.append(set(device_ids))
+        return [item for item in catalog() if item["id"] in device_ids]
+
+    async def command(device_id, action, value):
+        return None
+
+    spec = routines.validate(sample(), catalog())["spec"]
+    routines.save("alice", "alice", None, spec, True, None)
+    engine = routines.Engine(full_snapshot, command, selected_snapshot)
+    asyncio.run(engine.tick())
+
+    assert full_calls == 0
+    assert selected_calls == [{"sensor.motion", "light.hall"}]
+
+
 def test_state_trigger_can_run_twice_in_same_minute():
     state = {"sensor.motion": "off", "light.hall": "off"}
     commands = []
