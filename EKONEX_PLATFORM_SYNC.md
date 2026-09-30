@@ -69,3 +69,4 @@ Prima di modificare identità, ruoli, API, eventi, licenze, pairing, cloud/local
 - Correzione: master, sottosezioni e schede seguono l'ordine salvato; la sottosezione è posizionata in base al primo suo elemento trascinato. Gli ID selezionati temporaneamente assenti vengono preservati e il rilascio del drag è acquisito anche fuori dall'elenco.
 - Versione: `2.21.291`; test mirati `6 passed`, sintassi JavaScript valida.
 - Contratti condivisi invariati; pubblicazione autorizzata dall'utente.
+- Push eseguito: `origin/main` aggiornato da `356257c` a `59225bc`. Installazione add-on non eseguita.
