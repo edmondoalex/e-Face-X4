@@ -78,7 +78,7 @@ from .media_realtime import SharedMediaRealtime
 from .demo import dashboard as demo_dashboard
 from .ha_labeled import normalize_labeled_entities
 
-VERSION = os.environ.get("EFACE_VERSION", "2.21.278")
+VERSION = os.environ.get("EFACE_VERSION", "2.21.279")
 STATIC = Path(__file__).parent / "static"
 logging.basicConfig(level=logging.WARNING, format="%(asctime)s %(levelname)s [e-face-x4] %(message)s")
 _reconnect_warning_at: dict[str, float] = {}
@@ -3797,6 +3797,14 @@ def create_app() -> FastAPI:
 
     @app.on_event("startup")
     async def start_routine_engine() -> None:
+        control4_config = load_control4_config()
+        if all(control4_config.get(key) for key in ("host", "username", "password")):
+            try:
+                director, _ = await control4_director(control4_config)
+                await director.get_item_info(100002)
+            except Exception as exc:
+                logging.warning("Control4 startup warm-up delayed: %s", type(exc).__name__)
+
         async def loop() -> None:
             while True:
                 try:

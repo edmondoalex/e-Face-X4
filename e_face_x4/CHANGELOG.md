@@ -1,5 +1,9 @@
 # Changelog
 
+## 2.21.279 — 2026-09-30
+
+- La sessione locale Control4 viene autenticata e verificata durante l'avvio dell'add-on: il primo comando dell'utente non paga più i circa tre secondi di inizializzazione osservati dopo un aggiornamento o riavvio.
+
 ## 2.21.278 — 2026-09-30
 
 - Le barre animate delle sessioni audio/video e il punto LIVE ora si fermano quando la riproduzione è in pausa; la card indica esplicitamente `IN PAUSA`.
