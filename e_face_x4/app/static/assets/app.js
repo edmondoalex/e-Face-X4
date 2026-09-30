@@ -1567,6 +1567,9 @@ function deviceActions(device, options = {}) {
 
 async function postDeviceCommand(deviceId, action, value, resourceRevision = null, pin = null) {
   const payload = { action, value, resource_revision: resourceRevision }
+  const currentDevice = currentDevices.find((item) => String(item.id) === String(deviceId))
+  const activeSourceId = Number(currentDevice?.active_source_id)
+  if (Number.isSafeInteger(activeSourceId) && activeSourceId > 0) payload.active_source_id = activeSourceId
   if (pin !== null) payload.pin = pin
   const response = await fetch(apiUrl(`api/devices/${encodeURIComponent(deviceId)}/command`), {
     method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload)

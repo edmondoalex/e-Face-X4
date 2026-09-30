@@ -1,5 +1,9 @@
 # Changelog
 
+## 2.21.280 — 2026-09-30
+
+- I comandi Play/Pausa/Stop Control4 non attendono più snapshot completi per escludere Sky Q e WiiM: la sorgente attiva già nota alla UI instrada subito il comando, mantenendo il controllo precedente come fallback per i client meno recenti.
+
 ## 2.21.279 — 2026-09-30
 
 - La sessione locale Control4 viene autenticata e verificata durante l'avvio dell'add-on: il primo comando dell'utente non paga più i circa tre secondi di inizializzazione osservati dopo un aggiornamento o riavvio.

@@ -78,7 +78,7 @@ from .media_realtime import SharedMediaRealtime
 from .demo import dashboard as demo_dashboard
 from .ha_labeled import normalize_labeled_entities
 
-VERSION = os.environ.get("EFACE_VERSION", "2.21.279")
+VERSION = os.environ.get("EFACE_VERSION", "2.21.280")
 STATIC = Path(__file__).parent / "static"
 logging.basicConfig(level=logging.WARNING, format="%(asctime)s %(levelname)s [e-face-x4] %(message)s")
 _reconnect_warning_at: dict[str, float] = {}
@@ -4527,11 +4527,16 @@ def create_app() -> FastAPI:
                 room_id = int(device_id.split(":", 1)[1])
                 linked_room = int(skyq_config.get("control4_room_id") or 0)
                 linked_source = int(skyq_config.get("control4_source_id") or 0)
+                reported_source = payload.get("active_source_id")
+                source_reported = isinstance(reported_source, int) and not isinstance(reported_source, bool) and reported_source > 0
                 if skyq_config.get("enabled") and linked_source and (not linked_room or linked_room == room_id):
                     try:
-                        current = await Control4MediaConnector(control4).snapshot()
-                        room = next((item for item in current.get("items", []) if item.get("registry_id") == f"c4room:{room_id}"), None)
-                        if room and int(room.get("active_source_id") or 0) == linked_source:
+                        use_skyq = reported_source == linked_source if source_reported else False
+                        if not source_reported:
+                            current = await Control4MediaConnector(control4).snapshot()
+                            room = next((item for item in current.get("items", []) if item.get("registry_id") == f"c4room:{room_id}"), None)
+                            use_skyq = bool(room and int(room.get("active_source_id") or 0) == linked_source)
+                        if use_skyq:
                             action = {"media_play": "play", "media_pause": "pause", "media_stop": "stop", "media_next": "skip_fwd", "media_previous": "skip_rev"}[operation]
                             return await skyq_connector.command(skyq_config, action)
                     except (ConnectionError, OSError, asyncio.TimeoutError) as exc:
@@ -4558,9 +4563,14 @@ def create_app() -> FastAPI:
                 if wiim_config.get("enabled") and wiim_config.get("host") and source_id > 0:
                     try:
                         room_id = int(device_id.split(":", 1)[1])
-                        control4_snapshot = await Control4MediaConnector(control4).snapshot()
-                        room = next((item for item in control4_snapshot.get("items", []) if str(item.get("registry_id")) == f"c4room:{room_id}"), None)
-                        if room and int(room.get("active_source_id") or 0) == source_id:
+                        reported_source = payload.get("active_source_id")
+                        source_reported = isinstance(reported_source, int) and not isinstance(reported_source, bool) and reported_source > 0
+                        use_wiim = reported_source == source_id if source_reported else False
+                        if not source_reported:
+                            control4_snapshot = await Control4MediaConnector(control4).snapshot()
+                            room = next((item for item in control4_snapshot.get("items", []) if str(item.get("registry_id")) == f"c4room:{room_id}"), None)
+                            use_wiim = bool(room and int(room.get("active_source_id") or 0) == source_id)
+                        if use_wiim:
                             client = WiiMClient(wiim_config["host"])
                             await client.player_action(wiim_actions[operation], int(payload.get("value")) if operation == "set_volume" else None)
                             return {"ok": True, "provider": "wiim", "device": await client.snapshot()}
