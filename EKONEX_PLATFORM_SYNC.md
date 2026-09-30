@@ -51,3 +51,12 @@ Prima di modificare identità, ruoli, API, eventi, licenze, pairing, cloud/local
 - Correzione: gli `alarm_scenario` sono inclusi esplicitamente anche nell'insieme Sicurezza senza rimuoverli dalla pagina Scenari; candidata `2.21.289`.
 - Test: sintassi JavaScript valida e gruppo mirato Ksenia/classificazione/versione superato (`5 passed`).
 - Contratti condivisi: invariati. Gate: commit locale; nessun nuovo push o deploy.
+
+## Handoff aggiuntivo — struttura e ordinamento Scorciatoie
+
+- Data: 2026-09-30
+- Risultato: il gruppo cover nelle Scorciatoie è denominato `Varchi`; Sicurezza mostra sottosezioni nell'ordine `Serrature e portoni`, `Scenari`, `Partizioni`, `Zone`, quindi sistema/sensori quando presenti.
+- Editor: i master di “Ordina scorciatoie” partono collassati, si aprono singolarmente e restano trascinabili tramite la maniglia dedicata; il pulsante di apertura è separato dalla maniglia.
+- Versione candidata: `2.21.290`.
+- Test: sintassi dei client `app.js` e `tools.js` valida; sei regressioni mirate superate.
+- Contratti condivisi: invariati. Nessun nuovo push o deploy.

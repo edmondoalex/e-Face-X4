@@ -93,3 +93,4 @@ html,body,#app{-webkit-user-select:none;user-select:none;-webkit-touch-callout:n
 button,a,[role="button"],.device-card,.widget,.rail>*{touch-action:manipulation;-webkit-user-drag:none}
 img,svg{-webkit-user-select:none;user-select:none;-webkit-user-drag:none}
 input,textarea,[contenteditable="true"]{-webkit-user-select:text;user-select:text;-webkit-touch-callout:default}
+.shortcut-security-subgroup{margin:12px 0 20px}.shortcut-security-subgroup>h3{margin:0 0 9px;padding:0 4px;color:#cbd7d9;font-size:16px;text-transform:uppercase;letter-spacing:.04em}.shortcut-group-content[hidden]{display:none}

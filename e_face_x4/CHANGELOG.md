@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.21.290 — 2026-09-30
+
+- Nelle Scorciatoie il gruppo cover è presentato come `Varchi`; Sicurezza separa serrature e portoni, scenari, partizioni, zone e altri elementi nell'ordine operativo richiesto.
+- In “Ordina scorciatoie” i master sono collassati inizialmente, possono essere aperti singolarmente e restano ordinabili trascinando la maniglia `☰`.
+
 ## 2.21.289 — 2026-09-30
 
 - Gli scenari di inserimento esposti da Ksenia restano disponibili nella pagina generale Scenari e vengono inclusi anche nella pagina Sicurezza, insieme ad aree, zone e sistema di allarme.
