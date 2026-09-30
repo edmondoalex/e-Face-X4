@@ -1,5 +1,9 @@
 # Changelog
 
+## 2.21.288 — 2026-09-30
+
+- I dispositivi `cover` che rappresentano portoni vengono classificati nella pagina Sicurezza prima della regola generica degli oscuranti, rendendo visibili Portone Alex e Portone Luca in “Accessi e portoni”.
+
 ## 2.21.287 — 2026-09-30
 
 - Se la diretta HLS non parte, il visualizzatore passa a fotogrammi realmente aggiornati ogni tre secondi invece di lasciare congelata l'ultima anteprima.

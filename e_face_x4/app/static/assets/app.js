@@ -80,11 +80,14 @@ const isSecurityGarage = (device) => device.kind === 'cover' && /garage|portone/
 function defaultDeviceCategory(device) {
   if (device.kind === 'light') return 'lights'
   if (['switch','select','button'].includes(device.kind)) return 'extra'
+  // Portoni exposed by Home Assistant as covers belong to Accessi e portoni,
+  // not to the generic cover page. This check must precede kind === 'cover'.
+  if (isSecurityGarage(device)) return 'security'
   if (device.kind === 'cover') return 'covers'
   if (['climate','temp','temperature','humidity','air','air_quality'].includes(device.kind)) return 'comfort'
   if (['sensor','binary_sensor'].includes(device.kind)) return 'sensors'
   if (['alarm_scenario'].includes(device.kind)) return 'scenarios'
-  if (['lock','alarm_partition','alarm_zone','alarm_system'].includes(device.kind) || isSecurityGarage(device)) return 'security'
+  if (['lock','alarm_partition','alarm_zone','alarm_system'].includes(device.kind)) return 'security'
   if (['media','media_player','camera','doorbell'].includes(device.kind)) return 'media'
   return ''
 }

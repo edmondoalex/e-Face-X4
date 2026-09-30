@@ -31,3 +31,13 @@ Prima di modificare identità, ruoli, API, eventi, licenze, pairing, cloud/local
 - Dipendenze da altri componenti: nessuna nuova dipendenza; restano usati solo gli endpoint Home Assistant/Supervisor già ammessi.
 - Attività richieste agli altri Codex: nessuna.
 - Rischi o decisioni ancora aperte: media CPU sotto il 10%, avvio HLS con un solo clic e movimento del fallback a fotogrammi devono essere verificati su Windows e Android dopo revisione e installazione autorizzata della `2.21.287`.
+
+## Handoff aggiuntivo — visibilità portoni in Sicurezza
+
+- Data: 2026-09-30
+- Problema verificato: `Portone Alex` e `Portone Luca` arrivano correttamente da e-Control HUB come entità HA di dominio `cover`, tipologia configurata `lock`, ma non comparivano in “Accessi e portoni”.
+- Causa: nel classificatore UI la regola generica `kind === 'cover'` veniva valutata prima della regola specifica per garage/portoni, rendendo irraggiungibile la categoria Sicurezza.
+- Correzione: la regola specifica dei portoni ha ora precedenza sui cover generici; candidata `2.21.288`.
+- Test: sintassi JavaScript valida; regressione specifica e controlli versione/cache-buster superati (`3 passed` complessivi nel gruppo finale). La suite completa è stata interrotta dopo 23 test senza errori perché non avanzava nell'ambiente locale, comportamento già osservato nella sessione.
+- Contratti condivisi: nessuna modifica; API, identificativi, persistenza e formato eventi invariati.
+- Gate: modifica pronta in commit locale; nessun push o deploy eseguito.
