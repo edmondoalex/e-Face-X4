@@ -22,7 +22,7 @@ Prima di modificare identità, ruoli, API, eventi, licenze, pairing, cloud/local
 
 - Data: 2026-09-30
 - Obiettivo: eseguire `CHANGE-2026-008` fino al gate del commit locale, eliminando i loop CPU/log di e-Face.
-- Risultato: il catalogo Home Assistant usa una lettura WebSocket condivisa con cache e single-flight; il widget Agenda e le notifiche Alexa hanno limiti di frequenza, cache e backoff esponenziale; le richieste Supervisor non autorizzate a `/addons` sono state rimosse; la riconnessione realtime browser usa backoff con jitter.
+- Risultato: il catalogo Home Assistant usa una lettura WebSocket condivisa con cache e single-flight; il widget Agenda e le notifiche Alexa hanno limiti di frequenza, cache e backoff esponenziale; le richieste Supervisor non autorizzate a `/addons` sono state rimosse; la riconnessione realtime browser usa backoff con jitter. Il commit `31f95f2` è stato pubblicato e la candidata `2.21.283` installata: Supervisor la riporta `started`, aggiornata e senza errori pertinenti nei log recenti.
 - File modificati: backend e connettore Supervisor del componente, client web, file di versione, changelog, test e `EKONEX_PLATFORM_SYNC.md`.
 - Test eseguiti: `node --check app/static/assets/app.js`; `python -m compileall -q app`; suite completa `373 passed`; test mirati per assenza `/addons`, cache/single-flight, frequenza Agenda e backoff; `git diff --check`.
 - Contratti/versioni usati: Platform governance 1.0; API compatibility policy 1.0; Identity draft-1; Event draft-1; Licensing draft-1.
@@ -30,4 +30,4 @@ Prima di modificare identità, ruoli, API, eventi, licenze, pairing, cloud/local
 - Compatibilità: invariati API pubbliche, formato eventi, slug, provider ID e dati persistenti.
 - Dipendenze da altri componenti: nessuna nuova dipendenza; restano usati solo gli endpoint Home Assistant/Supervisor già ammessi.
 - Attività richieste agli altri Codex: nessuna.
-- Rischi o decisioni ancora aperte: CPU sotto il 10% e quiete dei log devono essere verificati dopo revisione, push e installazione controllata; queste operazioni non sono autorizzate dal gate corrente.
+- Rischi o decisioni ancora aperte: il primo campionamento post-installazione ha mostrato CPU variabile circa 18–33%, quindi il criterio sotto il 10% non è ancora soddisfatto e richiede una diagnosi separata dell'attività residua. Nessun loop recente `/addons` o Alexa `Bad Request` è stato rilevato.
