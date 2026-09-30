@@ -78,7 +78,7 @@ from .media_realtime import SharedMediaRealtime
 from .demo import dashboard as demo_dashboard
 from .ha_labeled import normalize_labeled_entities
 
-VERSION = os.environ.get("EFACE_VERSION", "2.21.280")
+VERSION = os.environ.get("EFACE_VERSION", "2.21.281")
 STATIC = Path(__file__).parent / "static"
 logging.basicConfig(level=logging.WARNING, format="%(asctime)s %(levelname)s [e-face-x4] %(message)s")
 _reconnect_warning_at: dict[str, float] = {}
@@ -3840,8 +3840,18 @@ def create_app() -> FastAPI:
                                 event = json.loads(message)
                             except (TypeError, json.JSONDecodeError):
                                 continue
-                            if isinstance(event, dict) and event.get("type") in {"light_state", "cover_state", "pir_state", "dry_contact_state", "ha_light_state", "ha_switch_state", "ha_cover_state", "light_scenario_state", "light_scenario_running", "light_scenario_command"}:
+                            if not isinstance(event, dict):
+                                continue
+                            event_type = str(event.get("type") or "")
+                            if event_type == "devices":
+                                await broadcast_realtime({"type": "devices_changed"})
+                                continue
+                            allowed = {"light_state", "cover_state", "temp_value", "humidity_value", "illuminance_value", "air_quality", "gas_percent", "pir_state", "ultrasonic_state", "dry_contact_state", "ha_light_state", "ha_switch_state", "ha_cover_state", "ha_lock_state", "light_scenario_state", "light_scenario_running", "light_scenario_command"}
+                            data = event.get("data")
+                            if event_type in allowed and isinstance(data, dict):
                                 await routine_engine.buspro_event(event)
+                                safe = {key: data.get(key) for key in ("subnet_id", "device_id", "channel", "entity_id", "id", "state", "running", "value", "position", "brightness") if key in data}
+                                await broadcast_realtime({"type": event_type, "data": safe})
                 except asyncio.CancelledError:
                     raise
                 except Exception as exc:
@@ -4866,32 +4876,12 @@ def create_app() -> FastAPI:
         if app.state.home_camera_monitor_task is None or app.state.home_camera_monitor_task.done():
             app.state.home_camera_monitor_task = asyncio.create_task(monitor_home_camera())
         settings = load_settings()
-        buspro, etherm, ksenia = await asyncio.gather(
-            resolved_provider(settings.buspro, "e_hdl_buspro_mqtt", 8124, settings.request_timeout_s),
+        etherm, ksenia = await asyncio.gather(
             resolved_provider(settings.etherm, "e_therm_plus_ks", 8080, settings.request_timeout_s),
             resolved_provider(settings.ksenia, "ksenia_lares_addon", 8080, settings.request_timeout_s),
         )
         queue: asyncio.Queue[dict] = asyncio.Queue(maxsize=100)
         app.state.realtime_clients.add(queue)
-
-        async def buspro_events() -> None:
-            ws_url = re.sub(r"^http", "ws", buspro.base_url.rstrip("/"), count=1) + "/ws"
-            headers = {"Authorization": f"Bearer {buspro.token}"} if buspro.token else None
-            async with websockets.connect(ws_url, additional_headers=headers, open_timeout=settings.request_timeout_s) as upstream:
-                async for message in upstream:
-                    try:
-                        event = json.loads(message)
-                    except (TypeError, json.JSONDecodeError):
-                        continue
-                    event_type = str(event.get("type") or "") if isinstance(event, dict) else ""
-                    if event_type == "devices":
-                        await queue.put({"type": "devices_changed"})
-                        continue
-                    allowed = {"light_state", "cover_state", "temp_value", "humidity_value", "illuminance_value", "air_quality", "gas_percent", "pir_state", "ultrasonic_state", "dry_contact_state", "ha_light_state", "ha_switch_state", "ha_cover_state", "ha_lock_state", "light_scenario_state", "light_scenario_running"}
-                    data = event.get("data") if isinstance(event, dict) else None
-                    if event_type in allowed and isinstance(data, dict):
-                        safe = {key: data.get(key) for key in ("subnet_id", "device_id", "channel", "entity_id", "id", "state", "running", "value", "position", "brightness") if key in data}
-                        await queue.put({"type": event_type, "data": safe})
 
         async def etherm_events() -> None:
             headers = EThermConnector(etherm, settings.request_timeout_s).headers()
@@ -4953,8 +4943,6 @@ def create_app() -> FastAPI:
                 await queue.put(await evoice_queue.get())
 
         tasks = []
-        if buspro.enabled and buspro.base_url:
-            tasks.append(asyncio.create_task(buspro_events()))
         if etherm.enabled and etherm.base_url:
             tasks.append(asyncio.create_task(etherm_events()))
         if ksenia.enabled and ksenia.base_url:

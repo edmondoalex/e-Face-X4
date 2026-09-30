@@ -1,5 +1,9 @@
 # Changelog
 
+## 2.21.281 — 2026-09-30
+
+- Gli eventi e-HDL usano una singola connessione centrale con riconnessione automatica e vengono distribuiti a tutti i client e-Face: luci, cover e scenari restano sincronizzati in tempo reale tra tablet e browser differenti.
+
 ## 2.21.280 — 2026-09-30
 
 - I comandi Play/Pausa/Stop Control4 non attendono più snapshot completi per escludere Sky Q e WiiM: la sorgente attiva già nota alla UI instrada subito il comando, mantenendo il controllo precedente come fallback per i client meno recenti.
