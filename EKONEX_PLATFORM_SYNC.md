@@ -70,3 +70,10 @@ Prima di modificare identità, ruoli, API, eventi, licenze, pairing, cloud/local
 - Versione: `2.21.291`; test mirati `6 passed`, sintassi JavaScript valida.
 - Contratti condivisi invariati; pubblicazione autorizzata dall'utente.
 - Push eseguito: `origin/main` aggiornato da `356257c` a `59225bc`. Installazione add-on non eseguita.
+
+## Handoff aggiuntivo — widget Luci accese
+
+- Data: 2026-09-30
+- Correzione: il clic su una luce del widget Home “Luci accese” apre la pagina generale `Luci accese` con filtro attivo, mostrando tutte e sole le luci accese dell'impianto anziché la singola stanza.
+- Versione candidata: `2.21.292`; sintassi JavaScript valida e tre test mirati superati.
+- Compatibilità: nessuna modifica a contratti, API o persistenza. Nessun push/deploy eseguito.

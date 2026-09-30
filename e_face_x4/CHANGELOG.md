@@ -1,5 +1,9 @@
 # Changelog
 
+## 2.21.292 — 2026-09-30
+
+- Toccando una scheda del widget “Luci accese” si apre la pagina generale `Luci accese`, già filtrata su tutte e sole le luci attive dell'impianto, invece della singola stanza.
+
 ## 2.21.291 — 2026-09-30
 
 - L'ordine dei master, delle sottosezioni Sicurezza e delle schede nelle Scorciatoie segue il trascinamento salvato dall'utente, senza precedenze imposte dal renderer.

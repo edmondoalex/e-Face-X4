@@ -2682,6 +2682,16 @@ $('#home-view').addEventListener('click', (event) => {
   }
   const deviceButton = event.target.closest('[data-pulse-device]')
   if (!deviceButton) return
+  if (deviceButton.classList.contains('home-glow-light')) {
+    const lights = organizedDevices('lights', currentDevices.filter((device) => deviceInCategory(device, 'lights')))
+    openDevices('Luci accese', lights, {lights:true, filters:true})
+    lightFilterActive = true
+    $('#light-all-filter').classList.remove('active')
+    $('#light-on-filter').classList.add('active')
+    $('#light-on-filter').setAttribute('aria-pressed', 'true')
+    renderActiveDeviceList()
+    return
+  }
   const device = currentDevices.find(item => String(item.id) === deviceButton.dataset.pulseDevice)
   if (device) openDevices(device.room || device.name || 'Dispositivo', [device], {room:device.room || undefined, filters:true})
 })
