@@ -21,13 +21,13 @@ Prima di modificare identità, ruoli, API, eventi, licenze, pairing, cloud/local
 ## Handoff corrente
 
 - Data: 2026-09-30
-- Obiettivo: completare la sincronizzazione generale degli indicatori fra interfacce e rinominare localmente il connettore multi-bus in `e-Control HUB`.
-- Risultato: oltre al fan-out realtime centrale, ogni client riconcilia snapshot completo e scenari a connessione, riconnessione e ritorno in primo piano; gli scenari vengono caricati anche senza aprire la pagina. Tutte le diciture visibili locali usano `e-Control HUB`, mantenendo invariati slug, provider ID ed endpoint.
-- File modificati: codice UI/backend e connettore del componente, traduzione e documentazione utente locale, file di versione e test, `e_face_x4/CHANGELOG.md`, `EKONEX_PLATFORM_SYNC.md`.
-- Test eseguiti: `node --check app/static/assets/app.js`; suite completa `tests/test_app.py`; regressioni dedicate al fan-out, alla riconciliazione generale e al nuovo nome; controllo integrità diff.
+- Obiettivo: eseguire `CHANGE-2026-008` fino al gate del commit locale, eliminando i loop CPU/log di e-Face.
+- Risultato: il catalogo Home Assistant usa una lettura WebSocket condivisa con cache e single-flight; il widget Agenda e le notifiche Alexa hanno limiti di frequenza, cache e backoff esponenziale; le richieste Supervisor non autorizzate a `/addons` sono state rimosse; la riconnessione realtime browser usa backoff con jitter.
+- File modificati: backend e connettore Supervisor del componente, client web, file di versione, changelog, test e `EKONEX_PLATFORM_SYNC.md`.
+- Test eseguiti: `node --check app/static/assets/app.js`; `python -m compileall -q app`; suite completa `373 passed`; test mirati per assenza `/addons`, cache/single-flight, frequenza Agenda e backoff; `git diff --check`.
 - Contratti/versioni usati: Platform governance 1.0; API compatibility policy 1.0; Identity draft-1; Event draft-1; Licensing draft-1.
-- Change ID: nessuno; nessuna modifica trasversale proposta o implementata.
-- Compatibilità: invariati formato eventi, API, slug `e_hdl_buspro_mqtt`, provider ID `buspro` e dati persistenti; nessuna modifica a contratti condivisi.
-- Dipendenze da altri componenti: nessuna nuova dipendenza; usa il WebSocket e-HDL già esistente.
+- Change ID: `CHANGE-2026-008`; nessun contratto condiviso modificato.
+- Compatibilità: invariati API pubbliche, formato eventi, slug, provider ID e dati persistenti.
+- Dipendenze da altri componenti: nessuna nuova dipendenza; restano usati solo gli endpoint Home Assistant/Supervisor già ammessi.
 - Attività richieste agli altri Codex: nessuna.
-- Rischi o decisioni ancora aperte: il rebranding tecnico del componente e-Control HUB resta trasversale e richiederebbe una proposta CHANGE; qui è stato applicato solo il nome visibile locale. Resta la prova contemporanea su almeno due interfacce fisiche.
+- Rischi o decisioni ancora aperte: CPU sotto il 10% e quiete dei log devono essere verificati dopo revisione, push e installazione controllata; queste operazioni non sono autorizzate dal gate corrente.

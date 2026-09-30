@@ -78,7 +78,7 @@ from .media_realtime import SharedMediaRealtime
 from .demo import dashboard as demo_dashboard
 from .ha_labeled import normalize_labeled_entities
 
-VERSION = os.environ.get("EFACE_VERSION", "2.21.282")
+VERSION = os.environ.get("EFACE_VERSION", "2.21.283")
 STATIC = Path(__file__).parent / "static"
 logging.basicConfig(level=logging.WARNING, format="%(asctime)s %(levelname)s [e-face-x4] %(message)s")
 _reconnect_warning_at: dict[str, float] = {}
@@ -190,6 +190,13 @@ def create_app() -> FastAPI:
     app.state.routine_ksenia_snapshot_at = 0.0
     app.state.ha_eface_registry_cache = None
     app.state.ha_eface_registry_cache_at = 0.0
+    app.state.ha_registry_task = None
+    app.state.alexa_notification_cache = []
+    app.state.alexa_notification_cache_at = 0.0
+    app.state.alexa_notification_task = None
+    app.state.alexa_notification_failures = 0
+    app.state.alexa_notification_retry_at = 0.0
+    app.state.alexa_notification_log_at = 0.0
     app.state.security_camera_images = {}
     app.state.security_camera_image_tasks = set()
     app.state.security_camera_snapshot_failures = 0
@@ -2262,52 +2269,60 @@ def create_app() -> FastAPI:
         result = response.json()
         return result if isinstance(result, dict) else {}
 
-    async def home_assistant_registries() -> tuple[list[dict], list[dict]]:
-        """Read HA registries without exposing its token or accepting arbitrary WS commands."""
+    async def home_assistant_registry_bundle() -> list[list[dict]]:
+        """Share one cached, single-flight HA registry WebSocket across consumers."""
         token = str(os.environ.get("SUPERVISOR_TOKEN") or "").strip()
         if not token: raise HTTPException(status_code=503, detail="e-Control non disponibile")
-        try:
+        now = time.monotonic()
+        cached = app.state.ha_eface_registry_cache
+        if cached is not None and now - app.state.ha_eface_registry_cache_at < 300:
+            return cached
+
+        async def fetch() -> list[list[dict]]:
             async with websockets.connect("ws://supervisor/core/websocket", open_timeout=8, max_size=16 * 1024 * 1024) as socket:
                 await socket.recv()
                 await socket.send(json.dumps({"type": "auth", "access_token": token}))
                 if json.loads(await socket.recv()).get("type") != "auth_ok": raise RuntimeError("Autenticazione e-Control fallita")
                 results = []
-                for message_id, command in ((1, "config/entity_registry/list"), (2, "config/device_registry/list")):
+                commands = ("config/entity_registry/list", "config/device_registry/list", "config/area_registry/list", "config/label_registry/list")
+                for message_id, command in enumerate(commands, 1):
                     await socket.send(json.dumps({"id": message_id, "type": command}))
                     reply = json.loads(await asyncio.wait_for(socket.recv(), timeout=10))
                     if not reply.get("success") or not isinstance(reply.get("result"), list): raise RuntimeError("Registro e-Control non disponibile")
                     results.append(reply["result"])
-                return results[0], results[1]
+                return results
+
+        task = app.state.ha_registry_task
+        if task is None or task.done():
+            task = asyncio.create_task(fetch())
+            app.state.ha_registry_task = task
+        try:
+            result = await asyncio.shield(task)
+            app.state.ha_eface_registry_cache = result
+            app.state.ha_eface_registry_cache_at = time.monotonic()
+            return result
         except (OSError, asyncio.TimeoutError, RuntimeError, ValueError, websockets.exceptions.WebSocketException) as exc:
+            if cached is not None:
+                return cached
             raise HTTPException(status_code=502, detail="Dispositivi Alexa non disponibili") from exc
+        finally:
+            if app.state.ha_registry_task is task and task.done():
+                app.state.ha_registry_task = None
+
+    async def home_assistant_registries() -> tuple[list[dict], list[dict]]:
+        registries = await home_assistant_registry_bundle()
+        return registries[0], registries[1]
 
     async def home_assistant_eface_entities() -> list[dict]:
         """Discover labelled HA entities cheaply: registries are cached, states remain current."""
         token = str(os.environ.get("SUPERVISOR_TOKEN") or "").strip()
         if not token:
             return []
-        now = time.monotonic()
-        registries = app.state.ha_eface_registry_cache
-        if registries is None or now - app.state.ha_eface_registry_cache_at >= 60:
-            try:
-                async with websockets.connect("ws://supervisor/core/websocket", open_timeout=8, max_size=16 * 1024 * 1024) as socket:
-                    await socket.recv()
-                    await socket.send(json.dumps({"type": "auth", "access_token": token}))
-                    if json.loads(await socket.recv()).get("type") != "auth_ok":
-                        raise RuntimeError("Autenticazione e-Control fallita")
-                    registries = []
-                    commands = ("config/entity_registry/list", "config/device_registry/list", "config/area_registry/list", "config/label_registry/list")
-                    for message_id, command in enumerate(commands, 1):
-                        await socket.send(json.dumps({"id": message_id, "type": command}))
-                        reply = json.loads(await asyncio.wait_for(socket.recv(), timeout=10))
-                        if not reply.get("success") or not isinstance(reply.get("result"), list):
-                            raise RuntimeError("Registro e-Control non disponibile")
-                        registries.append(reply["result"])
-                app.state.ha_eface_registry_cache = registries
-                app.state.ha_eface_registry_cache_at = now
-            except (OSError, asyncio.TimeoutError, RuntimeError, ValueError, websockets.exceptions.WebSocketException):
-                logging.warning("Catalogo etichetta e-Face non disponibile")
-                return []
+        try:
+            registries = await home_assistant_registry_bundle()
+        except HTTPException:
+            logging.warning("Catalogo etichetta e-Face non disponibile")
+            return []
         try:
             states = (await home_assistant_get("states")).json()
             if not isinstance(states, list):
@@ -2444,26 +2459,57 @@ def create_app() -> FastAPI:
     async def home_alexa_agenda_items(device_id: str | None = None) -> dict:
         devices = await alexa_agenda_devices()
         if device_id:
-            devices = [item for item in devices if item["device_id"] == device_id]
-            if not devices: raise HTTPException(status_code=404, detail="Dispositivo Alexa non disponibile")
+            if not any(item["device_id"] == device_id for item in devices):
+                raise HTTPException(status_code=404, detail="Dispositivo Alexa non disponibile")
 
-        async def notifications(device: dict) -> list[dict]:
-            result = await home_assistant_service(
-                "eface_alexa", "list_notifications", {"device_id": device["device_id"]}, response_data=True
-            )
-            response = result.get("service_response") if isinstance(result, dict) else {}
-            items = response.get("items", []) if isinstance(response, dict) else []
-            return [{**item, "device_id": device["device_id"], "device_name": device["name"]}
-                    for item in items if isinstance(item, dict)]
+        async def fetch_notifications() -> list[dict]:
+            async def notifications(device: dict) -> list[dict]:
+                result = await home_assistant_service(
+                    "eface_alexa", "list_notifications", {"device_id": device["device_id"]}, response_data=True
+                )
+                response = result.get("service_response") if isinstance(result, dict) else {}
+                items = response.get("items", []) if isinstance(response, dict) else []
+                return [{**item, "device_id": device["device_id"], "device_name": device["name"]}
+                        for item in items if isinstance(item, dict)]
 
-        results = await asyncio.gather(*(notifications(device) for device in devices), return_exceptions=not bool(device_id))
-        merged, seen = [], set()
-        for result in results:
-            if isinstance(result, Exception): continue
-            for item in result:
-                identity = str(item.get("id") or "")
-                if not identity or identity in seen: continue
-                seen.add(identity); merged.append(item)
+            results = await asyncio.gather(*(notifications(device) for device in devices))
+            merged, seen = [], set()
+            for result in results:
+                for item in result:
+                    identity = str(item.get("id") or "")
+                    if not identity or identity in seen: continue
+                    seen.add(identity); merged.append(item)
+            return merged
+
+        now = time.monotonic()
+        if now - app.state.alexa_notification_cache_at < 30:
+            merged = app.state.alexa_notification_cache
+        elif now < app.state.alexa_notification_retry_at:
+            merged = app.state.alexa_notification_cache
+        else:
+            task = app.state.alexa_notification_task
+            if task is None or task.done():
+                task = asyncio.create_task(fetch_notifications())
+                app.state.alexa_notification_task = task
+            try:
+                merged = await asyncio.shield(task)
+                app.state.alexa_notification_cache = merged
+                app.state.alexa_notification_cache_at = time.monotonic()
+                app.state.alexa_notification_failures = 0
+                app.state.alexa_notification_retry_at = 0.0
+            except (HTTPException, OSError, ValueError) as exc:
+                failures = app.state.alexa_notification_failures + 1
+                app.state.alexa_notification_failures = failures
+                app.state.alexa_notification_retry_at = time.monotonic() + min(600, 30 * (2 ** min(failures - 1, 5)))
+                if now - app.state.alexa_notification_log_at >= 300:
+                    logging.warning("Agenda Alexa non disponibile; nuovo tentativo differito")
+                    app.state.alexa_notification_log_at = now
+                merged = app.state.alexa_notification_cache
+            finally:
+                if app.state.alexa_notification_task is task and task.done():
+                    app.state.alexa_notification_task = None
+        if device_id:
+            merged = [item for item in merged if item.get("device_id") == device_id]
         states = (await home_assistant_get("states")).json()
         calendars = [item for item in states if isinstance(item, dict)
                      and re.fullmatch(r"calendar\.[a-z0-9_]+", str(item.get("entity_id") or ""))]
@@ -2493,6 +2539,7 @@ def create_app() -> FastAPI:
             "eface_alexa", "delete_notification",
             {"device_id": device_id, "notification_id": notification_id},
         )
+        app.state.alexa_notification_cache_at = 0.0
         return {"ok": True}
 
     @app.delete("/api/home/alexa/agenda/internal/{event_id}")

@@ -1,5 +1,12 @@
 # Changelog
 
+## 2.21.283 — 2026-09-30
+
+- Il registro Home Assistant usa una sola lettura WebSocket condivisa, con cache e single-flight tra catalogo e agenda.
+- Il polling delle notifiche Alexa usa cache e backoff esponenziale: un `Bad Request` non genera più richieste e log a raffica.
+- Rimossi i tentativi non autorizzati verso Supervisor `/addons`; il rilevamento usa configurazione e rete host consentita.
+- La riconnessione realtime del browser usa backoff esponenziale con jitter e il widget Agenda limita gli aggiornamenti concorrenti.
+
 ## 2.21.282 — 2026-09-30
 
 - Il connettore multi-bus viene presentato nell'interfaccia, nei messaggi e nella documentazione come `e-Control HUB`; slug, provider ID ed endpoint tecnici restano invariati per retrocompatibilità.

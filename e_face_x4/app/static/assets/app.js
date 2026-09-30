@@ -36,6 +36,7 @@ let loggedUser = ''
 let activeDetailIds = null
 let realtimeSocket = null
 let realtimeRetry = null
+let realtimeRetryAttempt = 0
 let detailRenderQueued = false
 let lastDetailSignature = ''
 let snapshotRefreshTimer = null
@@ -476,9 +477,11 @@ function renderWeather(data){const current=data.current||{},daily=data.daily||{}
   ;['camera','doorbell','motion'].forEach(refreshHomeEventImage)
   refreshHomeEventTimes()
 }
+let homeAgendaBusy=false
+let homeAgendaLoadedAt=0
 let homeShoppingBusy=false
 function setAgendaNavCount(count){const badge=$('#agenda-nav-count');if(!badge)return;const total=Math.max(0,Number(count)||0);badge.textContent=String(total);badge.hidden=!total;badge.setAttribute('aria-label',`${total} eventi agenda attivi`)}
-async function refreshHomeAgendaWidget(){try{const [response,detailResponse]=await Promise.all([fetch(apiUrl('api/home/alexa/agenda'),{cache:'no-store'}),fetch(apiUrl('api/home/alexa/agenda/items'),{cache:'no-store'})]);if(!response.ok||!detailResponse.ok)throw new Error();const data=await response.json(),detail=await detailResponse.json(),events=[];(detail.items||[]).filter(item=>item.status==='ON').forEach(item=>events.push({label:item.label||{alarm:'Sveglia',timer:'Timer',reminder:'Promemoria'}[item.kind]||'Evento Alexa',state:item.scheduled_time||item.alarm_time||item.remaining_ms||'',source:'Alexa'}));(data.internal||[]).filter(item=>hasAlexaAgendaEvent(item.start)).forEach(item=>events.push({label:item.summary,state:item.start,source:'Agenda interna e-Face'}));(detail.calendar_items||[]).forEach(item=>events.push({label:item.summary||'Evento calendario',state:calendarEventStart(item),source:item.calendar_name||item.entity_id||'Calendario'}));events.sort((a,b)=>new Date(a.state)-new Date(b.state));if($('#alexa-agenda-view')?.hidden!==false)setAgendaNavCount(events.length);$('#home-agenda-title').textContent='Agenda completa';$('#home-agenda-preview').textContent=events[0]?`${events[0].label} · ${events[0].source} · ${formatAlexaAgendaState(events[0].state)}`:'Nessun prossimo evento'}catch{$('#home-agenda-title').textContent='Agenda';$('#home-agenda-preview').textContent='Momentaneamente non disponibile'}}
+async function refreshHomeAgendaWidget(){const now=Date.now();if(homeAgendaBusy||now-homeAgendaLoadedAt<30000)return;homeAgendaBusy=true;try{const [response,detailResponse]=await Promise.all([fetch(apiUrl('api/home/alexa/agenda'),{cache:'no-store'}),fetch(apiUrl('api/home/alexa/agenda/items'),{cache:'no-store'})]);if(!response.ok||!detailResponse.ok)throw new Error();const data=await response.json(),detail=await detailResponse.json(),events=[];(detail.items||[]).filter(item=>item.status==='ON').forEach(item=>events.push({label:item.label||{alarm:'Sveglia',timer:'Timer',reminder:'Promemoria'}[item.kind]||'Evento Alexa',state:item.scheduled_time||item.alarm_time||item.remaining_ms||'',source:'Alexa'}));(data.internal||[]).filter(item=>hasAlexaAgendaEvent(item.start)).forEach(item=>events.push({label:item.summary,state:item.start,source:'Agenda interna e-Face'}));(detail.calendar_items||[]).forEach(item=>events.push({label:item.summary||'Evento calendario',state:calendarEventStart(item),source:item.calendar_name||item.entity_id||'Calendario'}));events.sort((a,b)=>new Date(a.state)-new Date(b.state));if($('#alexa-agenda-view')?.hidden!==false)setAgendaNavCount(events.length);$('#home-agenda-title').textContent='Agenda completa';$('#home-agenda-preview').textContent=events[0]?`${events[0].label} · ${events[0].source} · ${formatAlexaAgendaState(events[0].state)}`:'Nessun prossimo evento';homeAgendaLoadedAt=Date.now()}catch{$('#home-agenda-title').textContent='Agenda';$('#home-agenda-preview').textContent='Momentaneamente non disponibile'}finally{homeAgendaBusy=false}}
 let homeShoppingNeedsFull=false
 let homeShoppingHoldUntil=0
 function homeShoppingRows(items,completed=false){return items.map(item=>`<div class="home-shopping-item ${completed?'completed':''}" data-todo-uid="${escAttribute(item.uid)}"><button type="button" class="home-shopping-check" data-todo-action="${completed?'restore':'complete'}" aria-label="${completed?'Rimetti da comprare':'Segna come comprato'} ${escAttribute(item.summary)}"><i>${completed?'✓':''}</i></button><strong>${esc(item.summary)}</strong><button type="button" class="home-shopping-remove" data-todo-action="remove" aria-label="Elimina ${escAttribute(item.summary)}"><span class="mdi-mask" style="${mdiStyle('mdi:delete-outline','delete-outline')}"></span></button></div>`).join('')}
@@ -2472,12 +2475,14 @@ function connectRealtime() {
   realtimeSocket.onopen = () => {
     refresh()
     loadScenarios()
+    realtimeRetryAttempt = 0
     fetch(apiUrl('api/user/routines/active'), {cache:'no-store'}).then(response => response.ok ? response.json() : null).then(data => {if(data){routineActiveDeviceIds = new Set((data.device_ids || []).map(String)); syncRoutineActivity()}}).catch(() => {})
   }
   realtimeSocket.onclose = () => {
     realtimeSocket = null
     clearTimeout(realtimeRetry)
-    realtimeRetry = setTimeout(connectRealtime, 1500)
+    const delay=Math.min(30000,1000*(2**Math.min(realtimeRetryAttempt++,5)))+Math.floor(Math.random()*500)
+    realtimeRetry = setTimeout(connectRealtime, delay)
   }
   realtimeSocket.onerror = () => realtimeSocket.close()
 }
