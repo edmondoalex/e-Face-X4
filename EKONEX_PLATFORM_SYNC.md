@@ -41,3 +41,4 @@ Prima di modificare identità, ruoli, API, eventi, licenze, pairing, cloud/local
 - Test: sintassi JavaScript valida; regressione specifica e controlli versione/cache-buster superati (`3 passed` complessivi nel gruppo finale). La suite completa è stata interrotta dopo 23 test senza errori perché non avanzava nell'ambiente locale, comportamento già osservato nella sessione.
 - Contratti condivisi: nessuna modifica; API, identificativi, persistenza e formato eventi invariati.
 - Gate: modifica pronta in commit locale; nessun push o deploy eseguito.
+- Push autorizzato ed eseguito: `origin/main` aggiornato da `9f109eb` a `1a8a1e6`; inclusi i commit `cc079cc` e `1a8a1e6`. Installazione dell'add-on non eseguita.
