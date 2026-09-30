@@ -1,5 +1,9 @@
 # Changelog
 
+## 2.21.289 — 2026-09-30
+
+- Gli scenari di inserimento esposti da Ksenia restano disponibili nella pagina generale Scenari e vengono inclusi anche nella pagina Sicurezza, insieme ad aree, zone e sistema di allarme.
+
 ## 2.21.288 — 2026-09-30
 
 - I dispositivi `cover` che rappresentano portoni vengono classificati nella pagina Sicurezza prima della regola generica degli oscuranti, rendendo visibili Portone Alex e Portone Luca in “Accessi e portoni”.

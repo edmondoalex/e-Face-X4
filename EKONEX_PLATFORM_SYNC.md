@@ -42,3 +42,12 @@ Prima di modificare identità, ruoli, API, eventi, licenze, pairing, cloud/local
 - Contratti condivisi: nessuna modifica; API, identificativi, persistenza e formato eventi invariati.
 - Gate: modifica pronta in commit locale; nessun push o deploy eseguito.
 - Push autorizzato ed eseguito: `origin/main` aggiornato da `9f109eb` a `1a8a1e6`; inclusi i commit `cc079cc` e `1a8a1e6`. Installazione dell'add-on non eseguita.
+
+## Handoff aggiuntivo — scenari Ksenia nella pagina Sicurezza
+
+- Data: 2026-09-30
+- Evidenza: gli scenari Ksenia erano presenti nelle Scorciatoie ma assenti da Sicurezza; il connettore li esponeva correttamente.
+- Causa: `securityDevices()` accettava soltanto dispositivi assegnati alla categoria `security`, mentre gli `alarm_scenario` mantengono correttamente la categoria generale `scenarios`.
+- Correzione: gli `alarm_scenario` sono inclusi esplicitamente anche nell'insieme Sicurezza senza rimuoverli dalla pagina Scenari; candidata `2.21.289`.
+- Test: sintassi JavaScript valida e gruppo mirato Ksenia/classificazione/versione superato (`5 passed`).
+- Contratti condivisi: invariati. Gate: commit locale; nessun nuovo push o deploy.

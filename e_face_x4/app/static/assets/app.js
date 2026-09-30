@@ -98,7 +98,7 @@ function deviceInCategory(device, category) {
 function organizedDevices(category, devices) {
   return [...devices].sort((a,b)=>(currentDeviceOrganization[String(a.id)]?.orders?.[category]??Number.MAX_SAFE_INTEGER)-(currentDeviceOrganization[String(b.id)]?.orders?.[category]??Number.MAX_SAFE_INTEGER)||String(a.name||'').localeCompare(String(b.name||''),'it'))
 }
-function securityDevices(){return organizedDevices('security',currentDevices.filter(device=>deviceInCategory(device,'security')))}
+function securityDevices(){return organizedDevices('security',currentDevices.filter(device=>device.kind === 'alarm_scenario' || deviceInCategory(device,'security')))}
 function openSecurityPage(){openDevices('Sicurezza',securityDevices(),{security:true})}
 const mediaTransportOverrides = new Map()
 const homeLiveMuteTargets = new Map()
