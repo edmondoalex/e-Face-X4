@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.21.285 — 2026-09-30
+
+- L'apertura delle dirette HLS attende il tempo reale di avvio della telecamera, con retry controllati del manifest fino a 40 secondi, invece di fallire dopo il primo timeout di 10 secondi.
+- I clic ripetuti o la chiusura della finestra invalidano correttamente i tentativi precedenti, evitando player concorrenti e flussi rimasti appesi.
+
 ## 2.21.284 — 2026-09-30
 
 - La risoluzione dell'host tramite Supervisor usa una cache condivisa con single-flight: i proxy e le dashboard non interrogano più `/network/info` per ogni richiesta o asset.

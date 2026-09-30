@@ -22,12 +22,12 @@ Prima di modificare identità, ruoli, API, eventi, licenze, pairing, cloud/local
 
 - Data: 2026-09-30
 - Obiettivo: eseguire `CHANGE-2026-008` fino al gate del commit locale, eliminando i loop CPU/log di e-Face.
-- Risultato: dopo il riscontro live sulla `2.21.283`, la candidata locale `2.21.284` aggiunge cache e single-flight per `/network/info`, filtra lato Home Assistant il monitor della sola telecamera selezionata e lo sospende quando non esistono client realtime. La `2.21.283` resta installata; nessun ulteriore push o deploy è stato eseguito.
+- Risultato: dopo il riscontro live sulla `2.21.283`, la candidata locale `2.21.285` aggiunge cache e single-flight per `/network/info`, filtra lato Home Assistant il monitor della sola telecamera selezionata e lo sospende senza client realtime. Una sonda HLS ha inoltre misurato timeout al primo manifest, circa 6 secondi al secondo e risposta immediata dopo il riscaldamento: la UI ora attende con retry controllati e invalida i tentativi concorrenti, così basta un solo clic. La `2.21.283` resta installata; nessun ulteriore push o deploy è stato eseguito.
 - File modificati: backend e connettore Supervisor del componente, client web, file di versione, changelog, test e `EKONEX_PLATFORM_SYNC.md`.
-- Test eseguiti: `node --check app/static/assets/app.js`; `python -m compileall -q app`; suite completa `375 passed`; test concorrente con 20 richieste simultanee ridotte a una chiamata Supervisor; test del monitor telecamera filtrato e sospendibile; `git diff --check`.
+- Test eseguiti: `node --check app/static/assets/app.js`; `python -m compileall -q app`; suite completa `375 passed`; test concorrente con 20 richieste simultanee ridotte a una chiamata Supervisor; test del monitor telecamera filtrato e sospendibile; regressione HLS su timeout, retry e invalidazione dei tentativi; `git diff --check`.
 - Contratti/versioni usati: Platform governance 1.0; API compatibility policy 1.0; Identity draft-1; Event draft-1; Licensing draft-1.
 - Change ID: `CHANGE-2026-008`; nessun contratto condiviso modificato.
 - Compatibilità: invariati API pubbliche, formato eventi, slug, provider ID e dati persistenti.
 - Dipendenze da altri componenti: nessuna nuova dipendenza; restano usati solo gli endpoint Home Assistant/Supervisor già ammessi.
 - Attività richieste agli altri Codex: nessuna.
-- Rischi o decisioni ancora aperte: la riduzione sotto il 10% deve essere verificata per almeno 5 minuti soltanto dopo revisione e installazione autorizzata della `2.21.284`; i test locali non dimostrano il consumo CPU dell'impianto reale.
+- Rischi o decisioni ancora aperte: riduzione CPU e avvio HLS con un solo clic devono essere verificati su Windows e Android soltanto dopo revisione e installazione autorizzata della `2.21.285`; i test locali non dimostrano il consumo CPU o la resa video dell'impianto reale.
