@@ -78,7 +78,7 @@ from .media_realtime import SharedMediaRealtime
 from .demo import dashboard as demo_dashboard
 from .ha_labeled import normalize_labeled_entities
 
-VERSION = os.environ.get("EFACE_VERSION", "2.21.297")
+VERSION = os.environ.get("EFACE_VERSION", "2.21.298")
 STATIC = Path(__file__).parent / "static"
 logging.basicConfig(level=logging.WARNING, format="%(asctime)s %(levelname)s [e-face-x4] %(message)s")
 _reconnect_warning_at: dict[str, float] = {}
@@ -4184,6 +4184,39 @@ def create_app() -> FastAPI:
     async def user_appearance(request: Request) -> dict:
         owner = appearance_owner(request)
         return {"card_glow": load_card_glow(), "room_order": load_room_order(), "security_order": load_security_order(), "security_cameras": load_security_cameras(), "shortcuts": load_shortcuts(), "device_organization": load_device_organization(), "navigation_items": load_navigation_items(), "home_widgets": load_home_widgets(owner), "home_camera_entity": load_home_camera_entity(owner), "home_weather_location": load_home_weather_location(owner), "home_todo_entity": load_home_todo_entity(), "home_agenda_source": load_home_agenda_source()}
+
+    async def econtrol_organization_request(method: str, payload: dict | None = None) -> dict:
+        settings = load_settings()
+        config = await resolved_provider(settings.buspro, "e_hdl_buspro_mqtt", 8124, settings.request_timeout_s)
+        if not config.enabled or not config.base_url:
+            raise HTTPException(status_code=503, detail="e-Control Hub non disponibile")
+        headers = {"Authorization": f"Bearer {config.token}"} if config.token else {}
+        if payload is not None:
+            headers["Content-Type"] = "application/json"
+        try:
+            async with httpx.AsyncClient(timeout=max(12.0, settings.request_timeout_s), follow_redirects=False, trust_env=False) as client:
+                response = await client.request(method, f"{config.base_url}/api/organization" + ("/device" if method == "PUT" else ""), headers=headers, json=payload)
+                result = response.json()
+        except (httpx.HTTPError, ValueError) as exc:
+            raise HTTPException(status_code=502, detail="Organizzazione e-Control Hub non raggiungibile") from exc
+        if response.status_code >= 400:
+            raise HTTPException(status_code=response.status_code, detail=str(result.get("detail") or "Modifica rifiutata da e-Control Hub"))
+        if not isinstance(result, dict):
+            raise HTTPException(status_code=502, detail="Risposta organizzazione e-Control Hub non valida")
+        return result
+
+    @app.get("/api/user/econtrol/organization")
+    async def user_econtrol_organization() -> dict:
+        return await econtrol_organization_request("GET")
+
+    @app.put("/api/user/econtrol/organization/device")
+    async def user_save_econtrol_organization_device(payload: dict) -> dict:
+        allowed = {"source", "device_id", "floor_id", "room_id", "group_ids", "categories", "orders", "visible", "icon_override"}
+        if set(payload) - allowed:
+            raise HTTPException(status_code=400, detail="Campi organizzazione non autorizzati")
+        if not payload.get("source") or not payload.get("device_id"):
+            raise HTTPException(status_code=400, detail="Identita dispositivo mancante")
+        return await econtrol_organization_request("PUT", {key: value for key, value in payload.items() if key in allowed})
 
     @app.put("/api/user/appearance")
     async def user_save_appearance(request: Request, payload: dict) -> dict:

@@ -1,5 +1,12 @@
 # Changelog
 
+## 2.21.298 — 2026-10-01
+
+- Gestione dispositivi caricata a richiesta con ricerca, evitando la generazione simultanea di tutti i rami.
+- Organizzazione multi-bus modificabile da e-Face e salvata direttamente nella persistenza autorevole e-Control Hub.
+- Ordinamento per pagina tramite trascinamento; rimosso l'ordine generale privo di effetto.
+- Scorciatoie globali conservate come funzione esclusiva e-Face.
+
 ## 2.21.297 — 2026-10-01
 
 - Ripristinati in Sicurezza i relay e le cover configurati come serrature nei profili accesso legacy.
