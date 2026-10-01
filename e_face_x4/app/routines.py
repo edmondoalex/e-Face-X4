@@ -777,6 +777,10 @@ def validate(payload: dict, devices: list[dict], others: list[dict] = (), *, sol
             if action not in SAFE_ACTIONS.get(device_kind, set()):
                 errors.append(f"{device.get('name')}: comando {action or 'mancante'} non consentito")
                 continue
+            allowed_actions = device.get("allowed_actions")
+            if isinstance(allowed_actions, list) and action not in allowed_actions:
+                errors.append(f"{device.get('name')}: comando {action} non dichiarato dal catalogo")
+                continue
             caps = device.get("capabilities") or {}
             if device_kind == "light_scenario" and not caps.get("onoff" if action in {"on", "off"} else "run"):
                 errors.append(f"{device.get('name')}: comando {action} non esposto dallo scenario")

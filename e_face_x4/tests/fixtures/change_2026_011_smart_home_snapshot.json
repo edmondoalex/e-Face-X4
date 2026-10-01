@@ -1,0 +1,132 @@
+{
+  "devices": [
+    {
+      "name": "Legacy light",
+      "type": "light",
+      "subnet_id": 1,
+      "device_id": 2,
+      "channel": 3,
+      "group": "Legacy room"
+    }
+  ],
+  "states": {
+    "1.2.3": "ON"
+  },
+  "smart_home": {
+    "schema_version": "1.0",
+    "capability_model_version": "1.0",
+    "organization_schema_version": 1,
+    "command_endpoint_template": "/api/user/smart-home/{source}/{device_id}/command",
+    "realtime": {"mode": "snapshot", "supports_refresh": true},
+    "features": {"organization": true, "commands": true, "scenarios": true, "routines": true},
+    "floors": [
+      {
+        "id": "floor-ground",
+        "name": "Ground floor"
+      }
+    ],
+    "rooms": [
+      {
+        "id": "room-office",
+        "name": "Office",
+        "floor_id": "floor-ground"
+      }
+    ],
+    "groups": [
+      {
+        "id": "group-work",
+        "name": "Work area"
+      }
+    ],
+    "devices": [
+      {
+        "id": "hdl:1.2.3",
+        "source": "hdl",
+        "device_id": "1.2.3",
+        "name": "Desk light",
+        "device_class": "light",
+        "native_type": "light",
+        "native_id": "shared-native-id",
+        "capabilities": ["on", "off", "level"],
+        "commands": [{"action": "on", "value_type": "none"}, {"action": "off", "value_type": "none"}, {"action": "level", "value_type": "number", "minimum": 0, "maximum": 100}],
+        "features": {"controllable": true, "realtime": true, "scenario": false, "routine_trigger": true, "routine_action": true},
+        "read_only": false,
+        "available": true,
+        "stale": false,
+        "state": "on",
+        "brightness": 128,
+        "floor_id": "floor-ground",
+        "floor_name": "Ground floor",
+        "room_id": "room-office",
+        "room_name": "Office",
+        "group_ids": ["group-work"],
+        "group_names": ["Work area"],
+        "categories": ["lights"], "orders": {"lights": 1}, "visible": true, "favorite": true, "shortcut": false, "visual_category": "lights",
+        "icon_auto": "mdi:lightbulb",
+        "icon_override": "mdi:desk-lamp",
+        "icon": "mdi:desk-lamp",
+        "orphaned": false,
+        "home_assistant_entity_id": "light.econtrol_desk",
+        "future_extension": {
+          "consumer_must_ignore": true
+        }
+      },
+      {
+        "id": "ksenia:ksn_light_demo",
+        "source": "ksenia",
+        "device_id": "ksn_light_demo",
+        "name": "Wall light",
+        "device_class": "light",
+        "native_type": "output",
+        "native_id": "shared-native-id",
+        "capabilities": ["on", "off"],
+        "commands": [{"action": "on", "value_type": "none"}, {"action": "off", "value_type": "none"}],
+        "features": {"controllable": true, "realtime": true, "scenario": false, "routine_trigger": true, "routine_action": true},
+        "read_only": false,
+        "available": true,
+        "stale": false,
+        "state": "off",
+        "floor_id": "floor-ground",
+        "floor_name": "Ground floor",
+        "room_id": "room-office",
+        "room_name": "Office",
+        "group_ids": ["group-work"],
+        "group_names": ["Work area"],
+        "categories": ["lights"], "orders": {"lights": 2}, "visible": true, "favorite": false, "shortcut": true, "visual_category": "lights",
+        "icon_auto": "mdi:light-switch",
+        "icon_override": "",
+        "icon": "mdi:light-switch",
+        "orphaned": false,
+        "home_assistant_entity_ids": ["light.econtrol_wall"]
+      },
+      {
+        "id": "ksenia:ksn_temperature_demo",
+        "source": "ksenia",
+        "device_id": "ksn_temperature_demo",
+        "name": "Temperature",
+        "device_class": "temperature",
+        "native_type": "sensor",
+        "native_id": "temperature-demo",
+        "capabilities": [],
+        "commands": [],
+        "features": {"controllable": false, "realtime": true, "scenario": false, "routine_trigger": true, "routine_action": false},
+        "read_only": true,
+        "available": false,
+        "stale": true,
+        "state": 21.5,
+        "temperature": 21.5,
+        "floor_id": "",
+        "floor_name": "",
+        "room_id": "",
+        "room_name": "",
+        "group_ids": [],
+        "group_names": [],
+        "categories": ["sensors"], "orders": {}, "visible": true, "favorite": false, "shortcut": false, "visual_category": "sensors",
+        "icon_auto": "mdi:thermometer",
+        "icon_override": "",
+        "icon": "mdi:thermometer",
+        "orphaned": true
+      }
+    ]
+  }
+}

@@ -1,0 +1,130 @@
+{
+  "fixture_version": "draft-1",
+  "canonical_categories": [
+    "lights",
+    "extra",
+    "covers",
+    "comfort",
+    "sensors",
+    "security",
+    "scenarios"
+  ],
+  "equivalent_devices": [
+    {
+      "source": "hdl",
+      "device_id": "1.10.1",
+      "device_class": "light",
+      "capabilities": ["on", "off", "level"],
+      "expected_categories": ["lights"],
+      "expected_actions": ["on", "off", "level"],
+      "routine_trigger": true,
+      "routine_condition": true,
+      "routine_action": true
+    },
+    {
+      "source": "ksenia",
+      "device_id": "ksn_light_parity",
+      "device_class": "light",
+      "capabilities": ["on", "off", "level"],
+      "expected_categories": ["lights"],
+      "expected_actions": ["on", "off", "level"],
+      "routine_trigger": true,
+      "routine_condition": true,
+      "routine_action": true
+    },
+    {
+      "source": "futurebus",
+      "device_id": "future-light-parity",
+      "device_class": "light",
+      "capabilities": ["on", "off", "level"],
+      "expected_categories": ["lights"],
+      "expected_actions": ["on", "off", "level"],
+      "routine_trigger": true,
+      "routine_condition": true,
+      "routine_action": true
+    }
+  ],
+  "classification_cases": [
+    {
+      "source": "futurebus",
+      "device_id": "future-switch",
+      "device_class": "switch",
+      "capabilities": ["on", "off"],
+      "expected_categories": ["extra"],
+      "expected_actions": ["on", "off"]
+    },
+    {
+      "source": "futurebus",
+      "device_id": "future-cover",
+      "device_class": "shutter",
+      "capabilities": ["open", "close", "stop", "position"],
+      "expected_categories": ["covers"],
+      "expected_actions": ["open", "close", "stop", "position"]
+    },
+    {
+      "source": "futurebus",
+      "device_id": "future-gate",
+      "device_class": "gate",
+      "capabilities": ["open", "close"],
+      "expected_categories": ["security"],
+      "expected_actions": ["open", "close"],
+      "forbidden_actions": ["arm", "disarm", "bypass", "unlock"]
+    },
+    {
+      "source": "futurebus",
+      "device_id": "future-thermostat",
+      "device_class": "thermostat",
+      "capabilities": ["temperature", "mode"],
+      "expected_categories": ["comfort"],
+      "expected_actions": ["temperature", "mode"]
+    },
+    {
+      "source": "futurebus",
+      "device_id": "future-temperature",
+      "device_class": "temperature",
+      "capabilities": [],
+      "read_only": true,
+      "expected_categories": ["sensors"],
+      "expected_actions": []
+    },
+    {
+      "source": "futurebus",
+      "device_id": "future-scene",
+      "device_class": "scene",
+      "capabilities": ["execute"],
+      "expected_categories": ["scenarios"],
+      "expected_actions": ["execute"],
+      "security_scene": false
+    }
+  ],
+  "preference_lifecycle": {
+    "canonical_id": "ksenia:ksn_light_parity",
+    "initial": {
+      "name": "Wall light",
+      "available": true
+    },
+    "updated_catalog": {
+      "name": "Renamed wall light",
+      "available": false
+    },
+    "persisted_preferences": {
+      "visible": false,
+      "categories": ["lights", "extra"],
+      "orders": {
+        "lights": 2,
+        "extra": 0
+      },
+      "icon": "mdi:wall-sconce-flat",
+      "favorite": true,
+      "shortcut_categories": ["lights"]
+    },
+    "must_survive": [
+      "restart",
+      "update",
+      "rename",
+      "catalog_refresh",
+      "offline",
+      "backup_restore"
+    ]
+  }
+}

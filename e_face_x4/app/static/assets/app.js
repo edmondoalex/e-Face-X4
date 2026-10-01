@@ -80,7 +80,7 @@ const isSecurityGarage = (device) => device.kind === 'cover' && /garage|portone/
 function defaultDeviceCategory(device) {
   if (device.kind === 'light') return 'lights'
   if (['switch','select','button'].includes(device.kind)) return 'extra'
-  // Portoni exposed by Home Assistant as covers belong to Accessi e portoni,
+  // Portoni exposed by HA as covers belong to Accessi e portoni,
   // not to the generic cover page. This check must precede kind === 'cover'.
   if (isSecurityGarage(device)) return 'security'
   if (device.kind === 'cover') return 'covers'
@@ -91,12 +91,18 @@ function defaultDeviceCategory(device) {
   if (['media','media_player','camera','doorbell'].includes(device.kind)) return 'media'
   return ''
 }
+function deviceAllows(device, action) {
+  if (device.read_only || device.orphaned || device.availability === 'unavailable') return false
+  return !Array.isArray(device.allowed_actions) || device.allowed_actions.includes(action)
+}
 function deviceInCategory(device, category) {
   const configured = currentDeviceOrganization[String(device.id)]?.categories
-  return (configured?.length ? configured : [defaultDeviceCategory(device)]).includes(category)
+  const authoritative = Array.isArray(device.categories) ? device.categories : []
+  return (configured?.length ? configured : authoritative.length ? authoritative : [defaultDeviceCategory(device)]).includes(category)
 }
 function organizedDevices(category, devices) {
-  return [...devices].sort((a,b)=>(currentDeviceOrganization[String(a.id)]?.orders?.[category]??Number.MAX_SAFE_INTEGER)-(currentDeviceOrganization[String(b.id)]?.orders?.[category]??Number.MAX_SAFE_INTEGER)||String(a.name||'').localeCompare(String(b.name||''),'it'))
+  const order=(device)=>currentDeviceOrganization[String(device.id)]?.orders?.[category]??device.orders?.[category]??Number.MAX_SAFE_INTEGER
+  return [...devices].sort((a,b)=>order(a)-order(b)||String(a.name||'').localeCompare(String(b.name||''),'it'))
 }
 function securityDevices(){return organizedDevices('security',currentDevices.filter(device=>device.kind === 'alarm_scenario' || deviceInCategory(device,'security')))}
 function openSecurityPage(){openDevices('Sicurezza',securityDevices(),{security:true})}
@@ -311,7 +317,7 @@ function render(data) {
   const providers = data.providers || []
   currentMediaGroups = providers.filter((provider) => ['control4','evoice'].includes(provider.id)).flatMap((provider) => provider.groups || [])
   const navIcons = data.nav_icons || {}
-  currentDevices = (Array.isArray(dashboard.devices) ? dashboard.devices : []).filter((device) => currentDeviceOrganization[String(device.id)]?.visible !== false)
+  currentDevices = (Array.isArray(dashboard.devices) ? dashboard.devices : []).filter((device) => currentDeviceOrganization[String(device.id)]?.visible !== false && device.visible !== false)
   for (const device of currentDevices) {
     const recent = recentRealtimeDeviceStates.get(String(device.id))
     if (!recent) continue
@@ -600,7 +606,7 @@ function renderShortcutDevices(){
   const byId=new Map(currentDevices.map((device)=>[String(device.id),device]))
   const activeScenarioId=String(currentDevices.find((device)=>device.kind==='alarm_system')?.active_scenario_id||'')
   const sections=currentShortcuts.map((group)=>({category:group.category,devices:(group.devices||[]).map((id)=>byId.get(String(id))).filter(Boolean)})).filter((group)=>group.devices.length)
-  const card=(device)=>{if(device.kind==='alarm_scenario'){const disarm=device.category==='DISARM',partial=device.category==='PARTIAL',active=String(device.id)===activeScenarioId;return `<button class="security-scenario shortcut-security-scenario ${disarm?'disarm':partial?'partial':'arm'} ${active?'active':''}" data-security-scenario data-device-id="${esc(device.id)}" data-action="execute"><span class="mdi-mask" style="${mdiStyle(disarm?'mdi:shield-off-outline':partial?'mdi:shield-half-full':'mdi:shield-lock-outline','shield-key-outline')}"></span><span><strong>${esc(device.name)}</strong></span></button>`}if(device.kind==='alarm_system'){const description=device.arm_description||({P:'Inserimento parziale',A:'Inserito',D:'Disinserito'})[String(device.arm_status||device.state).toUpperCase()]||stateLabel(device);return `<article class="shortcut-device shortcut-alarm-system" data-device-id="${esc(device.id)}">${deviceGlyph(device)}<div><strong>${esc(device.name)}</strong><small>${esc(description)}</small></div></article>`}return `<article class="shortcut-device ${deviceVisualClass(device)} ${device.kind==='media_player'?'media-player-card':''}" style="${deviceCardStyle(device)}" data-device-id="${esc(device.id)}" ${['light','switch'].includes(device.kind)?'data-device-toggle tabindex="0"':''}>${mediaArtwork(device)}${deviceGlyph(device)}<div><strong>${esc(device.name)}</strong><small>${esc(device.room)}</small>${device.kind==='media_player'?`<span class="media-track">${esc(device.title||'Nessuna riproduzione')}</span>`:''}</div><em>${esc(stateLabel(device))}</em>${deviceActions(device,{wiim:device.provider==='wiim',nowPlayingFavorite:false})}</article>`}
+  const card=(device)=>{if(device.kind==='alarm_scenario'){const disarm=device.category==='DISARM',partial=device.category==='PARTIAL',active=String(device.id)===activeScenarioId;return `<button class="security-scenario shortcut-security-scenario ${disarm?'disarm':partial?'partial':'arm'} ${active?'active':''}" data-security-scenario data-device-id="${esc(device.id)}" data-action="execute"><span class="mdi-mask" style="${mdiStyle(disarm?'mdi:shield-off-outline':partial?'mdi:shield-half-full':'mdi:shield-lock-outline','shield-key-outline')}"></span><span><strong>${esc(device.name)}</strong></span></button>`}if(device.kind==='alarm_system'){const description=device.arm_description||({P:'Inserimento parziale',A:'Inserito',D:'Disinserito'})[String(device.arm_status||device.state).toUpperCase()]||stateLabel(device);return `<article class="shortcut-device shortcut-alarm-system" data-device-id="${esc(device.id)}">${deviceGlyph(device)}<div><strong>${esc(device.name)}</strong><small>${esc(description)}</small></div></article>`}return `<article class="shortcut-device ${deviceVisualClass(device)} ${device.kind==='media_player'?'media-player-card':''}" style="${deviceCardStyle(device)}" data-device-id="${esc(device.id)}" ${['light','switch'].includes(device.kind)&&deviceAllows(device,['ON','1','TRUE'].includes(String(device.state).toUpperCase())?'off':'on')?'data-device-toggle tabindex="0"':''}>${mediaArtwork(device)}${deviceGlyph(device)}<div><strong>${esc(device.name)}</strong><small>${esc(device.room)}</small>${device.kind==='media_player'?`<span class="media-track">${esc(device.title||'Nessuna riproduzione')}</span>`:''}</div><em>${esc(stateLabel(device))}</em>${deviceActions(device,{wiim:device.provider==='wiim',nowPlayingFavorite:false})}</article>`}
   const securityBlock=(devices)=>{const groups=[['Sistema di sicurezza',devices.filter(device=>device.kind==='alarm_system')],['Serrature e portoni',devices.filter(device=>device.kind==='lock'||isSecurityGarage(device))],['Scenari',devices.filter(device=>device.kind==='alarm_scenario')],['Partizioni',devices.filter(device=>device.kind==='alarm_partition')],['Zone',devices.filter(device=>device.kind==='alarm_zone')],['Sensori',devices.filter(device=>!['lock','alarm_system','alarm_scenario','alarm_partition','alarm_zone'].includes(device.kind)&&!isSecurityGarage(device))]].filter(([,items])=>items.length).sort((a,b)=>devices.indexOf(a[1][0])-devices.indexOf(b[1][0]));return groups.map(([label,items])=>`<section class="shortcut-security-subgroup"><h3>${label}</h3><div class="shortcut-device-grid">${items.map(card).join('')}</div></section>`).join('')}
   $('#device-list').innerHTML=sections.map((group)=>{const collapsed=collapsedShortcutCategories.has(group.category);const content=group.category==='security'?securityBlock(group.devices):`<div class="shortcut-device-grid">${group.devices.map(card).join('')}</div>`;return `<section class="shortcut-device-group ${collapsed?'collapsed':''}" data-shortcut-group="${esc(group.category)}"><button type="button" class="shortcut-group-toggle" data-shortcut-group-toggle="${esc(group.category)}" aria-expanded="${!collapsed}"><span>${esc(shortcutCategoryLabels[group.category]||group.category)}</span><small>${group.devices.length}</small><span class="mdi-mask" style="${mdiStyle(collapsed?'mdi:chevron-down':'mdi:chevron-up',collapsed?'chevron-down':'chevron-up')}"></span></button><div class="shortcut-group-content" ${collapsed?'hidden':''}>${content}</div></section>`}).join('')||'<p class="empty-state">Configura le Scorciatoie da Strumenti utente</p>'
 }
@@ -773,7 +779,7 @@ function renderDeviceList(devices) {
   const completeGroups = new Map([...groups].filter(([, channels]) => channels.red && channels.green && channels.blue))
   const groupedIds = new Set([...completeGroups.values()].flatMap((channels) => Object.values(channels).map((device) => String(device.id))))
   const cards = devices.filter((device) => !groupedIds.has(String(device.id))).map((device) => `
-    <article class="${deviceVisualClass(device)} ${device.kind === 'media_player' ? `media-player-card media-player-card-${device.active_experience === 'watch' ? 'watch' : 'listen'}` : ''}" style="${deviceCardStyle(device)}" data-device-id="${esc(device.id)}" ${['light','switch'].includes(device.kind) ? 'data-device-toggle tabindex="0"' : ''}>${mediaArtwork(device)}${deviceGlyph(device)}<div><strong>${esc(device.name)}</strong><small>${esc(device.room)}</small>${device.kind === 'media_player' ? `<span class="media-track">${esc(device.title || 'Nessuna riproduzione')}</span><span class="media-artist">${esc([device.artist, device.album].filter(Boolean).join(' · '))}</span>` : ''}</div><em>${esc(stateLabel(device))}</em>${deviceActions(device)}</article>
+    <article class="${deviceVisualClass(device)} ${device.kind === 'media_player' ? `media-player-card media-player-card-${device.active_experience === 'watch' ? 'watch' : 'listen'}` : ''}" style="${deviceCardStyle(device)}" data-device-id="${esc(device.id)}" ${['light','switch'].includes(device.kind) && deviceAllows(device,['ON','1','TRUE'].includes(String(device.state).toUpperCase())?'off':'on') ? 'data-device-toggle tabindex="0"' : ''}>${mediaArtwork(device)}${deviceGlyph(device)}<div><strong>${esc(device.name)}</strong><small>${esc(device.room)}</small>${device.kind === 'media_player' ? `<span class="media-track">${esc(device.title || 'Nessuna riproduzione')}</span><span class="media-artist">${esc([device.artist, device.album].filter(Boolean).join(' · '))}</span>` : ''}</div><em>${esc(stateLabel(device))}</em>${deviceActions(device)}</article>
   `)
   completeGroups.forEach((channels, group) => cards.push(renderRgbCard(group, channels)))
   $('#device-list').innerHTML = cards.join('') || '<p class="empty-state">Nessun dispositivo disponibile</p>'
@@ -1555,20 +1561,23 @@ function deviceVisualClass(device) {
 }
 
 function deviceActions(device, options = {}) {
+  const allowed = Array.isArray(device.allowed_actions) ? new Set(device.allowed_actions) : null
+  const can = (action) => deviceAllows(device, action) && (!allowed || allowed.has(action))
+  if (device.read_only || device.orphaned || device.availability === 'unavailable') return ''
   if (['light', 'switch'].includes(device.kind)) {
     const active = ['ON','1','TRUE'].includes(String(device.state).trim().toUpperCase())
     const level = active ? brightness255(device) : 0
     const percent = Math.round(level / 255 * 100)
-    const dimmer = device.kind === 'light' && device.dimmable ? `<label class="dimmer-control ${active ? 'active' : ''}" style="--level:${percent}%"><input type="range" min="0" max="255" value="${level}" data-brightness><output>${percent}%</output></label>` : ''
+    const dimmer = device.kind === 'light' && device.dimmable && can('brightness') ? `<label class="dimmer-control ${active ? 'active' : ''}" style="--level:${percent}%"><input type="range" min="0" max="255" value="${level}" data-brightness><output>${percent}%</output></label>` : ''
     return dimmer
   }
   if (device.kind === 'cover') {
     const garage = /garage|portone/i.test(`${device.icon || ''} ${device.name || ''}`)
-    return `<div class="device-actions"><button data-action="open">${garage ? 'APRI' : 'SU'}</button><button data-action="stop">STOP</button><button data-action="close">${garage ? 'CHIUDI' : 'GIÙ'}</button></div>`
+    return `<div class="device-actions">${can('open')?`<button data-action="open">${garage ? 'APRI' : 'SU'}</button>`:''}${can('stop')?'<button data-action="stop">STOP</button>':''}${can('close')?`<button data-action="close">${garage ? 'CHIUDI' : 'GIÙ'}</button>`:''}</div>`
   }
   if (device.kind === 'lock') return `<div class="device-actions"><button data-action="unlock" aria-label="Apri ${esc(device.name)}" title="Apri"><span class="mdi-mask" style="${mdiStyle(lockActionIcon(device, true), 'lock-open-outline')}"></span>APRI</button><button data-action="lock" aria-label="Chiudi ${esc(device.name)}" title="Chiudi"><span class="mdi-mask" style="${mdiStyle(lockActionIcon(device, false), 'lock-outline')}"></span>CHIUDI</button></div>`
   if (device.kind === 'select') return (device.options || []).length ? `<div class="device-select-control"><label>Comando<select data-select-option aria-label="Comando ${esc(device.name)}">${device.options.map(option => `<option value="${escAttribute(option)}" ${String(option) === String(device.state) ? 'selected' : ''}>${esc(option)}</option>`).join('')}</select></label><button type="button" data-select-execute>ESEGUI</button></div>` : '<small>Comando non disponibile</small>'
-  if (device.kind === 'button') return `<div class="device-actions"><button data-action="press">ESEGUI</button></div>`
+  if (device.kind === 'button') return can('press') ? `<div class="device-actions"><button data-action="press">ESEGUI</button></div>` : ''
   if (device.kind === 'climate') {
     const target = Number(device.target_temperature)
     const value = Number.isFinite(target) ? target : 20

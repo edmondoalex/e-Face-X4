@@ -1,5 +1,12 @@
 # Changelog
 
+## 2.21.293 — 2026-10-01
+
+- Consuma il catalogo Smart Home v1 approvato di e-Control Hub 0.1.459 per dispositivi HDL, Ksenia e driver futuri, mantenendo il fallback verso gli snapshot legacy.
+- Usa identità canoniche `source:device_id`, organizzazione autorevole Hub, deduplicazione HA per entity ID esatto e alias non distruttivi per le preferenze HDL storiche.
+- Instrada tutti i comandi multi-bus al nuovo endpoint capability-based dell'Hub; capability assenti, dispositivi read-only, offline o orfani non producono controlli utilizzabili.
+- Proietta categorie e scenari Smart Home nelle pagine storiche e nelle routine senza includere allarme, partizioni, zone o bypass Ksenia.
+
 ## 2.21.292 — 2026-09-30
 
 - Toccando una scheda del widget “Luci accese” si apre la pagina generale `Luci accese`, già filtrata su tutte e sole le luci attive dell'impianto, invece della singola stanza.

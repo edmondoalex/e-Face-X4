@@ -71,6 +71,45 @@ Prima di modificare identità, ruoli, API, eventi, licenze, pairing, cloud/local
 - Contratti condivisi invariati; pubblicazione autorizzata dall'utente.
 - Push eseguito: `origin/main` aggiornato da `356257c` a `59225bc`. Installazione add-on non eseguita.
 
+## Handoff analisi - e-Control Hub Smart Home HDL/Ksenia
+
+- Data: 2026-10-01
+- Verificato in sola lettura il collegamento diretto: e-Face legge `/api/user/snapshot`, ma normalizza solo `payload.devices`; il ramo `payload.ksenia` e ignorato e il comando risolve soltanto target HDL legacy.
+- Registrata nel work order condiviso la proposta additiva: ramo versionato `smart_home` con organizzazione globale risolta e identita obbligatoria `source` + `device_id`; nuova rotta utente `POST /api/user/smart-home/{source}/{device_id}/command` con dispatch interno HDL/Ksenia.
+- Definita deduplicazione solo per identita tecnica e confine rigido: partizioni, inserimenti, bypass, zone e funzioni di sicurezza restano esclusivamente nel connettore Ksenia protetto.
+- MQTT, Discovery e identificativi esistenti restano invariati. Serve approvazione di una CHANGE trasversale prima dell'implementazione.
+- Nessuna modifica al codice, commit, push, aggiornamento o deploy eseguita.
+
+## Handoff preparazione CHANGE-2026-011
+
+- Data: 2026-10-01
+- Letti CHANGE e work order aggiornati. Il gate impone attesa della revisione producer prima di modificare il runtime e-Face.
+- Aggiunte una fixture sintetica del contratto `smart_home` e prove contrattuali per schema, identita `source:device_id`, organizzazione, collisioni native e separazione della sicurezza.
+- Test CHANGE: `4 passed, 2 xfailed` intenzionali e strict; rappresentano parser e comando futuri, ancora bloccati dal gate producer.
+- Regressione BusPro/configurazione: `9 passed`; soli warning FastAPI preesistenti.
+- Runtime, versione, MQTT, Discovery e identificativi invariati. Nessun commit, push, aggiornamento o deploy.
+
+## Handoff preparazione parita multi-bus CHANGE-2026-011
+
+- Data: 2026-10-01
+- Letto il work order aggiornato con requisiti di pagine storiche, preferenze persistenti, parita funzionale e neutralita rispetto ai driver.
+- Aggiunta fixture sintetica di parita per `hdl`, `ksenia` e `futurebus`, con classi/capability equivalenti, categorie storiche, capability negate e ciclo di persistenza rename/offline/restart/update/backup-restore.
+- Aggiunti test della matrice, del confine Sicurezza e della compatibilita dell'archivio organizzazione esistente con chiavi canoniche multi-bus.
+- Esito aggregato CHANGE: `10 passed, 5 xfailed` strict e intenzionali in attesa del producer.
+- Analisi: `device_organization` supporta gia chiavi canoniche, multi-categoria, ordine e visibilita; dopo il gate serviranno alias HDL legacy e integrazione coordinata di pagine, realtime, routine, preferiti e scorciatoie.
+- Runtime, versione, MQTT, Discovery e identificativi invariati. Nessun commit, push, aggiornamento o deploy.
+
+## Handoff implementazione consumer CHANGE-2026-011
+
+- Data: 2026-10-01
+- Producer consumato: e-Control Hub `0.1.459`, commit approvati `ff11416` + `d07e301`, contratto `smart_home` v1.
+- Implementato il consumer driver-neutral con identita canonica `source:device_id`, organizzazione e icone autorevoli Hub, fallback `payload.devices` per Hub precedenti e alias espliciti per le preferenze HDL legacy.
+- I comandi multi-bus usano esclusivamente `/api/user/smart-home/{source}/{device_id}/command` e rispettano capability, disponibilita, sola lettura e stato orfano dichiarati dal producer.
+- Aggiunte proiezione nelle pagine storiche, scenari e routine; deduplicazione HA soltanto per entity ID esatto. Partizioni, inserimenti, bypass e sicurezza Ksenia restano nel connettore protetto esistente.
+- Versione candidata: `2.21.293`.
+- Test: suite CHANGE `17 passed` senza xfail; suite completa e-Face `397 passed`; sintassi JavaScript, compilazione Python e `git diff --check` superati.
+- MQTT, Discovery e identificativi esistenti invariati. Nessun push, aggiornamento, installazione, deploy o release eseguito.
+
 ## Handoff aggiuntivo — widget Luci accese
 
 - Data: 2026-09-30

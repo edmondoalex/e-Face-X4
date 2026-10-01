@@ -78,7 +78,7 @@ from .media_realtime import SharedMediaRealtime
 from .demo import dashboard as demo_dashboard
 from .ha_labeled import normalize_labeled_entities
 
-VERSION = os.environ.get("EFACE_VERSION", "2.21.292")
+VERSION = os.environ.get("EFACE_VERSION", "2.21.293")
 STATIC = Path(__file__).parent / "static"
 logging.basicConfig(level=logging.WARNING, format="%(asctime)s %(levelname)s [e-face-x4] %(message)s")
 _reconnect_warning_at: dict[str, float] = {}
@@ -2339,11 +2339,21 @@ def create_app() -> FastAPI:
     def apply_device_organization(devices: list[dict]) -> None:
         organization = load_device_organization()
         for device in devices:
-            configured = organization.get(str(device.get("id")))
+            canonical_id = str(device.get("id"))
+            configured = organization.get(canonical_id)
+            alias = next((value for value in device.get("aliases") or [] if value in organization), None)
+            if not configured and alias:
+                configured = organization[alias]
+                device["legacy_preference_alias"] = alias
             if not configured:
                 continue
             for key in ("name", "room", "icon"):
                 if configured.get(key):
+                    device[key] = configured[key]
+            for key in ("categories", "orders", "visible"):
+                if key in configured:
+                    if device.get("organization_authority") == "e-control-hub" and configured.get(key) != device.get(key):
+                        device.setdefault("organization_conflicts", []).append(key)
                     device[key] = configured[key]
 
     async def alexa_agenda_devices() -> list[dict]:
@@ -3450,13 +3460,18 @@ def create_app() -> FastAPI:
             counts = normalized.get("counts", {}) if isinstance(normalized, dict) else {}
             dashboard["rooms"] = normalized.get("rooms", []) if isinstance(normalized, dict) else []
             dashboard["devices"] = normalized.get("devices", []) if isinstance(normalized, dict) else []
+            authoritative_ha_ids = {
+                entity_id for device in dashboard["devices"]
+                for entity_id in ([str(device.get("home_assistant_entity_id") or "")] + [str(value) for value in device.get("home_assistant_entity_ids") or []])
+                if entity_id
+            }
             etherm = next((item for item in providers if item.get("id") == "etherm" and item.get("status") == "online"), None)
             if isinstance(etherm, dict):
                 dashboard["devices"].extend(etherm.get("items", []))
             ksenia = next((item for item in providers if item.get("id") == "ksenia" and item.get("status") in {"online", "stale"}), None)
             if isinstance(ksenia, dict):
                 dashboard["devices"].extend(ksenia.get("items", []))
-            dashboard["devices"].extend(ha_eface_items)
+            dashboard["devices"].extend(item for item in ha_eface_items if str(item.get("entity_id") or "") not in authoritative_ha_ids)
             for media in (item for item in providers if item.get("id") in {"control4", "evoice", "wiim"} and item.get("status") in {"online", "stale"}):
                 media_items = media.get("items", [])
                 dashboard["devices"].extend(media_items)
@@ -5185,7 +5200,7 @@ def create_app() -> FastAPI:
             raise HTTPException(status_code=502, detail="Scenari e-Control HUB non disponibili")
         states = status.get("states", {}) if isinstance(status, dict) else {}
         running = status.get("running", {}) if isinstance(status, dict) else {}
-        return {"items": [
+        items = [
             {
                 "id": str(item.get("id") or ""), "name": str(item.get("name") or "Scenario"),
                 "room": str(item.get("room") or item.get("room_name") or item.get("area") or ""),
@@ -5196,7 +5211,21 @@ def create_app() -> FastAPI:
                 "running": bool(running.get(str(item.get("id") or ""))),
             }
             for item in raw_items if isinstance(item, dict) and item.get("id")
-        ]}
+        ]
+        smart_snapshot = await BusproConnector(config, settings.request_timeout_s).snapshot()
+        if smart_snapshot.get("status") == "online":
+            for device in smart_snapshot.get("items", []):
+                if device.get("device_class") != "scenario" or "scenarios" not in (device.get("categories") or []):
+                    continue
+                capabilities = set(device.get("capabilities") or [])
+                items.append({
+                    "id": str(device["id"]), "name": str(device.get("name") or "Scenario"),
+                    "room": str(device.get("room") or ""), "lights": 0, "covers": 0,
+                    "run_enabled": "execute" in capabilities, "onoff_enabled": {"on", "off"} <= capabilities,
+                    "state": str(device.get("state") or ""), "running": str(device.get("state") or "").lower() == "running",
+                    "smart_home": True,
+                })
+        return {"items": list({str(item["id"]): item for item in items}.values())}
 
     @app.post("/api/scenarios/{scenario_id}/command")
     async def scenario_command(scenario_id: str, payload: dict) -> dict:
@@ -5205,6 +5234,13 @@ def create_app() -> FastAPI:
             raise HTTPException(status_code=400, detail="Comando scenario non valido")
         settings, config = await buspro_config()
         headers = {"Authorization": f"Bearer {config.token}"} if config.token else {}
+        if ":" in scenario_id:
+            try:
+                return await BusproConnector(config, settings.request_timeout_s).command(scenario_id, action)
+            except httpx.HTTPStatusError as exc:
+                raise HTTPException(status_code=exc.response.status_code, detail="Comando scenario Smart Home rifiutato")
+            except (httpx.HTTPError, ValueError) as exc:
+                raise HTTPException(status_code=502 if isinstance(exc, httpx.HTTPError) else 400, detail=str(exc))
         try:
             async with httpx.AsyncClient(timeout=settings.request_timeout_s, follow_redirects=False) as client:
                 listing = await client.get(f"{config.base_url}/api/user/light_scenarios", headers=headers)

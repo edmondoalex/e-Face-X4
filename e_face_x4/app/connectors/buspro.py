@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from typing import Any
+from urllib.parse import quote
 
 import httpx
 
@@ -9,7 +10,112 @@ from ..installation_profile import access_profiles, translate_access_action
 from .base import Connector
 
 
+SMART_HOME_SCHEMA_VERSION = "1.0"
+SMART_HOME_CLASS_KIND = {
+    "light": "light", "dimmer": "light", "switch": "switch",
+    "cover": "cover", "shutter": "cover", "awning": "cover",
+    "gate": "cover", "garage_door": "cover", "thermostat": "climate",
+    "temperature_sensor": "temperature", "humidity_sensor": "humidity",
+    "illuminance_sensor": "sensor", "environment_sensor": "air",
+    "presence": "binary_sensor", "dry_contact": "binary_sensor",
+    "scenario": "button",
+}
+SMART_HOME_ACTIONS = {
+    "brightness": "level", "set_position": "position", "set_target": "temperature",
+    "press": "execute", "run": "execute",
+}
+
+
+def _smart_home_snapshot(payload: dict[str, Any]) -> dict[str, Any] | None:
+    smart_home = payload.get("smart_home")
+    if not isinstance(smart_home, dict) or smart_home.get("schema_version") != SMART_HOME_SCHEMA_VERSION:
+        return None
+    return smart_home if isinstance(smart_home.get("devices"), list) else None
+
+
+def _state_value(raw: Any) -> tuple[Any, dict[str, Any]]:
+    if not isinstance(raw, dict):
+        return raw, {}
+    if "value" in raw and len(raw) == 1:
+        value = raw.get("value")
+        return (value, value if isinstance(value, dict) else {})
+    return raw.get("state", raw.get("value", raw)), raw
+
+
+def _normalize_smart_home(payload: dict[str, Any], smart_home: dict[str, Any]) -> dict[str, Any]:
+    legacy = normalize_snapshot({key: value for key, value in payload.items() if key != "smart_home"})
+    legacy_by_state = {str(item.get("state_key")): str(item.get("id")) for item in legacy["devices"] if item.get("state_key")}
+    counts = {"lights": 0, "switches": 0, "covers": 0, "locks": 0, "sensors": 0}
+    rooms: dict[str, dict[str, Any]] = {}
+    normalized: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    protected = {"alarm", "alarm_system", "partition", "zone", "bypass", "arm", "disarm", "panel"}
+    for raw in smart_home["devices"]:
+        if not isinstance(raw, dict):
+            continue
+        source = str(raw.get("source") or "").strip().lower()
+        source_id = str(raw.get("device_id") or "").strip()
+        canonical_id = str(raw.get("id") or f"{source}:{source_id}").strip()
+        if not source or not source_id or canonical_id != f"{source}:{source_id}" or canonical_id in seen:
+            continue
+        device_class = str(raw.get("device_class") or "").strip().lower()
+        capabilities = [str(value).strip().lower() for value in raw.get("capabilities") or [] if str(value).strip()]
+        allowed_actions = [{"level": "brightness", "position": "set_position", "temperature": "set_target", "execute": "press"}.get(value, value) for value in capabilities]
+        semantic_text = {device_class, str(raw.get("native_type") or "").strip().lower(), *capabilities}
+        if semantic_text & protected:
+            continue
+        kind = SMART_HOME_CLASS_KIND.get(device_class, "switch" if capabilities else "sensor")
+        state, state_fields = _state_value(raw.get("state"))
+        room = str(raw.get("room_name") or raw.get("floor_name") or "Senza stanza").strip() or "Senza stanza"
+        categories = [str(value) for value in raw.get("categories") or [] if isinstance(value, str)]
+        commands = [dict(value) for value in raw.get("commands") or [] if isinstance(value, dict)]
+        features = dict(raw.get("features") or {}) if isinstance(raw.get("features"), dict) else {}
+        position = state_fields.get("position")
+        brightness = state_fields.get("brightness", state_fields.get("level"))
+        if kind == "light": counts["lights"] += 1
+        elif kind == "switch": counts["switches"] += 1
+        elif kind == "cover": counts["covers"] += 1
+        else: counts["sensors"] += 1
+        rooms.setdefault(room.casefold(), {"id": str(raw.get("room_id") or f"room-{len(rooms)}"), "name": room, "devices": 0})["devices"] += 1
+        legacy_id = legacy_by_state.get(source_id, "") if source == "hdl" else ""
+        normalized.append({
+            "id": canonical_id, "canonical_id": canonical_id, "source": source, "device_id": source_id,
+            "legacy_id": legacy_id, "aliases": [legacy_id] if legacy_id and legacy_id != canonical_id else [],
+            "name": str(raw.get("name") or source_id), "kind": kind, "device_class": device_class,
+            "native_type": str(raw.get("native_type") or ""), "native_id": str(raw.get("native_id") or ""),
+            "room": room, "floor_id": str(raw.get("floor_id") or ""), "floor_name": str(raw.get("floor_name") or ""),
+            "room_id": str(raw.get("room_id") or ""), "group_ids": list(raw.get("group_ids") or []),
+            "group_names": list(raw.get("group_names") or []), "state": state,
+            "brightness": brightness, "position": position,
+            "dimmable": "level" in capabilities, "position_supported": "position" in capabilities,
+            "capabilities": capabilities, "commands": commands, "features": features,
+            "allowed_actions": allowed_actions if not raw.get("read_only") and raw.get("available") and not raw.get("orphaned") else [],
+            "read_only": bool(raw.get("read_only")), "available": bool(raw.get("available")),
+            "availability": "available" if raw.get("available") else "unavailable",
+            "connection_status": "offline" if not raw.get("available") else "online",
+            "stale": bool(raw.get("stale")), "orphaned": bool(raw.get("orphaned")),
+            "categories": categories, "default_categories": categories,
+            "orders": dict(raw.get("orders") or {}), "visible": bool(raw.get("visible", True)),
+            "favorite": bool(raw.get("favorite")), "shortcut": bool(raw.get("shortcut")),
+            "visual_category": str(raw.get("visual_category") or (categories[0] if categories else "")),
+            "icon": str(raw.get("icon") or raw.get("icon_override") or raw.get("icon_auto") or ""),
+            "icon_auto": str(raw.get("icon_auto") or ""), "icon_override": str(raw.get("icon_override") or ""),
+            "state_key": source_id, "provider": "buspro", "organization_authority": "e-control-hub",
+            "home_assistant_entity_id": str(raw.get("home_assistant_entity_id") or ""),
+            "home_assistant_entity_ids": [str(value) for value in raw.get("home_assistant_entity_ids") or [] if str(value)],
+        })
+        seen.add(canonical_id)
+    mqtt = payload.get("mqtt") if isinstance(payload.get("mqtt"), dict) else {}
+    return {"devices": normalized, "rooms": sorted(rooms.values(), key=lambda item: item["name"].casefold()),
+            "counts": counts, "mqtt_connected": bool(mqtt.get("connected")),
+            "smart_home_schema_version": smart_home["schema_version"],
+            "capability_model_version": str(smart_home.get("capability_model_version") or "")}
+
+
 def normalize_snapshot(payload: dict[str, Any]) -> dict[str, Any]:
+    smart_home = _smart_home_snapshot(payload)
+    if smart_home is not None:
+        return _normalize_smart_home(payload, smart_home)
     raw_devices = payload.get("devices")
     devices = raw_devices if isinstance(raw_devices, list) else []
     counts = {"lights": 0, "switches": 0, "covers": 0, "locks": 0, "sensors": 0}
@@ -235,7 +341,7 @@ class BusproConnector(Connector):
             }
 
     async def command(self, target_id: str, action: str, value: Any = None) -> dict[str, Any]:
-        allowed = {"on", "off", "brightness", "open", "close", "stop", "set_position", "lock", "unlock"}
+        allowed = {"on", "off", "brightness", "open", "close", "stop", "set_position", "lock", "unlock", "press", "run", "set_target"}
         action = str(action or "").strip().lower()
         action = translate_access_action(access_profiles().get(str(target_id)), action)
         if action not in allowed:
@@ -252,6 +358,26 @@ class BusproConnector(Connector):
             snapshot_response = await client.get(f"{self.config.base_url}/api/user/snapshot", headers=self._headers())
             snapshot_response.raise_for_status()
             snapshot = snapshot_response.json()
+            smart_home = _smart_home_snapshot(snapshot) if isinstance(snapshot, dict) else None
+            if smart_home is not None:
+                target = next((item for item in smart_home["devices"] if isinstance(item, dict) and str(item.get("id")) == str(target_id)), None)
+                if target is not None:
+                    source = str(target.get("source") or "").strip().lower()
+                    source_id = str(target.get("device_id") or "").strip()
+                    hub_action = SMART_HOME_ACTIONS.get(action, action)
+                    if action == "brightness":
+                        hub_value = round((brightness_value or 0) * 100 / 255)
+                    else:
+                        hub_value = value
+                    response = await client.post(
+                        f"{self.config.base_url}/api/user/smart-home/{quote(source, safe='')}/{quote(source_id, safe='')}/command",
+                        headers=self._headers(), json={"action": hub_action, "value": hub_value},
+                    )
+                    response.raise_for_status()
+                    result = response.json()
+                    if not isinstance(result, dict):
+                        raise ValueError("risposta comando Smart Home non valida")
+                    return result
             devices = snapshot.get("devices") if isinstance(snapshot, dict) else None
             if not isinstance(devices, list):
                 raise ValueError("snapshot non valido")
