@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.21.294 — 2026-10-01
+
+- Le preferenze locali legacy restano disponibili per diagnostica e migrazione, ma non sovrascrivono più organizzazione, icone o visibilità autorevoli di e-Control Hub.
+- Il confine Ksenia protetto rifiuta difensivamente famiglie di sicurezza anche con plurali, prefissi, trattini o underscore in classe, tipo, capability e comandi.
+- Aggiunte regressioni esplicite per conflitti organizzativi legacy e varianti semantiche protette.
+
 ## 2.21.293 — 2026-10-01
 
 - Consuma il catalogo Smart Home v1 approvato di e-Control Hub 0.1.459 per dispositivi HDL, Ksenia e driver futuri, mantenendo il fallback verso gli snapshot legacy.

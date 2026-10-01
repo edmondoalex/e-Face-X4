@@ -78,7 +78,7 @@ from .media_realtime import SharedMediaRealtime
 from .demo import dashboard as demo_dashboard
 from .ha_labeled import normalize_labeled_entities
 
-VERSION = os.environ.get("EFACE_VERSION", "2.21.293")
+VERSION = os.environ.get("EFACE_VERSION", "2.21.294")
 STATIC = Path(__file__).parent / "static"
 logging.basicConfig(level=logging.WARNING, format="%(asctime)s %(levelname)s [e-face-x4] %(message)s")
 _reconnect_warning_at: dict[str, float] = {}
@@ -175,6 +175,31 @@ class AppAssets(StaticFiles):
         if path in {"", ".", "/"}:
             return RedirectResponse("../", status_code=307)
         return await super().get_response(path, scope)
+
+
+def apply_device_organization_preferences(devices: list[dict], organization: dict) -> None:
+    """Apply legacy preferences without overriding Hub-authoritative organization."""
+    for device in devices:
+        canonical_id = str(device.get("id"))
+        configured = organization.get(canonical_id)
+        alias = next((value for value in device.get("aliases") or [] if value in organization), None)
+        if not configured and alias:
+            configured = organization[alias]
+            device["legacy_preference_alias"] = alias
+        if not configured:
+            continue
+        applicable = {
+            key: value for key, value in configured.items()
+            if key in {"name", "room", "icon", "categories", "orders", "visible"}
+            and (key not in {"name", "room", "icon"} or value)
+        }
+        if device.get("organization_authority") == "e-control-hub":
+            conflicts = [key for key, value in applicable.items() if value != device.get(key)]
+            device["legacy_organization_preference"] = dict(configured)
+            if conflicts:
+                device["organization_conflicts"] = conflicts
+            continue
+        device.update(applicable)
 
 
 def create_app() -> FastAPI:
@@ -2337,24 +2362,7 @@ def create_app() -> FastAPI:
             return []
 
     def apply_device_organization(devices: list[dict]) -> None:
-        organization = load_device_organization()
-        for device in devices:
-            canonical_id = str(device.get("id"))
-            configured = organization.get(canonical_id)
-            alias = next((value for value in device.get("aliases") or [] if value in organization), None)
-            if not configured and alias:
-                configured = organization[alias]
-                device["legacy_preference_alias"] = alias
-            if not configured:
-                continue
-            for key in ("name", "room", "icon"):
-                if configured.get(key):
-                    device[key] = configured[key]
-            for key in ("categories", "orders", "visible"):
-                if key in configured:
-                    if device.get("organization_authority") == "e-control-hub" and configured.get(key) != device.get(key):
-                        device.setdefault("organization_conflicts", []).append(key)
-                    device[key] = configured[key]
+        apply_device_organization_preferences(devices, load_device_organization())
 
     async def alexa_agenda_devices() -> list[dict]:
         entities, devices = await home_assistant_registries()

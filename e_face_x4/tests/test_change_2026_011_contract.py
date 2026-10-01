@@ -9,6 +9,7 @@ import pytest
 
 from app.config import ProviderConfig
 from app.connectors.buspro import BusproConnector, normalize_snapshot
+from app.main import apply_device_organization_preferences
 
 
 FIXTURE_PATH = Path(__file__).parent / "fixtures" / "change_2026_011_smart_home_snapshot.json"
@@ -122,6 +123,51 @@ def test_change_2026_011_consumer_prefers_smart_home_and_tolerates_unknown_field
     assert hdl["favorite"] is True
     assert hdl["allowed_actions"] == ["on", "off", "brightness"]
     assert hdl["organization_authority"] == "e-control-hub"
+
+
+def test_change_2026_011_hub_organization_wins_and_legacy_preference_is_preserved() -> None:
+    device = next(item for item in normalize_snapshot(load_fixture())["devices"] if item["id"] == "hdl:1.2.3")
+    authoritative = {key: device[key] for key in ("name", "room", "icon", "categories", "orders", "visible")}
+    legacy = {
+        "name": "Legacy name", "room": "Legacy room", "icon": "legacy:icon",
+        "categories": ["extra"], "orders": {"extra": 99}, "visible": False,
+    }
+
+    apply_device_organization_preferences([device], {device["aliases"][0]: legacy})
+
+    assert {key: device[key] for key in authoritative} == authoritative
+    assert device["legacy_preference_alias"] == device["aliases"][0]
+    assert device["legacy_organization_preference"] == legacy
+    assert set(device["organization_conflicts"]) == set(authoritative)
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("device_class", "partitions"),
+        ("native_type", "alarm-partition"),
+        ("capability", "zones"),
+        ("capability", "bypasses"),
+        ("capability", "arm_home"),
+        ("command", "zone_bypass"),
+        ("command", "alarm_partition"),
+    ],
+)
+def test_change_2026_011_rejects_protected_security_families(field: str, value: str) -> None:
+    payload = load_fixture()
+    candidate = dict(payload["smart_home"]["devices"][0])
+    candidate["id"] = "futurebus:unsafe"
+    candidate["source"] = "futurebus"
+    candidate["device_id"] = "unsafe"
+    if field == "capability":
+        candidate["capabilities"] = [value]
+    elif field == "command":
+        candidate["commands"] = [{"action": value}]
+    else:
+        candidate[field] = value
+    payload["smart_home"]["devices"] = [candidate]
+
+    assert normalize_snapshot(payload)["devices"] == []
 
 
 @pytest.mark.asyncio

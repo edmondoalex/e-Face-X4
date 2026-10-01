@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from typing import Any
 from urllib.parse import quote
 
@@ -24,6 +25,29 @@ SMART_HOME_ACTIONS = {
     "brightness": "level", "set_position": "position", "set_target": "temperature",
     "press": "execute", "run": "execute",
 }
+PROTECTED_SECURITY_FAMILIES = {
+    "alarm", "arm", "bypass", "disarm", "panel", "partition", "security", "zone",
+}
+
+
+def _security_token(value: Any) -> str:
+    return re.sub(r"[^a-z0-9]+", "_", str(value or "").strip().casefold()).strip("_")
+
+
+def _is_protected_security_semantic(value: Any) -> bool:
+    token = _security_token(value)
+    if not token:
+        return False
+    parts: set[str] = set()
+    for part in token.split("_"):
+        if not part:
+            continue
+        if part.endswith("es") and part[:-2] in PROTECTED_SECURITY_FAMILIES:
+            part = part[:-2]
+        elif part.endswith("s") and part[:-1] in PROTECTED_SECURITY_FAMILIES:
+            part = part[:-1]
+        parts.add(part)
+    return bool(parts & PROTECTED_SECURITY_FAMILIES)
 
 
 def _smart_home_snapshot(payload: dict[str, Any]) -> dict[str, Any] | None:
@@ -49,7 +73,6 @@ def _normalize_smart_home(payload: dict[str, Any], smart_home: dict[str, Any]) -
     rooms: dict[str, dict[str, Any]] = {}
     normalized: list[dict[str, Any]] = []
     seen: set[str] = set()
-    protected = {"alarm", "alarm_system", "partition", "zone", "bypass", "arm", "disarm", "panel"}
     for raw in smart_home["devices"]:
         if not isinstance(raw, dict):
             continue
@@ -60,15 +83,16 @@ def _normalize_smart_home(payload: dict[str, Any], smart_home: dict[str, Any]) -
             continue
         device_class = str(raw.get("device_class") or "").strip().lower()
         capabilities = [str(value).strip().lower() for value in raw.get("capabilities") or [] if str(value).strip()]
+        commands = [dict(value) for value in raw.get("commands") or [] if isinstance(value, dict)]
         allowed_actions = [{"level": "brightness", "position": "set_position", "temperature": "set_target", "execute": "press"}.get(value, value) for value in capabilities]
-        semantic_text = {device_class, str(raw.get("native_type") or "").strip().lower(), *capabilities}
-        if semantic_text & protected:
+        command_semantics = [value.get("action", value.get("command", value.get("name", ""))) for value in commands]
+        semantic_text = [device_class, raw.get("native_type"), *capabilities, *command_semantics]
+        if any(_is_protected_security_semantic(value) for value in semantic_text):
             continue
         kind = SMART_HOME_CLASS_KIND.get(device_class, "switch" if capabilities else "sensor")
         state, state_fields = _state_value(raw.get("state"))
         room = str(raw.get("room_name") or raw.get("floor_name") or "Senza stanza").strip() or "Senza stanza"
         categories = [str(value) for value in raw.get("categories") or [] if isinstance(value, str)]
-        commands = [dict(value) for value in raw.get("commands") or [] if isinstance(value, dict)]
         features = dict(raw.get("features") or {}) if isinstance(raw.get("features"), dict) else {}
         position = state_fields.get("position")
         brightness = state_fields.get("brightness", state_fields.get("level"))

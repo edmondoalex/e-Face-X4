@@ -110,6 +110,14 @@ Prima di modificare identità, ruoli, API, eventi, licenze, pairing, cloud/local
 - Test: suite CHANGE `17 passed` senza xfail; suite completa e-Face `397 passed`; sintassi JavaScript, compilazione Python e `git diff --check` superati.
 - MQTT, Discovery e identificativi esistenti invariati. Nessun push, aggiornamento, installazione, deploy o release eseguito.
 
+## Handoff correzioni revisione consumer CHANGE-2026-011
+
+- Data: 2026-10-01
+- Correzione autorita: le preferenze e-Face legacy in conflitto sono conservate nel record diagnostico e nell'archivio esistente, ma non sovrascrivono nome, stanza, icona, categorie, ordine o visibilita ricevuti da e-Control Hub.
+- Correzione sicurezza: filtro difensivo normalizzato applicato a `device_class`, `native_type`, capability e comandi; intercetta plurali, prefissi e varianti con trattino/underscore delle famiglie allarme, partizione, zona, inserimento e bypass.
+- Versione candidata correttiva: `2.21.294`.
+- Gate invariato: commit correttivo locale; nessun push, aggiornamento, installazione, deploy o release.
+
 ## Handoff aggiuntivo — widget Luci accese
 
 - Data: 2026-09-30
