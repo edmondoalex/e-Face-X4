@@ -264,3 +264,50 @@ def test_ksenia_native_state_is_reduced_to_a_display_value() -> None:
     normalized = normalize_snapshot(payload)["devices"][0]
     assert normalized["state"] == "OFF"
     assert normalized["brightness"] == 0
+
+
+def test_legacy_access_profile_remains_a_security_lock(monkeypatch) -> None:
+    from app.connectors import buspro as buspro_module
+    monkeypatch.setattr(buspro_module, "access_profiles", lambda: {
+        "switch.porta": {"enabled": True, "behavior": "relay_on_unlock", "name": "Porta ufficio"}
+    })
+    payload = {
+        "devices": [{"entity_id":"switch.porta", "type":"light", "name":"Relay porta", "category":"Switch", "subnet_id":1, "device_id":2, "channel":3}],
+        "states": {"1.2.3":{"state":"OFF"}},
+        "smart_home": {"schema_version":"1.0", "devices":[{
+            "id":"hdl:1.2.3", "source":"hdl", "device_id":"1.2.3", "name":"Relay porta",
+            "device_class":"switch", "native_type":"light", "capabilities":["on","off"],
+            "commands":[], "read_only":False, "available":True, "stale":False,
+            "state":{"state":"OFF"}, "categories":["extra"], "orders":{}, "visible":True,
+        }]},
+    }
+    item = normalize_snapshot(payload)["devices"][0]
+    assert item["kind"] == "lock"
+    assert item["name"] == "Porta ufficio"
+    assert item["legacy_id"] == "switch.porta"
+
+
+def test_legacy_ha_lock_is_preserved_beside_smart_home_catalog(monkeypatch) -> None:
+    from app.connectors import buspro as buspro_module
+    monkeypatch.setattr(buspro_module, "access_profiles", lambda: {})
+    payload = {
+        "devices": [{"entity_id":"lock.porta_ufficio", "type":"lock", "name":"Porta Ufficio", "group":"UFFICIO ALEX"}],
+        "ha_states": {"lock.porta_ufficio":{"state":"locked", "attributes":{}}},
+        "smart_home": {"schema_version":"1.0", "devices":[]},
+    }
+    devices = normalize_snapshot(payload)["devices"]
+    assert len(devices) == 1
+    assert devices[0]["id"] == "lock.porta_ufficio"
+    assert devices[0]["kind"] == "lock"
+    assert devices[0]["categories"] == ["security"]
+
+
+def test_legacy_switch_exposed_as_locks_is_preserved_as_security() -> None:
+    payload = {
+        "devices": [{"entity_id":"switch.cancello_cmd", "type":"switch", "name":"Cancello CMD", "category":"locks", "group":"ESTERNO PT"}],
+        "ha_states": {"switch.cancello_cmd":{"state":"off", "attributes":{}}},
+        "smart_home": {"schema_version":"1.0", "devices":[]},
+    }
+    item = normalize_snapshot(payload)["devices"][0]
+    assert item["kind"] == "lock"
+    assert item["categories"] == ["security"]

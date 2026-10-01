@@ -109,7 +109,7 @@ function organizedDevices(category, devices) {
     : (currentDeviceOrganization[String(device.id)]?.orders?.[category]??device.orders?.[category]??Number.MAX_SAFE_INTEGER)
   return [...devices].sort((a,b)=>order(a)-order(b)||String(a.name||'').localeCompare(String(b.name||''),'it'))
 }
-function securityDevices(){return organizedDevices('security',currentDevices.filter(device=>device.kind === 'alarm_scenario' || deviceInCategory(device,'security')))}
+function securityDevices(){return organizedDevices('security',currentDevices.filter(device=>device.kind === 'lock' || isSecurityGarage(device) || device.kind === 'alarm_scenario' || deviceInCategory(device,'security')))}
 function openSecurityPage(){openDevices('Sicurezza',securityDevices(),{security:true})}
 const mediaTransportOverrides = new Map()
 const homeLiveMuteTargets = new Map()

@@ -81,7 +81,15 @@ def _state_value(raw: Any) -> tuple[Any, dict[str, Any]]:
 
 def _normalize_smart_home(payload: dict[str, Any], smart_home: dict[str, Any]) -> dict[str, Any]:
     legacy = normalize_snapshot({key: value for key, value in payload.items() if key != "smart_home"})
-    legacy_by_state = {str(item.get("state_key")): str(item.get("id")) for item in legacy["devices"] if item.get("state_key")}
+    legacy_by_state = {str(item.get("state_key")): item for item in legacy["devices"] if item.get("state_key")}
+    legacy_by_id = {str(item.get("id")): item for item in legacy["devices"]}
+    for index, raw_legacy in enumerate(payload.get("devices") or []):
+        if not isinstance(raw_legacy, dict):
+            continue
+        address = ".".join(str(raw_legacy.get(key)) for key in ("subnet_id", "device_id", "channel") if raw_legacy.get(key) is not None)
+        legacy_id = str(raw_legacy.get("entity_id") or raw_legacy.get("id") or index)
+        if address and legacy_id in legacy_by_id:
+            legacy_by_state.setdefault(address, legacy_by_id[legacy_id])
     counts = {"lights": 0, "switches": 0, "covers": 0, "locks": 0, "sensors": 0}
     rooms: dict[str, dict[str, Any]] = {}
     normalized: list[dict[str, Any]] = []
@@ -103,6 +111,9 @@ def _normalize_smart_home(payload: dict[str, Any], smart_home: dict[str, Any]) -
         if any(_is_protected_security_semantic(value) for value in semantic_text):
             continue
         kind = SMART_HOME_CLASS_KIND.get(device_class, "switch" if capabilities else "sensor")
+        legacy_item = legacy_by_state.get(source_id) if source == "hdl" else None
+        if isinstance(legacy_item, dict) and legacy_item.get("kind") == "lock":
+            kind = "lock"
         state, state_fields = _state_value(raw.get("state"))
         room = str(raw.get("room_name") or raw.get("floor_name") or "Senza stanza").strip() or "Senza stanza"
         categories = [str(value) for value in raw.get("categories") or [] if isinstance(value, str)]
@@ -112,13 +123,14 @@ def _normalize_smart_home(payload: dict[str, Any], smart_home: dict[str, Any]) -
         if kind == "light": counts["lights"] += 1
         elif kind == "switch": counts["switches"] += 1
         elif kind == "cover": counts["covers"] += 1
+        elif kind == "lock": counts["locks"] += 1
         else: counts["sensors"] += 1
         rooms.setdefault(room.casefold(), {"id": str(raw.get("room_id") or f"room-{len(rooms)}"), "name": room, "devices": 0})["devices"] += 1
-        legacy_id = legacy_by_state.get(source_id, "") if source == "hdl" else ""
+        legacy_id = str((legacy_item or {}).get("id") or "")
         normalized.append({
             "id": canonical_id, "canonical_id": canonical_id, "source": source, "device_id": source_id,
             "legacy_id": legacy_id, "aliases": [legacy_id] if legacy_id and legacy_id != canonical_id else [],
-            "name": str(raw.get("name") or source_id), "kind": kind, "device_class": device_class,
+            "name": str((legacy_item or {}).get("name") or raw.get("name") or source_id), "kind": kind, "device_class": device_class,
             "native_type": str(raw.get("native_type") or ""), "native_id": str(raw.get("native_id") or ""),
             "room": room, "floor_id": str(raw.get("floor_id") or ""), "floor_name": str(raw.get("floor_name") or ""),
             "room_id": str(raw.get("room_id") or ""), "group_ids": list(raw.get("group_ids") or []),
@@ -126,7 +138,7 @@ def _normalize_smart_home(payload: dict[str, Any], smart_home: dict[str, Any]) -
             "brightness": brightness, "position": position,
             "dimmable": "level" in capabilities, "position_supported": "position" in capabilities,
             "capabilities": capabilities, "commands": commands, "features": features,
-            "allowed_actions": allowed_actions if not raw.get("read_only") and raw.get("available") and not raw.get("orphaned") else [],
+            "allowed_actions": (legacy_item.get("allowed_actions") if kind == "lock" and isinstance(legacy_item, dict) else allowed_actions) if not raw.get("read_only") and raw.get("available") and not raw.get("orphaned") else [],
             "read_only": bool(raw.get("read_only")), "available": bool(raw.get("available")),
             "availability": "available" if raw.get("available") else "unavailable",
             "connection_status": "offline" if not raw.get("available") else "online",
@@ -142,6 +154,23 @@ def _normalize_smart_home(payload: dict[str, Any], smart_home: dict[str, Any]) -
             "home_assistant_entity_ids": [str(value) for value in raw.get("home_assistant_entity_ids") or [] if str(value)],
         })
         seen.add(canonical_id)
+    represented_ids = {
+        str(value) for item in normalized
+        for value in ([item.get("legacy_id"), item.get("home_assistant_entity_id")] + list(item.get("home_assistant_entity_ids") or []))
+        if value
+    }
+    for legacy_item in legacy["devices"]:
+        legacy_id = str(legacy_item.get("id") or "")
+        if legacy_item.get("kind") != "lock" or not legacy_id or legacy_id in represented_ids:
+            continue
+        preserved = dict(legacy_item)
+        preserved.update({
+            "categories": ["security"], "default_categories": ["security"],
+            "visual_category": "security", "organization_authority": "e-face-legacy",
+        })
+        normalized.append(preserved)
+        counts["locks"] += 1
+        represented_ids.add(legacy_id)
     mqtt = payload.get("mqtt") if isinstance(payload.get("mqtt"), dict) else {}
     return {"devices": normalized, "rooms": sorted(rooms.values(), key=lambda item: item["name"].casefold()),
             "counts": counts, "mqtt_connected": bool(mqtt.get("connected")),
@@ -190,7 +219,8 @@ def normalize_snapshot(payload: dict[str, Any]) -> dict[str, Any]:
         entity_domain = str(raw.get("entity_id") or "").split(".", 1)[0].lower()
         # Keep the configured presentation/group, while retaining the real HA
         # domain below for state and command routing.
-        kind = "cover" if raw_kind == "lock" and entity_domain == "cover" else ("switch" if category.casefold() == "switch" else raw_kind)
+        category_key = category.casefold()
+        kind = "lock" if category_key in {"lock", "locks", "security", "sicurezza"} else ("cover" if raw_kind == "lock" and entity_domain == "cover" else ("switch" if category_key == "switch" else raw_kind))
         transport_kind = kind
         room = str(raw.get("group") or "Senza stanza").strip() or "Senza stanza"
         name = str(raw.get("name") or raw.get("entity_id") or f"Dispositivo {index + 1}").strip()
@@ -380,9 +410,6 @@ class BusproConnector(Connector):
     async def command(self, target_id: str, action: str, value: Any = None) -> dict[str, Any]:
         allowed = {"on", "off", "brightness", "open", "close", "stop", "set_position", "lock", "unlock", "press", "run", "set_target"}
         action = str(action or "").strip().lower()
-        action = translate_access_action(access_profiles().get(str(target_id)), action)
-        if action not in allowed:
-            raise ValueError("azione non consentita")
         brightness_value: int | None = None
         if action == "brightness":
             try:
@@ -401,6 +428,16 @@ class BusproConnector(Connector):
                 if target is not None:
                     source = str(target.get("source") or "").strip().lower()
                     source_id = str(target.get("device_id") or "").strip()
+                    profiles = access_profiles()
+                    profile = profiles.get(str(target_id))
+                    if profile is None and source == "hdl":
+                        legacy = normalize_snapshot({key: val for key, val in snapshot.items() if key != "smart_home"})
+                        legacy_item = next((item for item in legacy["devices"] if str(item.get("state_key") or "") == source_id), None)
+                        if legacy_item:
+                            profile = profiles.get(str(legacy_item.get("id") or ""))
+                    action = translate_access_action(profile, action)
+                    if action not in allowed:
+                        raise ValueError("azione non consentita")
                     hub_action = SMART_HOME_ACTIONS.get(action, action)
                     if action == "brightness":
                         hub_value = round((brightness_value or 0) * 100 / 255)
@@ -418,6 +455,9 @@ class BusproConnector(Connector):
             devices = snapshot.get("devices") if isinstance(snapshot, dict) else None
             if not isinstance(devices, list):
                 raise ValueError("snapshot non valido")
+            action = translate_access_action(access_profiles().get(str(target_id)), action)
+            if action not in allowed:
+                raise ValueError("azione non consentita")
             if str(target_id).startswith(("cover-group:", "cover-group-no-pct:")):
                 group_id = str(target_id).split(":", 1)[1]
                 groups = snapshot.get("cover_groups") if isinstance(snapshot.get("cover_groups"), list) else []

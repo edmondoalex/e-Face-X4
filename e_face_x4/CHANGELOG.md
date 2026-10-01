@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.21.297 — 2026-10-01
+
+- Ripristinati in Sicurezza i relay e le cover configurati come serrature nei profili accesso legacy.
+- Conservata la traduzione dei comandi lock anche con gli identificativi canonici Smart Home.
+
 ## 2.21.296 — 2026-10-01
 
 - Gli stati nativi Ksenia vengono mostrati come valori leggibili invece di `[object Object]`.
