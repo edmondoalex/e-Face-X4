@@ -98,10 +98,15 @@ function deviceAllows(device, action) {
 function deviceInCategory(device, category) {
   const configured = currentDeviceOrganization[String(device.id)]?.categories
   const authoritative = Array.isArray(device.categories) ? device.categories : []
-  return (configured?.length ? configured : authoritative.length ? authoritative : [defaultDeviceCategory(device)]).includes(category)
+  const selected = device.organization_authority === 'e-control-hub'
+    ? (authoritative.length ? authoritative : [defaultDeviceCategory(device)])
+    : (configured?.length ? configured : authoritative.length ? authoritative : [defaultDeviceCategory(device)])
+  return selected.includes(category)
 }
 function organizedDevices(category, devices) {
-  const order=(device)=>currentDeviceOrganization[String(device.id)]?.orders?.[category]??device.orders?.[category]??Number.MAX_SAFE_INTEGER
+  const order=(device)=>device.organization_authority === 'e-control-hub'
+    ? (device.orders?.[category]??Number.MAX_SAFE_INTEGER)
+    : (currentDeviceOrganization[String(device.id)]?.orders?.[category]??device.orders?.[category]??Number.MAX_SAFE_INTEGER)
   return [...devices].sort((a,b)=>order(a)-order(b)||String(a.name||'').localeCompare(String(b.name||''),'it'))
 }
 function securityDevices(){return organizedDevices('security',currentDevices.filter(device=>device.kind === 'alarm_scenario' || deviceInCategory(device,'security')))}
@@ -317,7 +322,11 @@ function render(data) {
   const providers = data.providers || []
   currentMediaGroups = providers.filter((provider) => ['control4','evoice'].includes(provider.id)).flatMap((provider) => provider.groups || [])
   const navIcons = data.nav_icons || {}
-  currentDevices = (Array.isArray(dashboard.devices) ? dashboard.devices : []).filter((device) => currentDeviceOrganization[String(device.id)]?.visible !== false && device.visible !== false)
+  currentDevices = (Array.isArray(dashboard.devices) ? dashboard.devices : []).filter((device) =>
+    device.organization_authority === 'e-control-hub'
+      ? device.visible !== false
+      : currentDeviceOrganization[String(device.id)]?.visible !== false && device.visible !== false
+  )
   for (const device of currentDevices) {
     const recent = recentRealtimeDeviceStates.get(String(device.id))
     if (!recent) continue

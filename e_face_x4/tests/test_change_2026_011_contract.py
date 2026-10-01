@@ -244,5 +244,8 @@ def test_change_2026_011_frontend_respects_hub_authority_and_capabilities() -> N
     assert "device.categories" in app_js
     assert "device.orders" in app_js
     assert "device.visible !== false" in app_js
+    assert "device.organization_authority === 'e-control-hub'" in app_js
+    assert "? (authoritative.length ? authoritative" in app_js
+    assert "? (device.orders?.[category]??Number.MAX_SAFE_INTEGER)" in app_js
     assert "device.organization_authority==='e-control-hub'" in tools_js
     assert "gestito da e-Control Hub" in tools_js

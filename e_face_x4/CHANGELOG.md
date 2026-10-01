@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.21.295 — 2026-10-01
+
+- La UI rispetta categorie, ordine e visibilita' autorevoli di e-Control Hub anche in presenza di vecchie preferenze e-Face locali.
+- Corretto il mescolamento delle luci nella pagina Extra senza cancellare le preferenze legacy conservate per diagnostica.
+
 ## 2.21.294 — 2026-10-01
 
 - Le preferenze locali legacy restano disponibili per diagnostica e migrazione, ma non sovrascrivono più organizzazione, icone o visibilità autorevoli di e-Control Hub.
