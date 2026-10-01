@@ -60,6 +60,19 @@ def _smart_home_snapshot(payload: dict[str, Any]) -> dict[str, Any] | None:
 def _state_value(raw: Any) -> tuple[Any, dict[str, Any]]:
     if not isinstance(raw, dict):
         return raw, {}
+    if "STA" in raw:
+        fields = dict(raw)
+        if "LEV" in raw:
+            try:
+                fields["brightness"] = round(max(0, min(100, float(raw["LEV"]))) * 2.55)
+            except (TypeError, ValueError):
+                pass
+        if "POS" in raw:
+            try:
+                fields["position"] = max(0, min(100, float(raw["POS"])))
+            except (TypeError, ValueError):
+                pass
+        return raw.get("STA"), fields
     if "value" in raw and len(raw) == 1:
         value = raw.get("value")
         return (value, value if isinstance(value, dict) else {})

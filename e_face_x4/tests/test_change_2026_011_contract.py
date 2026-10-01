@@ -249,3 +249,18 @@ def test_change_2026_011_frontend_respects_hub_authority_and_capabilities() -> N
     assert "? (device.orders?.[category]??Number.MAX_SAFE_INTEGER)" in app_js
     assert "device.organization_authority==='e-control-hub'" in tools_js
     assert "gestito da e-Control Hub" in tools_js
+
+
+def test_ksenia_native_state_is_reduced_to_a_display_value() -> None:
+    payload = load_fixture()
+    device = dict(payload["smart_home"]["devices"][0])
+    device.update({
+        "id": "ksenia:light-36", "source": "ksenia", "device_id": "light-36",
+        "device_class": "light", "native_type": "outputs",
+        "state": {"ID":"36", "CAT":"LIGHT", "STA":"OFF", "LEV":"0"},
+        "categories": ["lights"],
+    })
+    payload["smart_home"]["devices"] = [device]
+    normalized = normalize_snapshot(payload)["devices"][0]
+    assert normalized["state"] == "OFF"
+    assert normalized["brightness"] == 0

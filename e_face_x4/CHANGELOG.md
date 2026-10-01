@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.21.296 — 2026-10-01
+
+- Gli stati nativi Ksenia vengono mostrati come valori leggibili invece di `[object Object]`.
+- Compatibilita' coordinata con la mappa completa delle categorie HDL pubblicata da e-Control Hub 0.1.461.
+
 ## 2.21.295 — 2026-10-01
 
 - La UI rispetta categorie, ordine e visibilita' autorevoli di e-Control Hub anche in presenza di vecchie preferenze e-Face locali.
