@@ -112,10 +112,10 @@ def test_history_image_preserves_official_doorbird_event(monkeypatch, event) -> 
         requests.append(request)
         if "authorization" not in request.headers:
             return httpx.Response(401, headers={"WWW-Authenticate": 'Digest realm="DoorBird", nonce="abc", qop="auth"'})
-        return httpx.Response(200, headers={"Content-Type": "image/jpeg"}, content=b"\xff\xd8\xffhistory")
+        return httpx.Response(200, headers={"Content-Type": "image/jpeg"}, content=b"\xff\xd8\xffhistory-image")
 
     monkeypatch.setattr(httpx, "AsyncClient", lambda **kwargs: original(transport=httpx.MockTransport(handle), **kwargs))
-    assert asyncio.run(history_image("192.168.2.30", 80, "user", "private", event)) == b"\xff\xd8\xffhistory"
+    assert asyncio.run(history_image("192.168.2.30", 80, "user", "private", event)) == b"\xff\xd8\xffhistory-image"
     assert len(requests) == 2
     assert all(request.url.params["event"] == event for request in requests)
     assert all(request.url.params["index"] == "1" for request in requests)

@@ -78,7 +78,7 @@ from .media_realtime import SharedMediaRealtime
 from .demo import dashboard as demo_dashboard
 from .ha_labeled import normalize_labeled_entities
 
-VERSION = os.environ.get("EFACE_VERSION", "2.21.298")
+VERSION = os.environ.get("EFACE_VERSION", "2.21.300")
 STATIC = Path(__file__).parent / "static"
 logging.basicConfig(level=logging.WARNING, format="%(asctime)s %(levelname)s [e-face-x4] %(message)s")
 _reconnect_warning_at: dict[str, float] = {}
@@ -317,6 +317,12 @@ def create_app() -> FastAPI:
                             temporary.replace(directory / "last-motion.json")
                         except OSError as exc:
                             logging.warning("DoorBird motion timestamp could not be saved: %s", exc)
+                        try:
+                            await doorbird_api.history_image(
+                                station["host"], station["http_port"], account["username"], account["password"], event
+                            )
+                        except (OSError, ValueError, PermissionError, ConnectionError, RuntimeError) as exc:
+                            logging.warning("DoorBird %s motion snapshot failed: %s", station.get("id"), exc)
                     if event == "doorbell":
                         try:
                             frame = await doorbird_api.live_image(station["host"], station["http_port"], account["username"], account["password"])
@@ -2821,8 +2827,14 @@ def create_app() -> FastAPI:
     @app.get("/api/home/doorbird/{event}")
     async def home_doorbird_event(event: str) -> Response:
         station, account = external_access("ingresso")
-        try: content = doorbird_api.load_event_image(event) or await doorbird_api.history_image(station["host"], station["http_port"], account["username"], account["password"], event)
-        except (ValueError, PermissionError, ConnectionError, RuntimeError) as exc: raise HTTPException(status_code=502, detail=str(exc)) from exc
+        try:
+            content = await doorbird_api.history_image(
+                station["host"], station["http_port"], account["username"], account["password"], event
+            )
+            if content is None:
+                content = doorbird_api.load_event_image(event)
+        except (OSError, ValueError, PermissionError, ConnectionError, RuntimeError):
+            content = doorbird_api.load_event_image(event)
         if content is None: raise HTTPException(status_code=404, detail="Evento DoorBird non disponibile")
         return Response(content, media_type="image/jpeg", headers={"Cache-Control":"no-store, private"})
 

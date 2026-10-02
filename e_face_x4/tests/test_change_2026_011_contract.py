@@ -125,6 +125,44 @@ def test_change_2026_011_consumer_prefers_smart_home_and_tolerates_unknown_field
     assert hdl["organization_authority"] == "e-control-hub"
 
 
+def test_home_assistant_canonical_device_preserves_legacy_entity_aliases() -> None:
+    payload = load_fixture()
+    payload["smart_home"]["devices"] = [{
+        "id": "ha:light.lampada_sala",
+        "source": "ha",
+        "device_id": "light.lampada_sala",
+        "name": "Lampada Sala",
+        "device_class": "light",
+        "native_type": "light",
+        "native_id": "light.lampada_sala",
+        "capabilities": ["on", "off"],
+        "state": "OFF",
+        "available": True,
+        "read_only": False,
+        "stale": False,
+        "orphaned": False,
+        "categories": ["lights"],
+        "home_assistant_entity_id": "light.lampada_sala",
+        "home_assistant_entity_ids": ["light.lampada_sala", "switch.lampada_sala_legacy"],
+    }]
+
+    device = normalize_snapshot(payload)["devices"][0]
+
+    assert device["id"] == "ha:light.lampada_sala"
+    assert device["aliases"] == ["light.lampada_sala", "switch.lampada_sala_legacy"]
+
+
+def test_frontend_reconciles_saved_views_and_shortcuts_through_device_aliases() -> None:
+    root = Path(__file__).parents[1]
+    app_js = (root / "app" / "static" / "assets" / "app.js").read_text(encoding="utf-8")
+
+    assert "function deviceIdentityMap()" in app_js
+    assert "for (const alias of device.aliases || [])" in app_js
+    assert "const devices = devicesForIds(ids)" in app_js
+    assert "const byId=deviceIdentityMap()" in app_js
+    assert "activeDetailIds = new Set(resolved.map(device => String(device.id)))" in app_js
+
+
 def test_change_2026_011_hub_organization_wins_and_legacy_preference_is_preserved() -> None:
     device = next(item for item in normalize_snapshot(load_fixture())["devices"] if item["id"] == "hdl:1.2.3")
     authoritative = {key: device[key] for key in ("name", "room", "icon", "categories", "orders", "visible")}

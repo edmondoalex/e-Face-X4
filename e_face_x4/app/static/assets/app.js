@@ -327,6 +327,10 @@ function render(data) {
       ? device.visible !== false
       : currentDeviceOrganization[String(device.id)]?.visible !== false && device.visible !== false
   )
+  if (activeDetailIds) {
+    const resolved = devicesForIds(activeDetailIds)
+    if (resolved.length) activeDetailIds = new Set(resolved.map(device => String(device.id)))
+  }
   for (const device of currentDevices) {
     const recent = recentRealtimeDeviceStates.get(String(device.id))
     if (!recent) continue
@@ -475,7 +479,7 @@ function renderHomePetFeeders() {
   $('#home-pet-feeder-list').innerHTML = feeders.map(device => { const directOption=device.direct_select_option||''; const command=directOption?`<div class="home-feeder-command home-feeder-command-direct"><button type="button" data-home-feeder-run data-feeder-option="${escAttribute(directOption)}">EROGA</button></div>`:'<small class="home-feeder-unavailable">Comando non disponibile</small>'; return `<article class="home-feeder-row" data-device-id="${escAttribute(device.id)}"><span class="mdi-mask" style="${mdiStyle('mdi:cat','cat')}"></span><span><strong>${esc(device.name || 'Feeder gatti')}</strong><small>${esc(device.room || 'Casa')}</small></span>${command}</article>` }).join('') || '<p class="home-insight-empty">Aggiungi l’etichetta e-Face al feeder in e-Control</p>'
 }
 
-const shortcutCategoryLabels = {lights:'Luci',switches:'Extra',covers:'Varchi',climate:'Comfort',security:'Sicurezza',media:'Audio e video',sensors:'Sensori',other:'Altro'}
+const shortcutCategoryLabels = {lights:'Luci',switches:'Extra',covers:'Cover-Portoni',climate:'Comfort',security:'Sicurezza',media:'Audio e video',sensors:'Sensori',other:'Altro'}
 function applyHomeWidgetLayout(){
   const board=$('#home-view .dashboard-grid'); if(!board)return
   const elements={overview:$('.home-overview-summary'),weather:$('#home-weather-widget'),camera_event:$('#home-camera-event'),doorbell:$('#home-doorbell-event'),motion:$('#home-motion-event'),states:$('#widgets'),rooms:$('#room-panel'),live:$('#home-live-media'),room_pulse:$('#home-room-pulse'),lights_now:$('#home-lights-now'),routine_pulse:$('#home-routine-pulse'),shopping_list:$('#home-shopping-list'),agenda:$('#home-agenda'),pet_feeder:$('#home-pet-feeder')}
@@ -610,7 +614,19 @@ function refreshNextSecurityCameraThumbnail(){
 }
 setInterval(refreshNextSecurityCameraThumbnail,10000)
 $('#home-event-dialog')?.addEventListener('close',()=>{$('#home-event-dialog-image').removeAttribute('src')})
-function shortcutDevices(){const byId=new Map(currentDevices.map((device)=>[String(device.id),device]));return currentShortcuts.flatMap((group)=>(group.devices||[]).map((id)=>byId.get(String(id))).filter(Boolean))}
+function deviceIdentityMap() {
+  const byId = new Map()
+  for (const device of currentDevices) {
+    byId.set(String(device.id), device)
+    for (const alias of device.aliases || []) if (alias) byId.set(String(alias), device)
+  }
+  return byId
+}
+function devicesForIds(ids) {
+  const byId = deviceIdentityMap()
+  return [...new Set([...ids].map(id => byId.get(String(id))).filter(Boolean))]
+}
+function shortcutDevices(){const byId=deviceIdentityMap();return [...new Set(currentShortcuts.flatMap((group)=>(group.devices||[]).map((id)=>byId.get(String(id))).filter(Boolean)))]}
 function renderShortcutDevices(){
   const byId=new Map(currentDevices.map((device)=>[String(device.id),device]))
   const activeScenarioId=String(currentDevices.find((device)=>device.kind==='alarm_system')?.active_scenario_id||'')
@@ -3519,7 +3535,7 @@ Promise.all([
   try { savedLocation = JSON.parse(sessionStorage.getItem('eface-home-location') || 'null') } catch { savedLocation = null }
   if (savedLocation?.kind === 'devices' && Array.isArray(savedLocation.ids)) {
     const ids = new Set(savedLocation.ids.map(String))
-    const devices = currentDevices.filter(device => ids.has(String(device.id)))
+    const devices = devicesForIds(ids)
     if (devices.length) openDevices(savedLocation.title || 'Dispositivi', devices, savedLocation.options || {})
   } else if (savedLocation?.kind === 'scenarios') openScenariosPage()
   else if (savedLocation?.kind === 'intercom') openIntercom()

@@ -418,7 +418,9 @@ async def history_image(host: str, port: int, username: str, password: str, even
                     if len(content) > MAX_IMAGE_BYTES: raise RuntimeError("Immagine DoorBird troppo grande")
     except httpx.HTTPError as exc: raise ConnectionError("DoorBird non raggiungibile") from exc
     if not content.startswith(b"\xff\xd8\xff"): raise RuntimeError("Risposta DoorBird non JPEG")
-    return bytes(content)
+    result = bytes(content)
+    save_event_image(event, result)
+    return result
 
 
 async def check_identity(host: str, port: int, username: str, password: str) -> dict[str, str | bool]:

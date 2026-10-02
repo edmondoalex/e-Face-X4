@@ -127,9 +127,20 @@ def _normalize_smart_home(payload: dict[str, Any], smart_home: dict[str, Any]) -
         else: counts["sensors"] += 1
         rooms.setdefault(room.casefold(), {"id": str(raw.get("room_id") or f"room-{len(rooms)}"), "name": room, "devices": 0})["devices"] += 1
         legacy_id = str((legacy_item or {}).get("id") or "")
+        home_assistant_ids = [
+            str(value) for value in (
+                [raw.get("home_assistant_entity_id")]
+                + list(raw.get("home_assistant_entity_ids") or [])
+            )
+            if str(value or "").strip()
+        ]
+        aliases = list(dict.fromkeys(
+            value for value in [legacy_id, *home_assistant_ids]
+            if value and value != canonical_id
+        ))
         normalized.append({
             "id": canonical_id, "canonical_id": canonical_id, "source": source, "device_id": source_id,
-            "legacy_id": legacy_id, "aliases": [legacy_id] if legacy_id and legacy_id != canonical_id else [],
+            "legacy_id": legacy_id, "aliases": aliases,
             "name": str((legacy_item or {}).get("name") or raw.get("name") or source_id), "kind": kind, "device_class": device_class,
             "native_type": str(raw.get("native_type") or ""), "native_id": str(raw.get("native_id") or ""),
             "room": room, "floor_id": str(raw.get("floor_id") or ""), "floor_name": str(raw.get("floor_name") or ""),

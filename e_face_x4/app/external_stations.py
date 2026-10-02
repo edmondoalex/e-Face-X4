@@ -18,7 +18,7 @@ def _path() -> Path:
 
 def _default() -> list[dict]:
     current = intercom_settings.load()
-    return [{"id": "ingresso", "name": "Ingresso · DoorBird", "host": current["doorbird_host"],
+    return [{"id": "ingresso", "name": "Doorbird Cancello", "host": current["doorbird_host"],
              "http_port": current["doorbird_port"], "sip_extension": "8201", "ready": True,
              "username": "", "password": ""}]
 
@@ -31,6 +31,8 @@ def load() -> list[dict]:
             if value[0].get("id") == "ingresso":
                 value[0]["host"] = legacy["doorbird_host"]
                 value[0]["http_port"] = legacy["doorbird_port"]
+                if value[0].get("name") in {"Ingresso · DoorBird", "Cancello"}:
+                    value[0]["name"] = "Doorbird Cancello"
             return value
     except (OSError, json.JSONDecodeError):
         pass

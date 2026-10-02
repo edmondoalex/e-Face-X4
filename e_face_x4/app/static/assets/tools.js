@@ -403,7 +403,7 @@ $('#card-glow-tool').addEventListener('click', async () => { try { const respons
 $('#card-glow-back').addEventListener('click', () => { $('#card-glow-config').hidden = true })
 $('#card-glow-enabled').addEventListener('change', async (event) => { const enabled = event.target.checked; try { const response = await fetch(apiUrl('../api/user/appearance'), {method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify({card_glow:enabled})}); if (!response.ok) throw new Error((await response.json()).detail); notice(enabled ? 'Illuminazione schede attivata' : 'Illuminazione schede disattivata') } catch (error) { event.target.checked = !enabled; notice(error.message) } })
 
-const shortcutLabels = {lights:'Luci',switches:'Extra',covers:'Varchi',climate:'Comfort',security:'Sicurezza',media:'Audio e video',sensors:'Sensori',other:'Altro'}
+const shortcutLabels = {lights:'Luci',switches:'Extra',covers:'Cover-Portoni',climate:'Comfort',security:'Sicurezza',media:'Audio e video',sensors:'Sensori',other:'Altro'}
 const shortcutCategory = (device) => device.kind === 'light' ? 'lights' : device.kind === 'switch' ? 'switches' : device.kind === 'cover' ? 'covers' : ['climate','temp','temperature','humidity','air','air_quality'].includes(device.kind) ? 'climate' : ['lock','alarm_partition','alarm_zone','alarm_scenario','alarm_system'].includes(device.kind) ? 'security' : ['media','media_player','camera','doorbell'].includes(device.kind) ? 'media' : /sensor/.test(device.kind) ? 'sensors' : 'other'
 const shortcutsCard = document.createElement('button')
 shortcutsCard.id = 'shortcuts-tool'; shortcutsCard.className = 'tool-card'

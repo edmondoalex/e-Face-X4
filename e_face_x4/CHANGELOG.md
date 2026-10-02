@@ -1,5 +1,17 @@
 # Changelog
 
+## 2.21.300 — 2026-10-02
+
+- Ripristinata la continuità dei dispositivi Home Assistant migrati nel catalogo Smart Home e-Control: gli ID storici `entity_id` restano alias degli ID canonici `ha:entity_id`.
+- Viste già aperte, pagine ripristinate dalla sessione e Scorciatoie globali risolvono gli alias senza duplicare le schede.
+- Aggiunte regressioni per catalogo HA, alias multipli e riconciliazione frontend.
+
+## 2.21.299 — 2026-10-02
+
+- L'ultimo movimento DoorBird recupera e salva la cronologia più recente, aggiornando insieme immagine, data e ora; la copia precedente resta disponibile come fallback offline.
+- La postazione esterna principale viene mostrata come `Doorbird Cancello`, migrando le precedenti etichette predefinite `Cancello` e `Ingresso · DoorBird`.
+- Il gruppo cover delle Scorciatoie è rinominato `Cover-Portoni`, senza cambiare identificativi o ordinamento salvato.
+
 ## 2.21.298 — 2026-10-01
 
 - Gestione dispositivi caricata a richiesta con ricerca, evitando la generazione simultanea di tutti i rami.
