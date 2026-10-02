@@ -3209,12 +3209,12 @@ $('#device-list').addEventListener('click', (event) => {
   devicePointerGesture = null
 })
 $('#device-list').addEventListener('pointerdown', (event) => {
-  if (event.target.closest('button,[data-pin-key]')) { devicePointerGesture = null; return }
   const strip = event.target.closest('.media-recent-strip')
-  if (strip && event.pointerType === 'mouse' && event.button === 0) {
+  if (strip && event.pointerType === 'mouse' && event.button === 0 && !event.target.closest('.media-recent-hide,.media-recent-pin')) {
     recentDrag = { strip, pointerId: event.pointerId, x: event.clientX, left: strip.scrollLeft, moved: false }
     return
   }
+  if (event.target.closest('button,[data-pin-key]')) { devicePointerGesture = null; return }
   if (!event.target.closest('[data-device-toggle],[data-rgb-toggle]')) return
   devicePointerGesture = { x: event.clientX, y: event.clientY, moved: false }
 }, { passive: true })
@@ -3238,6 +3238,14 @@ $('#device-list').addEventListener('pointerup', (event) => {
   recentDrag = null
 })
 $('#device-list').addEventListener('pointercancel', () => { recentDrag = null; devicePointerGesture = null }, { passive: true })
+$('#device-list').addEventListener('wheel', (event) => {
+  const strip = event.target.closest('.media-recent-strip')
+  if (!strip || strip.scrollWidth <= strip.clientWidth) return
+  const delta = Math.abs(event.deltaX) > Math.abs(event.deltaY) ? event.deltaX : event.deltaY
+  if (!delta) return
+  strip.scrollLeft += delta
+  event.preventDefault()
+}, { passive: false })
 $('#device-list').addEventListener('keydown', (event) => {
   const navigator = event.target.closest('[data-msp-open]')
   if (navigator && (event.key === 'Enter' || event.key === ' ')) {

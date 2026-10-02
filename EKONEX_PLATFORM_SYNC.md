@@ -20,6 +20,42 @@ Prima di modificare identità, ruoli, API, eventi, licenze, pairing, cloud/local
 
 ## Handoff corrente
 
+### Correzione Preferiti media - 2026-10-02
+
+- Versione candidata: `2.21.301`.
+- Le strisce Recenti/Preferiti su PC scorrono trascinando le copertine e tramite rotellina; i pulsanti stella e rimozione restano esclusi dal gesto drag.
+- I preferiti brano WiiM vengono riprodotti appena `BrowseQueueEx` restituisce nome preset e ID stabile esatti, anche se il totale della coda è ancora parziale; nessun fallback per nome o posizione arbitraria.
+- Dopo la selezione dell'indice esatto viene inviato esplicitamente `play`, evitando che il preset resti nella pausa protettiva usata durante la ricerca.
+- Test mirati superati; pubblicazione e aggiornamento dell'add-on autorizzati dall'utente il 02/10/2026.
+
+### Compatibilita' ID Home Assistant nelle viste e-Face - 2026-10-02
+
+- Candidata locale: `2.21.300`; nessun push o aggiornamento impianto eseguito.
+- Diagnosi live: il bootstrap e-Face riceve tutti i 40 dispositivi HA Smart Home, visibili e classificati (`lights:3`, `extra:37`); il problema residuo era la migrazione degli ID da `entity_id` a `ha:entity_id` nelle viste e Scorciatoie persistenti.
+- Il normalizzatore conserva ora gli entity ID HA come alias canonici; viste aperte, ripristino sessione e Scorciatoie risolvono alias vecchi e nuovi senza duplicare schede.
+- Corretto anche il falso negativo di due test DoorBird: fixture JPEG resa coerente con la validazione minima del runtime, senza modifica alla logica DoorBird.
+- Test completi eseguiti in due gruppi per evitare il noto esaurimento memoria Windows: `406 passed` + `10 passed`; test CHANGE mirati `31 passed`; JavaScript, compile Python e diff check superati.
+
+### Correzione cronologia DoorBird - 2026-10-02
+
+- Versione candidata: `2.21.299`.
+- La Home recupera prima la cronologia LAN `motionsensor`, salva atomicamente il JPEG più recente e usa la copia locale soltanto come fallback offline; il monitor movimento riallinea fotogramma e timestamp prima della notifica realtime.
+- La postazione primaria migra le precedenti etichette predefinite `Cancello` e `Ingresso · DoorBird` in `Doorbird Cancello`, senza sovrascrivere eventuali nomi personalizzati diversi.
+- Il gruppo cover nelle Scorciatoie è mostrato come `Cover-Portoni`; chiavi tecniche, selezioni e ordine persistente restano invariati.
+- Test mirati: `7 passed`; sintassi JavaScript, compilazione Python e diff check superati. La suite completa è stata interrotta dopo 29 test senza errori perché il processo Windows ha esaurito memoria durante WMI/pyControl4.
+- Nessun push, aggiornamento, installazione o deploy eseguito.
+
+### Esito CHANGE-2026-013 - 2026-10-01
+
+- Versione candidata: `2.21.298`.
+- Commit locale: `ea00d8e` (`Edit Hub organization from e-Face 2.21.298`).
+- Gestisci dispositivi usa caricamento lazy e ricerca; non crea piu' tutti i rami nascosti e non salva un ordine generale privo di effetto.
+- I dispositivi Hub sono modificabili da e-Face; piano, stanza, gruppi, categorie, ordine per pagina, visibilita' e icona vengono salvati tramite proxy ristretto nell'archivio autorevole Hub.
+- Gli scenari sono esclusi dal contenitore generico e restano nel ramo Scenari.
+- Scorciatoie globali e-Face invariate e non trasferite all'Hub.
+- Test: suite completa `410 passed`, JavaScript valido, Python compile e diff check superati.
+- Gate: nessun push, installazione o deploy eseguito.
+
 - Data: 2026-09-30
 - Obiettivo: eseguire `CHANGE-2026-008` fino al gate del commit locale, eliminando i loop CPU/log di e-Face.
 - Risultato: la candidata locale `2.21.287` conserva tutte le ottimizzazioni CPU e l'avvio HLS resiliente. Se la diretta non parte, il visualizzatore passa ora a fotogrammi realmente aggiornati ogni tre secondi, con lettura fresca limitata a una ogni due secondi e attiva soltanto finché la finestra resta aperta. La versione installata riportata dal work order è `2.21.284`; nessun nuovo push o deploy è stato eseguito in questa sessione.

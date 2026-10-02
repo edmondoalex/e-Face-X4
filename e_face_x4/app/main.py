@@ -78,7 +78,7 @@ from .media_realtime import SharedMediaRealtime
 from .demo import dashboard as demo_dashboard
 from .ha_labeled import normalize_labeled_entities
 
-VERSION = os.environ.get("EFACE_VERSION", "2.21.300")
+VERSION = os.environ.get("EFACE_VERSION", "2.21.301")
 STATIC = Path(__file__).parent / "static"
 logging.basicConfig(level=logging.WARNING, format="%(asctime)s %(levelname)s [e-face-x4] %(message)s")
 _reconnect_warning_at: dict[str, float] = {}
@@ -1796,7 +1796,7 @@ def create_app() -> FastAPI:
                     queue = await client.queue(limit=250)
                     queue_name = str(queue.get("name") or "").strip().casefold()
                     candidate = next((track for track in queue["tracks"] if track["track_id"] == wanted), None)
-                    if queue_name == expected_name and int(queue.get("total") or 0) >= minimum_total and candidate:
+                    if queue_name == expected_name and candidate:
                         found = candidate
                         break
                 if not found:
@@ -1805,6 +1805,7 @@ def create_app() -> FastAPI:
                     raise ValueError("Il provider ha rigenerato il preset: il brano salvato non è attualmente presente")
                 queue_name = str(queue.get("queue_name") or queue.get("name") or "0")
                 await client.play_queue_index(int(found["index"]), queue_name)
+                await client.player_action("play")
                 return {"ok": True, "target": "wiim_track", "preset_index": preset_index, "queue_index": int(found["index"]), "queue_total": int(queue.get("total") or 0), "room_id": room_id}
             if item["kind"] == "recent":
                 return await Control4MediaConnector(load_control4_config()).select_recent(room_id, str(item["key"]))

@@ -104,7 +104,7 @@ def test_health() -> None:
     response = TestClient(create_app()).get("/health")
     assert response.status_code == 200
     assert response.json()["ok"] is True
-    assert response.json()["version"] == "2.21.300"
+    assert response.json()["version"] == "2.21.301"
 
 
 def test_home_event_times_reads_saved_doorbird_motion(monkeypatch, tmp_path) -> None:
@@ -193,7 +193,7 @@ def test_intercom_is_in_sidebar_with_embedded_view() -> None:
     client_script = (static / "assets" / "intercom.js").read_text(encoding="utf-8")
     intercom_page = (static / "intercom.html").read_text(encoding="utf-8")
     assert "Tablet Control4 · interno 8291" in intercom_page
-    assert "const currentVersion = '2.21.300'" in client_script
+    assert "const currentVersion = '2.21.301'" in client_script
     assert 'id="call-ufficio" data-dial-extension="8291" data-video-capable="true"' in intercom_page
     assert "Postazione esterna · interno 8201" in intercom_page
     assert "Postazione esterna · interno ${station.sip_extension}" in client_script
@@ -441,10 +441,10 @@ def test_intercom_dashboard_stores_only_local_settings(monkeypatch, tmp_path) ->
     assert 'id="users-tool"' in page
     assert 'id="logout"' in page
     assert page.index('id="logout"') < page.index('id="tools-user-section"')
-    assert "tools-dashboard.js?v=2.21.300" in page
-    assert "tools-dashboard.css?v=2.21.300" in page
-    assert "tools.js?v=2.21.300" in page
-    assert "organization-tools.js?v=2.21.300" in page
+    assert "tools-dashboard.js?v=2.21.301" in page
+    assert "tools-dashboard.css?v=2.21.301" in page
+    assert "tools.js?v=2.21.301" in page
+    assert "organization-tools.js?v=2.21.301" in page
     tools_js = client.get("/assets/tools.js").text
     assert "document.querySelector('.tools-shell').append(shortcutsPanel)" in tools_js
     assert "data-shortcut-drag=\"category\"" in tools_js
@@ -457,7 +457,7 @@ def test_intercom_dashboard_stores_only_local_settings(monkeypatch, tmp_path) ->
     assert '<b>Accesi</b>' not in home
     assert 'id="light-on-filter"' in home
     assert "backgrounds.css?v=2.21.43" in home
-    assert "app.js?v=2.21.300" in home
+    assert "app.js?v=2.21.301" in home
     app_js = client.get("/assets/app.js").text
     assert "event.type === 'doorbird_event'" in app_js
     assert "event.type === 'home_camera_event'" in app_js
@@ -884,8 +884,8 @@ def test_tools_page_starts_with_selected_background_and_card_theme(monkeypatch, 
     home = client.get("/").text
     login = client.get("/login").text
     assert '<body class="app-theme" data-background="midnight" data-card-theme="slate">' in home
-    assert 'ui-theme-contract.css?v=2.21.300' in home
-    assert 'app.js?v=2.21.300' in home
+    assert 'ui-theme-contract.css?v=2.21.301' in home
+    assert 'app.js?v=2.21.301' in home
     assert 'energy.css?v=2.21.30' in home
     assert 'home-comfort.css?v=2.21.31' in home
     assert '<body class="login-theme" data-background="midnight" data-card-theme="slate">' in login
@@ -1289,10 +1289,10 @@ def test_x4_shell_and_brand_assets_are_served() -> None:
     assert client.get("/tools").status_code == 200
     assert "Amministrazione" in client.get("/tools").text
     css = client.get("/assets/app.css").text
-    assert "app.css?v=2.21.300" in client.get("/").text
-    assert "home-live-media.css?v=2.21.300" in client.get("/").text
-    assert "alarm-state.css?v=2.21.300" in client.get("/").text
-    assert "state-glow.css?v=2.21.300" in client.get("/").text
+    assert "app.css?v=2.21.301" in client.get("/").text
+    assert "home-live-media.css?v=2.21.301" in client.get("/").text
+    assert "alarm-state.css?v=2.21.301" in client.get("/").text
+    assert "state-glow.css?v=2.21.301" in client.get("/").text
     assert '[data-home-widget][data-widget-height="short"]{height:auto!important;min-height:76px!important;max-height:120px!important' in css
     assert ".home-event-dialog figure img{display:block;width:auto;height:auto;max-width:100%;max-height:100%" in css
     assert ".home-event-widget img{object-fit:contain" not in css
@@ -1995,10 +1995,10 @@ def test_wiim_track_favorite_restores_exact_queue_item(monkeypatch, tmp_path) ->
     assert restored.status_code == 200
     assert restored.json()["queue_index"] == 7
     assert restored.json()["queue_total"] == 50
-    assert calls == [("preset", 6), ("action", "pause"), ("control4", "c4room:51", "select_source", "listen:1667"), ("queue", 7, "Cover e remix")]
+    assert calls == [("preset", 6), ("action", "pause"), ("control4", "c4room:51", "select_source", "listen:1667"), ("queue", 7, "Cover e remix"), ("action", "play")]
 
 
-def test_wiim_track_favorite_waits_for_complete_preset_queue(monkeypatch, tmp_path) -> None:
+def test_wiim_track_favorite_uses_exact_track_before_queue_finishes_loading(monkeypatch, tmp_path) -> None:
     import app.main as main_module
     from app.media_favorites import add_favorite
 
@@ -2042,9 +2042,9 @@ def test_wiim_track_favorite_waits_for_complete_preset_queue(monkeypatch, tmp_pa
 
     response = TestClient(main_module.create_app()).post("/api/control4/favorites/select", json={"id": "wiim:track:6:tracks/abc", "room_id": 51})
     assert response.status_code == 200
-    assert response.json()["queue_total"] == 200
-    assert queue_reads == 2
-    assert calls[-1] == ("queue", 1, "Cover e remix")
+    assert response.json()["queue_total"] == 1
+    assert queue_reads == 1
+    assert calls[-2:] == [("queue", 1, "Cover e remix"), ("action", "play")]
 
 
 def test_linked_control4_wiim_commands_use_native_wiim_api(monkeypatch) -> None:
@@ -2896,7 +2896,9 @@ def test_media_ui_has_room_selection_and_typed_controls() -> None:
     assert "const recentPending = new Map()" in script
     assert "strip.setPointerCapture(event.pointerId)" in script
     assert "recentDrag.strip.scrollLeft = recentDrag.left - delta" in script
-    assert "addEventListener('wheel'" not in script
+    assert "event.target.closest('.media-recent-hide,.media-recent-pin')" in script
+    assert "strip.scrollLeft += delta" in script
+    assert "addEventListener('wheel'" in script
 
 
 def test_control4_recently_played_decodes_native_payload(monkeypatch) -> None:

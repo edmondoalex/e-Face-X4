@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.21.301 — 2026-10-02
+
+- Le barre Ascoltati di recente e Preferiti scorrono su PC trascinando anche le copertine oppure usando la rotellina del mouse.
+- Il richiamo di un brano preferito WiiM usa subito la corrispondenza dell'ID stabile anche mentre la coda del preset sta ancora completando il caricamento.
+- Dopo aver selezionato il brano esatto nella coda WiiM, e-Face riavvia esplicitamente la riproduzione invece di lasciarla in pausa.
+
 ## 2.21.300 — 2026-10-02
 
 - Ripristinata la continuità dei dispositivi Home Assistant migrati nel catalogo Smart Home e-Control: gli ID storici `entity_id` restano alias degli ID canonici `ha:entity_id`.

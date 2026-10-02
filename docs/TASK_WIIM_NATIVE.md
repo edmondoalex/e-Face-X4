@@ -79,6 +79,8 @@ Obiettivo: consentire a e-Face di salvare e richiamare lo stesso brano attualmen
 
 Riferimento tecnico da riesaminare: progetto community `cvdlinden/wiim-httpapi`, che documenta l'API HTTP LinkPlay/WiiM e in particolare `MCUKeyShortClick:<preset>:<track>`. Il secondo parametro seleziona una traccia, numerata da 1, all'interno del contenuto associato al preset. Il progetto è un proxy/OpenAPI sopra la medesima API locale del dispositivo e non offre autonomamente accesso ai cataloghi o agli stream protetti dei provider.
 
+Correzione 02/10/2026 (`2.21.301`): dopo il richiamo di un preset cloud, `BrowseQueueEx` può esporre inizialmente una coda parziale pur contenendo già il brano richiesto. Quando nome preset e ID stabile del brano coincidono, e-Face seleziona subito quell'indice senza attendere che `TotalNumber` raggiunga il totale salvato; se l'ID non compare continua invece i tentativi controllati e non riproduce un elemento arbitrario. Poiché la ricerca mette preventivamente in pausa il preset, dopo `PlayQueueWithIndex` deve sempre seguire il comando esplicito `play`.
+
 Evidenza read-only del 15/09/2026 sul WiiM Pro firmware `Linkplay.4.8.827634`, durante la riproduzione YouTube Music di “GIGI D'AGOSTINO - RADICI DAG - [ IERI E OGGI MIX VOL 1 ]”:
 
 - `getMetaInfo` espone titolo, artista, copertina e `trackId`, ma non un URL audio riproducibile;
