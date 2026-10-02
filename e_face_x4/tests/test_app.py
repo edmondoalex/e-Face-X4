@@ -104,12 +104,18 @@ def test_health() -> None:
     response = TestClient(create_app()).get("/health")
     assert response.status_code == 200
     assert response.json()["ok"] is True
-    assert response.json()["version"] == "2.21.301"
+    assert response.json()["version"] == "2.21.302"
 
 
 def test_home_event_times_reads_saved_doorbird_motion(monkeypatch, tmp_path) -> None:
     monkeypatch.setenv("EFACE_DOORBIRD_EVENT_DIR", str(tmp_path))
-    (tmp_path / "last-motion.json").write_text('{"at":"2026-09-19T07:01:00+00:00"}', encoding="utf-8")
+    from app import doorbird_api
+    content = b"\xff\xd8\xffmatching-motion"
+    doorbird_api.save_event_image("motionsensor", content)
+    (tmp_path / "last-motion.json").write_text(
+        json.dumps({"at":"2026-09-19T07:01:00+00:00", "image_sha256":doorbird_api.event_image_digest(content)}),
+        encoding="utf-8",
+    )
     response = TestClient(create_app()).get("/api/home/event-times")
     assert response.status_code == 200
     assert response.json()["motion"] == "2026-09-19T07:01:00+00:00"
@@ -123,8 +129,9 @@ def test_home_motion_prefers_latest_doorbird_history_over_cached_image(monkeypat
     doorbird_api.save_event_image("motionsensor", b"\xff\xd8\xffold-image-data")
     calls = []
 
-    async def latest(host, port, username, password, event):
+    async def latest(host, port, username, password, event, *, persist=True):
         calls.append((host, port, username, password, event))
+        assert persist is False
         return b"\xff\xd8\xffnew-image-data"
 
     monkeypatch.setattr(doorbird_api, "history_image", latest)
@@ -133,6 +140,31 @@ def test_home_motion_prefers_latest_doorbird_history_over_cached_image(monkeypat
     assert response.status_code == 200
     assert response.content == b"\xff\xd8\xffnew-image-data"
     assert calls == [("192.168.2.30", 80, "operator", "secret", "motionsensor")]
+    record = json.loads((tmp_path / "events" / "last-motion.json").read_text(encoding="utf-8"))
+    assert record["source"] == "history-change"
+    assert record["image_sha256"] == doorbird_api.event_image_digest(response.content)
+
+
+def test_home_doorbell_never_pairs_new_call_metadata_with_old_image(monkeypatch, tmp_path) -> None:
+    monkeypatch.setenv("EFACE_DOORBIRD_EVENT_DIR", str(tmp_path / "events"))
+    from app import doorbird_api
+    directory = tmp_path / "events"
+    directory.mkdir()
+    doorbird_api.save_event_image("doorbell", b"\xff\xd8\xffold-caller-image")
+    (directory / "last-call.json").write_text(
+        '{"button":"102","name":"Primo Piano","at":"2026-09-30T16:37:42+02:00","image_sha256":""}',
+        encoding="utf-8",
+    )
+
+    client = TestClient(create_app())
+    image = client.get("/api/home/doorbird/doorbell")
+    metadata = client.get("/api/home/doorbird-last-call").json()
+    times = client.get("/api/home/event-times").json()
+
+    assert image.status_code == 404
+    assert metadata["name"] == "Primo Piano"
+    assert metadata["image_available"] is False
+    assert times["doorbell"] == ""
 
 
 @pytest.mark.asyncio
@@ -193,7 +225,7 @@ def test_intercom_is_in_sidebar_with_embedded_view() -> None:
     client_script = (static / "assets" / "intercom.js").read_text(encoding="utf-8")
     intercom_page = (static / "intercom.html").read_text(encoding="utf-8")
     assert "Tablet Control4 · interno 8291" in intercom_page
-    assert "const currentVersion = '2.21.301'" in client_script
+    assert "const currentVersion = '2.21.302'" in client_script
     assert 'id="call-ufficio" data-dial-extension="8291" data-video-capable="true"' in intercom_page
     assert "Postazione esterna · interno 8201" in intercom_page
     assert "Postazione esterna · interno ${station.sip_extension}" in client_script
@@ -441,10 +473,10 @@ def test_intercom_dashboard_stores_only_local_settings(monkeypatch, tmp_path) ->
     assert 'id="users-tool"' in page
     assert 'id="logout"' in page
     assert page.index('id="logout"') < page.index('id="tools-user-section"')
-    assert "tools-dashboard.js?v=2.21.301" in page
-    assert "tools-dashboard.css?v=2.21.301" in page
-    assert "tools.js?v=2.21.301" in page
-    assert "organization-tools.js?v=2.21.301" in page
+    assert "tools-dashboard.js?v=2.21.302" in page
+    assert "tools-dashboard.css?v=2.21.302" in page
+    assert "tools.js?v=2.21.302" in page
+    assert "organization-tools.js?v=2.21.302" in page
     tools_js = client.get("/assets/tools.js").text
     assert "document.querySelector('.tools-shell').append(shortcutsPanel)" in tools_js
     assert "data-shortcut-drag=\"category\"" in tools_js
@@ -457,7 +489,7 @@ def test_intercom_dashboard_stores_only_local_settings(monkeypatch, tmp_path) ->
     assert '<b>Accesi</b>' not in home
     assert 'id="light-on-filter"' in home
     assert "backgrounds.css?v=2.21.43" in home
-    assert "app.js?v=2.21.301" in home
+    assert "app.js?v=2.21.302" in home
     app_js = client.get("/assets/app.js").text
     assert "event.type === 'doorbird_event'" in app_js
     assert "event.type === 'home_camera_event'" in app_js
@@ -884,8 +916,8 @@ def test_tools_page_starts_with_selected_background_and_card_theme(monkeypatch, 
     home = client.get("/").text
     login = client.get("/login").text
     assert '<body class="app-theme" data-background="midnight" data-card-theme="slate">' in home
-    assert 'ui-theme-contract.css?v=2.21.301' in home
-    assert 'app.js?v=2.21.301' in home
+    assert 'ui-theme-contract.css?v=2.21.302' in home
+    assert 'app.js?v=2.21.302' in home
     assert 'energy.css?v=2.21.30' in home
     assert 'home-comfort.css?v=2.21.31' in home
     assert '<body class="login-theme" data-background="midnight" data-card-theme="slate">' in login
@@ -1289,11 +1321,15 @@ def test_x4_shell_and_brand_assets_are_served() -> None:
     assert client.get("/tools").status_code == 200
     assert "Amministrazione" in client.get("/tools").text
     css = client.get("/assets/app.css").text
-    assert "app.css?v=2.21.301" in client.get("/").text
-    assert "home-live-media.css?v=2.21.301" in client.get("/").text
-    assert "alarm-state.css?v=2.21.301" in client.get("/").text
-    assert "state-glow.css?v=2.21.301" in client.get("/").text
+    assert "app.css?v=2.21.302" in client.get("/").text
+    assert "home-live-media.css?v=2.21.302" in client.get("/").text
+    assert "alarm-state.css?v=2.21.302" in client.get("/").text
+    assert "state-glow.css?v=2.21.302" in client.get("/").text
     assert '[data-home-widget][data-widget-height="short"]{height:auto!important;min-height:76px!important;max-height:120px!important' in css
+    assert ".home-weather-widget{container-type:inline-size" in css
+    assert "@container (max-width:430px)" in css
+    assert '.home-weather-widget[data-widget-height="short"]{height:220px!important' in css
+    assert ".home-weather-widget .weather-reading>span{display:none}" in css
     assert ".home-event-dialog figure img{display:block;width:auto;height:auto;max-width:100%;max-height:100%" in css
     assert ".home-event-widget img{object-fit:contain" not in css
     assert "data-home-zone-mute" in app_js

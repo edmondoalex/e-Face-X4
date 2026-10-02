@@ -78,7 +78,7 @@ from .media_realtime import SharedMediaRealtime
 from .demo import dashboard as demo_dashboard
 from .ha_labeled import normalize_labeled_entities
 
-VERSION = os.environ.get("EFACE_VERSION", "2.21.301")
+VERSION = os.environ.get("EFACE_VERSION", "2.21.302")
 STATIC = Path(__file__).parent / "static"
 logging.basicConfig(level=logging.WARNING, format="%(asctime)s %(levelname)s [e-face-x4] %(message)s")
 _reconnect_warning_at: dict[str, float] = {}
@@ -299,6 +299,40 @@ def create_app() -> FastAPI:
                 push_wake_tokens.pop(token, None)
         return sent
 
+    def doorbird_event_record_path(event: str) -> Path:
+        filename = {"doorbell": "last-call.json", "motionsensor": "last-motion.json"}.get(event)
+        if not filename:
+            raise ValueError("Evento DoorBird non valido")
+        return Path(os.environ.get("EFACE_DOORBIRD_EVENT_DIR", "/data/doorbird-events")) / filename
+
+    def load_doorbird_event_record(event: str) -> dict:
+        try:
+            value = json.loads(doorbird_event_record_path(event).read_text(encoding="utf-8"))
+            return value if isinstance(value, dict) else {}
+        except (OSError, json.JSONDecodeError):
+            return {}
+
+    def save_doorbird_event_bundle(event: str, content: bytes, metadata: dict) -> dict:
+        """Persist the frame first and publish metadata only when both share the same digest."""
+        digest = doorbird_api.event_image_digest(content)
+        if not digest:
+            raise ValueError("Immagine DoorBird non valida")
+        doorbird_api.save_event_image(event, content)
+        target = doorbird_event_record_path(event)
+        target.parent.mkdir(parents=True, exist_ok=True)
+        value = {**metadata, "image_sha256": digest}
+        temporary = target.with_suffix(".tmp")
+        temporary.write_text(json.dumps(value, ensure_ascii=False), encoding="utf-8")
+        os.chmod(temporary, 0o600)
+        temporary.replace(target)
+        return value
+
+    def valid_doorbird_event_image(event: str) -> bytes | None:
+        record = load_doorbird_event_record(event)
+        content = doorbird_api.load_event_image(event)
+        expected = str(record.get("image_sha256") or "")
+        return content if expected and hmac.compare_digest(expected, doorbird_api.event_image_digest(content)) else None
+
     async def monitor_doorbird(station: dict, account: dict) -> None:
         delay = 2
         while True:
@@ -308,25 +342,25 @@ def create_app() -> FastAPI:
                 ):
                     delay = 2
                     if event == "motionsensor":
-                        directory = Path(os.environ.get("EFACE_DOORBIRD_EVENT_DIR", "/data/doorbird-events"))
                         try:
-                            directory.mkdir(parents=True, exist_ok=True)
-                            temporary = directory / "last-motion.tmp"
-                            temporary.write_text(json.dumps({"at": datetime.now(timezone.utc).isoformat()}), encoding="utf-8")
-                            os.chmod(temporary, 0o600)
-                            temporary.replace(directory / "last-motion.json")
-                        except OSError as exc:
-                            logging.warning("DoorBird motion timestamp could not be saved: %s", exc)
-                        try:
-                            await doorbird_api.history_image(
-                                station["host"], station["http_port"], account["username"], account["password"], event
+                            frame = await doorbird_api.history_image(
+                                station["host"], station["http_port"], account["username"], account["password"], event,
+                                persist=False,
                             )
+                            if frame:
+                                save_doorbird_event_bundle("motionsensor", frame, {
+                                    "at": datetime.now(timezone.utc).isoformat(), "station_id": station["id"], "source": "monitor"
+                                })
                         except (OSError, ValueError, PermissionError, ConnectionError, RuntimeError) as exc:
                             logging.warning("DoorBird %s motion snapshot failed: %s", station.get("id"), exc)
                     if event == "doorbell":
                         try:
                             frame = await doorbird_api.live_image(station["host"], station["http_port"], account["username"], account["password"])
-                            doorbird_api.save_event_image("doorbell", frame)
+                            if frame:
+                                save_doorbird_event_bundle("doorbell", frame, {
+                                    "at": datetime.now(timezone.utc).isoformat(), "station_id": station["id"],
+                                    "name": station.get("name") or "DoorBird", "source": "monitor"
+                                })
                         except (OSError, ValueError, PermissionError, ConnectionError, RuntimeError) as exc:
                             logging.warning("DoorBird %s ring snapshot failed: %s", station.get("id"), exc)
                     await broadcast_realtime({"type": "doorbird_event", "data": {"station_id": station["id"], "event": event}})
@@ -2827,23 +2861,44 @@ def create_app() -> FastAPI:
 
     @app.get("/api/home/doorbird/{event}")
     async def home_doorbird_event(event: str) -> Response:
-        station, account = external_access("ingresso")
-        try:
-            content = await doorbird_api.history_image(
-                station["host"], station["http_port"], account["username"], account["password"], event
-            )
-            if content is None:
-                content = doorbird_api.load_event_image(event)
-        except (OSError, ValueError, PermissionError, ConnectionError, RuntimeError):
-            content = doorbird_api.load_event_image(event)
+        if event not in {"doorbell", "motionsensor"}:
+            raise HTTPException(status_code=404, detail="Evento DoorBird non disponibile")
+        content = valid_doorbird_event_image(event)
+        if event == "motionsensor":
+            station, account = external_access("ingresso")
+            try:
+                latest = await doorbird_api.history_image(
+                    station["host"], station["http_port"], account["username"], account["password"], event,
+                    persist=False,
+                )
+                if latest and doorbird_api.event_image_digest(latest) != doorbird_api.event_image_digest(content):
+                    previous = doorbird_api.load_event_image(event)
+                    legacy = load_doorbird_event_record(event)
+                    unchanged_legacy = (
+                        not legacy.get("image_sha256") and previous is not None
+                        and doorbird_api.event_image_digest(previous) == doorbird_api.event_image_digest(latest)
+                    )
+                    save_doorbird_event_bundle(event, latest, {
+                        "at": str(legacy.get("at")) if unchanged_legacy and legacy.get("at") else datetime.now(timezone.utc).isoformat(),
+                        "station_id": station["id"], "source": "legacy-migration" if unchanged_legacy else "history-change",
+                    })
+                    content = latest
+            except (OSError, ValueError, PermissionError, ConnectionError, RuntimeError):
+                pass
         if content is None: raise HTTPException(status_code=404, detail="Evento DoorBird non disponibile")
-        return Response(content, media_type="image/jpeg", headers={"Cache-Control":"no-store, private"})
+        record = load_doorbird_event_record(event)
+        return Response(content, media_type="image/jpeg", headers={
+            "Cache-Control":"no-store, private", "X-Eface-Event-Time": str(record.get("at") or ""),
+            "X-Eface-Event-Image": str(record.get("image_sha256") or "")[:16],
+        })
 
     @app.get("/api/home/doorbird-last-call")
     async def home_doorbird_last_call() -> Response:
-        path = Path(os.environ.get("EFACE_DOORBIRD_EVENT_DIR", "/data/doorbird-events")) / "last-call.json"
-        try: data = json.loads(path.read_text(encoding="utf-8"))
-        except (OSError, json.JSONDecodeError): data = {"button": "", "name": "Ultima chiamata", "at": ""}
+        data = load_doorbird_event_record("doorbell")
+        if valid_doorbird_event_image("doorbell") is None:
+            data = {**data, "image_available": False}
+        else:
+            data = {**data, "image_available": True}
         return JSONResponse(data, headers={"Cache-Control":"no-store, private"})
 
     @app.get("/api/home/event-times")
@@ -2856,23 +2911,10 @@ def create_app() -> FastAPI:
             result["camera"] = camera_event_timestamp(state)
         except (HTTPException, ValueError, AttributeError, TypeError):
             pass
-        for kind, filename in (("doorbell", "doorbell.jpg"), ("motion", "motionsensor.jpg")):
-            try:
-                result[kind] = datetime.fromtimestamp((directory / filename).stat().st_mtime, timezone.utc).isoformat()
-            except OSError:
-                pass
-        try:
-            call = json.loads((directory / "last-call.json").read_text(encoding="utf-8"))
-            if call.get("at"):
-                result["doorbell"] = str(call["at"])
-        except (OSError, ValueError, AttributeError):
-            pass
-        try:
-            motion = json.loads((directory / "last-motion.json").read_text(encoding="utf-8"))
-            if motion.get("at"):
-                result["motion"] = str(motion["at"])
-        except (OSError, ValueError, AttributeError):
-            pass
+        for event, key in (("doorbell", "doorbell"), ("motionsensor", "motion")):
+            record = load_doorbird_event_record(event)
+            if valid_doorbird_event_image(event) is not None and record.get("at"):
+                result[key] = str(record["at"])
         return JSONResponse(result, headers={"Cache-Control": "no-store, private"})
 
     @app.get("/api/doorbird/ring/{button}")
@@ -2884,15 +2926,26 @@ def create_app() -> FastAPI:
         if button not in names or not expected or not hmac.compare_digest(token, expected):
             raise HTTPException(status_code=404, detail="Callback non disponibile")
         station, account = external_access("ingresso")
+        frame = None
         try:
             frame = await doorbird_api.live_image(station["host"], station["http_port"], account["username"], account["password"])
-            if frame: doorbird_api.save_event_image("doorbell", frame)
         except (OSError, ValueError, PermissionError, ConnectionError, RuntimeError) as exc:
             logging.warning("DoorBird button %s snapshot failed: %s", button, exc)
-        directory.mkdir(parents=True, exist_ok=True)
-        target = directory / "last-call.json"; temporary = directory / "last-call.tmp"
-        temporary.write_text(json.dumps({"button": button, "name": names[button], "at": datetime.now().astimezone().isoformat()}, ensure_ascii=False), encoding="utf-8")
-        os.chmod(temporary, 0o600); temporary.replace(target)
+        if frame:
+            save_doorbird_event_bundle("doorbell", frame, {
+                "button": button, "name": names[button], "at": datetime.now().astimezone().isoformat(),
+                "station_id": station["id"], "source": "button-callback",
+            })
+        else:
+            # Publish the call without an image digest. The Home must show it as
+            # unavailable instead of pairing it with the previous caller frame.
+            target = doorbird_event_record_path("doorbell"); target.parent.mkdir(parents=True, exist_ok=True)
+            temporary = target.with_suffix(".tmp")
+            temporary.write_text(json.dumps({
+                "button": button, "name": names[button], "at": datetime.now().astimezone().isoformat(),
+                "station_id": station["id"], "source": "button-callback", "image_sha256": "",
+            }, ensure_ascii=False), encoding="utf-8")
+            os.chmod(temporary, 0o600); temporary.replace(target)
         await broadcast_realtime({"type": "doorbird_event", "data": {"station_id": station["id"], "event": "doorbell", "button": button, "name": names[button]}})
         asyncio.create_task(dispatch_routine_doorbird("doorbell"))
         return PlainTextResponse("OK", headers={"Cache-Control": "no-store"})

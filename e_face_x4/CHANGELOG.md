@@ -1,5 +1,12 @@
 # Changelog
 
+## 2.21.302 — 2026-10-02
+
+- La scheda Meteo usa un layout responsive interno: località, ora, condizioni e previsioni scalano con la larghezza reale della scheda.
+- Le altezze Bassa, Media e Alta ridimensionano davvero la scheda; nei formati stretti dettagli e giorni si riducono progressivamente senza tagli o sovrapposizioni.
+- Gli eventi DoorBird legano immagine, timestamp, stazione e pulsante tramite hash; una chiamata senza nuovo fotogramma non può più mostrare quello precedente.
+- Il movimento si riallinea quando cambia realmente la cronologia DoorBird, mentre refresh ripetuti dello stesso JPEG non falsano più l'orario.
+
 ## 2.21.301 — 2026-10-02
 
 - Le barre Ascoltati di recente e Preferiti scorrono su PC trascinando anche le copertine oppure usando la rotellina del mouse.

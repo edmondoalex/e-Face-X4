@@ -20,6 +20,23 @@ Prima di modificare identità, ruoli, API, eventi, licenze, pairing, cloud/local
 
 ## Handoff corrente
 
+### Coerenza eventi DoorBird - 2026-10-02
+
+- Versione candidata locale: `2.21.302`.
+- Diagnosi live: il pulsante `102` (`Primo Piano`) e il relativo timestamp venivano salvati indipendentemente dal JPEG; in caso di snapshot fallito restava visibile il chiamante precedente. Il refresh Home risalvava inoltre lo stesso storico, rendendo recente il file senza creare un nuovo evento.
+- Chiamata e movimento usano ora bundle verificati con hash SHA-256, timestamp, stazione e origine. Una chiamata senza immagine mostra indisponibilità; non riusa più il vecchio JPEG.
+- Il polling movimento aggiorna il bundle soltanto quando cambia realmente l'immagine restituita dalla cronologia; la migrazione del vecchio record conserva l'orario se il JPEG è invariato.
+- Nessun contratto condiviso, identificativo, MQTT o Discovery modificato.
+- Nessun commit, push, aggiornamento o deploy eseguito.
+
+### Scheda Meteo responsive - 2026-10-02
+
+- Versione candidata locale: `2.21.302`.
+- La scheda Meteo usa container query e scala in base alla propria larghezza, indipendentemente dal viewport generale.
+- Le altezze Bassa, Media, Alta e Uniforme hanno dimensioni effettive; nei formati stretti o bassi vengono ridotti progressivamente dettagli, tipografia, icone e numero di giorni visibili senza sovrapposizioni.
+- Test mirati Home/versione/health: `3 passed`; JavaScript, compilazione Python e diff check superati.
+- Nessun commit, push, aggiornamento o deploy eseguito.
+
 ### Correzione Preferiti media - 2026-10-02
 
 - Versione candidata: `2.21.301`.

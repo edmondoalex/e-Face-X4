@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import httpx
+import hashlib
 import re
 import json
 import os
@@ -39,6 +40,10 @@ def save_event_image(event: str, content: bytes) -> None:
     temporary.write_bytes(content)
     os.chmod(temporary, 0o600)
     temporary.replace(target)
+
+
+def event_image_digest(content: bytes | None) -> str:
+    return hashlib.sha256(content).hexdigest() if content else ""
 
 
 def _safe_configuration(value, key: str = "", reveal: bool = False):
@@ -390,7 +395,7 @@ async def live_image(host: str, port: int, username: str, password: str) -> byte
         raise RuntimeError("Risposta DoorBird non JPEG")
     return bytes(content)
 
-async def history_image(host: str, port: int, username: str, password: str, event: str) -> bytes | None:
+async def history_image(host: str, port: int, username: str, password: str, event: str, *, persist: bool = True) -> bytes | None:
     """Fetch the latest bounded DoorBird doorbell or motion history JPEG."""
     if event not in {"doorbell", "motionsensor"}: raise ValueError("Evento DoorBird non valido")
     if not username or not password: raise ValueError("Credenziale DoorBird non configurata")
@@ -407,7 +412,7 @@ async def history_image(host: str, port: int, username: str, password: str, even
                     # Return the current protected camera frame so the Home
                     # widget remains useful instead of showing an empty card.
                     content = await live_image(host, port, username, password) if event == "doorbell" else None
-                    if content:
+                    if content and persist:
                         save_event_image(event, content)
                     return content
                 if response.status_code == 401: raise PermissionError("Credenziale o permesso cronologia DoorBird rifiutato")
@@ -419,7 +424,8 @@ async def history_image(host: str, port: int, username: str, password: str, even
     except httpx.HTTPError as exc: raise ConnectionError("DoorBird non raggiungibile") from exc
     if not content.startswith(b"\xff\xd8\xff"): raise RuntimeError("Risposta DoorBird non JPEG")
     result = bytes(content)
-    save_event_image(event, result)
+    if persist:
+        save_event_image(event, result)
     return result
 
 

@@ -94,3 +94,48 @@ button,a,[role="button"],.device-card,.widget,.rail>*{touch-action:manipulation;
 img,svg{-webkit-user-select:none;user-select:none;-webkit-user-drag:none}
 input,textarea,[contenteditable="true"]{-webkit-user-select:text;user-select:text;-webkit-touch-callout:default}
 .shortcut-security-subgroup{margin:12px 0 20px}.shortcut-security-subgroup>h3{margin:0 0 9px;padding:0 4px;color:#cbd7d9;font-size:16px;text-transform:uppercase;letter-spacing:.04em}.shortcut-group-content[hidden]{display:none}
+
+/* Weather card: the widget owns its layout, so it follows the configured card size. */
+.home-weather-widget{container-type:inline-size;display:flex!important;flex-direction:column;min-width:0!important}
+.home-weather-widget .weather-current{flex:1;min-width:0}
+.home-weather-widget .weather-place,.home-weather-widget .weather-reading{min-width:0}
+.home-weather-widget .weather-place strong,.home-weather-widget .weather-reading strong,.home-weather-widget .weather-reading span{overflow:hidden;text-overflow:ellipsis}
+.home-weather-widget[data-widget-height="short"]{height:220px!important;min-height:180px!important;max-height:220px!important}
+.home-weather-widget[data-widget-height="standard"]{height:320px!important;min-height:245px!important}
+.home-weather-widget[data-widget-height="tall"]{height:440px!important;min-height:360px!important}
+.home-weather-widget[data-widget-height="uniform"]{height:100%!important;min-height:245px!important}
+@container (max-width:430px){
+  .home-weather-widget .weather-current{grid-template-columns:minmax(0,1fr) auto;grid-template-rows:auto auto;align-content:center;gap:8px 10px;min-height:0;padding:18px 18px 13px}
+  .home-weather-widget .weather-place strong{max-width:100%;margin:5px 0;font-size:clamp(18px,8cqi,25px);line-height:1.08}
+  .home-weather-widget .weather-place span{font-size:clamp(22px,10cqi,32px);line-height:1}
+  .home-weather-widget .weather-current>#home-weather-icon{width:clamp(58px,25cqi,82px);height:clamp(58px,25cqi,82px);font-size:clamp(46px,20cqi,68px)}
+  .home-weather-widget .weather-reading{grid-column:1/-1;display:flex;align-items:baseline;gap:9px;text-align:left}
+  .home-weather-widget .weather-reading>b{flex:0 0 auto;font-size:clamp(30px,13cqi,43px)}
+  .home-weather-widget .weather-reading>strong{margin:0;font-size:clamp(13px,5cqi,17px);white-space:nowrap}
+  .home-weather-widget .weather-reading>span{display:none}
+  .home-weather-widget .weather-forecast>div{gap:4px;padding:8px 2px}
+  .home-weather-widget .weather-forecast small{font-size:9px}
+  .home-weather-widget .weather-forecast .weather-symbol{font-size:clamp(19px,8cqi,25px)}
+  .home-weather-widget .weather-forecast span{font-size:10px;white-space:nowrap}
+}
+@container (max-width:290px){
+  .home-weather-widget .weather-current{padding:14px 14px 10px}
+  .home-weather-widget .weather-reading>strong{display:none}
+  .home-weather-widget .weather-forecast>div:nth-child(n+5){display:none}
+  .home-weather-widget .weather-forecast{grid-template-columns:repeat(4,1fr)}
+}
+.home-weather-widget[data-widget-height="short"] .weather-current{padding-block:12px;grid-template-rows:1fr;min-height:0}
+.home-weather-widget[data-widget-height="short"] .weather-reading>span{display:none}
+.home-weather-widget[data-widget-height="short"] .weather-forecast>div{gap:2px;padding-block:5px}
+.home-weather-widget[data-widget-height="short"] .weather-forecast .weather-symbol{font-size:21px}
+@container (min-width:431px){
+  .home-weather-widget[data-widget-height="short"] .weather-current{grid-template-columns:minmax(115px,1fr) 72px minmax(120px,1fr);gap:12px}
+  .home-weather-widget[data-widget-height="short"] .weather-current>#home-weather-icon{width:68px;height:68px;font-size:54px}
+  .home-weather-widget[data-widget-height="short"] .weather-place span{font-size:23px}
+  .home-weather-widget[data-widget-height="short"] .weather-reading>b{font-size:38px}
+}
+@media(max-width:700px){
+  .home-weather-widget[data-widget-height="short"]{height:180px!important;min-height:180px!important;max-height:180px!important}
+  .home-weather-widget[data-widget-height="standard"]{height:270px!important;min-height:245px!important}
+  .home-weather-widget[data-widget-height="tall"]{height:350px!important;min-height:300px!important}
+}
