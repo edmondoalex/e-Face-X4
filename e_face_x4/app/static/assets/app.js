@@ -488,9 +488,31 @@ function applyHomeWidgetLayout(){
   refreshHomeHighlights()
 }
 let homeWeatherLoadedAt=0
+let homeWeatherData=null
+let homeWeatherDay=0
 let homeImagesLoadedAt=0
 const weatherMeta=(code)=>{code=Number(code);if(code===0)return['Sereno','☀️','sunny'];if([1,2].includes(code))return['Poco nuvoloso','🌤️','cloudy'];if(code===3)return['Nuvoloso','☁️','cloudy'];if([45,48].includes(code))return['Nebbia','🌫️','fog'];if(code>=51&&code<=67)return['Pioggia','🌧️','rain'];if(code>=71&&code<=77)return['Neve','🌨️','snow'];if(code>=80&&code<=82)return['Rovesci','🌦️','rain'];if(code>=85&&code<=86)return['Neve','❄️','snow'];if(code>=95)return['Temporale','⛈️','storm'];return['Variabile','🌥️','cloudy']}
-function renderWeather(data){const current=data.current||{},daily=data.daily||{},meta=weatherMeta(current.weather_code),card=$('#home-weather-widget');card.dataset.weather=meta[2];$('#home-weather-place').textContent=[data.name,data.area].filter(Boolean).join(' · ');$('#home-weather-clock').textContent=new Intl.DateTimeFormat('it-IT',{hour:'2-digit',minute:'2-digit',timeZone:data.timezone||undefined}).format(new Date());$('#home-weather-icon').textContent=meta[1];$('#home-weather-state').textContent=meta[0];$('#home-weather-temperature').textContent=`${Math.round(Number(current.temperature_2m))}°`;$('#home-weather-detail').textContent=`Percepita ${Math.round(Number(current.apparent_temperature))}° · UR ${Math.round(Number(current.relative_humidity_2m))}% · Vento ${Math.round(Number(current.wind_speed_10m))} km/h`;const days=daily.time||[];$('#home-weather-forecast').innerHTML=days.slice(0,5).map((date,index)=>{const item=weatherMeta((daily.weather_code||[])[index]);const day=new Intl.DateTimeFormat('it-IT',{weekday:'short'}).format(new Date(`${date}T12:00:00`)).replace('.','').toUpperCase();return `<div><small>${day}</small><i class="weather-symbol">${item[1]}</i><span><b>${Math.round(Number((daily.temperature_2m_max||[])[index]))}°</b> ${Math.round(Number((daily.temperature_2m_min||[])[index]))}°</span></div>`}).join('')}async function refreshHomeHighlights(){
+const weatherNumber=(value,suffix='')=>Number.isFinite(Number(value))?`${Math.round(Number(value))}${suffix}`:'--'
+const weatherHour=(value)=>String(value||'').slice(11,16)
+function renderWeatherDetail(){
+  if(!homeWeatherData)return
+  const data=homeWeatherData,daily=data.daily||{},hourly=data.hourly||{},days=(daily.time||[]).slice(0,5)
+  homeWeatherDay=Math.min(homeWeatherDay,Math.max(0,days.length-1))
+  $('#home-weather-dialog-title').textContent=[data.name,data.area].filter(Boolean).join(' · ')||'Meteo'
+  $('#home-weather-dialog-state').textContent='Previsioni orarie per 5 giorni'
+  $('#weather-detail-days').innerHTML=days.map((date,index)=>{const meta=weatherMeta((daily.weather_code||[])[index]),weekday=index===0?'OGGI':new Intl.DateTimeFormat('it-IT',{weekday:'short'}).format(new Date(`${date}T12:00:00`)).replace('.','').toUpperCase(),day=new Intl.DateTimeFormat('it-IT',{day:'2-digit',month:'short'}).format(new Date(`${date}T12:00:00`));return `<button type="button" data-weather-day="${index}" class="${index===homeWeatherDay?'active':''}"><small>${weekday} · ${day}</small><i>${meta[1]}</i><b>${weatherNumber((daily.temperature_2m_max||[])[index],'°')}</b><span>${weatherNumber((daily.temperature_2m_min||[])[index],'°')}</span></button>`}).join('')
+  const index=homeWeatherDay,date=days[index],meta=weatherMeta((daily.weather_code||[])[index]),sunrise=weatherHour((daily.sunrise||[])[index]),sunset=weatherHour((daily.sunset||[])[index])
+  $('#weather-detail-summary').innerHTML=`<div><i>${meta[1]}</i><span><small>CONDIZIONI</small><strong>${meta[0]}</strong></span></div><dl><div><dt>Pioggia</dt><dd>${weatherNumber((daily.precipitation_probability_max||[])[index],'%')}</dd></div><div><dt>Vento max</dt><dd>${weatherNumber((daily.wind_speed_10m_max||[])[index],' km/h')}</dd></div><div><dt>Alba</dt><dd>${sunrise||'--'}</dd></div><div><dt>Tramonto</dt><dd>${sunset||'--'}</dd></div></dl>`
+  const indices=(hourly.time||[]).map((time,hourIndex)=>({time,hourIndex})).filter(item=>String(item.time).startsWith(`${date}T`))
+  $('#weather-detail-hours').innerHTML=indices.map(({time,hourIndex})=>{const item=weatherMeta((hourly.weather_code||[])[hourIndex]);return `<article><time>${weatherHour(time)}</time><i>${item[1]}</i><strong>${weatherNumber((hourly.temperature_2m||[])[hourIndex],'°')}</strong><span>Percepita ${weatherNumber((hourly.apparent_temperature||[])[hourIndex],'°')}</span><span>Pioggia ${weatherNumber((hourly.precipitation_probability||[])[hourIndex],'%')}</span><span>UR ${weatherNumber((hourly.relative_humidity_2m||[])[hourIndex],'%')}</span><span>Vento ${weatherNumber((hourly.wind_speed_10m||[])[hourIndex],' km/h')}</span></article>`}).join('')||'<p class="home-insight-empty">Dettaglio orario non disponibile.</p>'
+}
+function openWeatherDetail(){if(!homeWeatherData)return;homeWeatherDay=0;renderWeatherDetail();const dialog=$('#home-weather-dialog');if(!dialog.open)dialog.showModal()}
+function renderWeather(data){homeWeatherData=data;const current=data.current||{},daily=data.daily||{},meta=weatherMeta(current.weather_code),card=$('#home-weather-widget');card.dataset.weather=meta[2];$('#home-weather-place').textContent=[data.name,data.area].filter(Boolean).join(' · ');$('#home-weather-clock').textContent=new Intl.DateTimeFormat('it-IT',{hour:'2-digit',minute:'2-digit',timeZone:data.timezone||undefined}).format(new Date());$('#home-weather-icon').textContent=meta[1];$('#home-weather-state').textContent=meta[0];$('#home-weather-temperature').textContent=`${Math.round(Number(current.temperature_2m))}°`;$('#home-weather-detail').textContent=`Percepita ${Math.round(Number(current.apparent_temperature))}° · UR ${Math.round(Number(current.relative_humidity_2m))}% · Vento ${Math.round(Number(current.wind_speed_10m))} km/h`;const days=daily.time||[];$('#home-weather-forecast').innerHTML=days.slice(0,5).map((date,index)=>{const item=weatherMeta((daily.weather_code||[])[index]);const day=new Intl.DateTimeFormat('it-IT',{weekday:'short'}).format(new Date(`${date}T12:00:00`)).replace('.','').toUpperCase();return `<div><small>${day}</small><i class="weather-symbol">${item[1]}</i><span><b>${Math.round(Number((daily.temperature_2m_max||[])[index]))}°</b> ${Math.round(Number((daily.temperature_2m_min||[])[index]))}°</span></div>`}).join('')}$('#home-weather-widget')?.addEventListener('click',openWeatherDetail)
+$('#home-weather-widget')?.addEventListener('keydown',(event)=>{if(event.key==='Enter'||event.key===' '){event.preventDefault();openWeatherDetail()}})
+$('#home-weather-close')?.addEventListener('click',()=>$('#home-weather-dialog').close())
+$('#home-weather-dialog')?.addEventListener('click',(event)=>{if(event.target===$('#home-weather-dialog'))event.currentTarget.close()})
+$('#weather-detail-days')?.addEventListener('click',(event)=>{const button=event.target.closest('[data-weather-day]');if(!button)return;homeWeatherDay=Number(button.dataset.weatherDay)||0;renderWeatherDetail()})
+async function refreshHomeHighlights(){
   const now=Date.now()
   if(!$('#home-shopping-list')?.classList.contains('widget-user-hidden')) refreshHomeShoppingList(true)
   if(!$('#home-agenda')?.classList.contains('widget-user-hidden')) refreshHomeAgendaWidget()
@@ -1520,8 +1542,9 @@ function renderActiveDeviceList() {
   const signature = JSON.stringify({devices, selectedMediaId, currentMediaExperience, activeMediaRoom, avRoom, lightFilterRoom, lightFilterActive, sectionFilterMode, securitySections, currentSecurityOrder, currentSecurityCameras, mediaSections})
   if (signature === lastDetailSignature && $('#device-list').childElementCount) return
   lastDetailSignature = signature
+  const detailMode = $('#detail-view').dataset.contentMode || sectionFilterMode
   if (shortcutViewOpen) renderShortcutDevices()
-  else if (sectionFilterMode === 'security') renderSecurityDevices(devices)
+  else if (detailMode === 'security') renderSecurityDevices(devices)
   else renderDeviceList(devices)
   syncRoutineActivity()
 }
@@ -2190,6 +2213,7 @@ function openDevices(title, devices, options = {}) {
   lastDetailSignature = ''
   $('#detail-title').textContent = title
   sectionFilterMode = options.security ? 'security' : 'devices'
+  $('#detail-view').dataset.contentMode = sectionFilterMode
   sectionFilterDevices = devices
   lightFilterRoom = ''
   lightFilterActive = false
@@ -2805,6 +2829,8 @@ $('#light-room-toggle').addEventListener('click', (event) => {
 $('#light-room-menu').addEventListener('click', (event) => {
   const button = event.target.closest('[data-light-room]')
   if (!button) return
+  event.preventDefault()
+  event.stopPropagation()
   lightFilterRoom = button.dataset.lightRoom
   $('#light-room-toggle').classList.add('active')
   $('#light-all-filter').classList.remove('active')

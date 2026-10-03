@@ -1,5 +1,7 @@
 # Istruzioni permanenti per gli agenti che lavorano su e-Face X4
 
+Prima di qualsiasi attività, leggere integralmente `../AGENTS.md` e applicarne la procedura automatica Ekonex di avvio, lavoro e handoff. Le istruzioni seguenti restano aggiuntive.
+
 Per richieste su Control4, Home Assistant, audio/video o videocitofono, leggere prima `docs/PROCEDURA_CONTROL4_HASSIO_SVILUPPO.md` e il task specifico in `docs/`. Verificare lo stato attuale dell'impianto e del worktree: gli IP, gli ID, i token temporanei e la versione annotati possono cambiare. Non stampare o versionare credenziali, token, URL di login o dump grezzi sensibili.
 
 Usare autonomamente le letture di Director e dell'add-on già disponibili per localizzare il guasto prima di chiedere prove all'utente. Preferire una sonda read-only mirata nel container e-Face e un test di regressione; chiedere una singola prova manuale solo quando occorrono davvero orecchio, display, account o dispositivo fisico. Non mutare l'impianto per una richiesta di sola diagnosi. Distribuire gli aggiornamenti solo quando il lavoro richiesto comprende la modifica e l'aggiornamento è autorizzato nel contesto corrente.

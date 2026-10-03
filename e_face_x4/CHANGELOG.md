@@ -1,5 +1,18 @@
 # Changelog
 
+## 2.21.304 — 2026-10-03
+
+- Include integralmente le modifiche della 2.21.303: Integrazioni esterne, meteo dettagliato responsive e correzione del filtro dispositivi.
+- I dispositivi climate Netatmo/Home + Control importati da e-Control sono riconosciuti come termostati comandabili.
+- Le schede Comfort mostrano temperatura corrente, setpoint, modalità e richiesta termica e abilitano i pulsanti −/+ tramite il comando Smart Home autorizzato.
+
+## 2.21.303 — 2026-10-02
+
+- La sorgente visibile `HA`/`Home Assistant` diventa `Integrazioni esterne`, senza modificare identificativi tecnici o collegamenti esistenti.
+- Un clic sulla scheda Meteo apre le previsioni dettagliate dei prossimi cinque giorni, con selezione del giorno e andamento orario di temperatura, percepita, pioggia, umidità e vento.
+- Il riepilogo giornaliero include massime, minime, probabilità di pioggia, vento massimo, alba e tramonto; il pannello si adatta a desktop e mobile.
+- Il filtro stanza della pagina Extra conserva esplicitamente il renderer dei dispositivi: selezionando `Senza stanza` non può più riutilizzare il contenuto della pagina Sicurezza.
+
 ## 2.21.302 — 2026-10-02
 
 - La scheda Meteo usa un layout responsive interno: località, ora, condizioni e previsioni scalano con la larghezza reale della scheda.

@@ -78,7 +78,7 @@ from .media_realtime import SharedMediaRealtime
 from .demo import dashboard as demo_dashboard
 from .ha_labeled import normalize_labeled_entities
 
-VERSION = os.environ.get("EFACE_VERSION", "2.21.302")
+VERSION = os.environ.get("EFACE_VERSION", "2.21.304")
 STATIC = Path(__file__).parent / "static"
 logging.basicConfig(level=logging.WARNING, format="%(asctime)s %(levelname)s [e-face-x4] %(message)s")
 _reconnect_warning_at: dict[str, float] = {}
@@ -2739,11 +2739,11 @@ def create_app() -> FastAPI:
                 qualifier = " ".join(parts[1:]).casefold()
                 place = next((item for item in results if qualifier and qualifier in " ".join(str(item.get(key) or "") for key in ("admin1", "admin2", "admin3", "country")).casefold()), results[0] if results else None)
                 if not place: raise HTTPException(status_code=404, detail="Località meteo non trovata")
-                forecast = await client.get("https://api.open-meteo.com/v1/forecast", params={"latitude": place["latitude"], "longitude": place["longitude"], "current": "temperature_2m,relative_humidity_2m,apparent_temperature,weather_code,wind_speed_10m", "daily": "weather_code,temperature_2m_max,temperature_2m_min", "timezone": "auto", "forecast_days": 5})
+                forecast = await client.get("https://api.open-meteo.com/v1/forecast", params={"latitude": place["latitude"], "longitude": place["longitude"], "current": "temperature_2m,relative_humidity_2m,apparent_temperature,weather_code,wind_speed_10m", "hourly": "temperature_2m,apparent_temperature,relative_humidity_2m,precipitation_probability,weather_code,wind_speed_10m", "daily": "weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max,wind_speed_10m_max,sunrise,sunset", "timezone": "auto", "forecast_days": 5})
                 forecast.raise_for_status(); data = forecast.json()
         except HTTPException: raise
         except (httpx.HTTPError, KeyError, TypeError, ValueError) as exc: raise HTTPException(status_code=502, detail="Servizio meteo non disponibile") from exc
-        return JSONResponse({"name": place.get("name") or location, "area": place.get("admin1") or place.get("country") or "", "timezone": data.get("timezone"), "current": data.get("current") or {}, "daily": data.get("daily") or {}}, headers={"Cache-Control":"no-store, private"})
+        return JSONResponse({"name": place.get("name") or location, "area": place.get("admin1") or place.get("country") or "", "timezone": data.get("timezone"), "current": data.get("current") or {}, "hourly": data.get("hourly") or {}, "daily": data.get("daily") or {}}, headers={"Cache-Control":"no-store, private"})
     @app.get("/api/home/camera-event")
     async def home_camera_event(request: Request) -> Response:
         response = await home_assistant_get(f"camera_proxy/{load_home_camera_entity(appearance_owner(request))}")
@@ -3525,7 +3525,7 @@ def create_app() -> FastAPI:
             except Exception:
                 pass
         ha_eface_items = await ha_eface_task
-        providers.append({"id": "home_assistant", "name": "Home Assistant · etichetta e-Face", "status": "online", "items": ha_eface_items})
+        providers.append({"id": "home_assistant", "name": "Integrazioni esterne", "status": "online", "items": ha_eface_items})
         dashboard = demo_dashboard() if settings.demo_mode else {"rooms": [], "widgets": [], "media": None}
         dashboard.setdefault("home", {})["name"] = settings.home_name
         if not settings.demo_mode:
@@ -5256,7 +5256,7 @@ def create_app() -> FastAPI:
             response.raise_for_status()
             return response.json()
         except (httpx.HTTPError, ValueError) as exc:
-            raise HTTPException(502, "Gestione trigger HA e-Control HUB non riuscita") from exc
+            raise HTTPException(502, "Gestione trigger integrazione esterna e-Control HUB non riuscita") from exc
 
     @app.post("/api/admin/scenario-triggers")
     async def scenario_ha_trigger_create(request: Request, payload: dict) -> dict:

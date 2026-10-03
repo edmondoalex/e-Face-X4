@@ -1,5 +1,22 @@
 # Collegamento Ekonex Platform
 
+### Comandi Comfort Netatmo e release cumulativa - 2026-10-03
+
+- Release candidata `2.21.304`: include integralmente la precedente candidata `2.21.303` e aggiunge il comando dei dispositivi climate Home + Control/Netatmo.
+- Il consumer Smart Home riconosce `device_class=climate`, espone temperatura, setpoint, modalita' e richiesta termica e abilita `set_target` quando autorizzato dal producer.
+- La scheda Comfort riusa il layout termostato esistente con pulsanti meno/piu'; il comando viene inviato soltanto tramite la rotta Smart Home e-Control validata.
+- Test completi: `419 passed`; test Smart Home mirati `32 passed`; sintassi JavaScript, compilazione Python e diff check superati.
+- Nessun setpoint reale inviato durante il collaudo automatico.
+
+### Integrazioni esterne e meteo dettagliato - 2026-10-02
+
+- Versione candidata locale: `2.21.303`.
+- Le diciture visibili `HA`/`Home Assistant` del catalogo dispositivi sono sostituite da `Integrazioni esterne`; gli identificativi tecnici `home_assistant`, Discovery, MQTT e i collegamenti esistenti restano invariati.
+- `GET /api/home/weather` estende in modo additivo la risposta con `hourly` e nuovi campi giornalieri Open-Meteo per cinque giorni. Il riquadro Home apre un pannello responsive con selezione del giorno, riepilogo e andamento orario.
+- La vista dispositivi conserva nel DOM il renderer attivo; il filtro `Extra > Senza stanza` non può più riutilizzare il renderer Sicurezza. Il click del menu stanza viene inoltre fermato prima di raggiungere controlli sottostanti.
+- Nessun contratto condiviso modificato e nessuna nuova credenziale o dipendenza esterna introdotta.
+- Nessun commit, push, aggiornamento o deploy eseguito.
+
 Questo progetto fa parte dell'ecosistema coordinato Ekonex.
 
 Fonte condivisa ufficiale:

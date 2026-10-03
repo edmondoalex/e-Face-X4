@@ -15,7 +15,7 @@ SMART_HOME_SCHEMA_VERSION = "1.0"
 SMART_HOME_CLASS_KIND = {
     "light": "light", "dimmer": "light", "switch": "switch",
     "cover": "cover", "shutter": "cover", "awning": "cover",
-    "gate": "cover", "garage_door": "cover", "thermostat": "climate",
+    "gate": "cover", "garage_door": "cover", "thermostat": "climate", "climate": "climate",
     "temperature_sensor": "temperature", "humidity_sensor": "humidity",
     "illuminance_sensor": "sensor", "environment_sensor": "air",
     "presence": "binary_sensor", "dry_contact": "binary_sensor",
@@ -120,6 +120,9 @@ def _normalize_smart_home(payload: dict[str, Any], smart_home: dict[str, Any]) -
         features = dict(raw.get("features") or {}) if isinstance(raw.get("features"), dict) else {}
         position = state_fields.get("position")
         brightness = state_fields.get("brightness", state_fields.get("level"))
+        state_attributes = state_fields.get("attributes") if isinstance(state_fields.get("attributes"), dict) else {}
+        current_temperature = state_attributes.get("current_temperature", state_attributes.get("therm_measured_temperature"))
+        target_temperature = state_attributes.get("target_temperature", state_attributes.get("therm_setpoint_temperature"))
         if kind == "light": counts["lights"] += 1
         elif kind == "switch": counts["switches"] += 1
         elif kind == "cover": counts["covers"] += 1
@@ -147,6 +150,10 @@ def _normalize_smart_home(payload: dict[str, Any], smart_home: dict[str, Any]) -
             "room_id": str(raw.get("room_id") or ""), "group_ids": list(raw.get("group_ids") or []),
             "group_names": list(raw.get("group_names") or []), "state": state,
             "brightness": brightness, "position": position,
+            "temperature": current_temperature, "target_temperature": target_temperature,
+            "humidity": state_attributes.get("humidity", state_attributes.get("Humidity")),
+            "season": str(state_attributes.get("season") or ""), "mode": str(state_attributes.get("therm_setpoint_mode") or state_attributes.get("mode") or ""),
+            "pwm": state_attributes.get("heating_power_request", state_attributes.get("pwm")),
             "dimmable": "level" in capabilities, "position_supported": "position" in capabilities,
             "capabilities": capabilities, "commands": commands, "features": features,
             "allowed_actions": (legacy_item.get("allowed_actions") if kind == "lock" and isinstance(legacy_item, dict) else allowed_actions) if not raw.get("read_only") and raw.get("available") and not raw.get("orphaned") else [],

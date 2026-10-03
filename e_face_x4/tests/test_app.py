@@ -104,7 +104,7 @@ def test_health() -> None:
     response = TestClient(create_app()).get("/health")
     assert response.status_code == 200
     assert response.json()["ok"] is True
-    assert response.json()["version"] == "2.21.302"
+    assert response.json()["version"] == "2.21.304"
 
 
 def test_home_event_times_reads_saved_doorbird_motion(monkeypatch, tmp_path) -> None:
@@ -225,7 +225,7 @@ def test_intercom_is_in_sidebar_with_embedded_view() -> None:
     client_script = (static / "assets" / "intercom.js").read_text(encoding="utf-8")
     intercom_page = (static / "intercom.html").read_text(encoding="utf-8")
     assert "Tablet Control4 · interno 8291" in intercom_page
-    assert "const currentVersion = '2.21.302'" in client_script
+    assert "const currentVersion = '2.21.304'" in client_script
     assert 'id="call-ufficio" data-dial-extension="8291" data-video-capable="true"' in intercom_page
     assert "Postazione esterna · interno 8201" in intercom_page
     assert "Postazione esterna · interno ${station.sip_extension}" in client_script
@@ -473,10 +473,10 @@ def test_intercom_dashboard_stores_only_local_settings(monkeypatch, tmp_path) ->
     assert 'id="users-tool"' in page
     assert 'id="logout"' in page
     assert page.index('id="logout"') < page.index('id="tools-user-section"')
-    assert "tools-dashboard.js?v=2.21.302" in page
-    assert "tools-dashboard.css?v=2.21.302" in page
-    assert "tools.js?v=2.21.302" in page
-    assert "organization-tools.js?v=2.21.302" in page
+    assert "tools-dashboard.js?v=2.21.304" in page
+    assert "tools-dashboard.css?v=2.21.304" in page
+    assert "tools.js?v=2.21.304" in page
+    assert "organization-tools.js?v=2.21.304" in page
     tools_js = client.get("/assets/tools.js").text
     assert "document.querySelector('.tools-shell').append(shortcutsPanel)" in tools_js
     assert "data-shortcut-drag=\"category\"" in tools_js
@@ -489,7 +489,7 @@ def test_intercom_dashboard_stores_only_local_settings(monkeypatch, tmp_path) ->
     assert '<b>Accesi</b>' not in home
     assert 'id="light-on-filter"' in home
     assert "backgrounds.css?v=2.21.43" in home
-    assert "app.js?v=2.21.302" in home
+    assert "app.js?v=2.21.304" in home
     app_js = client.get("/assets/app.js").text
     assert "event.type === 'doorbird_event'" in app_js
     assert "event.type === 'home_camera_event'" in app_js
@@ -916,8 +916,8 @@ def test_tools_page_starts_with_selected_background_and_card_theme(monkeypatch, 
     home = client.get("/").text
     login = client.get("/login").text
     assert '<body class="app-theme" data-background="midnight" data-card-theme="slate">' in home
-    assert 'ui-theme-contract.css?v=2.21.302' in home
-    assert 'app.js?v=2.21.302' in home
+    assert 'ui-theme-contract.css?v=2.21.304' in home
+    assert 'app.js?v=2.21.304' in home
     assert 'energy.css?v=2.21.30' in home
     assert 'home-comfort.css?v=2.21.31' in home
     assert '<body class="login-theme" data-background="midnight" data-card-theme="slate">' in login
@@ -1085,6 +1085,33 @@ def test_home_shopping_list_discovers_and_controls_econtrol_todo(monkeypatch, tm
     assert all(not query for method, path, query, body in calls if "/api/services/todo/" in path and not path.endswith("/get_items"))
 
 
+def test_home_weather_returns_five_day_hourly_detail(monkeypatch, tmp_path) -> None:
+    import app.main as main_module
+    monkeypatch.setenv("EFACE_BACKGROUNDS", str(tmp_path / "backgrounds"))
+    save_home_weather_location("Bra, Piemonte", "admin")
+    requested = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if "geocoding-api.open-meteo.com" in request.url.host:
+            return httpx.Response(200, json={"results": [{"name": "Bra", "admin1": "Piemonte", "latitude": 44.7, "longitude": 7.8}]})
+        requested.update(dict(request.url.params))
+        return httpx.Response(200, json={
+            "timezone": "Europe/Rome",
+            "current": {"temperature_2m": 20, "weather_code": 1},
+            "hourly": {"time": ["2026-10-02T08:00"], "temperature_2m": [19], "weather_code": [1], "precipitation_probability": [10]},
+            "daily": {"time": ["2026-10-02"], "weather_code": [1], "temperature_2m_max": [22], "temperature_2m_min": [14], "sunrise": ["2026-10-02T07:22"], "sunset": ["2026-10-02T19:01"]},
+        })
+
+    original = main_module.httpx.AsyncClient
+    monkeypatch.setattr(main_module.httpx, "AsyncClient", lambda **kwargs: original(transport=httpx.MockTransport(handler), **kwargs))
+    response = TestClient(main_module.create_app()).get("/api/home/weather")
+    assert response.status_code == 200
+    assert response.json()["hourly"]["time"] == ["2026-10-02T08:00"]
+    assert requested["forecast_days"] == "5"
+    assert "precipitation_probability" in requested["hourly"]
+    assert "sunrise" in requested["daily"]
+
+
 def test_dynamic_home_settings_are_isolated_by_device(monkeypatch, tmp_path) -> None:
     monkeypatch.setenv("EFACE_BACKGROUNDS", str(tmp_path / "backgrounds"))
     account_widgets = [{"id": item, "visible": True, "size": "wide" if item == "overview" else "standard", "height": "standard"} for item in HOME_WIDGETS]
@@ -1209,7 +1236,7 @@ def test_x4_shell_and_brand_assets_are_served() -> None:
     assert "now-playing" not in page.text
     assert 'id="detail-view"' in page.text
     assert 'id="detail-back"' in page.text
-    assert page.text.count('<dialog') == 12
+    assert page.text.count('<dialog') == 13
     assert 'id="home-event-dialog"' in page.text
     assert 'id="media-browser-dialog"' not in page.text
     assert 'id="security-area-dialog"' in page.text
@@ -1321,15 +1348,23 @@ def test_x4_shell_and_brand_assets_are_served() -> None:
     assert client.get("/tools").status_code == 200
     assert "Amministrazione" in client.get("/tools").text
     css = client.get("/assets/app.css").text
-    assert "app.css?v=2.21.302" in client.get("/").text
-    assert "home-live-media.css?v=2.21.302" in client.get("/").text
-    assert "alarm-state.css?v=2.21.302" in client.get("/").text
-    assert "state-glow.css?v=2.21.302" in client.get("/").text
+    assert "app.css?v=2.21.304" in client.get("/").text
+    assert "home-live-media.css?v=2.21.304" in client.get("/").text
+    assert "alarm-state.css?v=2.21.304" in client.get("/").text
+    assert "state-glow.css?v=2.21.304" in client.get("/").text
     assert '[data-home-widget][data-widget-height="short"]{height:auto!important;min-height:76px!important;max-height:120px!important' in css
     assert ".home-weather-widget{container-type:inline-size" in css
     assert "@container (max-width:430px)" in css
     assert '.home-weather-widget[data-widget-height="short"]{height:220px!important' in css
     assert ".home-weather-widget .weather-reading>span{display:none}" in css
+    assert 'id="home-weather-dialog"' in client.get("/").text
+    assert "function renderWeatherDetail()" in app_js
+    assert "data-weather-day" in app_js
+    assert ".weather-detail-hours{display:grid" in css
+    assert '"name": "Integrazioni esterne"' in (Path(__file__).resolve().parents[1] / "app/main.py").read_text(encoding="utf-8")
+    assert "dataset.contentMode = sectionFilterMode" in app_js
+    assert "const detailMode = $('#detail-view').dataset.contentMode || sectionFilterMode" in app_js
+    assert "event.stopPropagation()\n  lightFilterRoom = button.dataset.lightRoom" in app_js
     assert ".home-event-dialog figure img{display:block;width:auto;height:auto;max-width:100%;max-height:100%" in css
     assert ".home-event-widget img{object-fit:contain" not in css
     assert "data-home-zone-mute" in app_js

@@ -62,7 +62,7 @@ def normalize_labeled_entities(
             "state_key": entity_id,
             "provider": "home_assistant", "kind": kind, "entity_domain": domain,
             "name": str(registry.get("name_by_user") or attributes.get("friendly_name") or registry.get("original_name") or entity_id),
-            "room": area_names.get(area_id) or "Home Assistant", "icon": str(registry.get("icon") or attributes.get("icon") or "mdi:access-point"),
+            "room": area_names.get(area_id) or "Integrazioni esterne", "icon": str(registry.get("icon") or attributes.get("icon") or "mdi:access-point"),
             "state": state.get("state"), "device_class": attributes.get("device_class"),
             "unit": attributes.get("unit_of_measurement"), "capabilities": capabilities,
             "availability": "unavailable" if state.get("state") == "unavailable" else "available",

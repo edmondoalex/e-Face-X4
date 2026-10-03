@@ -152,6 +152,36 @@ def test_home_assistant_canonical_device_preserves_legacy_entity_aliases() -> No
     assert device["aliases"] == ["light.lampada_sala", "switch.lampada_sala_legacy"]
 
 
+def test_netatmo_climate_exposes_comfort_controls_and_live_values() -> None:
+    payload = load_fixture()
+    payload["smart_home"]["devices"] = [{
+        "id": "home_plus_control:thermostat-veranda",
+        "source": "home_plus_control",
+        "device_id": "thermostat-veranda",
+        "name": "Termostato Veranda",
+        "device_class": "climate",
+        "native_type": "climate",
+        "native_id": "native-veranda",
+        "capabilities": ["temperature", "target_temperature"],
+        "commands": [{"action": "temperature", "value_type": "number", "minimum": 5, "maximum": 35}],
+        "state": {"state": "20.2", "attributes": {
+            "current_temperature": 20.2, "target_temperature": 8.0,
+            "therm_setpoint_mode": "schedule", "heating_power_request": 0,
+        }},
+        "available": True, "read_only": False, "stale": False, "orphaned": False,
+        "categories": ["comfort"], "visible": True,
+    }]
+
+    device = normalize_snapshot(payload)["devices"][0]
+
+    assert device["kind"] == "climate"
+    assert device["temperature"] == 20.2
+    assert device["target_temperature"] == 8.0
+    assert device["mode"] == "schedule"
+    assert device["pwm"] == 0
+    assert "set_target" in device["allowed_actions"]
+
+
 def test_frontend_reconciles_saved_views_and_shortcuts_through_device_aliases() -> None:
     root = Path(__file__).parents[1]
     app_js = (root / "app" / "static" / "assets" / "app.js").read_text(encoding="utf-8")
