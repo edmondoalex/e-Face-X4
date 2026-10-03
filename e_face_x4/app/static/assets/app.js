@@ -1630,6 +1630,7 @@ function deviceActions(device, options = {}) {
     const target = Number(device.target_temperature)
     const value = Number.isFinite(target) ? target : 20
     if (device.read_only) return `<div class="climate-summary climate-read-only"><span>UR ${device.humidity ?? '--'}%</span><span>SONDA ESTERNA</span></div>`
+    if (device.source === 'home_plus_control') return `<div class="device-actions"><button data-climate-target="${(value - .5).toFixed(1)}">−</button><strong>${value.toFixed(1)}°</strong><button data-climate-target="${(value + .5).toFixed(1)}">＋</button></div>`
     const enabled = !['', 'OFF', 'NONE'].includes(String(device.mode || '').toUpperCase())
     const heat = enabled && String(device.season || '').toUpperCase() === 'WIN'
     const cool = enabled && String(device.season || '').toUpperCase() === 'SUM'

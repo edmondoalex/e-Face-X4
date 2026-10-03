@@ -104,7 +104,7 @@ def test_health() -> None:
     response = TestClient(create_app()).get("/health")
     assert response.status_code == 200
     assert response.json()["ok"] is True
-    assert response.json()["version"] == "2.21.304"
+    assert response.json()["version"] == "2.21.305"
 
 
 def test_home_event_times_reads_saved_doorbird_motion(monkeypatch, tmp_path) -> None:
@@ -225,7 +225,7 @@ def test_intercom_is_in_sidebar_with_embedded_view() -> None:
     client_script = (static / "assets" / "intercom.js").read_text(encoding="utf-8")
     intercom_page = (static / "intercom.html").read_text(encoding="utf-8")
     assert "Tablet Control4 · interno 8291" in intercom_page
-    assert "const currentVersion = '2.21.304'" in client_script
+    assert "const currentVersion = '2.21.305'" in client_script
     assert 'id="call-ufficio" data-dial-extension="8291" data-video-capable="true"' in intercom_page
     assert "Postazione esterna · interno 8201" in intercom_page
     assert "Postazione esterna · interno ${station.sip_extension}" in client_script
@@ -473,10 +473,10 @@ def test_intercom_dashboard_stores_only_local_settings(monkeypatch, tmp_path) ->
     assert 'id="users-tool"' in page
     assert 'id="logout"' in page
     assert page.index('id="logout"') < page.index('id="tools-user-section"')
-    assert "tools-dashboard.js?v=2.21.304" in page
-    assert "tools-dashboard.css?v=2.21.304" in page
-    assert "tools.js?v=2.21.304" in page
-    assert "organization-tools.js?v=2.21.304" in page
+    assert "tools-dashboard.js?v=2.21.305" in page
+    assert "tools-dashboard.css?v=2.21.305" in page
+    assert "tools.js?v=2.21.305" in page
+    assert "organization-tools.js?v=2.21.305" in page
     tools_js = client.get("/assets/tools.js").text
     assert "document.querySelector('.tools-shell').append(shortcutsPanel)" in tools_js
     assert "data-shortcut-drag=\"category\"" in tools_js
@@ -489,7 +489,7 @@ def test_intercom_dashboard_stores_only_local_settings(monkeypatch, tmp_path) ->
     assert '<b>Accesi</b>' not in home
     assert 'id="light-on-filter"' in home
     assert "backgrounds.css?v=2.21.43" in home
-    assert "app.js?v=2.21.304" in home
+    assert "app.js?v=2.21.305" in home
     app_js = client.get("/assets/app.js").text
     assert "event.type === 'doorbird_event'" in app_js
     assert "event.type === 'home_camera_event'" in app_js
@@ -916,8 +916,8 @@ def test_tools_page_starts_with_selected_background_and_card_theme(monkeypatch, 
     home = client.get("/").text
     login = client.get("/login").text
     assert '<body class="app-theme" data-background="midnight" data-card-theme="slate">' in home
-    assert 'ui-theme-contract.css?v=2.21.304' in home
-    assert 'app.js?v=2.21.304' in home
+    assert 'ui-theme-contract.css?v=2.21.305' in home
+    assert 'app.js?v=2.21.305' in home
     assert 'energy.css?v=2.21.30' in home
     assert 'home-comfort.css?v=2.21.31' in home
     assert '<body class="login-theme" data-background="midnight" data-card-theme="slate">' in login
@@ -1348,10 +1348,10 @@ def test_x4_shell_and_brand_assets_are_served() -> None:
     assert client.get("/tools").status_code == 200
     assert "Amministrazione" in client.get("/tools").text
     css = client.get("/assets/app.css").text
-    assert "app.css?v=2.21.304" in client.get("/").text
-    assert "home-live-media.css?v=2.21.304" in client.get("/").text
-    assert "alarm-state.css?v=2.21.304" in client.get("/").text
-    assert "state-glow.css?v=2.21.304" in client.get("/").text
+    assert "app.css?v=2.21.305" in client.get("/").text
+    assert "home-live-media.css?v=2.21.305" in client.get("/").text
+    assert "alarm-state.css?v=2.21.305" in client.get("/").text
+    assert "state-glow.css?v=2.21.305" in client.get("/").text
     assert '[data-home-widget][data-widget-height="short"]{height:auto!important;min-height:76px!important;max-height:120px!important' in css
     assert ".home-weather-widget{container-type:inline-size" in css
     assert "@container (max-width:430px)" in css
@@ -3142,3 +3142,14 @@ def test_media_player_without_area_uses_its_name_as_room() -> None:
         "states": [{"entity_id": "media_player.ufficio_alex", "state": "playing", "last_updated": "2026-09-11T10:00:00Z", "attributes": {"friendly_name": "Ufficio Alex", "supported_features": 16384}}],
     })
     assert players[0]["room"] == "Ufficio Alex"
+
+
+def test_netatmo_climate_card_only_exposes_setpoint_controls():
+    script = (Path(__file__).resolve().parents[1] / "app" / "static" / "assets" / "app.js").read_text(encoding="utf-8")
+    netatmo_branch = "if (device.source === 'home_plus_control')"
+    assert netatmo_branch in script
+    branch = script.split(netatmo_branch, 1)[1].split("const enabled", 1)[0]
+    assert "data-climate-target" in branch
+    assert "data-climate-season" not in branch
+    assert "data-climate-mode" not in branch
+    assert "UR " not in branch

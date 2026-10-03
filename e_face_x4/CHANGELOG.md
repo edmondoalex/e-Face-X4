@@ -1,5 +1,9 @@
 # Changelog
 
+## 2.21.305 — 2026-10-03
+
+- Le schede Netatmo mostrano soltanto il setpoint regolabile: rimossi i comandi HEAT/COOL/OFF e l'umidità non supportata.
+
 ## 2.21.304 — 2026-10-03
 
 - Include integralmente le modifiche della 2.21.303: Integrazioni esterne, meteo dettagliato responsive e correzione del filtro dispositivi.
