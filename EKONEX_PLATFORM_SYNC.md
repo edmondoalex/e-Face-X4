@@ -37,6 +37,13 @@ Prima di modificare identità, ruoli, API, eventi, licenze, pairing, cloud/local
 
 ## Handoff corrente
 
+### Controlli Comfort Netatmo 2.21.305 - 2026-10-03
+
+- Le schede Netatmo espongono soltanto il setpoint con i comandi meno/più supportati.
+- Rimossi esclusivamente per `home_plus_control` i pulsanti HEAT/COOL/OFF e la lettura UR non fornita dal contratto Netatmo; gli altri dispositivi Comfort restano invariati.
+- Release `2.21.305` pubblicata, installata e avviata sul NUC; commit `c3f76d8`.
+- Test mirati release/health/contratto Netatmo: `3 passed`; precedente suite completa della base 2.21.304: `419 passed`.
+
 ### Coerenza eventi DoorBird - 2026-10-02
 
 - Versione candidata locale: `2.21.302`.
