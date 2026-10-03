@@ -12,6 +12,7 @@ let refreshRunning = false
 let refreshQueued = false
 let lastInteraction = { label: '', at: 0 }
 let currentDevices = []
+let currentAccessEvents = []
 let routineActiveDeviceIds = new Set()
 function syncRoutineActivity() {
   document.querySelectorAll('#device-list [data-device-id]').forEach(card => {
@@ -68,7 +69,7 @@ let energyMasterInitialized = false
 let energyMasterRefreshTimer = null
 let energyMasterColors = []
 let energyMasterPending = { signature:'', confirmations:0 }
-const securitySections = { areas: false, zones: false, sensors: false, cameras: true }
+const securitySections = { areas: false, zones: false, sensors: false, cameras: true, accesses: true }
 let currentSecurityOrder = ['scenarios', 'areas', 'zones', 'sensors', 'locks', 'cameras']
 let currentSecurityCameras = []
 let currentShortcuts = []
@@ -320,6 +321,7 @@ function render(data) {
   routineActiveDeviceIds = new Set((data.routine_active_device_ids || []).map(String))
   const home = dashboard.home || {}
   const providers = data.providers || []
+  currentAccessEvents = providers.find((provider) => provider.id === 'buspro')?.normalized?.access_events || []
   currentMediaGroups = providers.filter((provider) => ['control4','evoice'].includes(provider.id)).flatMap((provider) => provider.groups || [])
   const navIcons = data.nav_icons || {}
   currentDevices = (Array.isArray(dashboard.devices) ? dashboard.devices : []).filter((device) =>
@@ -879,6 +881,10 @@ function renderSecurityDevices(devices) {
     const batteryMarkup = battery === null ? '' : `<span class="security-lock-battery ${battery <= 20 ? 'low' : ''}" title="Batteria ${battery}%"><i class="mdi-mask" style="${mdiStyle(battery <= 20 ? 'mdi:battery-alert-variant-outline' : 'mdi:battery', 'battery')}"></i>${battery}%</span>`
     return `<article class="security-lock security-lock-${stateClass}" data-device-id="${esc(device.id)}">${deviceGlyph(device)}<div class="security-lock-name"><strong>${esc(device.name)}</strong><small>${esc(device.room)}</small></div><b>${esc(stateLabel(device))}${batteryMarkup}</b>${deviceActions(device)}</article>`
   }).join('')
+  const accessCards = currentAccessEvents.slice(0, 20).map((event) => {
+    const date = event.timestamp ? new Date(typeof event.timestamp === 'number' ? event.timestamp * 1000 : event.timestamp).toLocaleString('it-IT') : ''
+    return `<article class="security-lock"><span class="mdi-mask" style="${mdiStyle('mdi:history','history')}"></span><div class="security-lock-name"><strong>${esc(event.device_name || event.device_id || 'Serratura')}</strong><small>${esc([event.person || 'Origine non identificata', event.origin, date].filter(Boolean).join(' · '))}</small></div><b>${esc(event.action_name || event.action || 'Evento')}</b></article>`
+  }).join('')
   const sensorCards = sensors.map((device) => {
     const active = stateIsActive(device)
     const icon = device.icon || (device.device_class === 'moisture' ? 'mdi:water-alert' : 'mdi:access-point')
@@ -895,7 +901,7 @@ function renderSecurityDevices(devices) {
     areas: partitions.length ? section('areas', 'Stato aree', areaCards, 'security-area-grid') : '',
     zones: zones.length ? section('zones', 'Zone', zoneCards, 'security-zone-grid') : '',
     sensors: sensors.length ? section('sensors', 'Sensoristica', sensorCards, 'security-zone-grid') : '',
-    locks: locks.length ? `<section class="security-section"><h3>Accessi e portoni</h3><div class="security-zone-grid">${lockCards}</div></section>` : '',
+    locks: `${locks.length ? `<section class="security-section"><h3>Accessi e portoni</h3><div class="security-zone-grid">${lockCards}</div></section>` : ''}${accessCards ? section('accesses', 'Registro accessi', accessCards, 'security-zone-grid') : ''}`,
     cameras: currentSecurityCameras.length ? section('cameras', 'Videocamere', cameraCards, 'security-camera-grid') : ''
   }
   const container = $('#device-list')

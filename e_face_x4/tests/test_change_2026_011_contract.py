@@ -182,6 +182,30 @@ def test_netatmo_climate_exposes_comfort_controls_and_live_values() -> None:
     assert "set_target" in device["allowed_actions"]
 
 
+def test_nuki_lock_exposes_security_battery_commands_and_access_events() -> None:
+    payload = load_fixture()
+    payload["smart_home"]["devices"] = [{
+        "id": "nuki:4D054BEF", "source": "nuki", "device_id": "4D054BEF",
+        "name": "Portoncino Scala", "device_class": "lock", "native_type": "smart_lock",
+        "native_id": "4D054BEF", "capabilities": ["unlock", "lock", "unlatch"],
+        "commands": [{"action": "unlock", "value_type": "none"}, {"action": "lock", "value_type": "none"}],
+        "state": {"state": "locked", "attributes": {"batteryChargeState": "41"}},
+        "available": True, "read_only": False, "stale": False, "orphaned": False,
+        "categories": ["security"], "visible": True,
+    }]
+    payload["access_events"] = {"schema_version": "1.0", "items": [{
+        "device_id": "4D054BEF", "device_name": "Portoncino Scala", "person": "Mario",
+        "action_name": "Sblocco", "origin": "Tastierino",
+    }]}
+
+    normalized = normalize_snapshot(payload)
+    device = normalized["devices"][0]
+    assert device["kind"] == "lock"
+    assert device["battery_percent"] == "41"
+    assert device["allowed_actions"] == ["unlock", "lock", "unlatch"]
+    assert normalized["access_events"][0]["person"] == "Mario"
+
+
 def test_frontend_reconciles_saved_views_and_shortcuts_through_device_aliases() -> None:
     root = Path(__file__).parents[1]
     app_js = (root / "app" / "static" / "assets" / "app.js").read_text(encoding="utf-8")

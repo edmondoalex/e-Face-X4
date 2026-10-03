@@ -19,7 +19,7 @@ SMART_HOME_CLASS_KIND = {
     "temperature_sensor": "temperature", "humidity_sensor": "humidity",
     "illuminance_sensor": "sensor", "environment_sensor": "air",
     "presence": "binary_sensor", "dry_contact": "binary_sensor",
-    "scenario": "button",
+    "scenario": "button", "lock": "lock", "smart_lock": "lock", "opener": "lock",
 }
 SMART_HOME_ACTIONS = {
     "brightness": "level", "set_position": "position", "set_target": "temperature",
@@ -121,6 +121,7 @@ def _normalize_smart_home(payload: dict[str, Any], smart_home: dict[str, Any]) -
         position = state_fields.get("position")
         brightness = state_fields.get("brightness", state_fields.get("level"))
         state_attributes = state_fields.get("attributes") if isinstance(state_fields.get("attributes"), dict) else {}
+        battery = state_attributes.get("batteryChargeState", state_attributes.get("battery_level", state_attributes.get("battery_percentage", state_attributes.get("battery"))))
         current_temperature = state_attributes.get("current_temperature", state_attributes.get("therm_measured_temperature"))
         target_temperature = state_attributes.get("target_temperature", state_attributes.get("therm_setpoint_temperature"))
         if kind == "light": counts["lights"] += 1
@@ -154,6 +155,7 @@ def _normalize_smart_home(payload: dict[str, Any], smart_home: dict[str, Any]) -
             "humidity": state_attributes.get("humidity", state_attributes.get("Humidity")),
             "season": str(state_attributes.get("season") or ""), "mode": str(state_attributes.get("therm_setpoint_mode") or state_attributes.get("mode") or ""),
             "pwm": state_attributes.get("heating_power_request", state_attributes.get("pwm")),
+            "battery_percent": battery if kind == "lock" else None,
             "dimmable": "level" in capabilities, "position_supported": "position" in capabilities,
             "capabilities": capabilities, "commands": commands, "features": features,
             "allowed_actions": (legacy_item.get("allowed_actions") if kind == "lock" and isinstance(legacy_item, dict) else allowed_actions) if not raw.get("read_only") and raw.get("available") and not raw.get("orphaned") else [],
@@ -190,10 +192,12 @@ def _normalize_smart_home(payload: dict[str, Any], smart_home: dict[str, Any]) -
         counts["locks"] += 1
         represented_ids.add(legacy_id)
     mqtt = payload.get("mqtt") if isinstance(payload.get("mqtt"), dict) else {}
+    access_events = payload.get("access_events") if isinstance(payload.get("access_events"), dict) else {}
     return {"devices": normalized, "rooms": sorted(rooms.values(), key=lambda item: item["name"].casefold()),
             "counts": counts, "mqtt_connected": bool(mqtt.get("connected")),
             "smart_home_schema_version": smart_home["schema_version"],
-            "capability_model_version": str(smart_home.get("capability_model_version") or "")}
+            "capability_model_version": str(smart_home.get("capability_model_version") or ""),
+            "access_events": list(access_events.get("items") or []) if access_events.get("schema_version") == "1.0" else []}
 
 
 def normalize_snapshot(payload: dict[str, Any]) -> dict[str, Any]:
